@@ -1,0 +1,166 @@
+"""
+Модели базы данных для FinFocus.
+Основные сущности: Пользователи, Операции, Цели накопления.
+"""
+from datetime import datetime, date
+from decimal import Decimal
+from enum import Enum as PyEnum
+from typing import Optional, List
+
+from sqlalchemy import (
+    create_engine, Column, Integer, String, DateTime, Date,
+    Numeric, Text, Boolean, ForeignKey, Enum
+)
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.sql import func
+
+Base = declarative_base()
+
+
+class TransactionType(PyEnum):
+    """Типы финансовых операций."""
+    INCOME = "income"      # Доход
+    EXPENSE = "expense"    # Расход
+    TRANSFER = "transfer"  # Перевод
+
+
+class GoalStatus(PyEnum):
+    """Статусы накопительных целей."""
+    ACTIVE = "active"      # Активная
+    COMPLETED = "completed"  # Достигнута
+    PAUSED = "paused"      # Приостановлена
+
+
+class User(Base):
+    """Модель пользователя."""
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String(255), unique=True, nullable=False)
+    name = Column(String(100), nullable=False)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Связи
+    transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
+    goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
+
+
+class Transaction(Base):
+    """Модель финансовой операции (доходы/расходы)."""
+    __tablename__ = 'transactions'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    # Основные поля
+    amount = Column(Numeric(10, 2), nullable=False)  # Точность для денег
+    transaction_type = Column(Enum(TransactionType), nullable=False)
+    transaction_date = Column(Date, nullable=False)  # Дата операции
+    description = Column(String(500))
+    category = Column(String(100))  # Категория (на будущее)
+
+    # Повторяющиеся операции (на Батч 2)
+    is_recurring = Column(Boolean, default=False)
+    recurring_period = Column(String(20))  # monthly, weekly, etc.
+
+    # Метаданные
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Связи
+    user = relationship("User", back_populates="transactions")
+
+    def __repr__(self) -> str:
+        return f"<Transaction(id={self.id}, type={self.transaction_type.value}, amount={self.amount})>"
+
+
+class Goal(Base):
+    """Модель накопительной цели."""
+    __tablename__ = 'goals'
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
+    # Основные поля
+    name = Column(String(200), nullable=False)
+    target_amount = Column(Numeric(10, 2), nullable=False)
+    current_amount = Column(Numeric(10, 2), default=0)
+    target_date = Column(Date, nullable=False)
+    status = Column(Enum(GoalStatus), default=GoalStatus.ACTIVE)
+
+    # Настройки накопления
+    monthly_contribution = Column(Numeric(10, 2))  # Расчетный взнос
+    priority = Column(Integer, default=1)  # Приоритет (для Батча 2)
+
+    # Метаданные
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Связи
+    user = relationship("User", back_populates="goals")
+    contributions = relationship("GoalContribution", back_populates="goal", cascade="all, delete-orphan")
+
+    @property
+    def progress_percentage(self) -> float:
+        """Процент выполнения цели."""
+        if self.target_amount == 0:
+            return 0
+        return float(self.current_amount / self.target_amount * 100)
+
+    @property
+    def is_completed(self) -> bool:
+        """Достигнута ли цель."""
+        return self.current_amount >= self.target_amount
+
+    def __repr__(self) -> str:
+        return f"<Goal(id={self.id}, name='{self.name}', progress={self.progress_percentage:.1f}%)>"
+
+
+class GoalContribution(Base):
+    """Модель взноса в накопительную цель."""
+    __tablename__ = 'goal_contributions'
+
+    id = Column(Integer, primary_key=True)
+    goal_id = Column(Integer, ForeignKey('goals.id'), nullable=False)
+
+    # Основные поля
+    amount = Column(Numeric(10, 2), nullable=False)
+    contribution_date = Column(Date, nullable=False)
+    description = Column(String(500))
+
+    # Метаданные
+    created_at = Column(DateTime, default=func.now())
+
+    # Связи
+    goal = relationship("Goal", back_populates="contributions")
+
+    def __repr__(self) -> str:
+        return f"<GoalContribution(id={self.id}, amount={self.amount}, date={self.contribution_date})>"
+
+
+# Настройка базы данных
+def create_database_engine(database_url: str = "sqlite:///data/finfocus.db"):
+    """Создает движок базы данных."""
+    engine = create_engine(database_url, echo=False)
+    return engine
+
+
+def create_tables(engine):
+    """Создает все таблицы в базе данных."""
+    Base.metadata.create_all(engine)
+
+
+def get_session(engine):
+    """Создает сессию для работы с базой данных."""
+    Session = sessionmaker(bind=engine)
+    return Session()
+
+
+# Функции-хелперы для инициализации
+def init_database(database_url: str = "sqlite:///data/finfocus.db"):
+    """Инициализирует базу данных со всеми таблицами."""
+    engine = create_database_engine(database_url)
+    create_tables(engine)
+    return engine

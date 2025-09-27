@@ -1,0 +1,214 @@
+/* FinFocus Custom Styles */
+
+/* === ОБЩИЕ СТИЛИ === */
+:root {
+    --primary-green: #28a745;
+    --light-green: #20c997;
+    --bg-light: #f8f9fa;
+    --text-muted: #6c757d;
+    --border-color: #dee2e6;
+    --shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    --shadow-hover: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-light);
+    color: #333;
+}
+
+/* === SIDEBAR СТИЛИ === */
+.sidebar-nav .nav-link {
+    border-radius: 8px !important;
+    margin-bottom: 4px;
+    transition: all 0.2s ease;
+}
+
+.sidebar-nav .nav-link:hover {
+    background-color: rgba(40, 167, 69, 0.1) !important;
+    color: var(--primary-green) !important;
+}
+
+.sidebar-nav .nav-link.active {
+    background-color: var(--primary-green) !important;
+    color: white !important;
+    box-shadow: var(--shadow);
+}
+
+/* === КАРТОЧКИ === */
+.card {
+    border: none;
+    border-radius: 12px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover) !important;
+}
+
+.card-title {
+    font-weight: 600;
+    color: #495057;
+}
+
+/* Главная карточка с градиентом */
+.balance-card {
+    background: linear-gradient(135deg, var(--primary-green) 0%, var(--light-green) 100%);
+    color: white;
+}
+
+.balance-card .card-title,
+.balance-card .card-subtitle {
+    color: white;
+}
+
+/* === ГРАФИКИ === */
+.plotly-graph-div {
+    border-radius: 8px;
+}
+
+/* Убираем рамку у графиков */
+.js-plotly-plot .plotly .modebar {
+    display: none;
+}
+
+/* === ТАБЛИЦЫ === */
+.table td {
+    border: none;
+    padding: 1rem 0.75rem;
+    vertical-align: middle;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* === КНОПКИ === */
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.btn-success {
+    background-color: var(--primary-green);
+    border-color: var(--primary-green);
+}
+
+.btn-success:hover {
+    background-color: #1e7e34;
+    border-color: #1c7430;
+    transform: translateY(-1px);
+}
+
+/* === БЕЙДЖИ === */
+.badge {
+    font-weight: 500;
+}
+
+/* === АНИМАЦИИ === */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.5s ease;
+}
+
+/* === АДАПТИВНОСТЬ === */
+@media (max-width: 768px) {
+    .sidebar-nav {
+        font-size: 0.9rem;
+    }
+
+    .card-title {
+        font-size: 1.1rem;
+    }
+
+    h1, h2, h3 {
+        font-size: calc(1.2rem + 0.5vw);
+    }
+}
+
+/* === УТИЛИТЫ === */
+.text-gradient {
+    background: linear-gradient(135deg, var(--primary-green), var(--light-green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.bg-gradient-green {
+    background: linear-gradient(135deg, var(--primary-green) 0%, var(--light-green) 100%);
+}
+
+.border-green {
+    border-color: var(--primary-green) !important;
+}
+
+/* === SCROLLBAR === */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--primary-green);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #1e7e34;
+}
+
+/* === ЗАГРУЗОЧНЫЕ СОСТОЯНИЯ === */
+.loading-spinner {
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid var(--primary-green);
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* === ФОКУС И ДОСТУПНОСТЬ === */
+.btn:focus,
+.nav-link:focus {
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}
+
+/* Улучшаем контрастность для доступности */
+.text-muted {
+    color: #495057 !important;
+}
+
+/* === ФИНАЛЬНЫЕ ШТРИХИ === */
+.page-header {
+    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+}
+
+.metric-card-icon {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+}
+
+.transaction-row {
+    border-left: 3px solid transparent;
+    transition: border-color 0.2s ease;
+}
+
+.transaction-row:hover {
+    border-left-color: var(--primary-green);
+}
