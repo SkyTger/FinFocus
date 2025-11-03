@@ -5,11 +5,10 @@
 from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum as PyEnum
-from typing import Optional, List
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, DateTime, Date,
-    Numeric, Text, Boolean, ForeignKey, Enum
+    Numeric, Boolean, ForeignKey, Enum
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
@@ -33,12 +32,20 @@ class GoalStatus(PyEnum):
 
 
 class User(Base):
-    """Модель пользователя."""
+    """Модель пользователя.
+
+    Attributes:
+        starting_balance: Начальный баланс пользователя для расчета кассового календаря.
+            Используется как базовая точка для расчета остатков по формуле:
+            остаток = starting_balance + SUM(доходы) - SUM(расходы) до даты.
+            Может быть отрицательным (долг), по умолчанию = 0.
+    """
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
+    starting_balance = Column(Numeric(10, 2), default=0, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
@@ -91,7 +98,6 @@ class Goal(Base):
     status = Column(Enum(GoalStatus), default=GoalStatus.ACTIVE)
 
     # Настройки накопления
-    monthly_contribution = Column(Numeric(10, 2))  # Расчетный взнос
     priority = Column(Integer, default=1)  # Приоритет (для Батча 2)
 
     # Метаданные
@@ -113,6 +119,36 @@ class Goal(Base):
     def is_completed(self) -> bool:
         """Достигнута ли цель."""
         return self.current_amount >= self.target_amount
+
+    @property
+    def monthly_contribution(self) -> Decimal:
+        """Рассчитывает рекомендуемый ежемесячный взнос для достижения цели.
+
+        Формула: (target_amount - current_amount) / months_remaining
+
+        Returns:
+            Decimal: Рекомендуемый взнос. Возвращает 0 если:
+                - target_date не установлен
+                - target_date в прошлом или сегодня
+                - цель уже достигнута (current >= target)
+        """
+        if not self.target_date:
+            return Decimal('0')
+
+        # Guard clause: deadline в прошлом или сегодня
+        if self.target_date <= date.today():
+            return Decimal('0')
+
+        # Guard clause: цель уже достигнута
+        if self.current_amount >= self.target_amount:
+            return Decimal('0')
+
+        # Рассчитываем months_remaining с минимумом 1 месяц
+        days_remaining = (self.target_date - date.today()).days
+        months_remaining = max(days_remaining / 30, 1)
+
+        remaining_amount = self.target_amount - self.current_amount
+        return remaining_amount / Decimal(months_remaining)
 
     def __repr__(self) -> str:
         return f"<Goal(id={self.id}, name='{self.name}', progress={self.progress_percentage:.1f}%)>"
