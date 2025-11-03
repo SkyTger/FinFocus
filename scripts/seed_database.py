@@ -13,6 +13,7 @@ from app.models.database import (
     User, Transaction, Goal, GoalContribution,
     TransactionType, GoalStatus
 )
+from app.services.goal_service import GoalService
 
 
 def seed_database():
@@ -90,7 +91,7 @@ def seed_database():
             user_id=user.id,
             name="Отпуск в Турции",
             target_amount=Decimal('150000.00'),
-            current_amount=Decimal('30000.00'),
+            current_amount=Decimal('0'),  # Начинаем с 0
             target_date=date.today() + timedelta(days=180),  # Через 6 месяцев
             status=GoalStatus.ACTIVE,
             priority=1
@@ -99,9 +100,20 @@ def seed_database():
         session.flush()
 
         print(f"✅ Создана цель: {goal.name} (ID: {goal.id})")
-        print(f"   Прогресс: {goal.current_amount}/{goal.target_amount} ({goal.progress_percentage:.1f}%)")
 
-        # Создание тестовых взносов в цель
+        # Используем GoalService для добавления взносов
+        goal_service = GoalService(session)
+        goal_service.add_contribution(
+            goal_id=goal.id,
+            amount=Decimal('15000.00')
+        )
+        goal_service.add_contribution(
+            goal_id=goal.id,
+            amount=Decimal('15000.00')
+        )
+        # Теперь goal.current_amount автоматически = 30000
+
+        # Создаем записи GoalContribution с историческими датами для отображения
         contributions = [
             GoalContribution(
                 goal_id=goal.id,
@@ -121,6 +133,7 @@ def seed_database():
             session.add(contribution)
 
         print(f"✅ Создано взносов в цель: {len(contributions)}")
+        print(f"   Прогресс: {goal.current_amount}/{goal.target_amount} ({goal.progress_percentage:.1f}%)")
 
         # Сохранение всех изменений
         session.commit()

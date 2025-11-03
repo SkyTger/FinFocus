@@ -1,5 +1,6 @@
-"""!5@28A=K9 A;>9 ?@8;>65=8O."""
+"""Сервисный слой приложения."""
 
 from .goal_service import GoalService, ValidationError
+from .transaction_service import TransactionService
 
-__all__ = ['GoalService', 'ValidationError']
+__all__ = ['GoalService', 'TransactionService', 'ValidationError']

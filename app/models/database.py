@@ -113,7 +113,8 @@ class Goal(Base):
         """Процент выполнения цели."""
         if self.target_amount == 0:
             return 0
-        return float(self.current_amount / self.target_amount * 100)
+        progress = float(self.current_amount / self.target_amount * 100)
+        return min(progress, 100.0)
 
     @property
     def is_completed(self) -> bool:
