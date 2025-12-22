@@ -322,6 +322,56 @@ engine = init_database()  # Создаст data/finfocus.db и все табли
 
 ---
 
+### Сервисный слой (app/services/)
+
+#### TransactionService
+
+**Ответственность**: CRUD операции для финансовых транзакций
+
+**Публичные методы**:
+1. `create_transaction(user_id, amount, transaction_type, transaction_date, description=None, category=None) -> Transaction`
+   - Валидация: amount > 0, date не более 1 года в будущем
+   - Возвращает: Transaction (не закоммиченный)
+
+2. `get_by_id(transaction_id: int) -> Transaction | None`
+   - Возвращает транзакцию по ID или None
+
+3. `get_all_by_user(user_id: int, transaction_type=None, start_date=None, end_date=None) -> List[Transaction]`
+   - Фильтрация по типу, диапазону дат
+   - Сортировка: transaction_date DESC (новые первыми)
+
+4. `update_transaction(transaction_id, amount=None, transaction_type=None, ...) -> Transaction`
+   - Обновление с валидацией
+   - Поддерживает partial updates
+
+5. `delete_transaction(transaction_id: int) -> bool`
+   - Возвращает True если удалена, False если не найдена
+
+**Валидации**:
+- amount > 0
+- transaction_date не более 1 года в будущем (защита от ошибок ввода)
+- transaction_type из TransactionType enum
+
+**Статус**: ✅ Реализовано (Commit 1211796)
+
+---
+
+#### GoalService (расширен в Фазе 1)
+
+**Добавлены методы**:
+1. `get_by_id(goal_id: int) -> Goal | None`
+2. `get_all_by_user(user_id: int, status: GoalStatus = None) -> List[Goal]`
+3. `update_goal(goal_id, name=None, target_amount=None, target_date=None) -> Goal`
+4. `delete_goal(goal_id: int) -> bool`
+
+**Улучшенная валидация**:
+- target_date >= today + 7 days (минимум неделя для реалистичных накоплений)
+- Понятные ValidationError сообщения с минимальной датой в формате DD.MM.YYYY
+
+**Статус**: ✅ Расширен (Commit 1211796)
+
+---
+
 ### Модуль: Dash Application (`app/main.py`)
 
 #### URL Routing

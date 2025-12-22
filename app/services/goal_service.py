@@ -3,7 +3,7 @@
 from decimal import Decimal
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
-from app.models.database import Goal, GoalStatus
+from models.database import Goal, GoalStatus
 
 
 class ValidationError(Exception):

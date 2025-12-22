@@ -3,7 +3,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from app.models.database import Transaction, TransactionType
+from models.database import Transaction, TransactionType
 
 
 class ValidationError(Exception):

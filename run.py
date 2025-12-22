@@ -14,7 +14,7 @@ if __name__ == "__main__":
     engine = init_database()
     print("✅ База данных готова")
 
-    # Проверка: есть ли данные в БД?
+    # Проверка: есть ли данные в БД?gj
     session = get_session(engine)
     from app.models.database import User
     user_count = session.query(User).count()

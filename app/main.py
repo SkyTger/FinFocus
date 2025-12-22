@@ -11,6 +11,7 @@ import dash_bootstrap_components as dbc
 from models.database import init_database
 from components.dashboard import create_dashboard_layout
 from components.sidebar import create_sidebar
+from components.transactions import create_transactions_layout
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -95,11 +96,8 @@ def display_page(pathname):
         ]), create_page_header("Цели", "Накопительные цели")
 
     elif pathname == "/transactions":
-        # Операции (пока заглушка)
-        return html.Div([
-            html.H2("Операции"),
-            html.P("Здесь будет список всех операций")
-        ]), create_page_header("Операции", "Доходы и расходы")
+        # Страница операций
+        return create_transactions_layout(), create_page_header("Операции", "Управление доходами и расходами")
 
     else:
         # 404 страница
