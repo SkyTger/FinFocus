@@ -33,9 +33,13 @@ def setup_logging(log_dir: str = "logs", level: str = "INFO") -> None:
     )
 
     # File output с ротацией
+    file_format = (
+        "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | "
+        "{name}:{function}:{line} | {message}"
+    )
     logger.add(
         f"{log_dir}/finfocus_{{time:YYYY-MM-DD}}.log",
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name}:{function}:{line} | {message}",
+        format=file_format,
         rotation="1 day",
         retention="7 days",
         level="DEBUG",

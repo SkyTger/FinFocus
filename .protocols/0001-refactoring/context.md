@@ -1,8 +1,8 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: Ready
-- **Last Action Summary**: "Шаг 1 выполнен. Session factory (singleton) создана в app/core/database.py. Логирование через loguru настроено в app/core/logging.py. Все импорты исправлены на абсолютные. Верификация пройдена."
-- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-contracts.md`)."
-- **Git**: "Ветка 0001-refactoring, ожидает коммит шага 1."
+- **Last Action Summary**: "Шаг 2 выполнен. Создан единый ValidationError в app/core/exceptions.py с поддержкой field. Исправлен add_contribution() для создания GoalContribution. Добавлено логирование в сервисы. Верификация пройдена."
+- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-deduplication.md`)."
+- **Git**: "Ветка 0001-refactoring, ожидает коммит шага 2."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/1"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0001-refactoring`

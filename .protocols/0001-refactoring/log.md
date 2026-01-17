@@ -4,6 +4,45 @@
 
 ---
 
+## Restore context: protocol-0001#ctx-4
+
+---
+
+## [2026-01-17] Шаг 2: Унификация контрактов — ValidationError + add_contribution
+
+**Выполнено**:
+1. ✅ Создан `app/core/exceptions.py` с единым классом `ValidationError`
+   - Поддержка атрибута `field` для подсветки ошибок в UI
+   - Переопределён `__str__` для форматированного вывода
+2. ✅ Обновлён `app/core/__init__.py` — добавлен экспорт `ValidationError`
+3. ✅ Обновлён `app/services/transaction_service.py`:
+   - Удалён локальный класс `ValidationError`
+   - Добавлен импорт из `app.core`
+   - Добавлено логирование через loguru (create/update/delete)
+   - Обновлены type hints на `str | None` (Python 3.12)
+   - Использован `session.get()` вместо `session.query().get()` (SQLAlchemy 2.0)
+4. ✅ Обновлён `app/services/goal_service.py`:
+   - Удалён локальный класс `ValidationError`
+   - **Исправлен `add_contribution()`** — теперь создаёт `GoalContribution` (data integrity!)
+   - Добавлено логирование через loguru
+   - Добавлены параметры `contribution_date` и `description`
+5. ✅ Обновлён `app/services/__init__.py` — экспорт `ValidationError` из `app.core`
+
+**Дополнительные исправления**:
+- Исправлена длинная строка в `app/core/logging.py` (flake8 E501)
+- Все длинные строки в сервисах разбиты для соответствия flake8
+
+**Верификация**:
+- `py_compile` — ✅ все файлы валидны
+- `black --check` — ✅ форматирование корректно
+- `flake8` — ✅ без ошибок
+- REPL тест: `VE_core is VE_services` — ✅ True (один класс)
+- Запуск приложения — ✅ успешно
+
+**Файлы изменены**: 6 файлов (1 новый + 5 модифицированных)
+
+---
+
 ## Restore context: protocol-0001#ctx-3
 
 ---
