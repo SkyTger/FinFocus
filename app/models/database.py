@@ -2,7 +2,7 @@
 Модели базы данных для FinFocus.
 Основные сущности: Пользователи, Операции, Цели накопления.
 """
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 from enum import Enum as PyEnum
 
@@ -16,6 +16,7 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     Enum,
+    Index,
 )
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -69,6 +70,9 @@ class Transaction(Base):
     """Модель финансовой операции (доходы/расходы)."""
 
     __tablename__ = "transactions"
+    __table_args__ = (
+        Index("ix_transactions_user_date", "user_id", "transaction_date"),
+    )
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -92,7 +96,10 @@ class Transaction(Base):
     user = relationship("User", back_populates="transactions")
 
     def __repr__(self) -> str:
-        return f"<Transaction(id={self.id}, type={self.transaction_type.value}, amount={self.amount})>"
+        return (
+            f"<Transaction(id={self.id}, "
+            f"type={self.transaction_type.value}, amount={self.amount})>"
+        )
 
 
 class Goal(Base):
@@ -190,4 +197,7 @@ class GoalContribution(Base):
     goal = relationship("Goal", back_populates="contributions")
 
     def __repr__(self) -> str:
-        return f"<GoalContribution(id={self.id}, amount={self.amount}, date={self.contribution_date})>"
+        return (
+            f"<GoalContribution(id={self.id}, "
+            f"amount={self.amount}, date={self.contribution_date})>"
+        )

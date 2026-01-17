@@ -4,6 +4,33 @@
 
 ---
 
+## Restore context: protocol-0001#ctx-7
+
+---
+
+## [2026-01-17] Шаг 5: Обновление API и cleanup
+
+**Выполнено**:
+1. ✅ Добавлен импорт `Index` в database.py
+2. ✅ Добавлен составной индекс `ix_transactions_user_date` на (user_id, transaction_date) в Transaction
+3. ✅ Удалён неиспользуемый импорт `datetime` из database.py (F401)
+4. ✅ Исправлены длинные строки в `__repr__` методах Transaction и GoalContribution (E501)
+5. ✅ Удалён дублирующий блок `if __name__ == "__main__"` из main.py (запуск через run.py)
+6. ✅ Удалён неиспользуемый импорт `os` из main.py
+
+**Примечание**: Сервисы (transaction_service.py, goal_service.py) уже используют `session.get()` — изменения не требовались (выполнено на предыдущих шагах).
+
+**Верификация**:
+- `py_compile` — ✅ синтаксис валиден
+- `black --check` — ✅ форматирование корректно
+- `flake8` — ✅ без ошибок
+- `grep "query.*\.get("` — ✅ устаревший API не используется
+- Запуск приложения — ✅ инициализация успешна
+
+**Файлы изменены**: 2 (`app/models/database.py`, `app/main.py`)
+
+---
+
 ## Restore context: protocol-0001#ctx-6
 
 ---

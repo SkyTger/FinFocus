@@ -1,7 +1,6 @@
 """
 Главное приложение FinFocus - планировщик бюджета.
 """
-import os
 from dotenv import load_dotenv
 
 import dash
@@ -122,11 +121,3 @@ def create_page_header(title: str, subtitle: str = ""):
             html.Hr(),
         ]
     )
-
-
-if __name__ == "__main__":
-    # Настройки для разработки
-    debug = os.getenv("DEBUG", "True").lower() == "true"
-    port = int(os.getenv("PORT", 8050))
-
-    app.run_server(debug=debug, port=port, host="0.0.0.0")  # Доступ извне (для Docker)

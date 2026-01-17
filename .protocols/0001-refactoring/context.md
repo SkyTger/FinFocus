@@ -1,8 +1,8 @@
-- **Current Step**: 5
+- **Current Step**: 6
 - **Status**: Ready
-- **Last Action Summary**: "Шаг 4 выполнен. Добавлен Alert для ValidationError, создана функция parse_date_safe(), обновлены callbacks create/update_transaction."
-- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-api-cleanup.md`)."
-- **Git**: "Ветка 0001-refactoring, ожидает коммит шага 4."
+- **Last Action Summary**: "Шаг 5 выполнен. Добавлен индекс в Transaction, удалены неиспользуемые импорты, удалён дублирующий блок запуска из main.py."
+- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-finalize.md`)."
+- **Git**: "Ветка 0001-refactoring, ожидает коммит шага 5."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/1"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0001-refactoring`
