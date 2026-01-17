@@ -4,6 +4,35 @@
 
 ---
 
+## Restore context: protocol-0001#ctx-5
+
+---
+
+## [2026-01-17] Шаг 3: Устранение дублирования — _build_transactions_table
+
+**Выполнено**:
+1. ✅ Создана функция `_build_transactions_table(transactions)` для формирования HTML таблицы
+2. ✅ Обновлены импорты:
+   - `from loguru import logger`
+   - `from app.core import get_db_session, ValidationError`
+   - `from app.services import TransactionService`
+3. ✅ Рефакторинг `load_transactions()` — сокращён с ~120 до ~10 строк
+4. ✅ Рефакторинг `create_transaction()` — сокращён с ~160 до ~50 строк
+5. ✅ Рефакторинг `update_transaction()` — сокращён с ~150 до ~45 строк
+6. ✅ Рефакторинг `delete_transaction()` — сокращён с ~130 до ~30 строк
+7. ✅ Добавлено логирование во все callbacks (logger.debug/info/warning)
+
+**Статистика**:
+- Строк удалено: **~330** (было ~994, стало 666)
+- Файлов изменено: 1 (`app/components/transactions.py`)
+
+**Верификация**:
+- `py_compile` — ✅ синтаксис валиден
+- `black --check` — ✅ форматирование корректно
+- `flake8` — ✅ без ошибок
+
+---
+
 ## Restore context: protocol-0001#ctx-4
 
 ---

@@ -8,9 +8,11 @@ import dash_bootstrap_components as dbc
 from dash import html, dcc, callback, Input, Output, State, ALL, ctx
 from dash.exceptions import PreventUpdate
 
-from app.core import get_db_session
+from loguru import logger
+
+from app.core import get_db_session, ValidationError
 from app.models.database import TransactionType
-from app.services.transaction_service import TransactionService, ValidationError
+from app.services import TransactionService
 
 
 def format_amount(amount: Decimal) -> str:
@@ -35,6 +37,101 @@ def format_date(date_obj: date) -> str:
         str: Дата в формате DD.MM.YYYY
     """
     return date_obj.strftime("%d.%m.%Y")
+
+
+def _build_transactions_table(transactions: list) -> list:
+    """Формирует HTML таблицу транзакций.
+
+    Args:
+        transactions: Список объектов Transaction
+
+    Returns:
+        list: [thead, tbody] для dbc.Table
+    """
+    # Заголовок таблицы
+    table_header = html.Thead(
+        [
+            html.Tr(
+                [
+                    html.Th("Дата"),
+                    html.Th("Тип"),
+                    html.Th("Сумма", className="text-end"),
+                    html.Th("Описание"),
+                    html.Th("Действия", className="text-end"),
+                ]
+            )
+        ]
+    )
+
+    # Пустая таблица
+    if not transactions:
+        return [
+            table_header,
+            html.Tbody(
+                [
+                    html.Tr(
+                        [
+                            html.Td(
+                                "Нет операций",
+                                colSpan=5,
+                                className="text-center text-muted",
+                            )
+                        ]
+                    )
+                ]
+            ),
+        ]
+
+    # Строки таблицы
+    table_rows = []
+    for tx in transactions:
+        # Определяем стиль для типа операции
+        if tx.transaction_type == TransactionType.INCOME:
+            type_badge = dbc.Badge("Доход", color="success", className="rounded-pill")
+            amount_class = "text-success fw-bold text-end"
+            amount_prefix = "+"
+        else:
+            type_badge = dbc.Badge("Расход", color="danger", className="rounded-pill")
+            amount_class = "text-danger fw-bold text-end"
+            amount_prefix = "-"
+
+        row = html.Tr(
+            [
+                html.Td(format_date(tx.transaction_date)),
+                html.Td(type_badge),
+                html.Td(
+                    f"{amount_prefix}{format_amount(tx.amount)}", className=amount_class
+                ),
+                html.Td(tx.description or "-", className="text-muted"),
+                html.Td(
+                    [
+                        dbc.ButtonGroup(
+                            [
+                                dbc.Button(
+                                    html.I(className="bi bi-pencil"),
+                                    id={"type": "edit-btn", "index": tx.id},
+                                    color="secondary",
+                                    size="sm",
+                                    outline=True,
+                                    className="me-1",
+                                ),
+                                dbc.Button(
+                                    html.I(className="bi bi-trash"),
+                                    id={"type": "delete-btn", "index": tx.id},
+                                    color="danger",
+                                    size="sm",
+                                    outline=True,
+                                ),
+                            ]
+                        )
+                    ],
+                    className="text-end",
+                ),
+            ]
+        )
+        table_rows.append(row)
+
+    return [table_header, html.Tbody(table_rows)]
 
 
 def create_transactions_layout():
@@ -184,7 +281,7 @@ def create_transactions_layout():
                                         [
                                             dbc.Textarea(
                                                 id="create-description-input",
-                                                placeholder="Введите описание (опционально)",
+                                                placeholder="Описание (опционально)",
                                                 rows=3,
                                             )
                                         ],
@@ -340,123 +437,15 @@ def create_transactions_layout():
 
 @callback(Output("transactions-table", "children"), Input("url", "pathname"))
 def load_transactions(pathname):
-    """Загружает список операций из БД.
-
-    Returns:
-        list: Строки таблицы с операциями
-    """
+    """Загружает список операций из БД."""
     if pathname != "/transactions":
         raise PreventUpdate
 
-    # Получаем сессию БД через context manager
     with get_db_session() as session:
-        # Загружаем операции для user_id=1 (hardcode для MVP)
         service = TransactionService(session)
         transactions = service.get_all_by_user(user_id=1)
-
-        # Формируем строки таблицы
-        if not transactions:
-            return [
-                html.Thead(
-                    [
-                        html.Tr(
-                            [
-                                html.Th("Дата"),
-                                html.Th("Тип"),
-                                html.Th("Сумма"),
-                                html.Th("Описание"),
-                                html.Th("Действия", className="text-end"),
-                            ]
-                        )
-                    ]
-                ),
-                html.Tbody(
-                    [
-                        html.Tr(
-                            [
-                                html.Td(
-                                    "Нет операций",
-                                    colSpan=5,
-                                    className="text-center text-muted",
-                                )
-                            ]
-                        )
-                    ]
-                ),
-            ]
-
-        # Создаем заголовок таблицы
-        table_header = html.Thead(
-            [
-                html.Tr(
-                    [
-                        html.Th("Дата"),
-                        html.Th("Тип"),
-                        html.Th("Сумма", className="text-end"),
-                        html.Th("Описание"),
-                        html.Th("Действия", className="text-end"),
-                    ]
-                )
-            ]
-        )
-
-        # Создаем строки для каждой транзакции
-        table_rows = []
-        for tx in transactions:
-            # Определяем цвет для типа операции
-            if tx.transaction_type == TransactionType.INCOME:
-                type_badge = dbc.Badge(
-                    "Доход", color="success", className="rounded-pill"
-                )
-                amount_class = "text-success fw-bold text-end"
-                amount_prefix = "+"
-            else:
-                type_badge = dbc.Badge(
-                    "Расход", color="danger", className="rounded-pill"
-                )
-                amount_class = "text-danger fw-bold text-end"
-                amount_prefix = "-"
-
-            row = html.Tr(
-                [
-                    html.Td(format_date(tx.transaction_date)),
-                    html.Td(type_badge),
-                    html.Td(
-                        f"{amount_prefix}{format_amount(tx.amount)}",
-                        className=amount_class,
-                    ),
-                    html.Td(tx.description or "-", className="text-muted"),
-                    html.Td(
-                        [
-                            dbc.ButtonGroup(
-                                [
-                                    dbc.Button(
-                                        html.I(className="bi bi-pencil"),
-                                        id={"type": "edit-btn", "index": tx.id},
-                                        color="secondary",
-                                        size="sm",
-                                        outline=True,
-                                        className="me-1",
-                                    ),
-                                    dbc.Button(
-                                        html.I(className="bi bi-trash"),
-                                        id={"type": "delete-btn", "index": tx.id},
-                                        color="danger",
-                                        size="sm",
-                                        outline=True,
-                                    ),
-                                ]
-                            )
-                        ],
-                        className="text-end",
-                    ),
-                ]
-            )
-            table_rows.append(row)
-
-        table_body = html.Tbody(table_rows)
-
-        return [table_header, table_body]
+        logger.debug(f"Загружено {len(transactions)} транзакций")
+        return _build_transactions_table(transactions)
 
 
 @callback(
@@ -502,143 +491,38 @@ def toggle_create_modal(add_clicks, cancel_clicks, is_open):
     prevent_initial_call=True,
 )
 def create_transaction(n_clicks, amount, transaction_type, date_str, description):
-    """Создает новую транзакцию через TransactionService.
-
-    Returns:
-        tuple: (is_open=False, обновленная таблица, очищенные поля формы)
-    """
+    """Создает новую транзакцию через TransactionService."""
     if not n_clicks or not amount:
         raise PreventUpdate
 
-    # Получаем сессию БД через context manager
+    try:
+        transaction_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        logger.error(f"Ошибка парсинга даты: {date_str}")
+        raise PreventUpdate
+
     try:
         with get_db_session() as session:
-            # Конвертируем строку даты в объект date
-            transaction_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-
-            # Создаем транзакцию
             service = TransactionService(session)
             service.create_transaction(
-                user_id=1,  # Hardcode для MVP
+                user_id=1,
                 amount=Decimal(str(amount)),
                 transaction_type=TransactionType[transaction_type],
                 transaction_date=transaction_date,
                 description=description if description else None,
             )
-
-            # commit происходит автоматически при выходе из context manager
-
-            # Загружаем обновленный список транзакций
             transactions = service.get_all_by_user(user_id=1)
-
-            # Формируем обновленную таблицу (код идентичен load_transactions)
-            if not transactions:
-                updated_table = [
-                    html.Thead(
-                        [
-                            html.Tr(
-                                [
-                                    html.Th("Дата"),
-                                    html.Th("Тип"),
-                                    html.Th("Сумма"),
-                                    html.Th("Описание"),
-                                    html.Th("Действия", className="text-end"),
-                                ]
-                            )
-                        ]
-                    ),
-                    html.Tbody(
-                        [
-                            html.Tr(
-                                [
-                                    html.Td(
-                                        "Нет операций",
-                                        colSpan=5,
-                                        className="text-center text-muted",
-                                    )
-                                ]
-                            )
-                        ]
-                    ),
-                ]
-            else:
-                table_header = html.Thead(
-                    [
-                        html.Tr(
-                            [
-                                html.Th("Дата"),
-                                html.Th("Тип"),
-                                html.Th("Сумма", className="text-end"),
-                                html.Th("Описание"),
-                                html.Th("Действия", className="text-end"),
-                            ]
-                        )
-                    ]
-                )
-
-                table_rows = []
-                for tx in transactions:
-                    if tx.transaction_type == TransactionType.INCOME:
-                        type_badge = dbc.Badge(
-                            "Доход", color="success", className="rounded-pill"
-                        )
-                        amount_class = "text-success fw-bold text-end"
-                        amount_prefix = "+"
-                    else:
-                        type_badge = dbc.Badge(
-                            "Расход", color="danger", className="rounded-pill"
-                        )
-                        amount_class = "text-danger fw-bold text-end"
-                        amount_prefix = "-"
-
-                    row = html.Tr(
-                        [
-                            html.Td(format_date(tx.transaction_date)),
-                            html.Td(type_badge),
-                            html.Td(
-                                f"{amount_prefix}{format_amount(tx.amount)}",
-                                className=amount_class,
-                            ),
-                            html.Td(tx.description or "-", className="text-muted"),
-                            html.Td(
-                                [
-                                    dbc.ButtonGroup(
-                                        [
-                                            dbc.Button(
-                                                html.I(className="bi bi-pencil"),
-                                                id={"type": "edit-btn", "index": tx.id},
-                                                color="secondary",
-                                                size="sm",
-                                                outline=True,
-                                                className="me-1",
-                                            ),
-                                            dbc.Button(
-                                                html.I(className="bi bi-trash"),
-                                                id={
-                                                    "type": "delete-btn",
-                                                    "index": tx.id,
-                                                },
-                                                color="danger",
-                                                size="sm",
-                                                outline=True,
-                                            ),
-                                        ]
-                                    )
-                                ],
-                                className="text-end",
-                            ),
-                        ]
-                    )
-                    table_rows.append(row)
-
-                updated_table = [table_header, html.Tbody(table_rows)]
-
-            # Закрываем модал и очищаем форму
-            return False, updated_table, None, "EXPENSE", date.today().isoformat(), ""
-
-    except ValidationError:
-        # Пока не закрываем модал при ошибке валидации
-        # TODO: Добавить отображение ошибки пользователю
+            logger.info(f"Создана транзакция: {transaction_type} {amount}")
+            return (
+                False,
+                _build_transactions_table(transactions),
+                None,
+                "EXPENSE",
+                date.today().isoformat(),
+                "",
+            )
+    except ValidationError as e:
+        logger.warning(f"Ошибка валидации при создании: {e}")
         raise PreventUpdate
 
 
@@ -683,7 +567,6 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
     if not transaction_id:
         raise PreventUpdate
 
-    # Загружаем данные транзакции через context manager
     with get_db_session() as session:
         service = TransactionService(session)
         tx = service.get_by_id(transaction_id)
@@ -691,6 +574,7 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
         if not tx:
             raise PreventUpdate
 
+        logger.debug(f"Открыт модал редактирования для транзакции {transaction_id}")
         return (
             True,
             transaction_id,
@@ -723,13 +607,14 @@ def update_transaction(
     if not n_clicks or not transaction_id:
         raise PreventUpdate
 
-    # Получаем сессию БД через context manager
+    try:
+        transaction_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        logger.error(f"Ошибка парсинга даты при обновлении: {date_str}")
+        raise PreventUpdate
+
     try:
         with get_db_session() as session:
-            # Конвертируем строку даты в объект date
-            transaction_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-
-            # Обновляем транзакцию
             service = TransactionService(session)
             service.update_transaction(
                 transaction_id=transaction_id,
@@ -738,119 +623,11 @@ def update_transaction(
                 transaction_date=transaction_date,
                 description=description if description else None,
             )
-
-            # commit происходит автоматически при выходе из context manager
-
-            # Загружаем обновленный список транзакций
             transactions = service.get_all_by_user(user_id=1)
-
-            # Формируем обновленную таблицу
-            if not transactions:
-                updated_table = [
-                    html.Thead(
-                        [
-                            html.Tr(
-                                [
-                                    html.Th("Дата"),
-                                    html.Th("Тип"),
-                                    html.Th("Сумма"),
-                                    html.Th("Описание"),
-                                    html.Th("Действия", className="text-end"),
-                                ]
-                            )
-                        ]
-                    ),
-                    html.Tbody(
-                        [
-                            html.Tr(
-                                [
-                                    html.Td(
-                                        "Нет операций",
-                                        colSpan=5,
-                                        className="text-center text-muted",
-                                    )
-                                ]
-                            )
-                        ]
-                    ),
-                ]
-            else:
-                table_header = html.Thead(
-                    [
-                        html.Tr(
-                            [
-                                html.Th("Дата"),
-                                html.Th("Тип"),
-                                html.Th("Сумма", className="text-end"),
-                                html.Th("Описание"),
-                                html.Th("Действия", className="text-end"),
-                            ]
-                        )
-                    ]
-                )
-
-                table_rows = []
-                for tx in transactions:
-                    if tx.transaction_type == TransactionType.INCOME:
-                        type_badge = dbc.Badge(
-                            "Доход", color="success", className="rounded-pill"
-                        )
-                        amount_class = "text-success fw-bold text-end"
-                        amount_prefix = "+"
-                    else:
-                        type_badge = dbc.Badge(
-                            "Расход", color="danger", className="rounded-pill"
-                        )
-                        amount_class = "text-danger fw-bold text-end"
-                        amount_prefix = "-"
-
-                    row = html.Tr(
-                        [
-                            html.Td(format_date(tx.transaction_date)),
-                            html.Td(type_badge),
-                            html.Td(
-                                f"{amount_prefix}{format_amount(tx.amount)}",
-                                className=amount_class,
-                            ),
-                            html.Td(tx.description or "-", className="text-muted"),
-                            html.Td(
-                                [
-                                    dbc.ButtonGroup(
-                                        [
-                                            dbc.Button(
-                                                html.I(className="bi bi-pencil"),
-                                                id={"type": "edit-btn", "index": tx.id},
-                                                color="secondary",
-                                                size="sm",
-                                                outline=True,
-                                                className="me-1",
-                                            ),
-                                            dbc.Button(
-                                                html.I(className="bi bi-trash"),
-                                                id={
-                                                    "type": "delete-btn",
-                                                    "index": tx.id,
-                                                },
-                                                color="danger",
-                                                size="sm",
-                                                outline=True,
-                                            ),
-                                        ]
-                                    )
-                                ],
-                                className="text-end",
-                            ),
-                        ]
-                    )
-                    table_rows.append(row)
-
-                updated_table = [table_header, html.Tbody(table_rows)]
-
-            # Закрываем модал
-            return False, updated_table
-
-    except ValidationError:
-        # Пока не закрываем модал при ошибке
+            logger.info(f"Обновлена транзакция {transaction_id}")
+            return False, _build_transactions_table(transactions)
+    except ValidationError as e:
+        logger.warning(f"Ошибка валидации при обновлении: {e}")
         raise PreventUpdate
 
 
@@ -861,10 +638,8 @@ def update_transaction(
 )
 def delete_transaction(n_clicks_list):
     """Удаляет транзакцию через TransactionService."""
-    # Проверяем какая кнопка была нажата
     triggered_id = ctx.triggered_id
 
-    # Если ничего не нажато (initial render или обновление таблицы)
     if not triggered_id:
         raise PreventUpdate
 
@@ -879,115 +654,13 @@ def delete_transaction(n_clicks_list):
     if not transaction_id:
         raise PreventUpdate
 
-    # Получаем сессию БД через context manager
     with get_db_session() as session:
-        # Удаляем транзакцию
         service = TransactionService(session)
         deleted = service.delete_transaction(transaction_id)
 
         if not deleted:
             raise PreventUpdate
 
-        # commit происходит автоматически при выходе из context manager
-
-        # Загружаем обновленный список транзакций
         transactions = service.get_all_by_user(user_id=1)
-
-        # Формируем обновленную таблицу
-        if not transactions:
-            return [
-                html.Thead(
-                    [
-                        html.Tr(
-                            [
-                                html.Th("Дата"),
-                                html.Th("Тип"),
-                                html.Th("Сумма"),
-                                html.Th("Описание"),
-                                html.Th("Действия", className="text-end"),
-                            ]
-                        )
-                    ]
-                ),
-                html.Tbody(
-                    [
-                        html.Tr(
-                            [
-                                html.Td(
-                                    "Нет операций",
-                                    colSpan=5,
-                                    className="text-center text-muted",
-                                )
-                            ]
-                        )
-                    ]
-                ),
-            ]
-
-        table_header = html.Thead(
-            [
-                html.Tr(
-                    [
-                        html.Th("Дата"),
-                        html.Th("Тип"),
-                        html.Th("Сумма", className="text-end"),
-                        html.Th("Описание"),
-                        html.Th("Действия", className="text-end"),
-                    ]
-                )
-            ]
-        )
-
-        table_rows = []
-        for tx in transactions:
-            if tx.transaction_type == TransactionType.INCOME:
-                type_badge = dbc.Badge(
-                    "Доход", color="success", className="rounded-pill"
-                )
-                amount_class = "text-success fw-bold text-end"
-                amount_prefix = "+"
-            else:
-                type_badge = dbc.Badge(
-                    "Расход", color="danger", className="rounded-pill"
-                )
-                amount_class = "text-danger fw-bold text-end"
-                amount_prefix = "-"
-
-            row = html.Tr(
-                [
-                    html.Td(format_date(tx.transaction_date)),
-                    html.Td(type_badge),
-                    html.Td(
-                        f"{amount_prefix}{format_amount(tx.amount)}",
-                        className=amount_class,
-                    ),
-                    html.Td(tx.description or "-", className="text-muted"),
-                    html.Td(
-                        [
-                            dbc.ButtonGroup(
-                                [
-                                    dbc.Button(
-                                        html.I(className="bi bi-pencil"),
-                                        id={"type": "edit-btn", "index": tx.id},
-                                        color="secondary",
-                                        size="sm",
-                                        outline=True,
-                                        className="me-1",
-                                    ),
-                                    dbc.Button(
-                                        html.I(className="bi bi-trash"),
-                                        id={"type": "delete-btn", "index": tx.id},
-                                        color="danger",
-                                        size="sm",
-                                        outline=True,
-                                    ),
-                                ]
-                            )
-                        ],
-                        className="text-end",
-                    ),
-                ]
-            )
-            table_rows.append(row)
-
-        return [table_header, html.Tbody(table_rows)]
+        logger.info(f"Удалена транзакция {transaction_id}")
+        return _build_transactions_table(transactions)
