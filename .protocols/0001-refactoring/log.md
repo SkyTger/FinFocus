@@ -4,6 +4,34 @@
 
 ---
 
+## Restore context: protocol-0001#ctx-6
+
+---
+
+## [2026-01-17] Шаг 4: Обработка ошибок — Alert для ValidationError
+
+**Выполнено**:
+1. ✅ Добавлен импорт `no_update` из dash
+2. ✅ Создана функция `parse_date_safe(date_str)` для безопасного парсинга дат
+3. ✅ Добавлен компонент `dbc.Alert(id="transaction-error-alert")` в layout
+   - `dismissable=True` — можно закрыть вручную
+   - `duration=5000` — автозакрытие через 5 сек
+4. ✅ Обновлён `create_transaction()` callback:
+   - Добавлены 2 Output для Alert (children, is_open)
+   - Используется `parse_date_safe()` вместо try/except
+   - ValidationError показывается в Alert вместо silent PreventUpdate
+5. ✅ Обновлён `update_transaction()` callback аналогично
+
+**Верификация**:
+- `py_compile` — ✅ синтаксис валиден
+- `black --check` — ✅ форматирование корректно
+- `flake8` — ⚠️ E501 (длинные строки) — существующие проблемы, не новые
+- Запуск приложения — ✅ инициализация успешна
+
+**Файлы изменены**: 1 (`app/components/transactions.py`)
+
+---
+
 ## Restore context: protocol-0001#ctx-5
 
 ---

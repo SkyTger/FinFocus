@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ALL, ctx
+from dash import html, dcc, callback, Input, Output, State, ALL, ctx, no_update
 from dash.exceptions import PreventUpdate
 
 from loguru import logger
@@ -37,6 +37,24 @@ def format_date(date_obj: date) -> str:
         str: Дата в формате DD.MM.YYYY
     """
     return date_obj.strftime("%d.%m.%Y")
+
+
+def parse_date_safe(date_str: str) -> date | None:
+    """Безопасно парсит строку даты.
+
+    Args:
+        date_str: Дата в формате YYYY-MM-DD
+
+    Returns:
+        date | None: Объект date или None при ошибке
+    """
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError) as e:
+        logger.error(f"Ошибка парсинга даты '{date_str}': {e}")
+        return None
 
 
 def _build_transactions_table(transactions: list) -> list:
@@ -166,6 +184,15 @@ def create_transactions_layout():
                     ),
                 ],
                 className="d-flex justify-content-between align-items-center mb-4",
+            ),
+            # Alert для ошибок валидации
+            dbc.Alert(
+                id="transaction-error-alert",
+                is_open=False,
+                color="danger",
+                dismissable=True,
+                duration=5000,  # Автозакрытие через 5 сек
+                className="mb-3",
             ),
             # Таблица операций
             dbc.Card(
@@ -480,6 +507,8 @@ def toggle_create_modal(add_clicks, cancel_clicks, is_open):
         Output("create-type-select", "value"),
         Output("create-date-picker", "date"),
         Output("create-description-input", "value"),
+        Output("transaction-error-alert", "children", allow_duplicate=True),
+        Output("transaction-error-alert", "is_open", allow_duplicate=True),
     ],
     Input("create-submit-btn", "n_clicks"),
     [
@@ -495,11 +524,19 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
     if not n_clicks or not amount:
         raise PreventUpdate
 
-    try:
-        transaction_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        logger.error(f"Ошибка парсинга даты: {date_str}")
-        raise PreventUpdate
+    # Безопасный парсинг даты
+    transaction_date = parse_date_safe(date_str)
+    if not transaction_date:
+        return (
+            True,  # Модал остаётся открытым
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            "Неверный формат даты",
+            True,  # Показать Alert
+        )
 
     try:
         with get_db_session() as session:
@@ -513,6 +550,7 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
             )
             transactions = service.get_all_by_user(user_id=1)
             logger.info(f"Создана транзакция: {transaction_type} {amount}")
+            # Успех: закрываем модал, очищаем форму, скрываем Alert
             return (
                 False,
                 _build_transactions_table(transactions),
@@ -520,10 +558,21 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
                 "EXPENSE",
                 date.today().isoformat(),
                 "",
+                "",
+                False,
             )
     except ValidationError as e:
         logger.warning(f"Ошибка валидации при создании: {e}")
-        raise PreventUpdate
+        return (
+            True,  # Модал остаётся открытым
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            str(e),  # Текст ошибки
+            True,  # Показать Alert
+        )
 
 
 @callback(
@@ -589,6 +638,8 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
     [
         Output("edit-modal", "is_open", allow_duplicate=True),
         Output("transactions-table", "children", allow_duplicate=True),
+        Output("transaction-error-alert", "children", allow_duplicate=True),
+        Output("transaction-error-alert", "is_open", allow_duplicate=True),
     ],
     Input("edit-submit-btn", "n_clicks"),
     [
@@ -607,11 +658,10 @@ def update_transaction(
     if not n_clicks or not transaction_id:
         raise PreventUpdate
 
-    try:
-        transaction_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except (ValueError, TypeError):
-        logger.error(f"Ошибка парсинга даты при обновлении: {date_str}")
-        raise PreventUpdate
+    # Безопасный парсинг даты
+    transaction_date = parse_date_safe(date_str)
+    if not transaction_date:
+        return True, no_update, "Неверный формат даты", True
 
     try:
         with get_db_session() as session:
@@ -625,10 +675,10 @@ def update_transaction(
             )
             transactions = service.get_all_by_user(user_id=1)
             logger.info(f"Обновлена транзакция {transaction_id}")
-            return False, _build_transactions_table(transactions)
+            return False, _build_transactions_table(transactions), "", False
     except ValidationError as e:
         logger.warning(f"Ошибка валидации при обновлении: {e}")
-        raise PreventUpdate
+        return True, no_update, str(e), True
 
 
 @callback(

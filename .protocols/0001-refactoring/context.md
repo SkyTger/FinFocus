@@ -1,8 +1,8 @@
-- **Current Step**: 4
+- **Current Step**: 5
 - **Status**: Ready
-- **Last Action Summary**: "Шаг 3 выполнен. Создана функция _build_transactions_table(). Удалено ~330 строк дублирующегося кода. Добавлено логирование. Верификация пройдена."
-- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-error-display.md`)."
-- **Git**: "Ветка 0001-refactoring, ожидает коммит шага 3."
+- **Last Action Summary**: "Шаг 4 выполнен. Добавлен Alert для ValidationError, создана функция parse_date_safe(), обновлены callbacks create/update_transaction."
+- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-api-cleanup.md`)."
+- **Git**: "Ветка 0001-refactoring, ожидает коммит шага 4."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/1"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0001-refactoring`
