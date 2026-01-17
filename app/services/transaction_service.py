@@ -3,11 +3,12 @@
 from datetime import date, timedelta
 from decimal import Decimal
 from sqlalchemy.orm import Session
-from models.database import Transaction, TransactionType
+from app.models.database import Transaction, TransactionType
 
 
 class ValidationError(Exception):
     """Ошибка валидации бизнес-правил."""
+
     pass
 
 
@@ -29,7 +30,7 @@ class TransactionService:
         transaction_type: TransactionType,
         transaction_date: date,
         description: str = None,
-        category: str = None
+        category: str = None,
     ) -> Transaction:
         """Создает новую транзакцию с валидацией бизнес-правил.
 
@@ -67,7 +68,7 @@ class TransactionService:
             transaction_type=transaction_type,
             transaction_date=transaction_date,
             description=description,
-            category=category
+            category=category,
         )
 
         self.session.add(transaction)
@@ -91,7 +92,7 @@ class TransactionService:
         user_id: int,
         transaction_type: TransactionType = None,
         start_date: date = None,
-        end_date: date = None
+        end_date: date = None,
     ) -> list[Transaction]:
         """Получает все транзакции пользователя с фильтрацией.
 
@@ -124,7 +125,7 @@ class TransactionService:
         transaction_type: TransactionType = None,
         transaction_date: date = None,
         description: str = None,
-        category: str = None
+        category: str = None,
     ) -> Transaction:
         """Обновляет существующую транзакцию.
 

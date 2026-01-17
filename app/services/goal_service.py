@@ -3,11 +3,12 @@
 from decimal import Decimal
 from datetime import date, timedelta
 from sqlalchemy.orm import Session
-from models.database import Goal, GoalStatus
+from app.models.database import Goal, GoalStatus
 
 
 class ValidationError(Exception):
     """Ошибка валидации бизнес-правил."""
+
     pass
 
 
@@ -23,11 +24,7 @@ class GoalService:
         self.session = session
 
     def create_goal(
-        self,
-        user_id: int,
-        name: str,
-        target_amount: Decimal,
-        target_date: date
+        self, user_id: int, name: str, target_amount: Decimal, target_date: date
     ) -> Goal:
         """Создает новую накопительную цель с валидацией бизнес-правил.
 
@@ -59,10 +56,11 @@ class GoalService:
             )
 
         # Валидация: только одна активная цель (MVP ограничение)
-        active_goals_count = self.session.query(Goal).filter_by(
-            user_id=user_id,
-            status=GoalStatus.ACTIVE
-        ).count()
+        active_goals_count = (
+            self.session.query(Goal)
+            .filter_by(user_id=user_id, status=GoalStatus.ACTIVE)
+            .count()
+        )
 
         if active_goals_count >= 1:
             raise ValidationError(
@@ -75,10 +73,10 @@ class GoalService:
             user_id=user_id,
             name=name,
             target_amount=target_amount,
-            current_amount=Decimal('0'),
+            current_amount=Decimal("0"),
             target_date=target_date,
             priority=1,  # В MVP всегда 1
-            status=GoalStatus.ACTIVE
+            status=GoalStatus.ACTIVE,
         )
 
         self.session.add(goal)
@@ -86,11 +84,7 @@ class GoalService:
 
         return goal
 
-    def add_contribution(
-        self,
-        goal_id: int,
-        amount: Decimal
-    ) -> Goal:
+    def add_contribution(self, goal_id: int, amount: Decimal) -> Goal:
         """Добавляет взнос в цель.
 
         Args:
@@ -130,11 +124,7 @@ class GoalService:
         """
         return self.session.query(Goal).get(goal_id)
 
-    def get_all_by_user(
-        self,
-        user_id: int,
-        status: GoalStatus = None
-    ) -> list[Goal]:
+    def get_all_by_user(self, user_id: int, status: GoalStatus = None) -> list[Goal]:
         """Получает все цели пользователя с фильтрацией.
 
         Args:
@@ -157,7 +147,7 @@ class GoalService:
         name: str = None,
         target_amount: Decimal = None,
         target_date: date = None,
-        status: GoalStatus = None
+        status: GoalStatus = None,
     ) -> Goal:
         """Обновляет существующую цель.
 
