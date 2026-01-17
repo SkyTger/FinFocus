@@ -44,9 +44,8 @@ class User(Base):
     """Модель пользователя.
 
     Attributes:
-        starting_balance: Начальный баланс пользователя для расчета кассового календаря.
-            Используется как базовая точка для расчета остатков по формуле:
-            остаток = starting_balance + SUM(доходы) - SUM(расходы) до даты.
+        starting_balance: Начальный баланс для расчета кассового календаря.
+            Формула: остаток = starting_balance + SUM(доходы) - SUM(расходы).
             Может быть отрицательным (долг), по умолчанию = 0.
     """
 
@@ -174,7 +173,8 @@ class Goal(Base):
         return remaining_amount / Decimal(months_remaining)
 
     def __repr__(self) -> str:
-        return f"<Goal(id={self.id}, name='{self.name}', progress={self.progress_percentage:.1f}%)>"
+        progress = self.progress_percentage
+        return f"<Goal(id={self.id}, name='{self.name}', progress={progress:.1f}%)>"
 
 
 class GoalContribution(Base):

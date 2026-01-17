@@ -89,7 +89,7 @@ class GoalService:
         self.session.flush()  # Получить ID без commit
 
         logger.info(
-            f"Создана цель {goal.id} '{name}' для user {user_id}: " f"{target_amount}"
+            f"Создана цель {goal.id} '{name}' для user {user_id}: {target_amount}"
         )
 
         return goal
