@@ -2,13 +2,12 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
+
+from loguru import logger
 from sqlalchemy.orm import Session
-from models.database import Transaction, TransactionType
 
-
-class ValidationError(Exception):
-    """Ошибка валидации бизнес-правил."""
-    pass
+from app.core import ValidationError
+from app.models.database import Transaction, TransactionType
 
 
 class TransactionService:
@@ -28,8 +27,8 @@ class TransactionService:
         amount: Decimal,
         transaction_type: TransactionType,
         transaction_date: date,
-        description: str = None,
-        category: str = None
+        description: str | None = None,
+        category: str | None = None,
     ) -> Transaction:
         """Создает новую транзакцию с валидацией бизнес-правил.
 
@@ -51,13 +50,14 @@ class TransactionService:
         """
         # Валидация: amount > 0
         if amount <= 0:
-            raise ValidationError("Сумма операции должна быть больше 0")
+            raise ValidationError("Сумма операции должна быть больше 0", field="amount")
 
         # Валидация: дата не более 1 года в будущем
         max_future_date = date.today() + timedelta(days=365)
         if transaction_date > max_future_date:
             raise ValidationError(
-                "Дата операции не может быть более чем на 1 год в будущем"
+                "Дата операции не может быть более чем на 1 год в будущем",
+                field="transaction_date",
             )
 
         # Создание транзакции
@@ -67,15 +67,20 @@ class TransactionService:
             transaction_type=transaction_type,
             transaction_date=transaction_date,
             description=description,
-            category=category
+            category=category,
         )
 
         self.session.add(transaction)
         self.session.flush()  # Получить ID без commit
 
+        logger.info(
+            f"Создана транзакция {transaction.id} для user {user_id}: "
+            f"{transaction_type.value} {amount}"
+        )
+
         return transaction
 
-    def get_by_id(self, transaction_id: int) -> Transaction:
+    def get_by_id(self, transaction_id: int) -> Transaction | None:
         """Получает транзакцию по ID.
 
         Args:
@@ -84,14 +89,14 @@ class TransactionService:
         Returns:
             Transaction: Найденная транзакция или None
         """
-        return self.session.query(Transaction).get(transaction_id)
+        return self.session.get(Transaction, transaction_id)
 
     def get_all_by_user(
         self,
         user_id: int,
-        transaction_type: TransactionType = None,
-        start_date: date = None,
-        end_date: date = None
+        transaction_type: TransactionType | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> list[Transaction]:
         """Получает все транзакции пользователя с фильтрацией.
 
@@ -102,7 +107,7 @@ class TransactionService:
             end_date: Конец периода (опционально)
 
         Returns:
-            list[Transaction]: Список транзакций, отсортированный по дате (DESC)
+            list[Transaction]: Список транзакций, отсортированный по дате
         """
         query = self.session.query(Transaction).filter_by(user_id=user_id)
 
@@ -120,11 +125,11 @@ class TransactionService:
     def update_transaction(
         self,
         transaction_id: int,
-        amount: Decimal = None,
-        transaction_type: TransactionType = None,
-        transaction_date: date = None,
-        description: str = None,
-        category: str = None
+        amount: Decimal | None = None,
+        transaction_type: TransactionType | None = None,
+        transaction_date: date | None = None,
+        description: str | None = None,
+        category: str | None = None,
     ) -> Transaction:
         """Обновляет существующую транзакцию.
 
@@ -142,14 +147,16 @@ class TransactionService:
         Raises:
             ValidationError: Если транзакция не найдена или amount <= 0
         """
-        transaction = self.session.query(Transaction).get(transaction_id)
+        transaction = self.session.get(Transaction, transaction_id)
         if not transaction:
             raise ValidationError(f"Транзакция с ID {transaction_id} не найдена")
 
         # Обновление полей (только если переданы новые значения)
         if amount is not None:
             if amount <= 0:
-                raise ValidationError("Сумма операции должна быть больше 0")
+                raise ValidationError(
+                    "Сумма операции должна быть больше 0", field="amount"
+                )
             transaction.amount = amount
 
         if transaction_type is not None:
@@ -159,7 +166,8 @@ class TransactionService:
             max_future_date = date.today() + timedelta(days=365)
             if transaction_date > max_future_date:
                 raise ValidationError(
-                    "Дата операции не может быть более чем на 1 год в будущем"
+                    "Дата операции не может быть более чем на 1 год в будущем",
+                    field="transaction_date",
                 )
             transaction.transaction_date = transaction_date
 
@@ -172,6 +180,8 @@ class TransactionService:
         # updated_at обновится автоматически через onupdate
         self.session.flush()
 
+        logger.info(f"Обновлена транзакция {transaction_id}")
+
         return transaction
 
     def delete_transaction(self, transaction_id: int) -> bool:
@@ -183,11 +193,13 @@ class TransactionService:
         Returns:
             bool: True если транзакция удалена, False если не найдена
         """
-        transaction = self.session.query(Transaction).get(transaction_id)
+        transaction = self.session.get(Transaction, transaction_id)
         if not transaction:
             return False
 
         self.session.delete(transaction)
         self.session.flush()
+
+        logger.info(f"Удалена транзакция {transaction_id}")
 
         return True

@@ -2,16 +2,23 @@
 Модели базы данных для FinFocus.
 Основные сущности: Пользователи, Операции, Цели накопления.
 """
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 from enum import Enum as PyEnum
 
 from sqlalchemy import (
-    create_engine, Column, Integer, String, DateTime, Date,
-    Numeric, Boolean, ForeignKey, Enum
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Date,
+    Numeric,
+    Boolean,
+    ForeignKey,
+    Enum,
+    Index,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
 Base = declarative_base()
@@ -19,28 +26,30 @@ Base = declarative_base()
 
 class TransactionType(PyEnum):
     """Типы финансовых операций."""
-    INCOME = "income"      # Доход
-    EXPENSE = "expense"    # Расход
+
+    INCOME = "income"  # Доход
+    EXPENSE = "expense"  # Расход
     TRANSFER = "transfer"  # Перевод
 
 
 class GoalStatus(PyEnum):
     """Статусы накопительных целей."""
-    ACTIVE = "active"      # Активная
+
+    ACTIVE = "active"  # Активная
     COMPLETED = "completed"  # Достигнута
-    PAUSED = "paused"      # Приостановлена
+    PAUSED = "paused"  # Приостановлена
 
 
 class User(Base):
     """Модель пользователя.
 
     Attributes:
-        starting_balance: Начальный баланс пользователя для расчета кассового календаря.
-            Используется как базовая точка для расчета остатков по формуле:
-            остаток = starting_balance + SUM(доходы) - SUM(расходы) до даты.
+        starting_balance: Начальный баланс для расчета кассового календаря.
+            Формула: остаток = starting_balance + SUM(доходы) - SUM(расходы).
             Может быть отрицательным (долг), по умолчанию = 0.
     """
-    __tablename__ = 'users'
+
+    __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False)
@@ -50,16 +59,22 @@ class User(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     # Связи
-    transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
+    transactions = relationship(
+        "Transaction", back_populates="user", cascade="all, delete-orphan"
+    )
     goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
 
 
 class Transaction(Base):
     """Модель финансовой операции (доходы/расходы)."""
-    __tablename__ = 'transactions'
+
+    __tablename__ = "transactions"
+    __table_args__ = (
+        Index("ix_transactions_user_date", "user_id", "transaction_date"),
+    )
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Основные поля
     amount = Column(Numeric(10, 2), nullable=False)  # Точность для денег
@@ -80,15 +95,19 @@ class Transaction(Base):
     user = relationship("User", back_populates="transactions")
 
     def __repr__(self) -> str:
-        return f"<Transaction(id={self.id}, type={self.transaction_type.value}, amount={self.amount})>"
+        return (
+            f"<Transaction(id={self.id}, "
+            f"type={self.transaction_type.value}, amount={self.amount})>"
+        )
 
 
 class Goal(Base):
     """Модель накопительной цели."""
-    __tablename__ = 'goals'
+
+    __tablename__ = "goals"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Основные поля
     name = Column(String(200), nullable=False)
@@ -106,7 +125,9 @@ class Goal(Base):
 
     # Связи
     user = relationship("User", back_populates="goals")
-    contributions = relationship("GoalContribution", back_populates="goal", cascade="all, delete-orphan")
+    contributions = relationship(
+        "GoalContribution", back_populates="goal", cascade="all, delete-orphan"
+    )
 
     @property
     def progress_percentage(self) -> float:
@@ -134,15 +155,15 @@ class Goal(Base):
                 - цель уже достигнута (current >= target)
         """
         if not self.target_date:
-            return Decimal('0')
+            return Decimal("0")
 
         # Guard clause: deadline в прошлом или сегодня
         if self.target_date <= date.today():
-            return Decimal('0')
+            return Decimal("0")
 
         # Guard clause: цель уже достигнута
         if self.current_amount >= self.target_amount:
-            return Decimal('0')
+            return Decimal("0")
 
         # Рассчитываем months_remaining с минимумом 1 месяц
         days_remaining = (self.target_date - date.today()).days
@@ -152,15 +173,17 @@ class Goal(Base):
         return remaining_amount / Decimal(months_remaining)
 
     def __repr__(self) -> str:
-        return f"<Goal(id={self.id}, name='{self.name}', progress={self.progress_percentage:.1f}%)>"
+        progress = self.progress_percentage
+        return f"<Goal(id={self.id}, name='{self.name}', progress={progress:.1f}%)>"
 
 
 class GoalContribution(Base):
     """Модель взноса в накопительную цель."""
-    __tablename__ = 'goal_contributions'
+
+    __tablename__ = "goal_contributions"
 
     id = Column(Integer, primary_key=True)
-    goal_id = Column(Integer, ForeignKey('goals.id'), nullable=False)
+    goal_id = Column(Integer, ForeignKey("goals.id"), nullable=False)
 
     # Основные поля
     amount = Column(Numeric(10, 2), nullable=False)
@@ -174,30 +197,7 @@ class GoalContribution(Base):
     goal = relationship("Goal", back_populates="contributions")
 
     def __repr__(self) -> str:
-        return f"<GoalContribution(id={self.id}, amount={self.amount}, date={self.contribution_date})>"
-
-
-# Настройка базы данных
-def create_database_engine(database_url: str = "sqlite:///data/finfocus.db"):
-    """Создает движок базы данных."""
-    engine = create_engine(database_url, echo=False)
-    return engine
-
-
-def create_tables(engine):
-    """Создает все таблицы в базе данных."""
-    Base.metadata.create_all(engine)
-
-
-def get_session(engine):
-    """Создает сессию для работы с базой данных."""
-    Session = sessionmaker(bind=engine)
-    return Session()
-
-
-# Функции-хелперы для инициализации
-def init_database(database_url: str = "sqlite:///data/finfocus.db"):
-    """Инициализирует базу данных со всеми таблицами."""
-    engine = create_database_engine(database_url)
-    create_tables(engine)
-    return engine
+        return (
+            f"<GoalContribution(id={self.id}, "
+            f"amount={self.amount}, date={self.contribution_date})>"
+        )

@@ -81,15 +81,36 @@ session.commit()
 
 ## Важное
 
-**Session Management Pattern** (КРИТИЧНО):
+**Session Management (КРИТИЧНО)**:
+- Централизованный session management через `app/core/database.py`
+- Context manager `get_db_session()` для автоматического commit/rollback
 - Сервисы используют `session.flush()` для валидации + ID generation
-- Caller управляет `session.commit()` для атомарности
-- Exception в сервисе → caller делает `session.rollback()`
+- Caller управляет `session.commit()` через context manager
 
-**ValidationError**:
-- Кастомный exception для бизнес-правил
+**Использование get_db_session():**
+```python
+from app.core import get_db_session
+
+with get_db_session() as session:
+    service = TransactionService(session)
+    tx = service.create_transaction(...)
+    # commit происходит автоматически при выходе из with
+    # rollback при exception
+```
+
+**ValidationError (КРИТИЧНО)**:
+- Единый класс в `app/core/exceptions.py`
+- Атрибут `field` для подсветки ошибок в UI
 - Сообщения на русском языке
-- Обрабатывается в UI callbacks
+- Экспортируется через `from app.core import ValidationError`
+
+**Использование ValidationError:**
+```python
+from app.core import ValidationError
+
+raise ValidationError("Сумма должна быть больше 0", field="amount")
+# __str__ вернёт: "[amount] Сумма должна быть больше 0"
+```
 
 **Data Integrity**:
 - GoalService.add_contribution автоматически обновляет current_amount
