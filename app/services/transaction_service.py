@@ -50,9 +50,7 @@ class TransactionService:
         """
         # Валидация: amount > 0
         if amount <= 0:
-            raise ValidationError(
-                "Сумма операции должна быть больше 0", field="amount"
-            )
+            raise ValidationError("Сумма операции должна быть больше 0", field="amount")
 
         # Валидация: дата не более 1 года в будущем
         max_future_date = date.today() + timedelta(days=365)
@@ -114,9 +112,7 @@ class TransactionService:
         query = self.session.query(Transaction).filter_by(user_id=user_id)
 
         if transaction_type:
-            query = query.filter(
-                Transaction.transaction_type == transaction_type
-            )
+            query = query.filter(Transaction.transaction_type == transaction_type)
 
         if start_date:
             query = query.filter(Transaction.transaction_date >= start_date)
@@ -153,9 +149,7 @@ class TransactionService:
         """
         transaction = self.session.get(Transaction, transaction_id)
         if not transaction:
-            raise ValidationError(
-                f"Транзакция с ID {transaction_id} не найдена"
-            )
+            raise ValidationError(f"Транзакция с ID {transaction_id} не найдена")
 
         # Обновление полей (только если переданы новые значения)
         if amount is not None:

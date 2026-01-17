@@ -40,6 +40,21 @@
 - Автоинициализация через `init_database()` в `run.py`
 - Миграции через Alembic (пока не используется)
 
+### 5. Core Infrastructure Layer (NEW)
+**Модуль**: `app/core/`
+- **database.py** - централизованный session management
+  - `get_engine()` - singleton engine factory
+  - `get_db_session()` - context manager для сессий
+  - `init_database()` - инициализация БД
+- **logging.py** - настройка loguru
+  - `setup_logging()` - конфигурация логгера
+  - Ротация файлов по дням
+  - Цветной вывод в консоль + файл
+- **exceptions.py** - единые исключения
+  - `ValidationError` - для бизнес-правил
+
+**Паттерн**: Infrastructure Layer с singleton factories и context managers
+
 ## Ключевые паттерны
 
 ### Dash Callbacks Pattern
@@ -217,19 +232,21 @@ refresh_transactions_table() - updates table
                  │  - GoalService         │
                  └──────────┬─────────────┘
                             │
-                            ▼
-                 ┌────────────────────────┐
-                 │   app/models/          │
-                 │   database.py          │
-                 │  - User, Transaction   │
-                 │  - Goal, Contribution  │
-                 └──────────┬─────────────┘
-                            │
-                            ▼
-                 ┌────────────────────────┐
-                 │   SQLite Database      │
-                 │   data/finfocus.db     │
-                 └────────────────────────┘
+             ┌──────────────┼──────────────┐
+             ▼              ▼              ▼
+  ┌──────────────────┐ ┌────────────┐ ┌────────────────┐
+  │   app/core/      │ │app/models/ │ │   loguru       │
+  │  - database.py   │ │database.py │ │   (logging)    │
+  │  - exceptions.py │ │ - ORM      │ │                │
+  │  - logging.py    │ │            │ │                │
+  └────────┬─────────┘ └─────┬──────┘ └────────────────┘
+           │                 │
+           └────────┬────────┘
+                    ▼
+         ┌────────────────────────┐
+         │   SQLite Database      │
+         │   data/finfocus.db     │
+         └────────────────────────┘
 ```
 
 ## Планируемые изменения (Roadmap)

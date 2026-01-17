@@ -140,6 +140,32 @@ black --check app/   # Check without changes
 flake8 app/
 ```
 
+## Logging
+
+### loguru 0.7.0
+**Назначение**: Структурированное логирование
+- Автоматическая ротация по дням
+- Цветной вывод в консоль
+- Запись в файл `logs/finfocus_YYYY-MM-DD.log`
+- Контекстная информация (модуль, функция, строка)
+
+**Настройка** в `app/core/logging.py`:
+```python
+from loguru import logger
+
+# Настроено автоматически при запуске через setup_logging()
+logger.info("Сообщение")
+logger.warning("Предупреждение")
+logger.error("Ошибка")
+logger.debug("Отладка")
+```
+
+**Уровни логирования**:
+- INFO: Ключевые события (запуск, CRUD операции)
+- WARNING: Предупреждения (пустая БД, невалидные данные)
+- ERROR: Ошибки (исключения, сбои)
+- DEBUG: Отладка (session management, queries)
+
 ## Utilities
 
 ### python-dotenv 1.0.0
@@ -169,6 +195,7 @@ FinFocus
 │   └── Bootstrap CSS/JS (CDN)
 ├── SQLAlchemy 2.0.23
 │   └── greenlet (async support)
+├── loguru 0.7.0 (logging)
 ├── pytest 7.4.3
 │   └── pytest-cov 4.1.0
 └── python-dotenv 1.0.0

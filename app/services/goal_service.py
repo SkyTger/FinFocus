@@ -89,8 +89,7 @@ class GoalService:
         self.session.flush()  # Получить ID без commit
 
         logger.info(
-            f"Создана цель {goal.id} '{name}' для user {user_id}: "
-            f"{target_amount}"
+            f"Создана цель {goal.id} '{name}' для user {user_id}: " f"{target_amount}"
         )
 
         return goal
@@ -117,9 +116,7 @@ class GoalService:
             ValidationError: Если amount <= 0 или цель не найдена
         """
         if amount <= 0:
-            raise ValidationError(
-                "Сумма взноса должна быть больше 0", field="amount"
-            )
+            raise ValidationError("Сумма взноса должна быть больше 0", field="amount")
 
         goal = self.session.get(Goal, goal_id)
         if not goal:
