@@ -78,7 +78,17 @@
 - [x] Если конфликты — остановиться и запросить согласование — конфликтов нет
 
 ### Шаг 5-m. Очистка
-- [ ] Удалить ветку на сервере: `git push origin --delete 0001-refactoring`
-- [ ] Удалить локальную ветку: `git branch -d 0001-refactoring`
-- [ ] Удалить worktree: `git worktree remove ../worktrees/0001-refactoring`
-- [ ] Сообщить пользователю о полном завершении работы
+- [x] Удалить ветку на сервере: `git push origin --delete 0001-refactoring` — ✅
+- [x] Удалить локальную ветку: `git branch -d 0001-refactoring` — ✅
+- [x] Удалить worktree: `git worktree remove ../worktrees/0001-refactoring` — ✅
+- [x] Сообщить пользователю о полном завершении работы — ✅
+
+---
+
+## Итоги
+
+**Протокол 0001 успешно завершён и слит в main.**
+
+- Merge commit: `7885a60`
+- Review commit: `c22161f`
+- Все шаги пройдены без замечаний
