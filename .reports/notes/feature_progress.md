@@ -1,11 +1,55 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Epic-01-CoreMVP - В ПРОЦЕССЕ
+## 📊 Общий статус проекта: Epic-01-CoreMVP - ЗАВЕРШЕН
 
 **Последнее обновление**: 2026/01/19
-**Текущий этап**: Фаза 4 завершена, готов к Фазе 5 (Накопительная цель)
-**Прогресс Epic-01**: 80% (16/20 задач)
+**Текущий этап**: Core MVP полностью завершен (Фаза 1-5)
+**Прогресс Epic-01**: 100% (20/20 задач)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 7: Goals UI (2026-01-19) - ЗАВЕРШЕН
+
+**Дата**: 2026/01/19
+**Протокол**: 0004-goals-ui
+**PR**: https://github.com/SkyTger/FinFocus/pull/4
+**Статус**: ✅ Полностью завершен
+
+### 🎯 Цель батча:
+Реализовать UI для управления накопительной целью — Фаза 5 Core MVP.
+
+### ✅ Выполненные задачи:
+
+1. **Utils модуль создан** (app/utils/formatters.py)
+   - format_amount(), format_date(), format_days_remaining(), parse_date_safe()
+   - Обновлены импорты в transactions.py
+
+2. **GoalService расширен** (app/services/goal_service.py)
+   - Добавлен метод get_contributions()
+   - 4 новых unit теста
+
+3. **Goals UI создан** (app/components/goals.py, ~1040 строк)
+   - Empty state, карточка цели, прогресс-бар
+   - Модалы: создание, редактирование, взнос
+   - 10 callbacks: все CRUD операции, смена статуса
+   - dcc.ConfirmDialog для удаления
+
+4. **Стили** (app/assets/goals.css, ~170 строк)
+   - Адаптивность 768px, 576px
+
+### 📊 Результат:
+- ✅ Фаза 5 Epic-01-CoreMVP завершена
+- ✅ Core MVP полностью завершен (100%)
+- ✅ Unit тесты: 37 passed
+- ✅ Quality checks: black + flake8 без ошибок
+
+### 💡 Ключевые уроки:
+
+1. **Simple IDs > Pattern-Matching** — для Goals UI использованы простые ID (без ALL), что упрощает callbacks
+2. **dcc.Store для goal_id** — эффективно хранит ID активной цели между callbacks
+3. **allow_duplicate=True** — необходим для множественных Outputs на один компонент
+4. **Utils модуль** — централизация форматирования снижает дублирование кода
 
 ---
 

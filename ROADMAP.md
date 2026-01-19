@@ -56,10 +56,14 @@ MVP разрабатывается по принципу **dual-track agile** с
   - [x] CalendarService — расширен get_balance_on_date(), get_year_summary()
   - [x] Dashboard UI — callbacks, dcc.Store, переключатель периода
   - [x] Unit тесты (12 DashboardService + 4 CalendarService)
-- [ ] Фаза 5: Одна накопительная цель с расчётом взносов
+- [x] ✅ Фаза 5: Одна накопительная цель с расчётом взносов (2026/01/19, PR #4)
+  - [x] Utils модуль (formatters.py) и get_contributions() метод
+  - [x] Goals Layout (карточка, прогресс-бар, модалы)
+  - [x] Goals Callbacks (CRUD операции)
+  - [x] Стили и интеграция с main.py
 
-**Прогресс**: 80% (Фаза 1-4 завершены)
-**Статус**: ✅ Готов к Фазе 5
+**Прогресс**: 100% (Фаза 1-5 завершены)
+**Статус**: ✅ Core MVP завершен
 
 ### [Батч 2: Enhanced Planning](./batch-2-planning.md)
 **Сроки**: Недели 8-11  
