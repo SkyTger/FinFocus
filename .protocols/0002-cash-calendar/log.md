@@ -2,7 +2,41 @@
 
 Этот раздел является **журналом**. Записи только добавляются, старые не изменяются.
 
+**Restore context: protocol-0002#ctx-3** (2026-01-19)
+
 **Restore context: protocol-0002#ctx-2** (2026-01-18)
+
+---
+
+## Шаг 2: Calendar UI — Компоненты и стили (2026-01-19)
+
+**Действия:**
+- Создан `app/components/calendar.py` (~420 строк) с полным набором UI компонентов:
+  - Константы: MONTH_NAMES_RU, WEEKDAY_NAMES_RU, WARNING_BALANCE_THRESHOLD, MAX_MONTHS_OFFSET
+  - Утилиты сериализации: serialize_balances(), deserialize_balances() — для Decimal в dcc.Store
+  - Функции форматирования: format_balance(), format_month_header()
+  - Layout: create_calendar_layout() — главный layout страницы
+  - Компоненты:
+    - build_calendar_header() — заголовок с навигацией (prev/next/today кнопки)
+    - build_stats_cards() — карточки статистики (Доходы/Расходы/Баланс)
+    - build_calendar_grid() — сетка календаря с использованием модуля calendar
+    - build_day_cell() — ячейка дня с Pattern-Matching ID для callbacks
+- Создан `app/assets/calendar.css` (~160 строк) со стилями:
+  - Сетка календаря с flexbox
+  - Цветовая схема для балансов (positive/negative/warning)
+  - Подсветка сегодняшнего дня, выходных, дней другого месяца
+  - Адаптивность для мобильных устройств (768px, 576px breakpoints)
+
+**Решения:**
+- Использован `calendar.Calendar(firstweekday=0)` для генерации матрицы дней месяца
+- Pattern-Matching ID для ячеек: `{"type": "calendar-day", "date": "YYYY-MM-DD"}`
+- Порог предупреждения `WARNING_BALANCE_THRESHOLD = Decimal("5000")` — желтый цвет для баланса < 5000
+- Иконки транзакций: ↓ (доход, зеленый), ↑ (расход, красный)
+- Навигация ограничена ±12 месяцев от текущего
+
+**Проверки:**
+- black: ✅ (1 файл переформатирован)
+- flake8: ✅ (без ошибок)
 
 ---
 
