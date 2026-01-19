@@ -2,9 +2,40 @@
 
 Этот раздел является **журналом**. Записи только добавляются, старые не изменяются.
 
+**Self-Review: protocol-0002#review-1** (2026-01-19)
+
 **Restore context: protocol-0002#ctx-3** (2026-01-19)
 
 **Restore context: protocol-0002#ctx-2** (2026-01-18)
+
+---
+
+## Self-Review: Шаги 1-3 (2026-01-19)
+
+**Найденные проблемы:**
+1. ⚠️ Type annotation несоответствие: `build_stats_cards()` имела `-> html.Div` вместо `-> dbc.Row`
+   - **Исправлено**: Изменена аннотация на `-> dbc.Row` (соответствует реальному return)
+   - Amend коммита [protocol-0002/03] (8372401)
+
+2. ⚠️ context.md устарел: Указывал "ожидает коммит", хотя коммит уже сделан
+   - **Исправлено**: Обновлен статус Git с хешем коммита
+
+**Проверенные аспекты:**
+- ✅ Полнота: Все функции из плана реализованы (12 функций + 3 callbacks)
+- ✅ Guard clauses: Корректно применены 3 guard clauses согласно ADR-003
+- ✅ CSS классы: Все 13 основных классов на месте
+- ✅ Логирование: logger.debug + logger.error корректно
+- ✅ allow_duplicate: Используется для всех shared outputs (5 outputs)
+- ✅ Валидация: ±12 месяцев корректно проверяется
+- ✅ Проверки: black + flake8 пройдены без ошибок
+- ✅ Коммиты: 3 коммита протокола с правильными тегами
+- ✅ Dependencies: python-dateutil==2.8.2 уже в requirements.txt
+
+**Метрики:**
+- calendar.py: 702 строки (UI 440 + callbacks 260)
+- calendar.css: 191 строка
+- Функций всего: 15 (9 UI + 3 utils + 3 callbacks)
+- Guard clauses: 8 (3 в open_create_modal, 3 в refresh_calendar, 2 в load_and_navigate)
 
 ---
 
