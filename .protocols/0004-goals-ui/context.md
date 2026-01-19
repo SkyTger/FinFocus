@@ -1,7 +1,7 @@
-- **Current Step**: 0
-- **Status**: Not Started
-- **Last Action Summary**: "План сгенерирован и ожидает утверждения."
-- **Next Action**: "Приступить к выполнению Шага 0 (см. `00-setup.md`)."
-- **Git**: "Ветка 0004-goals-ui создана, но пока пуста."
+- **Current Step**: 2
+- **Status**: In Progress
+- **Last Action Summary**: "Шаг 1 завершен: создан модуль formatters.py, добавлен get_contributions() в GoalService, обновлены импорты в transactions.py, добавлены 4 unit теста."
+- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-goals-layout.md`)."
+- **Git**: "Ветка 0004-goals-ui. PR #4: https://github.com/SkyTger/FinFocus/pull/4"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0004-goals-ui`
