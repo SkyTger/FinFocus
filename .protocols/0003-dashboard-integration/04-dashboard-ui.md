@@ -1,9 +1,25 @@
-"""
-Dashboard компонент - главная страница с обзором финансов.
-"""
-import plotly.graph_objs as go
-import dash_bootstrap_components as dbc
-from dash import callback, html, dcc, Input, Output, State
+# Шаг 4: Рефакторинг Dashboard UI
+
+## Briefing
+- **Цель:** Переписать `app/components/dashboard.py` для работы с реальными данными через DashboardService, добавить callbacks и dcc.Store для переключения периода.
+- **Ключевые файлы:**
+  - `app/components/dashboard.py` (изменить)
+  - `app/components/calendar.py` (референс для паттернов callbacks)
+- **Additional info:**
+  - Следовать паттерну callbacks из calendar.py (guard clauses, ADR-003)
+  - dcc.Store для хранения текущего периода
+  - Функции `build_*` принимают данные как параметры
+  - DEFAULT_USER_ID = 1 (hardcoded до авторизации)
+  - При пустой БД показывать нули, не ошибки
+  - Исправить E501 ошибки (строки > 88 символов)
+
+## Sub-tasks
+
+### 4.1. Добавить импорты
+
+В начало файла добавить:
+```python
+from dash import callback, ctx, Input, Output, State
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
@@ -16,13 +32,12 @@ from app.services import (
 )
 
 DEFAULT_USER_ID = 1
+```
 
+### 4.2. Рефакторинг create_dashboard_layout()
 
-# =============================================================================
-# Layout
-# =============================================================================
-
-
+Заменить функцию на:
+```python
 def create_dashboard_layout():
     """Создает layout главной страницы дашборда."""
     return html.Div(
@@ -67,158 +82,11 @@ def create_dashboard_layout():
             ),
         ]
     )
+```
 
+### 4.3. Создать функцию build_overview_cards()
 
-# =============================================================================
-# Static Components (не зависят от данных)
-# =============================================================================
-
-
-def create_metric_card(data: dict) -> dbc.Card:
-    """Создает карточку с метрикой.
-
-    Args:
-        data: Словарь с параметрами карточки
-
-    Returns:
-        dbc.Card с метрикой
-    """
-    # Стиль карточки
-    card_style = {}
-    if data.get("gradient"):
-        card_style = {
-            "background": "linear-gradient(135deg, #28a745 0%, #20c997 100%)",
-            "color": "white",
-        }
-
-    # Действия (кнопки)
-    actions = []
-    if data.get("actions"):
-        for action in data["actions"]:
-            btn = dbc.Button(
-                [html.I(className=f"bi {action['icon']} me-1"), action["label"]],
-                size="sm",
-                color="light" if data.get("gradient") else "primary",
-                outline=not data.get("gradient"),
-                className="me-2",
-            )
-            actions.append(btn)
-
-    # Иконка
-    icon = None
-    if data.get("icon"):
-        icon_color = data.get("icon_color", "primary")
-        icon = html.Div(
-            [
-                html.I(
-                    className=f"bi {data['icon']}",
-                    style={
-                        "fontSize": "1.5rem",
-                        "color": f"var(--bs-{icon_color})",
-                    },
-                )
-            ],
-            className="mb-2",
-        )
-
-    card_content = [
-        icon,
-        html.H6(data["title"], className="card-subtitle mb-2"),
-        html.H3(data["value"], className="card-title mb-1"),
-        (
-            html.Small(data.get("subtitle", ""), className="text-muted")
-            if data.get("subtitle")
-            else None
-        ),
-        html.Div(actions, className="mt-3") if actions else None,
-    ]
-
-    return dbc.Card(
-        [dbc.CardBody(card_content)],
-        color=data.get("color", "white"),
-        style=card_style,
-        className="h-100 shadow-sm",
-    )
-
-
-def create_ai_assistant_card() -> dbc.Card:
-    """Создает карточку AI помощника."""
-    return dbc.Card(
-        [
-            dbc.CardBody(
-                [
-                    html.H6("AI Assistant", className="card-title mb-3"),
-                    html.Div(
-                        [
-                            html.I(
-                                className="bi bi-robot",
-                                style={"fontSize": "3rem", "color": "#28a745"},
-                            ),
-                        ],
-                        className="text-center mb-3",
-                    ),
-                    html.P(
-                        "What Can I help with?",
-                        className="text-center text-muted mb-3",
-                    ),
-                    dbc.Button(
-                        [html.I(className="bi bi-chat-dots me-2"), "Ask anything"],
-                        color="success",
-                        size="sm",
-                        className="w-100",
-                    ),
-                ]
-            )
-        ],
-        className="shadow-sm",
-    )
-
-
-def create_exchange_card() -> dbc.Card:
-    """Создает карточку с курсами валют."""
-    return dbc.Card(
-        [
-            dbc.CardBody(
-                [
-                    html.H6("Exchange", className="card-title mb-3"),
-                    html.Div(
-                        [
-                            html.Div(
-                                [
-                                    html.Span("USD", className="fw-bold"),
-                                    html.Span(" ⇄ ", className="mx-2"),
-                                    html.Span("RUB", className="fw-bold"),
-                                ],
-                                className="text-center mb-3",
-                            ),
-                            html.Hr(),
-                            html.Div(
-                                [
-                                    html.Div("$100.00", className="h5 mb-0"),
-                                    html.Div("₽9200.00", className="text-muted"),
-                                ],
-                                className="text-center mb-3",
-                            ),
-                            dbc.Button(
-                                "Exchange",
-                                color="success",
-                                size="sm",
-                                className="w-100",
-                            ),
-                        ]
-                    ),
-                ]
-            )
-        ],
-        className="shadow-sm",
-    )
-
-
-# =============================================================================
-# Dynamic Build Functions (строят UI из данных)
-# =============================================================================
-
-
+```python
 def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
     """Создает верхние карточки с реальными данными.
 
@@ -284,8 +152,11 @@ def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
 
     cards = [dbc.Col(create_metric_card(data), width=3) for data in cards_data]
     return dbc.Row(cards, className="mb-4")
+```
 
+### 4.4. Создать функцию build_cashflow_chart()
 
+```python
 def build_cashflow_chart(
     cashflow_data: list[CashflowDataPoint],
     period: str,
@@ -361,9 +232,7 @@ def build_cashflow_chart(
                                 labelCheckedClassName="btn btn-secondary btn-sm",
                             ),
                         ],
-                        className=(
-                            "d-flex justify-content-between align-items-center mb-3"
-                        ),
+                        className="d-flex justify-content-between align-items-center mb-3",
                     ),
                     dcc.Graph(figure=fig, config={"displayModeBar": False}),
                 ]
@@ -371,8 +240,11 @@ def build_cashflow_chart(
         ],
         className="shadow-sm",
     )
+```
 
+### 4.5. Создать функцию build_statistics_card()
 
+```python
 def build_statistics_card(metrics: OverviewMetrics, period: str) -> dbc.Card:
     """Создает карточку со статистикой (pie chart).
 
@@ -465,8 +337,11 @@ def build_statistics_card(metrics: OverviewMetrics, period: str) -> dbc.Card:
         ],
         className="shadow-sm",
     )
+```
 
+### 4.6. Создать функцию build_recent_transactions_card()
 
+```python
 def build_recent_transactions_card(
     transactions: list[RecentTransaction],
     period: str,
@@ -495,10 +370,7 @@ def build_recent_transactions_card(
                                 ),
                                 dbc.Button(period_label, size="sm", color="light"),
                             ],
-                            className=(
-                                "d-flex justify-content-between "
-                                "align-items-center mb-3"
-                            ),
+                            className="d-flex justify-content-between align-items-center mb-3",
                         ),
                         html.P("No transactions yet", className="text-muted"),
                     ]
@@ -561,9 +433,7 @@ def build_recent_transactions_card(
                             ),
                             dbc.Button(period_label, size="sm", color="light"),
                         ],
-                        className=(
-                            "d-flex justify-content-between align-items-center mb-3"
-                        ),
+                        className="d-flex justify-content-between align-items-center mb-3",
                     ),
                     dbc.Table(
                         [html.Tbody(transaction_rows)],
@@ -575,8 +445,12 @@ def build_recent_transactions_card(
         ],
         className="shadow-sm",
     )
+```
 
+### 4.7. Добавить главный callback load_dashboard_data()
 
+Добавить в конец файла:
+```python
 # =============================================================================
 # Callbacks
 # =============================================================================
@@ -650,9 +524,7 @@ def load_dashboard_data(
         stats = build_statistics_card(metrics, period)
         transactions = build_recent_transactions_card(recent_transactions, period)
 
-        logger.debug(
-            f"Dashboard loaded: period={period}, balance={metrics['total_balance']}"
-        )
+        logger.debug(f"Dashboard loaded: period={period}, balance={metrics['total_balance']}")
         return cards, chart, stats, transactions
 
     except Exception as e:
@@ -682,3 +554,29 @@ def update_period_state(period_value: str):
         raise PreventUpdate
 
     return {"period": period_value}
+```
+
+### 4.8. Удалить старую функцию create_overview_cards()
+
+Удалить функцию `create_overview_cards()` (она заменена на `build_overview_cards()`).
+
+### 4.9. Исправить E501 ошибки
+
+Проверить и исправить строки длиннее 88 символов в оставшихся функциях (create_metric_card, create_ai_assistant_card, etc.).
+
+## Workflow (Порядок работы)
+
+1. **Выполнение:** Последовательно выполняй подзадачи 4.1-4.9.
+2. **Верификация:** После завершения ВСЕХ подзадач запусти проверки:
+   ```bash
+   cd /home/skytiger/PycharmProjects/worktrees/0003-dashboard-integration
+   black app/components/dashboard.py
+   flake8 app/components/dashboard.py
+   python -c "from app.components.dashboard import create_dashboard_layout; print('OK')"
+   ```
+3. **Фиксация:** После успешной верификации:
+   - Добавь запись в `log.md`
+   - Обнови `context.md`: `Current Step` = 5
+   - Проверь ветку main
+4. **Коммит**: `git add . && git commit -m "feat(dashboard): integrate with real data via callbacks [protocol-0003/04]"`. Push.
+5. **Отчет пользователю** в установленном формате.

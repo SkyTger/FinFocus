@@ -51,11 +51,15 @@ MVP разрабатывается по принципу **dual-track agile** с
   - [x] Calendar UI — компоненты и стили
   - [x] Callbacks — навигация и интерактивность (ADR-003 guard clauses)
   - [x] Интеграция с main.py роутингом
-- [ ] Фаза 4: Простой дашборд (месяц/год)
+- [x] ✅ Фаза 4: Простой дашборд (месяц/год) (2026/01/19, PR #3)
+  - [x] DashboardService — агрегация метрик, cashflow, транзакции
+  - [x] CalendarService — расширен get_balance_on_date(), get_year_summary()
+  - [x] Dashboard UI — callbacks, dcc.Store, переключатель периода
+  - [x] Unit тесты (12 DashboardService + 4 CalendarService)
 - [ ] Фаза 5: Одна накопительная цель с расчётом взносов
 
-**Прогресс**: 60% (Фаза 1-3 завершены)
-**Статус**: ✅ Готов к Фазе 4
+**Прогресс**: 80% (Фаза 1-4 завершены)
+**Статус**: ✅ Готов к Фазе 5
 
 ### [Батч 2: Enhanced Planning](./batch-2-planning.md)
 **Сроки**: Недели 8-11  

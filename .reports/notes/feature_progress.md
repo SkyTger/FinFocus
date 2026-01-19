@@ -3,9 +3,71 @@
 ## 📊 Общий статус проекта: Epic-01-CoreMVP - В ПРОЦЕССЕ
 
 **Последнее обновление**: 2026/01/19
-**Текущий этап**: Фаза 3 завершена, готов к Фазе 4 (Дашборд)
-**Прогресс Epic-01**: 60% (12/20 задач)
+**Текущий этап**: Фаза 4 завершена, готов к Фазе 5 (Накопительная цель)
+**Прогресс Epic-01**: 80% (16/20 задач)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 6: Dashboard Integration (2026-01-19) - ЗАВЕРШЕН
+
+**Дата**: 2026/01/19
+**Протокол**: 0003-dashboard-integration
+**PR**: https://github.com/SkyTger/FinFocus/pull/3
+**Статус**: ✅ Полностью завершен
+
+### 🎯 Цель батча:
+Интегрировать дашборд с реальными данными из SQLite — Фаза 4 Core MVP.
+
+### ✅ Выполненные задачи:
+
+1. **CalendarService расширен** (app/services/calendar_service.py)
+   - `get_balance_on_date()` — баланс на конкретную дату
+   - `get_year_summary()` — агрегация доходов/расходов за год
+   - TypedDict `YearSummary` для типизации
+
+2. **DashboardService создан** (app/services/dashboard_service.py, ~290 строк)
+   - `get_overview_metrics()` — метрики для карточек (balance, income, expense, savings)
+   - `get_cashflow_data()` — данные для графика (12 месяцев или 5 лет)
+   - `get_recent_transactions()` — последние N транзакций
+   - TypedDicts: OverviewMetrics, CashflowDataPoint, RecentTransaction, PeriodType
+
+3. **Dashboard UI переписан** (app/components/dashboard.py, ~685 строк)
+   - dcc.Store для хранения периода (month/year)
+   - RadioItems переключатель периода в графике Cashflow
+   - Callbacks: load_dashboard_data(), update_period_state()
+   - Динамические build-функции вместо hardcoded данных
+   - Guard clauses и graceful error handling (ADR-003)
+
+4. **Unit тесты** (16 новых тестов)
+   - 12 тестов DashboardService (metrics, cashflow, transactions)
+   - 4 теста CalendarService (get_balance_on_date, get_year_summary)
+   - Все 33 теста проекта проходят
+
+### 🔧 Технические изменения:
+
+**Новые файлы:**
+- `app/services/dashboard_service.py` — DashboardService + TypedDicts
+- `tests/test_dashboard_service.py` — 12 unit тестов
+
+**Модифицированные файлы:**
+- `app/services/calendar_service.py` — +2 метода, +YearSummary
+- `app/services/__init__.py` — экспорт новых компонентов
+- `app/components/dashboard.py` — полный рефакторинг
+- `tests/test_calendar_service.py` — +4 теста
+
+### 📊 Результат:
+- ✅ Фаза 4 Epic-01-CoreMVP завершена
+- ✅ Прогресс Epic-01: 80% (16/20 задач)
+- ✅ Unit тесты: 33/33 passed
+- ✅ Quality checks: black + flake8 без ошибок
+
+### 💡 Ключевые уроки:
+
+1. **Composition over Inheritance** — DashboardService использует CalendarService и GoalService
+2. **dcc.Store pattern** — эффективен для хранения состояния периода между callbacks
+3. **Guard clauses** — обязательны для Pattern-Matching callbacks (ADR-003)
+4. **TypedDicts** — улучшают читаемость и типизацию сервисного слоя
 
 ---
 
