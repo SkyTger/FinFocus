@@ -1,7 +1,7 @@
-- **Current Step**: 0
-- **Status**: Not Started
-- **Last Action Summary**: "План сгенерирован и ожидает утверждения."
-- **Next Action**: "Приступить к выполнению Шага 0 (см. `00-setup.md`)."
-- **Git**: "Ветка 0003-dashboard-integration создана, но пока пуста."
+- **Current Step**: 2
+- **Status**: In Progress
+- **Last Action Summary**: "Шаг 1 завершен: добавлены методы get_balance_on_date() и get_year_summary(), экспорт YearSummary обновлен."
+- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-dashboard-service.md`)."
+- **Git**: "Ветка 0003-dashboard-integration, PR https://github.com/SkyTger/FinFocus/pull/3"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0003-dashboard-integration`
