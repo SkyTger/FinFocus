@@ -32,6 +32,26 @@ def create_dashboard_layout():
                 id="dashboard-period",
                 data={"period": "month"},
             ),
+            # Header с переключателем периода (КРИТИЧНО: должен быть в статическом layout)
+            html.Div(
+                [
+                    html.H5("Overview", className="mb-0"),
+                    dbc.RadioItems(
+                        id="period-switcher",
+                        options=[
+                            {"label": "Month", "value": "month"},
+                            {"label": "Year", "value": "year"},
+                        ],
+                        value="month",
+                        inline=True,
+                        className="btn-group",
+                        inputClassName="btn-check",
+                        labelClassName="btn btn-outline-secondary btn-sm",
+                        labelCheckedClassName="btn btn-secondary btn-sm",
+                    ),
+                ],
+                className="d-flex justify-content-between align-items-center mb-3",
+            ),
             # Верхние карточки (динамические)
             html.Div(
                 id="dashboard-overview-cards",
@@ -344,27 +364,8 @@ def build_cashflow_chart(
         [
             dbc.CardBody(
                 [
-                    html.Div(
-                        [
-                            html.H5("Cashflow", className="card-title mb-0"),
-                            dbc.RadioItems(
-                                id="period-switcher",
-                                options=[
-                                    {"label": "Month", "value": "month"},
-                                    {"label": "Year", "value": "year"},
-                                ],
-                                value=period,
-                                inline=True,
-                                className="btn-group",
-                                inputClassName="btn-check",
-                                labelClassName="btn btn-outline-secondary btn-sm",
-                                labelCheckedClassName="btn btn-secondary btn-sm",
-                            ),
-                        ],
-                        className=(
-                            "d-flex justify-content-between align-items-center mb-3"
-                        ),
-                    ),
+                    # Заголовок (period-switcher вынесен в статический layout)
+                    html.H5("Cashflow", className="card-title mb-3"),
                     dcc.Graph(figure=fig, config={"displayModeBar": False}),
                 ]
             )
