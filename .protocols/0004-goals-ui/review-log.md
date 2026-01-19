@@ -181,5 +181,91 @@ $ git diff --stat origin/main...0004-goals-ui
 
 ---
 
-## Ожидание разрешения на merge...
+## Шаг 4-m: Финальное слияние
 
+**Timestamp**: 2026-01-19 ~23:00
+
+### Проверка окружения (до)
+- **CWD**: `/home/skytiger/PycharmProjects/FinFocus`
+- **Branch**: `main`
+
+### Выполненные команды
+
+```bash
+$ git checkout main
+Already on 'main'
+
+$ git pull origin main
+Already up to date.
+
+$ git merge --no-ff 0004-goals-ui
+Merge made by the 'ort' strategy.
+20 files changed, 4026 insertions(+), 54 deletions(-)
+
+$ git push origin main
+9cb1c55..0d1775a  main -> main
+```
+
+### Результат
+- **Merge commit**: `0d1775a`
+- **Конфликты**: Нет
+- **Статус**: ✅ Успешно
+
+### Проверка окружения (после)
+- **CWD**: `/home/skytiger/PycharmProjects/FinFocus`
+- **Branch**: `main`
+
+---
+
+## Шаг 5-m: Очистка
+
+**Timestamp**: 2026-01-19 ~23:05
+
+### Проверка окружения (до)
+- **CWD**: `/home/skytiger/PycharmProjects/FinFocus`
+- **Branch**: `main`
+
+### Выполненные команды
+
+```bash
+$ git push origin --delete 0004-goals-ui
+- [deleted]         0004-goals-ui
+
+$ git worktree remove ../worktrees/0004-goals-ui --force
+(success)
+
+$ git branch -d 0004-goals-ui
+Ветка 0004-goals-ui удалена (была 9d56c18).
+```
+
+### Результат
+- **Remote branch**: ✅ Удалена
+- **Worktree**: ✅ Удален
+- **Local branch**: ✅ Удалена
+
+### Проверка окружения (после)
+- **CWD**: `/home/skytiger/PycharmProjects/FinFocus`
+- **Branch**: `main`
+
+---
+
+## ✅ REVIEW AND MERGE COMPLETED
+
+**Protocol**: 0004-goals-ui
+**Status**: УСПЕШНО ЗАВЕРШЕН
+**Merge commit**: `0d1775a`
+**Date**: 2026-01-19
+
+### Summary
+| Шаг | Статус |
+|-----|--------|
+| 1-m: CI/CD | ✅ (no CI configured) |
+| 2-m: Local verification | ✅ (37/37 tests) |
+| 3-m: Code review | ✅ (plan matches implementation) |
+| 4-m: Merge | ✅ (no conflicts) |
+| 5-m: Cleanup | ✅ (branch + worktree removed) |
+
+### Impact
+- **Core MVP**: 100% завершен (Фаза 5 из 5)
+- **New files**: goals.py, formatters.py, goals.css, test_goal_service.py
+- **Total changes**: +4026/-54 lines
