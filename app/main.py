@@ -9,7 +9,10 @@ import dash_bootstrap_components as dbc
 
 from app.components.dashboard import create_dashboard_layout
 from app.components.sidebar import create_sidebar
-from app.components.transactions import create_transactions_layout
+from app.components.transactions import (
+    create_transactions_layout,
+)  # Сначала transactions
+from app.components.calendar import create_calendar_layout  # Потом calendar
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -80,13 +83,10 @@ def display_page(pathname):
         )
 
     elif pathname == "/calendar":
-        # Кассовый календарь (пока заглушка)
-        return html.Div(
-            [
-                html.H2("Кассовый календарь"),
-                html.P("Здесь будет календарь с операциями и остатками"),
-            ]
-        ), create_page_header("Календарь", "Кассовый календарь")
+        # Кассовый календарь
+        return create_calendar_layout(), create_page_header(
+            "Календарь", "Кассовый календарь"
+        )
 
     elif pathname == "/goals":
         # Накопительные цели (пока заглушка)

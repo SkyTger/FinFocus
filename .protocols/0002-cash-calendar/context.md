@@ -1,8 +1,8 @@
-- **Current Step**: 4
+- **Current Step**: 5
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 3 завершен: Callbacks реализованы (load_and_navigate, open_create_modal, refresh_after_transaction), guard clauses по ADR-003."
-- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-integration.md`)."
-- **Git**: "Ветка 0002-cash-calendar, коммит [protocol-0002/03] выполнен (8372401)."
+- **Last Action Summary**: "Шаг 4 завершен: Интеграция с main.py, роутинг /calendar работает, unit тесты 15/15 passed, TC-01 verified."
+- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-finalize.md`)."
+- **Git**: "Ветка 0002-cash-calendar, коммит [protocol-0002/04] выполнен (43b9343)."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0002-cash-calendar`
 - **PR**: https://github.com/SkyTger/FinFocus/pull/2

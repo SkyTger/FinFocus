@@ -2,6 +2,8 @@
 
 Этот раздел является **журналом**. Записи только добавляются, старые не изменяются.
 
+**Restore context: protocol-0002#ctx-5** (2026-01-19)
+
 **Restore context: protocol-0002#ctx-4** (2026-01-19)
 
 **Self-Review: protocol-0002#review-1** (2026-01-19)
@@ -9,6 +11,50 @@
 **Restore context: protocol-0002#ctx-3** (2026-01-19)
 
 **Restore context: protocol-0002#ctx-2** (2026-01-18)
+
+---
+
+## Self-Review: Шаг 4 (2026-01-19)
+
+**Найденные проблемы:**
+1. ⚠️ `__init__.py` некомплектный: экспортировался только `create_calendar_layout`, остальные компоненты игнорировались
+   - **Исправлено**: Добавлены все 4 компонента в `__all__` для консистентности API
+   - Теперь: `create_calendar_layout`, `create_dashboard_layout`, `create_sidebar`, `create_transactions_layout`
+
+**Проверенные аспекты:**
+- ✅ Полнота: Все 5 sub-tasks выполнены (sidebar уже содержал /calendar, изменений не требовал)
+- ✅ Роутинг: `/calendar` корректно вызывает `create_calendar_layout()`
+- ✅ Порядок импортов: transactions → calendar (критично для callbacks)
+- ✅ Качество: black + flake8 без ошибок
+- ✅ Корректность: pytest 15/15 passed, layout создается без ошибок
+- ✅ Консистентность: `__all__` теперь полный для всех компонентов
+
+---
+
+## Шаг 4: Интеграция и функциональное тестирование (2026-01-19)
+
+**Действия:**
+- Обновлен `app/components/__init__.py`:
+  - Добавлены exports для всех 4 компонентов (консистентность API)
+  - `__all__` с полным списком публичных функций
+- Обновлен `app/main.py`:
+  - Добавлен импорт `create_calendar_layout` после `create_transactions_layout`
+  - Заменена заглушка `/calendar` на вызов `create_calendar_layout()`
+  - Порядок импортов: transactions → calendar (критично для регистрации callbacks)
+
+**Тестирование:**
+- ✅ TC-01: Загрузка календаря — HTTP 200, calendar.css подключен
+- ✅ Unit тесты: 15/15 passed (CalendarService)
+- ✅ Import check: `create_calendar_layout()` создает layout без ошибок
+- ⏳ TC-02..TC-08: Требуют ручной проверки в браузере
+
+**Проверки:**
+- black: ✅ (main.py переформатирован)
+- flake8: ✅ (без ошибок)
+- pytest: ✅ 15/15 passed (0.21s)
+
+**Примечание:**
+Seed скрипты (`seed_database.py`, `seed_test_data.py`) устарели после рефакторинга протокола 0001 (используют старые импорты). Не блокирует тестирование — операции можно создать через UI.
 
 ---
 
