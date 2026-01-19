@@ -13,6 +13,7 @@ from app.components.transactions import (
     create_transactions_layout,
 )  # Сначала transactions
 from app.components.calendar import create_calendar_layout  # Потом calendar
+from app.components.goals import create_goals_layout  # Потом goals
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -89,10 +90,8 @@ def display_page(pathname):
         )
 
     elif pathname == "/goals":
-        # Накопительные цели (пока заглушка)
-        return html.Div(
-            [html.H2("Накопительные цели"), html.P("Здесь будут цели накоплений")]
-        ), create_page_header("Цели", "Накопительные цели")
+        # Накопительные цели
+        return create_goals_layout(), create_page_header("Цели", "Накопительные цели")
 
     elif pathname == "/transactions":
         # Страница операций

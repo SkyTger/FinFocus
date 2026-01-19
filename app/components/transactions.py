@@ -1,7 +1,7 @@
 """
 Компонент управления финансовыми операциями (транзакциями).
 """
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 import dash_bootstrap_components as dbc
@@ -13,48 +13,7 @@ from loguru import logger
 from app.core import get_db_session, ValidationError
 from app.models.database import TransactionType
 from app.services import TransactionService
-
-
-def format_amount(amount: Decimal) -> str:
-    """Форматирует сумму для отображения.
-
-    Args:
-        amount: Сумма операции
-
-    Returns:
-        str: Отформатированная строка (например, "15 000.00 ₽")
-    """
-    return f"{amount:,.2f} ₽".replace(",", " ")
-
-
-def format_date(date_obj: date) -> str:
-    """Форматирует дату для отображения.
-
-    Args:
-        date_obj: Объект даты
-
-    Returns:
-        str: Дата в формате DD.MM.YYYY
-    """
-    return date_obj.strftime("%d.%m.%Y")
-
-
-def parse_date_safe(date_str: str) -> date | None:
-    """Безопасно парсит строку даты.
-
-    Args:
-        date_str: Дата в формате YYYY-MM-DD
-
-    Returns:
-        date | None: Объект date или None при ошибке
-    """
-    if not date_str:
-        return None
-    try:
-        return datetime.strptime(date_str, "%Y-%m-%d").date()
-    except (ValueError, TypeError) as e:
-        logger.error(f"Ошибка парсинга даты '{date_str}': {e}")
-        return None
+from app.utils.formatters import format_amount, format_date, parse_date_safe
 
 
 def _build_transactions_table(transactions: list) -> list:

@@ -254,3 +254,25 @@ class GoalService:
         logger.info(f"Удалена цель {goal_id}")
 
         return True
+
+    def get_contributions(
+        self,
+        goal_id: int,
+        limit: int = 10,
+    ) -> list[GoalContribution]:
+        """Получает список взносов цели отсортированный по дате DESC.
+
+        Args:
+            goal_id: ID цели
+            limit: Максимальное количество записей (default 10)
+
+        Returns:
+            list[GoalContribution]: Последние взносы по дате убывания
+        """
+        return (
+            self.session.query(GoalContribution)
+            .filter_by(goal_id=goal_id)
+            .order_by(GoalContribution.contribution_date.desc())
+            .limit(limit)
+            .all()
+        )
