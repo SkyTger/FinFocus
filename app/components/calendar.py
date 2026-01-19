@@ -6,7 +6,13 @@ from decimal import Decimal
 from typing import Any
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc
+from dash import html, dcc, callback, Input, Output, State, ALL, ctx
+from dash.exceptions import PreventUpdate
+from dateutil.relativedelta import relativedelta
+from loguru import logger
+
+from app.core.database import get_db_session
+from app.services.calendar_service import CalendarService
 
 
 # ==================== КОНСТАНТЫ ====================
@@ -212,7 +218,7 @@ def build_calendar_header(month: int, year: int) -> html.Div:
 # ==================== КАРТОЧКИ СТАТИСТИКИ ====================
 
 
-def build_stats_cards(summary: dict[str, Any]) -> html.Div:
+def build_stats_cards(summary: dict[str, Any]) -> dbc.Row:
     """Создает карточки статистики над календарем.
 
     Args:
@@ -432,3 +438,265 @@ def build_day_cell(
         n_clicks=0,
         className=" ".join(css_classes),
     )
+
+
+# ==================== CALLBACKS ====================
+
+# Константа для user_id (временно, до реализации авторизации)
+DEFAULT_USER_ID = 1
+
+
+@callback(
+    [
+        Output("calendar-header", "children"),
+        Output("calendar-stats", "children"),
+        Output("calendar-grid", "children"),
+        Output("calendar-state", "data"),
+    ],
+    [
+        Input("url", "pathname"),
+        Input("prev-month-btn", "n_clicks"),
+        Input("next-month-btn", "n_clicks"),
+        Input("today-btn", "n_clicks"),
+    ],
+    [State("calendar-state", "data")],
+    prevent_initial_call=True,
+)
+def load_and_navigate_calendar(
+    pathname: str,
+    prev_clicks: int | None,
+    next_clicks: int | None,
+    today_clicks: int | None,
+    state: dict,
+):
+    """Загружает календарь и обрабатывает навигацию между месяцами.
+
+    Args:
+        pathname: Текущий URL путь
+        prev_clicks: Клики на кнопку "назад"
+        next_clicks: Клики на кнопку "вперед"
+        today_clicks: Клики на кнопку "сегодня"
+        state: Текущее состояние календаря
+
+    Returns:
+        tuple: (header, stats, grid, updated_state)
+    """
+    # Guard: только для страницы календаря
+    if pathname != "/calendar":
+        raise PreventUpdate
+
+    today = date.today()
+
+    # Получаем текущий месяц/год из state или используем сегодня
+    current_month = state.get("current_month", today.month)
+    current_year = state.get("current_year", today.year)
+    current_date = date(current_year, current_month, 1)
+
+    # Определяем какая кнопка была нажата
+    triggered_id = ctx.triggered_id
+
+    if triggered_id == "prev-month-btn":
+        new_date = current_date - relativedelta(months=1)
+        current_month = new_date.month
+        current_year = new_date.year
+    elif triggered_id == "next-month-btn":
+        new_date = current_date + relativedelta(months=1)
+        current_month = new_date.month
+        current_year = new_date.year
+    elif triggered_id == "today-btn":
+        current_month = today.month
+        current_year = today.year
+
+    # Валидация +-12 месяцев
+    current_offset = (current_year - today.year) * 12 + (current_month - today.month)
+    if current_offset < -MAX_MONTHS_OFFSET:
+        current_month = (today - relativedelta(months=MAX_MONTHS_OFFSET)).month
+        current_year = (today - relativedelta(months=MAX_MONTHS_OFFSET)).year
+    elif current_offset > MAX_MONTHS_OFFSET:
+        current_month = (today + relativedelta(months=MAX_MONTHS_OFFSET)).month
+        current_year = (today + relativedelta(months=MAX_MONTHS_OFFSET)).year
+
+    # Загружаем данные
+    try:
+        with get_db_session() as session:
+            service = CalendarService(session)
+
+            # Получаем данные за месяц
+            balances = service.calculate_daily_balances(
+                user_id=DEFAULT_USER_ID,
+                year=current_year,
+                month=current_month,
+            )
+            transactions_by_date = service.get_transactions_by_date(
+                user_id=DEFAULT_USER_ID,
+                year=current_year,
+                month=current_month,
+            )
+            summary = service.get_month_summary(
+                user_id=DEFAULT_USER_ID,
+                year=current_year,
+                month=current_month,
+            )
+
+        # Строим UI компоненты
+        header = build_calendar_header(current_month, current_year)
+        stats = build_stats_cards(summary)
+        grid = build_calendar_grid(
+            current_month, current_year, balances, transactions_by_date
+        )
+
+        # Обновляем state
+        new_state = {
+            "current_month": current_month,
+            "current_year": current_year,
+            "balances": serialize_balances(balances),
+        }
+
+        return header, stats, grid, new_state
+
+    except Exception as e:
+        logger.error(f"Ошибка загрузки календаря: {e}")
+        return (
+            build_calendar_header(current_month, current_year),
+            dbc.Alert("Не удалось загрузить данные", color="danger"),
+            html.Div(),
+            state,
+        )
+
+
+@callback(
+    [
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("create-date-picker", "date", allow_duplicate=True),
+    ],
+    Input({"type": "calendar-day", "date": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
+    """Открывает модал создания операции при клике на день календаря.
+
+    Args:
+        n_clicks_list: Список кликов по ячейкам дней
+
+    Returns:
+        tuple: (is_open, selected_date)
+    """
+    triggered_id = ctx.triggered_id
+
+    # Guard #1: проверка triggered_id существует
+    if not triggered_id:
+        raise PreventUpdate
+
+    # Guard #2: проверка типа (для Pattern-Matching)
+    if not isinstance(triggered_id, dict) or triggered_id.get("type") != "calendar-day":
+        raise PreventUpdate
+
+    # Guard #3: проверка реального клика (НЕ автовызов при DOM update!)
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    # Извлекаем дату
+    selected_date = triggered_id.get("date")
+    if not selected_date:
+        raise PreventUpdate
+
+    logger.debug(f"Открыт модал создания из календаря: {selected_date}")
+    return True, selected_date
+
+
+@callback(
+    [
+        Output("calendar-grid", "children", allow_duplicate=True),
+        Output("calendar-stats", "children", allow_duplicate=True),
+        Output("calendar-state", "data", allow_duplicate=True),
+    ],
+    [
+        Input("create-submit-btn", "n_clicks"),
+        Input("edit-submit-btn", "n_clicks"),
+        Input({"type": "delete-btn", "index": ALL}, "n_clicks"),
+    ],
+    [State("calendar-state", "data")],
+    prevent_initial_call=True,
+)
+def refresh_calendar_after_transaction(
+    create_clicks: int | None,
+    edit_clicks: int | None,
+    delete_clicks_list: list[int | None],
+    state: dict,
+):
+    """Обновляет календарь после создания/изменения/удаления операции.
+
+    Args:
+        create_clicks: Клики на кнопку создания
+        edit_clicks: Клики на кнопку редактирования
+        delete_clicks_list: Список кликов на кнопки удаления
+        state: Текущее состояние календаря
+
+    Returns:
+        tuple: (grid, stats, updated_state)
+    """
+    triggered_id = ctx.triggered_id
+
+    # Guard #1
+    if not triggered_id:
+        raise PreventUpdate
+
+    # Guard #2: проверка реального действия
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    # Проверяем что это действительно CRUD операция
+    is_create = triggered_id == "create-submit-btn" and create_clicks
+    is_edit = triggered_id == "edit-submit-btn" and edit_clicks
+    is_delete = (
+        isinstance(triggered_id, dict) and triggered_id.get("type") == "delete-btn"
+    )
+
+    if not (is_create or is_edit or is_delete):
+        raise PreventUpdate
+
+    # Получаем текущий месяц из state
+    today = date.today()
+    current_month = state.get("current_month", today.month)
+    current_year = state.get("current_year", today.year)
+
+    # Пересчитываем данные
+    try:
+        with get_db_session() as session:
+            service = CalendarService(session)
+
+            balances = service.calculate_daily_balances(
+                user_id=DEFAULT_USER_ID,
+                year=current_year,
+                month=current_month,
+            )
+            transactions_by_date = service.get_transactions_by_date(
+                user_id=DEFAULT_USER_ID,
+                year=current_year,
+                month=current_month,
+            )
+            summary = service.get_month_summary(
+                user_id=DEFAULT_USER_ID,
+                year=current_year,
+                month=current_month,
+            )
+
+        # Строим обновленные компоненты
+        grid = build_calendar_grid(
+            current_month, current_year, balances, transactions_by_date
+        )
+        stats = build_stats_cards(summary)
+
+        # Обновляем state
+        new_state = {
+            "current_month": current_month,
+            "current_year": current_year,
+            "balances": serialize_balances(balances),
+        }
+
+        logger.debug(f"Календарь обновлен после CRUD операции: {triggered_id}")
+        return grid, stats, new_state
+
+    except Exception as e:
+        logger.error(f"Ошибка обновления календаря: {e}")
+        raise PreventUpdate

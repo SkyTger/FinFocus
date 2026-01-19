@@ -8,6 +8,44 @@
 
 ---
 
+## Шаг 3: Dash Callbacks — Интерактивность (2026-01-19)
+
+**Действия:**
+- Добавлены импорты в `app/components/calendar.py`:
+  - `callback, Input, Output, State, ALL, ctx` из dash
+  - `PreventUpdate` из dash.exceptions
+  - `relativedelta` из dateutil для навигации
+  - `logger` из loguru для отладки
+  - `get_db_session` и `CalendarService` для работы с данными
+- Реализовано 3 callback функции (~260 строк):
+  1. `load_and_navigate_calendar()` — загрузка данных и навигация по месяцам
+     - Guard: pathname != "/calendar" → PreventUpdate
+     - Обработка prev/next/today кнопок через relativedelta
+     - Валидация ±12 месяцев от текущего
+     - Загрузка balances, transactions_by_date, summary через CalendarService
+     - Обработка ошибок с выводом Alert
+  2. `open_create_modal_from_calendar()` — открытие модала создания при клике на день
+     - 3 Guard clauses согласно ADR-003:
+       - Guard #1: triggered_id существует
+       - Guard #2: isinstance(dict) and type == "calendar-day"
+       - Guard #3: ctx.triggered[0].get("value") is not None
+     - Использует allow_duplicate=True для create-modal и create-date-picker
+  3. `refresh_calendar_after_transaction()` — обновление после CRUD операций
+     - Слушает create-submit-btn, edit-submit-btn, delete-btn
+     - Guard clauses для фильтрации автовызовов
+     - Пересчитывает grid, stats и state
+
+**Решения:**
+- DEFAULT_USER_ID = 1 как временная константа (до реализации авторизации)
+- allow_duplicate=True для outputs, используемых в нескольких callbacks
+- Логирование через logger.debug для отладки и logger.error для ошибок
+
+**Проверки:**
+- black: ✅ (1 файл переформатирован)
+- flake8: ✅ (без ошибок)
+
+---
+
 ## Шаг 2: Calendar UI — Компоненты и стили (2026-01-19)
 
 **Действия:**

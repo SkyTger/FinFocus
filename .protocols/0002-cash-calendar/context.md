@@ -1,8 +1,8 @@
-- **Current Step**: 3
+- **Current Step**: 4
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 2 завершен: UI компоненты календаря созданы (calendar.py ~420 строк, calendar.css ~160 строк), все проверки пройдены."
-- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-callbacks.md`)."
-- **Git**: "Ветка 0002-cash-calendar, ожидает коммит [protocol-0002/02]."
+- **Last Action Summary**: "Шаг 3 завершен: Callbacks реализованы (load_and_navigate, open_create_modal, refresh_after_transaction), guard clauses по ADR-003."
+- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-integration.md`)."
+- **Git**: "Ветка 0002-cash-calendar, ожидает коммит [protocol-0002/03]."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0002-cash-calendar`
 - **PR**: https://github.com/SkyTger/FinFocus/pull/2
