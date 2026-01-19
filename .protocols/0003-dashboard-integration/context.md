@@ -1,7 +1,7 @@
-- **Current Step**: 3
+- **Current Step**: 4
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 2 завершен: создан DashboardService с методами get_overview_metrics(), get_cashflow_data(), get_recent_transactions()."
-- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-services-init.md`)."
+- **Last Action Summary**: "Шаг 3 завершен: обновлен app/services/__init__.py с экспортом DashboardService и TypedDicts."
+- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-dashboard-ui.md`)."
 - **Git**: "Ветка 0003-dashboard-integration, PR https://github.com/SkyTger/FinFocus/pull/3"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0003-dashboard-integration`

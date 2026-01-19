@@ -4,6 +4,10 @@
 
 ---
 
+## Restore context: protocol-0003#ctx-2
+
+---
+
 ## Restore context: protocol-0003#ctx-1
 
 ---
@@ -84,3 +88,22 @@
 - Исправлены unused imports (logger, Goal)
 
 **Следующий шаг**: Шаг 3 - обновление exports в services/__init__.py
+
+---
+
+## [2026-01-19] Шаг 3: Обновление exports ✅
+
+**Commit**: 15a7853
+
+**Выполнено**:
+- Обновлен `app/services/__init__.py`:
+  - Добавлен импорт из `dashboard_service`: DashboardService, OverviewMetrics, CashflowDataPoint, RecentTransaction, PeriodType
+  - Обновлен `__all__` с группировкой по модулям (Calendar, Dashboard, Goals, Transactions, Core)
+- Все экспорты доступны через `from app.services import ...`
+
+**Верификация**:
+- black: ✅ файл не изменен (уже отформатирован)
+- flake8: ✅ нет ошибок
+- python import test: ✅ все 5 новых экспортов работают
+
+**Следующий шаг**: Шаг 4 - рефакторинг Dashboard UI
