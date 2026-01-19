@@ -2,6 +2,8 @@
 
 Этот раздел является **журналом**. Записи только добавляются, старые не изменяются.
 
+**Restore context: protocol-0002#ctx-4** (2026-01-19)
+
 **Self-Review: protocol-0002#review-1** (2026-01-19)
 
 **Restore context: protocol-0002#ctx-3** (2026-01-19)
