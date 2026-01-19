@@ -103,4 +103,34 @@
 - pytest: ✅ 37 passed
 
 **Git**:
-- Commit: feat(goals): add all callbacks for goals CRUD [protocol-0004/03]
+- Commit: `85926da` feat(goals): add all callbacks for goals CRUD [protocol-0004/03]
+
+---
+
+## [2026-01-19] Шаг 4: Стили и интеграция
+
+- Создан `app/assets/goals.css` (~170 строк) с CSS стилями для Goals UI
+- Интегрирован роутинг `/goals` в `app/main.py`
+- Заменена заглушка на `create_goals_layout()`
+
+**Стили включают**:
+- Goal Card с градиентным заголовком
+- Progress Bar с цветовой индикацией
+- Metrics Cards для метрик
+- Empty State с dashed border
+- Contributions Table
+- Modals и Button Groups
+- Responsive breakpoints (768px, 576px)
+
+**Изменения кода**:
+- `app/assets/goals.css` — новый файл (~170 строк)
+- `app/main.py` — добавлен импорт, заменена заглушка (+2/-4 строки)
+
+**Проверки**:
+- black: ✅ reformatted
+- flake8: ✅ no errors
+- import: ✅ OK
+- pytest: ✅ 37 passed
+
+**Git**:
+- Commit: feat(goals): add styles and integrate routing [protocol-0004/04]

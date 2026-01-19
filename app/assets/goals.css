@@ -1,0 +1,194 @@
+/* ============================================
+   GOALS UI STYLES
+   ============================================ */
+
+/* === GOAL CARD === */
+.goal-card {
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+}
+
+.goal-card .card-header {
+    background: linear-gradient(135deg, #198754 0%, #157347 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+    padding: 1.25rem;
+}
+
+.goal-card .card-header h4 {
+    color: white;
+}
+
+.goal-card .card-header small {
+    color: rgba(255, 255, 255, 0.85);
+}
+
+.goal-card .card-body {
+    padding: 1.5rem;
+}
+
+/* === PROGRESS BAR === */
+.goal-progress-container {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+}
+
+.goal-progress {
+    border-radius: 12px;
+    background-color: #e9ecef;
+}
+
+.goal-progress .progress-bar {
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 0.875rem;
+}
+
+/* === METRICS CARDS === */
+.goal-metric-card {
+    border: none;
+    background: #f8f9fa;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.goal-metric-card .card-body {
+    padding: 1rem;
+}
+
+.goal-metric-card h5 {
+    font-size: 1.1rem;
+}
+
+/* === EMPTY STATE === */
+.goal-empty-state {
+    border: 2px dashed #dee2e6;
+    border-radius: 12px;
+    background: #f8f9fa;
+}
+
+.goal-empty-state .card-body {
+    padding: 3rem 1.5rem;
+}
+
+.goal-empty-icon {
+    color: #6c757d;
+    font-size: 4rem;
+}
+
+/* === CONTRIBUTIONS TABLE === */
+.contributions-table {
+    margin-bottom: 0;
+}
+
+.contributions-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.contributions-table td {
+    vertical-align: middle;
+    padding: 0.75rem;
+}
+
+/* === BUTTON GROUPS === */
+.goals-container .btn-group .btn {
+    border-radius: 6px !important;
+    margin-left: 4px;
+}
+
+.goals-container .btn-group .btn:first-child {
+    margin-left: 0;
+}
+
+/* === MODALS === */
+.goals-container .modal-content {
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+}
+
+.goals-container .modal-header {
+    border-bottom: 1px solid #e9ecef;
+    padding: 1.25rem 1.5rem;
+}
+
+.goals-container .modal-body {
+    padding: 1.5rem;
+}
+
+.goals-container .modal-footer {
+    border-top: 1px solid #e9ecef;
+    padding: 1rem 1.5rem;
+}
+
+/* Date Picker Styling */
+.goals-container .DateInput_input {
+    border: 1px solid #ced4da;
+    border-radius: 0.375rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 1rem;
+}
+
+.goals-container .DateInput_input:focus {
+    border-color: #86b7fe;
+    outline: 0;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* === ALERTS === */
+.goals-container .alert {
+    border-radius: 8px;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+    .goal-card .card-header {
+        padding: 1rem;
+    }
+
+    .goal-card .card-body {
+        padding: 1rem;
+    }
+
+    .goal-metric-card .card-body {
+        padding: 0.75rem;
+    }
+
+    .goal-metric-card h5 {
+        font-size: 0.95rem;
+    }
+
+    .goals-container .btn-group {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .goals-container .btn-group .btn {
+        margin-left: 0;
+    }
+}
+
+@media (max-width: 576px) {
+    .goal-empty-state .card-body {
+        padding: 2rem 1rem;
+    }
+
+    .goal-progress-container {
+        padding: 0.75rem;
+    }
+
+    .goal-progress {
+        height: 20px !important;
+    }
+
+    .contributions-table {
+        font-size: 0.875rem;
+    }
+}
