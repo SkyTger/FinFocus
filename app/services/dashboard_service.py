@@ -79,7 +79,7 @@ class DashboardService:
         """
         self.session = session
         self._calendar_service = CalendarService(session)
-        self._goal_service = GoalService()
+        self._goal_service = GoalService(session)
 
     def get_overview_metrics(
         self,
@@ -122,7 +122,7 @@ class DashboardService:
 
         # 3. Savings из активной цели
         active_goals = self._goal_service.get_all_by_user(
-            self.session, user_id, status=GoalStatus.ACTIVE
+            user_id, status=GoalStatus.ACTIVE
         )
 
         if active_goals:

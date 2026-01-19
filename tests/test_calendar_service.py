@@ -393,3 +393,93 @@ class TestGetMonthSummary:
         assert result["total_expense"] == Decimal("0")
         assert result["start_balance"] == Decimal("10000.00")
         assert result["end_balance"] == Decimal("10000.00")
+
+
+class TestGetBalanceOnDate:
+    """Тесты для get_balance_on_date."""
+
+    def test_balance_includes_target_date(self, db_session, test_user):
+        """Баланс включает транзакции на указанную дату."""
+        # Arrange
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("5000.00"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 15),
+            )
+        )
+        db_session.commit()
+
+        service = CalendarService(db_session)
+
+        # Act
+        result = service.get_balance_on_date(test_user.id, date(2026, 1, 15))
+
+        # Assert - starting_balance (10000) + 5000 = 15000
+        assert result == Decimal("15000.00")
+
+    def test_balance_excludes_future_transactions(self, db_session, test_user):
+        """Баланс не включает транзакции после указанной даты."""
+        # Arrange
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("5000.00"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 20),
+            )
+        )
+        db_session.commit()
+
+        service = CalendarService(db_session)
+
+        # Act
+        result = service.get_balance_on_date(test_user.id, date(2026, 1, 15))
+
+        # Assert - только starting_balance, транзакция в будущем
+        assert result == Decimal("10000.00")
+
+
+class TestGetYearSummary:
+    """Тесты для get_year_summary."""
+
+    def test_aggregates_full_year(self, db_session, test_user):
+        """Агрегирует транзакции за весь год."""
+        # Arrange
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("10000.00"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 15),
+            )
+        )
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("5000.00"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 6, 15),
+            )
+        )
+        db_session.commit()
+
+        service = CalendarService(db_session)
+
+        # Act
+        result = service.get_year_summary(test_user.id, 2026)
+
+        # Assert
+        assert result["total_income"] == Decimal("10000.00")
+        assert result["total_expense"] == Decimal("5000.00")
+        assert result["year"] == 2026
+
+    def test_empty_year_returns_zeros(self, db_session, test_user):
+        """Пустой год возвращает нули."""
+        service = CalendarService(db_session)
+
+        result = service.get_year_summary(test_user.id, 2025)
+
+        assert result["total_income"] == Decimal("0")
+        assert result["total_expense"] == Decimal("0")

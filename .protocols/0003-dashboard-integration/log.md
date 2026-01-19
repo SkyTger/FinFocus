@@ -136,3 +136,29 @@
 - python import test: ✅ create_dashboard_layout импортируется
 
 **Следующий шаг**: Шаг 5 - unit тесты для DashboardService
+
+---
+
+## [2026-01-19] Шаг 5: Unit тесты ✅
+
+**Commit**: a5113e8
+
+**Выполнено**:
+- Создан `tests/test_dashboard_service.py` (12 тестов):
+  - TestGetOverviewMetrics: 6 тестов (месяц/год, пустая БД, savings, TRANSFER)
+  - TestGetCashflowData: 3 теста (12 месяцев, 5 лет, агрегация)
+  - TestGetRecentTransactions: 3 теста (сортировка, limit, пустой список)
+- Добавлены тесты в `tests/test_calendar_service.py` (4 теста):
+  - TestGetBalanceOnDate: 2 теста (включая/исключая дату)
+  - TestGetYearSummary: 2 теста (агрегация, пустой год)
+
+**Багфиксы** (обнаружены при тестировании):
+- `dashboard_service.py:82`: GoalService(session) - добавлен session в конструктор
+- `dashboard_service.py:125`: Убран лишний self.session в вызове get_all_by_user()
+
+**Верификация**:
+- pytest: ✅ 33/33 passed (21 CalendarService + 12 DashboardService)
+- black: ✅ все файлы отформатированы
+- flake8: ✅ нет ошибок
+
+**Следующий шаг**: Шаг 6 - финализация
