@@ -164,7 +164,7 @@ def _build_action_buttons(goal_data: GoalDisplayData) -> dbc.ButtonGroup:
     Returns:
         dbc.ButtonGroup: Кнопки Edit, Pause/Resume, Delete
     """
-    is_active = goal_data["status"] == "ACTIVE"
+    is_active = goal_data["status"] == "active"
     is_completed = goal_data["is_completed"]
 
     # Кнопка Pause/Resume
@@ -224,9 +224,9 @@ def _build_goal_card(goal_data: GoalDisplayData | None) -> dbc.Card:
 
     # Определяем badge статуса
     status_badges = {
-        "ACTIVE": dbc.Badge("Активна", color="success", className="ms-2"),
-        "PAUSED": dbc.Badge("Приостановлена", color="warning", className="ms-2"),
-        "COMPLETED": dbc.Badge("Завершена", color="info", className="ms-2"),
+        "active": dbc.Badge("Активна", color="success", className="ms-2"),
+        "paused": dbc.Badge("Приостановлена", color="warning", className="ms-2"),
+        "completed": dbc.Badge("Завершена", color="info", className="ms-2"),
     }
     status_badge = status_badges.get(goal_data["status"], None)
 
@@ -321,7 +321,7 @@ def _build_goal_card(goal_data: GoalDisplayData | None) -> dbc.Card:
                                 color="success",
                                 className="me-2",
                                 disabled=goal_data["is_completed"]
-                                or goal_data["status"] == "PAUSED",
+                                or goal_data["status"] == "paused",
                             ),
                             _build_action_buttons(goal_data),
                         ],
@@ -900,6 +900,11 @@ def create_goal(n_clicks, name, target_amount, target_date_str):
 )
 def toggle_contribution_modal(add_clicks, cancel_clicks, is_open):
     """Открывает/закрывает модал добавления взноса."""
+    # Guard: проверка реального клика (ADR-003)
+    # Кнопка создается динамически, Dash триггерит callback при появлении в DOM
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
     triggered_id = ctx.triggered_id
 
     if triggered_id == "add-contribution-btn":
@@ -1022,6 +1027,11 @@ def toggle_edit_modal(edit_clicks, cancel_clicks, goal_id, is_open):
     Simple callback - goal_id берем из dcc.Store, не нужен Pattern-Matching.
     При открытии загружаем актуальные данные цели из БД.
     """
+    # Guard: проверка реального клика (ADR-003)
+    # Кнопка создается динамически, Dash триггерит callback при появлении в DOM
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
     triggered_id = ctx.triggered_id
 
     if triggered_id == "edit-goal-cancel-btn":
@@ -1103,6 +1113,10 @@ def request_delete_goal(n_clicks, goal_id):
 
     Использует dcc.ConfirmDialog - нативный браузерный диалог.
     """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
     if not n_clicks or not goal_id:
         raise PreventUpdate
 
@@ -1155,6 +1169,10 @@ def toggle_goal_status(n_clicks, goal_id):
     - PAUSED -> ACTIVE: разрешено (в MVP нет других активных целей)
     - COMPLETED -> любой: запрещено (возврат из COMPLETED не поддерживается)
     """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
     if not n_clicks or not goal_id:
         raise PreventUpdate
 
