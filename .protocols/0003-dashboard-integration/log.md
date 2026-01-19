@@ -63,7 +63,7 @@
 
 ## [2026-01-19] Шаг 2: Создание DashboardService ✅
 
-**Commit**: (будет заполнен после коммита)
+**Commit**: 66b27da
 
 **Выполнено**:
 - Создан `app/services/dashboard_service.py` (~290 строк)
