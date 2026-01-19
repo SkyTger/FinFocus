@@ -1,11 +1,12 @@
 # modules/services.md
 
 ## Суть
-Сервисный слой с бизнес-логикой и валидацией для Transaction и Goal операций
+Сервисный слой с бизнес-логикой и валидацией для Transaction, Goal и Calendar операций
 
 ## Ключевые файлы
 - `app/services/transaction_service.py` - TransactionService CRUD
 - `app/services/goal_service.py` - GoalService CRUD + contributions
+- `app/services/calendar_service.py` - CalendarService расчет остатков (Фаза 3)
 
 ## TransactionService
 
@@ -123,6 +124,79 @@ raise ValidationError("Сумма должна быть больше 0", field="
 **BUG-001**: Seed script должен использовать GoalService.add_contribution вместо hardcoded current_amount
 
 **BUG-003**: target_date валидация - минимум 7 дней от сегодня
+
+## CalendarService (Фаза 3 — ЗАВЕРШЕНА)
+
+**Файл**: `app/services/calendar_service.py` (~310 строк)
+
+**Инициализация**: `CalendarService(session)` - принимает SQLAlchemy session
+
+**Методы**:
+- `calculate_daily_balances(user_id, start_date, end_date)` → `dict[date, Decimal]`
+  - Кумулятивный расчет остатков по дням
+  - Начинается с `User.starting_balance` (fallback: 0)
+  - **КРИТИЧНО**: TRANSFER транзакции исключаются из расчетов
+- `get_transactions_by_date(user_id, start_date, end_date)` → `dict[date, list[Transaction]]`
+  - Группировка транзакций по датам
+  - Для отображения иконок доходов/расходов в ячейках
+- `get_month_summary(user_id, year, month)` → `MonthSummary`
+  - Агрегация за месяц: total_income, total_expense, start_balance, end_balance
+
+**TypedDict**:
+```python
+class MonthSummary(TypedDict):
+    total_income: Decimal
+    total_expense: Decimal
+    start_balance: Decimal
+    end_balance: Decimal
+```
+
+**Пример использования**:
+```python
+from app.services import CalendarService
+
+with get_db_session() as session:
+    service = CalendarService(session)
+
+    # Расчет остатков за январь
+    balances = service.calculate_daily_balances(
+        user_id=1,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31)
+    )
+    # {date(2026,1,1): Decimal('10000'), date(2026,1,2): Decimal('9500'), ...}
+
+    # Сводка по месяцу
+    summary = service.get_month_summary(user_id=1, year=2026, month=1)
+    # {'total_income': Decimal('50000'), 'total_expense': Decimal('35000'), ...}
+```
+
+**Внутренние методы**:
+- `_get_starting_balance(user_id)` — получение начального баланса
+- `_calculate_balance_before_date(user_id, date)` — баланс на начало периода
+- `_get_daily_changes(user_id, start_date, end_date)` — SQL агрегация изменений
+
+**SQL агрегация** (производительность):
+```python
+# GROUP BY transaction_date для эффективности
+case(
+    (Transaction.transaction_type == TransactionType.INCOME, Transaction.amount),
+    else_=-Transaction.amount
+)
+```
+
+**Unit тесты**: 15 тестов в `tests/test_calendar_service.py`
+- Покрытие: пустые данные, один день, несколько дней, TRANSFER исключение
+
+## Критичные решения
+
+**D010**: Session management через flush() вместо commit() для гибкости caller
+
+**BUG-001**: Seed script должен использовать GoalService.add_contribution вместо hardcoded current_amount
+
+**BUG-003**: target_date валидация - минимум 7 дней от сегодня
+
+**Фаза 3**: TRANSFER транзакции исключаются из CalendarService расчетов баланса
 
 ---
 

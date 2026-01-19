@@ -120,16 +120,67 @@ fig.update_layout(template="plotly_white", showlegend=True)
 - Использование `ctx.triggered_id["index"]` напрямую вместо поиска в списках
 - Удаление избыточной проверки `n_clicks is None` (не нужна с `prevent_initial_call=True`)
 
-## Следующие шаги
+## Calendar Component (Фаза 3 — ЗАВЕРШЕНА)
 
-**Фаза 3** (Кассовый календарь):
-- Новый компонент `/app/components/calendar.py`
-- Таблица с датами и остатками
-- Интеграция с Transaction для расчета
+**Файлы**:
+- `app/components/calendar.py` — UI + callbacks (~700 строк)
+- `app/assets/calendar.css` — стили (~190 строк)
+
+**Layout**:
+- Header с навигацией (prev/today/next кнопки)
+- Stats cards (Доходы/Расходы/Баланс за месяц)
+- Calendar grid — сетка дней с балансами
+- Интеграция с create-modal из transactions.py
+
+**Основные функции**:
+- `create_calendar_layout()` — главный layout страницы
+- `build_calendar_header()` — навигация по месяцам
+- `build_stats_cards()` — карточки статистики (dbc.Row)
+- `build_calendar_grid()` — сетка дней
+- `build_day_cell()` — ячейка одного дня (Pattern-Matching ID)
+
+**Callbacks**:
+- `load_and_navigate_calendar()` — загрузка данных и навигация ±12 месяцев
+- `open_create_modal_from_calendar()` — открытие модала при клике на день
+- `refresh_calendar_after_transaction()` — обновление после CRUD операций
+
+**Утилиты**:
+- `serialize_balances()` / `deserialize_balances()` — Decimal ↔ JSON для dcc.Store
+- `format_balance()` — форматирование суммы с разделителями
+- `format_month_header()` — локализованный заголовок (MONTH_NAMES_RU)
+
+**Pattern-Matching IDs**:
+```python
+# Ячейка дня
+{"type": "calendar-day", "date": "2026-01-19"}
+
+# КРИТИЧНО: проверка автовызова (ADR-003)
+if ctx.triggered[0].get('value') is None:
+    raise PreventUpdate
+```
+
+**Стили** (calendar.css):
+- `.calendar-grid` — flexbox контейнер
+- `.calendar-day` — ячейка дня
+- `.calendar-day-balance.positive` — зеленый баланс
+- `.calendar-day-balance.negative` — красный баланс
+- `.calendar-day-balance.warning` — желтый (< 5000₽)
+- `.calendar-day.today` — подсветка сегодня
+- `.calendar-day.weekend` — выходные дни
+
+**Константы**:
+- `WARNING_BALANCE_THRESHOLD = Decimal("5000")` — порог предупреждения
+- `MAX_MONTHS_OFFSET = 12` — ограничение навигации
+
+## Следующие шаги
 
 **Фаза 4** (Dashboard integration):
 - Callbacks для загрузки реальных данных из БД
 - Динамические графики с фильтрами (месяц/год)
+
+**Фаза 5** (Goals):
+- Компонент управления накопительными целями
+- Интеграция с GoalService
 
 ---
 
