@@ -1,7 +1,7 @@
 """UI компонент кассового календаря."""
 
 import calendar
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -12,7 +12,7 @@ from dateutil.relativedelta import relativedelta
 from loguru import logger
 
 from app.core.database import get_db_session
-from app.services.calendar_service import CalendarService
+from app.services.calendar_service import CalendarService, TransactionInfo
 
 
 # ==================== КОНСТАНТЫ ====================
@@ -107,39 +107,6 @@ def format_month_header(month: int, year: int) -> str:
     return f"{MONTH_NAMES_RU[month]} {year}"
 
 
-# ==================== ГЛАВНЫЙ LAYOUT ====================
-
-
-def create_calendar_layout() -> html.Div:
-    """Создает layout страницы кассового календаря.
-
-    Returns:
-        html.Div: Layout календаря
-    """
-    today = date.today()
-
-    return html.Div(
-        [
-            # State хранилище
-            dcc.Store(
-                id="calendar-state",
-                data={
-                    "current_month": today.month,
-                    "current_year": today.year,
-                    "balances": {},
-                },
-            ),
-            # Заголовок с навигацией
-            html.Div(id="calendar-header"),
-            # Карточки статистики
-            html.Div(id="calendar-stats", className="mb-4"),
-            # Календарная сетка
-            html.Div(id="calendar-grid"),
-        ],
-        className="calendar-container",
-    )
-
-
 # ==================== КОМПОНЕНТ ЗАГОЛОВКА ====================
 
 
@@ -212,6 +179,49 @@ def build_calendar_header(month: int, year: int) -> html.Div:
             ),
         ],
         className="calendar-header",
+    )
+
+
+# ==================== ГЛАВНЫЙ LAYOUT ====================
+
+
+def create_calendar_layout() -> html.Div:
+    """Создает layout страницы кассового календаря.
+
+    Returns:
+        html.Div: Layout календаря
+    """
+    today = date.today()
+
+    return html.Div(
+        [
+            # State хранилище
+            dcc.Store(
+                id="calendar-state",
+                data={
+                    "current_month": today.month,
+                    "current_year": today.year,
+                    "balances": {},
+                },
+            ),
+            # Заголовок с навигацией (с начальными кнопками)
+            html.Div(
+                id="calendar-header",
+                children=build_calendar_header(today.month, today.year),
+            ),
+            # Карточки статистики (загрузка...)
+            html.Div(
+                id="calendar-stats",
+                className="mb-4",
+                children=html.Div("Загрузка...", className="text-muted"),
+            ),
+            # Календарная сетка (загрузка...)
+            html.Div(
+                id="calendar-grid",
+                children=html.Div("Загрузка календаря...", className="text-muted"),
+            ),
+        ],
+        className="calendar-container",
     )
 
 
@@ -298,7 +308,7 @@ def build_calendar_grid(
     month: int,
     year: int,
     balances: dict[date, Decimal],
-    transactions: dict[date, list[Any]],
+    transactions: dict[date, list[TransactionInfo]],
 ) -> html.Div:
     """Создает календарную сетку с днями.
 
@@ -306,7 +316,7 @@ def build_calendar_grid(
         month: Месяц (1-12)
         year: Год
         balances: {date: Decimal} — балансы по дням
-        transactions: {date: [Transaction, ...]} — транзакции по датам
+        transactions: {date: [TransactionInfo, ...]} — данные транзакций по датам
 
     Returns:
         html.Div: Сетка календаря
@@ -366,7 +376,7 @@ def build_calendar_grid(
 def build_day_cell(
     day_date: date,
     balance: Decimal,
-    transactions: list[Any],
+    transactions: list[TransactionInfo],
     is_today: bool = False,
     is_current_month: bool = True,
     is_weekend: bool = False,
@@ -376,7 +386,7 @@ def build_day_cell(
     Args:
         day_date: Дата дня
         balance: Остаток на этот день
-        transactions: Список транзакций дня
+        transactions: Список данных транзакций дня (TransactionInfo dict)
         is_today: Текущий день
         is_current_month: День текущего месяца
         is_weekend: Выходной день
@@ -396,16 +406,10 @@ def build_day_cell(
     # Форматируем баланс
     balance_text, balance_class = format_balance(balance)
 
-    # Иконки транзакций
+    # Иконки транзакций — dict-доступ вместо ORM
     icons = []
-    has_income = any(
-        getattr(t, "transaction_type", None) and t.transaction_type.value == "income"
-        for t in transactions
-    )
-    has_expense = any(
-        getattr(t, "transaction_type", None) and t.transaction_type.value == "expense"
-        for t in transactions
-    )
+    has_income = any(t.get("transaction_type") == "income" for t in transactions)
+    has_expense = any(t.get("transaction_type") == "expense" for t in transactions)
 
     if has_income:
         icons.append(html.Span("↓", className="text-success me-1", title="Доход"))
@@ -460,14 +464,13 @@ DEFAULT_USER_ID = 1
         Input("today-btn", "n_clicks"),
     ],
     [State("calendar-state", "data")],
-    prevent_initial_call=True,
 )
 def load_and_navigate_calendar(
     pathname: str,
     prev_clicks: int | None,
     next_clicks: int | None,
     today_clicks: int | None,
-    state: dict,
+    state: dict | None,
 ):
     """Загружает календарь и обрабатывает навигацию между месяцами.
 
@@ -486,6 +489,10 @@ def load_and_navigate_calendar(
         raise PreventUpdate
 
     today = date.today()
+
+    # Инициализация state при первом вызове
+    if state is None:
+        state = {}
 
     # Получаем текущий месяц/год из state или используем сегодня
     current_month = state.get("current_month", today.month)
@@ -518,19 +525,27 @@ def load_and_navigate_calendar(
 
     # Загружаем данные
     try:
+        # Вычисляем диапазон дат для месяца
+        start_date = date(current_year, current_month, 1)
+        # Последний день месяца
+        if current_month == 12:
+            end_date = date(current_year, 12, 31)
+        else:
+            end_date = date(current_year, current_month + 1, 1) - timedelta(days=1)
+
         with get_db_session() as session:
             service = CalendarService(session)
 
             # Получаем данные за месяц
             balances = service.calculate_daily_balances(
                 user_id=DEFAULT_USER_ID,
-                year=current_year,
-                month=current_month,
+                start_date=start_date,
+                end_date=end_date,
             )
             transactions_by_date = service.get_transactions_by_date(
                 user_id=DEFAULT_USER_ID,
-                year=current_year,
-                month=current_month,
+                start_date=start_date,
+                end_date=end_date,
             )
             summary = service.get_month_summary(
                 user_id=DEFAULT_USER_ID,
@@ -662,18 +677,25 @@ def refresh_calendar_after_transaction(
 
     # Пересчитываем данные
     try:
+        # Вычисляем диапазон дат для месяца
+        start_date = date(current_year, current_month, 1)
+        if current_month == 12:
+            end_date = date(current_year, 12, 31)
+        else:
+            end_date = date(current_year, current_month + 1, 1) - timedelta(days=1)
+
         with get_db_session() as session:
             service = CalendarService(session)
 
             balances = service.calculate_daily_balances(
                 user_id=DEFAULT_USER_ID,
-                year=current_year,
-                month=current_month,
+                start_date=start_date,
+                end_date=end_date,
             )
             transactions_by_date = service.get_transactions_by_date(
                 user_id=DEFAULT_USER_ID,
-                year=current_year,
-                month=current_month,
+                start_date=start_date,
+                end_date=end_date,
             )
             summary = service.get_month_summary(
                 user_id=DEFAULT_USER_ID,

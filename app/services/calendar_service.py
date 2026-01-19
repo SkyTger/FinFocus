@@ -24,6 +24,20 @@ class MonthSummary(TypedDict):
     year: int
 
 
+class TransactionInfo(TypedDict):
+    """Минимальные данные о транзакции для UI календаря.
+
+    Используется вместо ORM-объекта Transaction для передачи
+    данных из CalendarService в UI-компоненты после закрытия сессии БД.
+    Поле description добавлено для расширяемости (tooltip в будущем).
+    """
+
+    id: int  # ID транзакции
+    transaction_type: str  # "income" | "expense" | "transfer"
+    amount: str  # Decimal в строковом формате
+    description: str | None  # Описание (для будущих tooltip)
+
+
 class CalendarService:
     """Сервис для расчета кассовых остатков по дням.
 
@@ -213,8 +227,11 @@ class CalendarService:
 
     def get_transactions_by_date(
         self, user_id: int, start_date: date, end_date: date
-    ) -> dict[date, list[Transaction]]:
+    ) -> dict[date, list[TransactionInfo]]:
         """Получает транзакции пользователя, сгруппированные по датам.
+
+        Возвращает легковесные словари вместо ORM-объектов для безопасного
+        использования после закрытия сессии БД.
 
         В отличие от calculate_daily_balances, этот метод включает ВСЕ типы
         транзакций (включая TRANSFER) для отображения в UI.
@@ -225,7 +242,8 @@ class CalendarService:
             end_date: Конец периода (включительно)
 
         Returns:
-            dict[date, list[Transaction]]: Словарь {дата: список транзакций}
+            dict[date, list[TransactionInfo]]: Словарь {дата: данные транзакций}
+                (НЕ ORM-объекты!)
         """
         transactions = (
             self.session.query(Transaction)
@@ -238,9 +256,18 @@ class CalendarService:
             .all()
         )
 
-        result: dict[date, list[Transaction]] = defaultdict(list)
+        result: dict[date, list[TransactionInfo]] = defaultdict(list)
         for txn in transactions:
-            result[txn.transaction_date].append(txn)
+            # Defensive coding: защита от corrupted data
+            txn_info: TransactionInfo = {
+                "id": txn.id,
+                "transaction_type": (
+                    txn.transaction_type.value if txn.transaction_type else "unknown"
+                ),
+                "amount": str(txn.amount) if txn.amount is not None else "0",
+                "description": txn.description,
+            }
+            result[txn.transaction_date].append(txn_info)
 
         return dict(result)
 

@@ -191,7 +191,7 @@ class TestGetTransactionsByDate:
     """Тесты для get_transactions_by_date."""
 
     def test_returns_all_transaction_types(self, db_session, test_user):
-        """Метод возвращает ВСЕ типы транзакций, включая TRANSFER."""
+        """Метод возвращает ВСЕ типы транзакций как dict со строковыми типами."""
         db_session.add(
             Transaction(
                 user_id=test_user.id,
@@ -224,10 +224,11 @@ class TestGetTransactionsByDate:
         )
 
         assert len(result[date(2026, 1, 1)]) == 3
-        types = {t.transaction_type for t in result[date(2026, 1, 1)]}
-        assert TransactionType.INCOME in types
-        assert TransactionType.EXPENSE in types
-        assert TransactionType.TRANSFER in types
+        # Проверяем строковые типы вместо Enum
+        types = {t["transaction_type"] for t in result[date(2026, 1, 1)]}
+        assert "income" in types
+        assert "expense" in types
+        assert "transfer" in types
 
     def test_groups_by_date(self, db_session, test_user):
         """Транзакции группируются по датам."""
@@ -257,6 +258,59 @@ class TestGetTransactionsByDate:
         assert len(result[date(2026, 1, 1)]) == 1
         assert len(result[date(2026, 1, 2)]) == 1
         assert date(2026, 1, 3) not in result  # нет транзакций
+
+    def test_transaction_info_structure(self, db_session, test_user):
+        """Возвращаемый dict имеет корректную структуру TransactionInfo."""
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("1000.00"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 1),
+                description="Тестовая транзакция",
+            )
+        )
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        result = service.get_transactions_by_date(
+            test_user.id, date(2026, 1, 1), date(2026, 1, 1)
+        )
+
+        txn = result[date(2026, 1, 1)][0]
+        # Проверяем наличие всех ключей
+        assert "id" in txn
+        assert "transaction_type" in txn
+        assert "amount" in txn
+        assert "description" in txn
+        # Проверяем типы значений
+        assert isinstance(txn["id"], int)
+        assert isinstance(txn["transaction_type"], str)
+        assert isinstance(txn["amount"], str)
+        assert txn["transaction_type"] == "income"
+        assert txn["amount"] == "1000.00"
+        assert txn["description"] == "Тестовая транзакция"
+
+    def test_transaction_info_with_none_description(self, db_session, test_user):
+        """TransactionInfo корректно обрабатывает None description."""
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("500.00"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 1, 1),
+                description=None,
+            )
+        )
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        result = service.get_transactions_by_date(
+            test_user.id, date(2026, 1, 1), date(2026, 1, 1)
+        )
+
+        txn = result[date(2026, 1, 1)][0]
+        assert txn["description"] is None
 
 
 class TestGetMonthSummary:
