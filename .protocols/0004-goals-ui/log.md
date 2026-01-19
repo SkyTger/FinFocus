@@ -43,4 +43,31 @@
 - pytest: ✅ 37 passed
 
 **Git**:
-- Commit: `5f0401f` feat(utils): add formatters module and get_contributions method [protocol-0004/01]
+- Commit: `9242cfb` feat(utils): add formatters module and get_contributions method [protocol-0004/01]
+
+---
+
+## [2026-01-19] Шаг 2: Goals Layout
+
+- Создан `app/components/goals.py` (~500 строк) с полным layout страницы Goals
+- TypedDicts: GoalDisplayData, ContributionDisplayData
+- Build-функции: _goal_to_display_data, _build_empty_state, _build_progress_bar, _build_action_buttons, _build_goal_card, _build_contributions_table
+- Модалы: Create Goal, Edit Goal, Contribution
+- Главный layout: create_goals_layout() с dcc.Store, dcc.ConfirmDialog, Alert
+- Обновлен `app/components/__init__.py` с экспортом
+
+**Компоненты**:
+- Карточка цели с прогресс-баром и метриками (накоплено, рекомендуемый взнос, осталось дней)
+- Empty state с призывом создать цель
+- Таблица истории взносов с empty state
+- 3 модала для CRUD операций
+- ConfirmDialog для подтверждения удаления
+
+**Проверки**:
+- black: ✅ reformatted
+- flake8: ✅ no errors
+- import: ✅ OK
+- pytest: ✅ 37 passed
+
+**Git**:
+- Commit: `ac5687f` feat(goals): add goals layout and build functions [protocol-0004/02]

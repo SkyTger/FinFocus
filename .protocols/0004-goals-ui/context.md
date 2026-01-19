@@ -1,7 +1,7 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 1 завершен: создан модуль formatters.py, добавлен get_contributions() в GoalService, обновлены импорты в transactions.py, добавлены 4 unit теста."
-- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-goals-layout.md`)."
+- **Last Action Summary**: "Шаг 2 завершен: создан goals.py с layout, build-функциями, модалами. TypedDicts, empty states, progress bar."
+- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-goals-callbacks.md`)."
 - **Git**: "Ветка 0004-goals-ui. PR #4: https://github.com/SkyTger/FinFocus/pull/4"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0004-goals-ui`
