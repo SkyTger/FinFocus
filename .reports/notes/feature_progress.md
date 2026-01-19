@@ -2,10 +2,79 @@
 
 ## 📊 Общий статус проекта: Epic-01-CoreMVP - В ПРОЦЕССЕ
 
-**Последнее обновление**: 2025/12/22
-**Текущий этап**: Фаза 2 завершена, готов к Фазе 3 (Кассовый календарь)
-**Прогресс Epic-01**: 40% (8/20 задач)
+**Последнее обновление**: 2026/01/19
+**Текущий этап**: Фаза 3 завершена, готов к Фазе 4 (Дашборд)
+**Прогресс Epic-01**: 60% (12/20 задач)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 5: Кассовый календарь (2026-01-19) - ЗАВЕРШЕН
+
+**Дата**: 2026/01/19
+**Протокол**: 0002-cash-calendar
+**PR**: https://github.com/SkyTger/FinFocus/pull/2
+**Статус**: ✅ Полностью завершен
+
+### 🎯 Цель батча:
+Реализовать кассовый календарь с расчетом остатков по дням — главную фичу Core MVP (Фаза 3).
+
+### ✅ Выполненные задачи:
+
+1. **CalendarService** (app/services/calendar_service.py, ~310 строк)
+   - `calculate_daily_balances()` — кумулятивный расчет остатков
+   - `get_month_summary()` — агрегация для статистики
+   - `get_transactions_by_date()` — группировка по датам
+   - TRANSFER транзакции исключены из расчетов
+   - 15 unit тестов покрывают все сценарии
+
+2. **Calendar UI** (app/components/calendar.py, ~700 строк)
+   - `serialize_balances()` / `deserialize_balances()` — Decimal ↔ JSON для dcc.Store
+   - Локализация месяцев (MONTH_NAMES_RU, WEEKDAY_NAMES_RU)
+   - Цветовая индикация балансов (positive/negative/warning)
+   - Pattern-Matching IDs для ячеек дней
+
+3. **Callbacks с guard clauses** (ADR-003)
+   - `load_and_navigate_calendar()` — загрузка и навигация ±12 месяцев
+   - `open_create_modal_from_calendar()` — открытие модала при клике на день
+   - `refresh_calendar_after_transaction()` — обновление после CRUD
+   - Все 3 callback применяют проверку `ctx.triggered[0].get('value') is None`
+
+4. **Интеграция с main.py**
+   - Роутинг `/calendar` вызывает `create_calendar_layout()`
+   - Порядок импортов: transactions → calendar (критично для callbacks)
+   - `__all__` в `__init__.py` с полным списком компонентов
+
+5. **Стили** (app/assets/calendar.css, ~190 строк)
+   - Flexbox сетка календаря
+   - Адаптивность (768px, 576px breakpoints)
+   - Подсветка сегодняшнего дня, выходных
+
+### 🔧 Технические изменения:
+
+**Новые файлы:**
+- `app/services/calendar_service.py` — CalendarService + MonthSummary TypedDict
+- `app/components/calendar.py` — UI + callbacks
+- `app/assets/calendar.css` — стили
+- `tests/test_calendar_service.py` — 15 unit тестов
+
+**Модифицированные файлы:**
+- `app/services/__init__.py` — export CalendarService
+- `app/components/__init__.py` — export create_calendar_layout
+- `app/main.py` — роутинг /calendar
+
+### 📊 Результат:
+- ✅ Фаза 3 Epic-01-CoreMVP завершена
+- ✅ Прогресс Epic-01: 60% (12/20 задач)
+- ✅ Unit тесты: 15/15 passed
+- ✅ Quality checks: black + flake8 без ошибок
+
+### 💡 Ключевые уроки:
+
+1. **Decimal сериализация** — JSON не поддерживает Decimal, нужны serialize/deserialize
+2. **Pattern-Matching guard clauses** — обязательная проверка `ctx.triggered[0].get('value') is None`
+3. **Порядок импортов** — критичен для регистрации callbacks в Dash
+4. **SQL агрегация** — GROUP BY эффективнее Python-циклов для расчета балансов
 
 ---
 

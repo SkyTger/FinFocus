@@ -1,0 +1,191 @@
+/* ==================== КАССОВЫЙ КАЛЕНДАРЬ ==================== */
+
+/* Контейнер календаря */
+.calendar-container {
+    padding: 20px;
+}
+
+/* Заголовок */
+.calendar-header {
+    margin-bottom: 20px;
+}
+
+.calendar-month-title {
+    font-weight: 600;
+    color: #333;
+}
+
+/* Карточки статистики */
+.stats-card {
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s;
+}
+
+.stats-card:hover {
+    transform: translateY(-2px);
+}
+
+/* ==================== СЕТКА КАЛЕНДАРЯ ==================== */
+
+.calendar-grid {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+}
+
+/* Строка дней недели */
+.calendar-weekday-row {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.calendar-weekday {
+    width: 14.28%;  /* 100% / 7 */
+    font-weight: 600;
+    padding: 12px 8px;
+    color: #495057;
+    font-size: 13px;
+}
+
+/* Строка недели */
+.calendar-week-row {
+    border-bottom: 1px solid #dee2e6;
+}
+
+.calendar-week-row:last-child {
+    border-bottom: none;
+}
+
+/* ==================== ЯЧЕЙКА ДНЯ ==================== */
+
+.calendar-day {
+    width: 14.28%;  /* 100% / 7 */
+    min-height: 80px;
+    padding: 8px;
+    border-right: 1px solid #dee2e6;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    flex-direction: column;
+}
+
+.calendar-day:last-child {
+    border-right: none;
+}
+
+.calendar-day:hover {
+    background-color: #f8f9fa;
+}
+
+/* Сегодняшний день */
+.calendar-day-today {
+    background-color: #e8f5e9;
+    border: 2px solid #4caf50 !important;
+}
+
+.calendar-day-today:hover {
+    background-color: #c8e6c9;
+}
+
+/* День другого месяца */
+.calendar-day-other-month {
+    opacity: 0.4;
+    background-color: #fafafa;
+}
+
+.calendar-day-other-month:hover {
+    opacity: 0.6;
+}
+
+/* Выходной */
+.calendar-day-weekend {
+    background-color: #fafafa;
+}
+
+.calendar-day-weekend:hover {
+    background-color: #f0f0f0;
+}
+
+/* ==================== ЭЛЕМЕНТЫ ЯЧЕЙКИ ==================== */
+
+/* Номер дня */
+.calendar-day-number {
+    font-weight: bold;
+    font-size: 14px;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.calendar-day-other-month .calendar-day-number {
+    color: #999;
+}
+
+/* Иконки транзакций */
+.calendar-day-icons {
+    font-size: 12px;
+    margin-top: 2px;
+    margin-bottom: 2px;
+}
+
+/* Баланс */
+.calendar-day-balance {
+    font-size: 11px;
+    margin-top: auto;
+    font-weight: 500;
+}
+
+/* ==================== ЦВЕТА БАЛАНСА ==================== */
+
+.balance-positive {
+    color: #28a745;
+}
+
+.balance-negative {
+    color: #dc3545;
+}
+
+.balance-warning {
+    color: #ff9800;
+}
+
+/* ==================== АДАПТИВНОСТЬ ==================== */
+
+@media (max-width: 768px) {
+    .calendar-day {
+        min-height: 60px;
+        padding: 4px;
+    }
+
+    .calendar-day-number {
+        font-size: 12px;
+    }
+
+    .calendar-day-balance {
+        font-size: 10px;
+    }
+
+    .calendar-weekday {
+        padding: 8px 4px;
+        font-size: 11px;
+    }
+
+    .calendar-month-title {
+        font-size: 1.1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .calendar-container {
+        padding: 10px;
+    }
+
+    .calendar-day {
+        min-height: 50px;
+    }
+
+    .calendar-day-icons {
+        display: none;
+    }
+}
