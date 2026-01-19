@@ -1,7 +1,7 @@
-- **Current Step**: 4
+- **Current Step**: 5
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 3 завершен: обновлен app/services/__init__.py с экспортом DashboardService и TypedDicts."
-- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-dashboard-ui.md`)."
+- **Last Action Summary**: "Шаг 4 завершен: dashboard.py полностью переписан с callbacks и интеграцией с DashboardService."
+- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-tests.md`)."
 - **Git**: "Ветка 0003-dashboard-integration, PR https://github.com/SkyTger/FinFocus/pull/3"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0003-dashboard-integration`

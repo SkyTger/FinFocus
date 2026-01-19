@@ -107,3 +107,32 @@
 - python import test: ✅ все 5 новых экспортов работают
 
 **Следующий шаг**: Шаг 4 - рефакторинг Dashboard UI
+
+---
+
+## [2026-01-19] Шаг 4: Рефакторинг Dashboard UI ✅
+
+**Commit**: 6f882aa
+
+**Выполнено**:
+- Полностью переписан `app/components/dashboard.py` (~685 строк):
+  - Добавлены импорты DashboardService, TypedDicts, callback utilities
+  - `create_dashboard_layout()`: добавлен dcc.Store для периода, динамические div'ы
+  - Статические компоненты: create_metric_card, create_ai_assistant_card, create_exchange_card
+  - Динамические build-функции: build_overview_cards, build_cashflow_chart, build_statistics_card, build_recent_transactions_card
+  - Callbacks: load_dashboard_data (главный), update_period_state
+- Удалены старые функции с hardcoded данными (create_overview_cards, create_cashflow_chart, create_statistics_card, create_recent_transactions_card)
+
+**Архитектура**:
+- dcc.Store для хранения текущего периода (month/year)
+- RadioItems для переключателя периода в графике Cashflow
+- Guard clauses в callbacks (pathname check, PreventUpdate)
+- Try/except с logger.error и graceful degradation (Alert при ошибках)
+- Форматирование валюты: $XXX,XXX.XX
+
+**Верификация**:
+- black: ✅ файл не изменен (уже отформатирован)
+- flake8: ✅ нет ошибок
+- python import test: ✅ create_dashboard_layout импортируется
+
+**Следующий шаг**: Шаг 5 - unit тесты для DashboardService
