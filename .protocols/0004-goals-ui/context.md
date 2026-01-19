@@ -1,7 +1,7 @@
-- **Current Step**: 3
+- **Current Step**: 4
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 2 завершен: создан goals.py с layout, build-функциями, модалами. TypedDicts, empty states, progress bar."
-- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-goals-callbacks.md`)."
+- **Last Action Summary**: "Шаг 3 завершен: добавлены все 10 callbacks для CRUD операций с целями и взносами."
+- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-goals-routing.md`)."
 - **Git**: "Ветка 0004-goals-ui. PR #4: https://github.com/SkyTger/FinFocus/pull/4"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0004-goals-ui`

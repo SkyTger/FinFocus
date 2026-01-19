@@ -2,6 +2,7 @@
 
 Этот раздел является **журналом**. Записи только добавляются, старые не изменяются.
 
+**Restore context**: protocol-0004#ctx-2
 **Restore context**: protocol-0004#ctx-1
 
 ---
@@ -71,3 +72,35 @@
 
 **Git**:
 - Commit: `ac5687f` feat(goals): add goals layout and build functions [protocol-0004/02]
+
+---
+
+## [2026-01-19] Шаг 3: Goals Callbacks
+
+- Добавлены все 10 callbacks в `app/components/goals.py` для полного CRUD
+- Все callbacks используют simple IDs (без Pattern-Matching)
+- Все callbacks с `prevent_initial_call=True` и guard clauses
+
+**Callbacks**:
+1. `load_goal_data()` — загрузка данных при переходе на /goals
+2. `toggle_create_goal_modal()` — открытие/закрытие модала создания
+3. `create_goal()` — создание новой цели с валидацией
+4. `toggle_contribution_modal()` — открытие/закрытие модала взноса
+5. `add_contribution()` — добавление взноса в цель
+6. `toggle_edit_modal()` — открытие/закрытие модала редактирования
+7. `update_goal()` — обновление параметров цели
+8. `request_delete_goal()` — запрос подтверждения удаления
+9. `confirm_delete_goal()` — удаление цели после подтверждения
+10. `toggle_goal_status()` — переключение статуса ACTIVE <-> PAUSED
+
+**Изменения кода**:
+- `app/components/goals.py` — добавлено ~350 строк callbacks (итого ~1040 строк)
+
+**Проверки**:
+- black: ✅ reformatted
+- flake8: ✅ no errors
+- import: ✅ OK
+- pytest: ✅ 37 passed
+
+**Git**:
+- Commit: feat(goals): add all callbacks for goals CRUD [protocol-0004/03]
