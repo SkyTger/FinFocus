@@ -124,3 +124,56 @@ no checks reported on the 'main' branch
 
 ---
 
+## Шаг 4-m: Финальное слияние (2026-01-19)
+
+**Окружение:**
+- pwd: `/home/skytiger/PycharmProjects/FinFocus`
+- branch: `main`
+
+**Разрешение пользователя:** ✅ Получено
+
+**Действия:**
+1. `git checkout main` — уже на main
+2. `git pull origin main` — актуально
+3. `git push origin main` — запушены локальные коммиты ревью
+4. `git merge --no-ff 0002-cash-calendar` — merge выполнен
+5. `git push origin main` — изменения отправлены
+
+**Результат merge:**
+```
+Merge made by the 'ort' strategy.
+23 files changed, 3425 insertions(+), 22 deletions(-)
+```
+
+**Merge commit:** f3f12b4
+
+**Статус:** ✅ MERGE ВЫПОЛНЕН УСПЕШНО
+
+---
+
+## Шаг 5-m: Очистка (2026-01-19)
+
+**Действия:**
+1. `git push origin --delete 0002-cash-calendar` — ✅ remote ветка удалена
+2. `rm -rf /home/skytiger/PycharmProjects/worktrees/0002-cash-calendar` — ✅ worktree удален
+3. `git branch -d 0002-cash-calendar` — ✅ локальная ветка удалена
+
+**Статус:** ✅ ОЧИСТКА ЗАВЕРШЕНА
+
+---
+
+## ИТОГ
+
+**Протокол 0002-cash-calendar завершен успешно.**
+
+| Этап | Статус |
+|------|--------|
+| CI/CD проверка | ✅ |
+| Локальная верификация | ✅ |
+| Ревью кода | ✅ |
+| Merge в main | ✅ |
+| Очистка | ✅ |
+
+**Merge commit:** f3f12b4
+**PR:** #2 (merged)
+**Дата завершения:** 2026-01-19
