@@ -58,3 +58,29 @@
 - Все существующие тесты CalendarService (17/17) прошли успешно
 
 **Следующий шаг**: Шаг 2 - создание DashboardService
+
+---
+
+## [2026-01-19] Шаг 2: Создание DashboardService ✅
+
+**Commit**: (будет заполнен после коммита)
+
+**Выполнено**:
+- Создан `app/services/dashboard_service.py` (~290 строк)
+- TypedDict'ы: `OverviewMetrics`, `CashflowDataPoint`, `RecentTransaction`
+- Метод `get_overview_metrics(user_id, period, reference_date)`:
+  - Агрегирует total_balance, period_income/expense, savings data
+  - Использует CalendarService и GoalService
+- Метод `get_cashflow_data(user_id, period, reference_date)`:
+  - period="month": последние 12 месяцев
+  - period="year": последние 5 лет
+  - Один SQL-запрос с GROUP BY (оптимизация)
+- Метод `get_recent_transactions(user_id, limit)`:
+  - Последние N транзакций, отсортированных по дате DESC
+
+**Технические детали**:
+- Composition pattern: DashboardService содержит CalendarService и GoalService
+- Короткие названия месяцев на русском (MONTH_NAMES_RU_SHORT)
+- Исправлены unused imports (logger, Goal)
+
+**Следующий шаг**: Шаг 3 - обновление exports в services/__init__.py

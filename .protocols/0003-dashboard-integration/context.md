@@ -1,7 +1,7 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 1 завершен: добавлены методы get_balance_on_date() и get_year_summary(), экспорт YearSummary обновлен."
-- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-dashboard-service.md`)."
+- **Last Action Summary**: "Шаг 2 завершен: создан DashboardService с методами get_overview_metrics(), get_cashflow_data(), get_recent_transactions()."
+- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-services-init.md`)."
 - **Git**: "Ветка 0003-dashboard-integration, PR https://github.com/SkyTger/FinFocus/pull/3"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0003-dashboard-integration`
