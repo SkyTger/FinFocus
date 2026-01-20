@@ -1,11 +1,57 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Epic-01-CoreMVP - ЗАВЕРШЕН
+## 📊 Общий статус проекта: Epic-02-EnhancedPlanning - В ПРОЦЕССЕ
 
-**Последнее обновление**: 2026/01/19
-**Текущий этап**: Core MVP полностью завершен (Фаза 1-5)
-**Прогресс Epic-01**: 100% (20/20 задач)
+**Последнее обновление**: 2026/01/20
+**Текущий этап**: Батч 2 (Enhanced Planning) — Recurring Transactions завершены
+**Прогресс Epic-02**: 25% (1/4 фичи)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 8: Recurring Transactions (2026-01-20) - ЗАВЕРШЕН
+
+**Дата**: 2026/01/20
+**Протокол**: 0005-recurring-transactions
+**PR**: https://github.com/SkyTger/FinFocus/pull/5
+**Статус**: ✅ Полностью завершен
+
+### 🎯 Цель батча:
+Реализовать повторяющиеся операции — первую фичу Батча 2 (Enhanced Planning).
+
+### ✅ Выполненные задачи:
+
+1. **Модель Transaction расширена** (app/models/database.py)
+   - recurring_end_date, recurring_parent_id, original_date, is_skipped
+   - UniqueConstraint для exceptions
+   - Property anchor_day с guard clause
+
+2. **RecurringService создан** (app/services/recurring_service.py, ~550 строк)
+   - Anchored-алгоритм генерации дат
+   - CRUD для templates и exceptions
+   - MAX_INSTANCES_PER_CALL = 1000
+
+3. **CalendarService интегрирован** (app/services/calendar_service.py)
+   - Фильтрация шаблонов во всех методах
+   - get_all_transactions_for_period()
+
+4. **UI обновлен** (app/components/)
+   - Форма создания recurring (checkbox, period, end_date)
+   - Визуализация в календаре (иконки recurring, skipped, exception)
+   - Wizard "экземпляр vs серия" при редактировании
+   - Кнопка "Пропустить" экземпляр
+
+### 📊 Результат:
+- ✅ 75 unit тестов (все проходят)
+- ✅ Coverage: recurring_service 89%, calendar_service 99%
+- ✅ ADR-004 создан
+
+### 💡 Ключевые уроки:
+
+1. **Anchored vs Sliding** — пользователи ожидают возврат к исходному дню (31 янв → 28 фев → 31 мар)
+2. **TypedDict > dataclass** — JSON-совместимость критична для dcc.Store
+3. **MAX_INSTANCES защита** — необходима для бессрочных шаблонов
+4. **Фильтрация шаблонов** — во всех balance-запросах нужно исключать templates
 
 ---
 

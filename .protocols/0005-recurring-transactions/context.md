@@ -1,7 +1,7 @@
-- **Current Step**: 7
-- **Status**: Ready
-- **Last Action Summary**: "Шаг 6 завершен: UI визуализация recurring — добавлены иконки в календаре (skipped, exception), scope wizard для редактирования, кнопка Пропустить, интеграция с RecurringService."
-- **Next Action**: "Приступить к выполнению Шага 7 (см. `07-finalize.md`) — финализация: тесты UI callbacks, документация, итоговый review."
-- **Git**: "Ветка 0005-recurring-transactions, ожидает коммит Шага 6."
+- **Current Step**: 7 (FINAL)
+- **Status**: Completed
+- **Last Action Summary**: "Протокол 0005 завершён: QA пройден (75 тестов), ADR-004 создан, документация обновлена, PR #5 в Ready for Review."
+- **Next Action**: "Протокол завершён. Ожидает merge PR #5 в main."
+- **Git**: "Ветка 0005-recurring-transactions, PR #5 Ready for Review."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0005-recurring-transactions`

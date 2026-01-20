@@ -188,6 +188,80 @@ case(
 **Unit тесты**: 15 тестов в `tests/test_calendar_service.py`
 - Покрытие: пустые данные, один день, несколько дней, TRANSFER исключение
 
+## RecurringService (Батч 2 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/recurring_service.py` (~550 строк)
+
+**Инициализация**: `RecurringService(session)` - принимает SQLAlchemy session
+
+**Константы**:
+```python
+MAX_INSTANCES_PER_CALL = 1000  # Защита от DoS
+MAX_FORECAST_DAYS = 366        # Горизонт прогноза
+VALID_RECURRING_PERIODS = {"weekly", "biweekly", "monthly", "quarterly"}
+```
+
+**Методы**:
+- `get_templates_for_user(user_id)` → `list[Transaction]`
+  - Получить все шаблоны (is_recurring=True, recurring_parent_id=None)
+- `generate_instances(template, start_date, end_date)` → `list[VirtualTransaction]`
+  - Anchored-алгоритм генерации виртуальных экземпляров
+  - Сохраняет исходный день месяца при переходе (31 янв → 28 фев → 31 мар)
+- `get_instances_with_exceptions(template, start_date, end_date)` → `list[Transaction | VirtualTransaction]`
+  - Объединяет виртуальные экземпляры с exceptions
+  - Заменяет виртуальные на exceptions если есть
+  - Исключает is_skipped=True
+- `create_exception(template_id, instance_date, **kwargs)` → `Transaction`
+  - Создать/обновить exception для конкретной даты
+- `skip_instance(template_id, instance_date)` → `Transaction`
+  - Пометить экземпляр как пропущенный (is_skipped=True)
+- `stop_template(template_id, stop_date)` → `Transaction`
+  - Остановить серию с определенной даты (soft delete)
+- `delete_template(template_id)` → `bool`
+  - Удалить шаблон и все exceptions (CASCADE)
+
+**VirtualTransaction TypedDict**:
+```python
+class VirtualTransaction(TypedDict):
+    template_id: int
+    user_id: int
+    instance_date: str       # ISO format
+    amount: str              # Decimal as string (JSON)
+    transaction_type: str    # "income" | "expense"
+    description: str | None
+    is_virtual: bool         # Всегда True
+```
+
+**Anchored-алгоритм**:
+```
+Шаблон с 31 января:
+- Февраль: min(31, 28) = 28
+- Март: min(31, 31) = 31
+- Апрель: min(31, 30) = 30
+```
+
+**Пример использования**:
+```python
+from app.services import RecurringService
+
+with get_db_session() as session:
+    service = RecurringService(session)
+
+    # Получить виртуальные экземпляры
+    templates = service.get_templates_for_user(user_id=1)
+    for template in templates:
+        instances = service.get_instances_with_exceptions(
+            template, start_date, end_date
+        )
+
+    # Пропустить экземпляр
+    service.skip_instance(template_id=5, instance_date=date(2026, 2, 15))
+    session.commit()
+```
+
+**Unit тесты**: 28 тестов в `tests/test_recurring_service.py`
+- Покрытие: generate, exceptions, skip, stop, delete, anchored edge cases
+
 ## Критичные решения
 
 **D010**: Session management через flush() вместо commit() для гибкости caller

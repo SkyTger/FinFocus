@@ -6,6 +6,37 @@
 
 **Restore context**: protocol-0005#ctx-5
 
+## Шаг 7: Финализация
+
+**Дата**: 2026-01-20
+
+**Действия**:
+- Запущены тесты с coverage: 75/75 passed
+  - recurring_service: 89% coverage
+  - calendar_service: 99% coverage
+- Создан `docs/adr/ADR-004-recurring-transactions.md`
+  - Описана гибридная архитектура с Anchored-алгоритмом
+  - Документированы ключевые решения и trade-offs
+- Обновлён `ROADMAP.md`:
+  - Батч 2 помечен как "В ПРОЦЕССЕ"
+  - Recurring transactions отмечены как завершённые
+- Обновлён `.reports/notes/feature_progress.md`:
+  - Добавлен Батч 8: Recurring Transactions
+  - Обновлён статус на Epic-02-EnhancedPlanning
+- Обновлён `.memory-bank/modules/services.md`:
+  - Добавлена документация RecurringService
+- PR #5 переведён в Ready for Review
+
+**Файлы**:
+- `docs/adr/ADR-004-recurring-transactions.md` (новый)
+- `ROADMAP.md` (обновлён)
+- `.reports/notes/feature_progress.md` (обновлён)
+- `.memory-bank/modules/services.md` (обновлён)
+
+**Тесты**: 75/75 passed
+
+---
+
 ## Шаг 6: UI — визуализация и редактирование recurring
 
 **Дата**: 2026-01-20
