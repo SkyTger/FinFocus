@@ -16,6 +16,13 @@ from .dashboard_service import (
     RecentTransaction,
 )
 from .goal_service import GoalService
+from .recurring_service import (
+    MAX_FORECAST_DAYS,
+    MAX_INSTANCES_PER_CALL,
+    VALID_RECURRING_PERIODS,
+    RecurringService,
+    VirtualTransaction,
+)
 from .transaction_service import TransactionService
 
 __all__ = [
@@ -34,6 +41,12 @@ __all__ = [
     "GoalService",
     # Transactions
     "TransactionService",
+    # Recurring
+    "RecurringService",
+    "VirtualTransaction",
+    "MAX_INSTANCES_PER_CALL",
+    "MAX_FORECAST_DAYS",
+    "VALID_RECURRING_PERIODS",
     # Core
     "ValidationError",
 ]

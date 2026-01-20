@@ -39,6 +39,39 @@
 
 ---
 
+## Шаг 2: RecurringService — генерация экземпляров
+
+**Дата**: 2026-01-20
+
+**Действия**:
+- Создан `app/services/recurring_service.py` (~270 строк):
+  - Константы защиты: MAX_INSTANCES_PER_CALL=1000, MAX_FORECAST_DAYS=366
+  - TypedDict VirtualTransaction для JSON-сериализации (dcc.Store)
+  - RecurringService с методами:
+    - `get_templates_for_user()` — получение шаблонов пользователя
+    - `_get_anchored_date()` — Anchored-алгоритм (31 янв → 28 фев → 31 мар)
+    - `_generate_dates()` — генерация дат по периодам (weekly/biweekly/monthly/quarterly)
+    - `generate_instances()` — генерация виртуальных экземпляров с guard clauses
+- Обновлен `app/services/__init__.py` — экспорт новых компонентов
+- Создан `tests/test_recurring_service.py` с 13 unit тестами
+
+**Anchored-алгоритм**:
+- monthly/quarterly сохраняют anchor_day (день шаблона)
+- При коротких месяцах: min(anchor_day, last_day_of_month)
+- weekly/biweekly используют простой timedelta
+
+**Файлы**:
+- `app/services/recurring_service.py` — новый файл
+- `app/services/__init__.py` — обновление экспортов
+- `tests/test_recurring_service.py` — новый файл с тестами
+
+**Проверки**:
+- black: ✅ All done
+- flake8: ✅ No errors
+- pytest: ✅ 57 passed (было 44, добавлено 13)
+
+---
+
 ## Шаг 0: Подготовка и фиксация плана
 
 **Дата**: 2026-01-20

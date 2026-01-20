@@ -1,7 +1,7 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 1 завершен: модель Transaction расширена полями recurring_end_date, recurring_parent_id, original_date, is_skipped. Добавлены relationship, constraints, properties, 7 unit тестов."
-- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-recurring-service-generation.md`) — создание RecurringService с Anchored-алгоритмом генерации экземпляров."
+- **Last Action Summary**: "Шаг 2 завершен: создан RecurringService с Anchored-алгоритмом генерации виртуальных экземпляров (VirtualTransaction), 13 unit тестов."
+- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-recurring-service-exceptions.md`) — CRUD для exceptions (create_exception, skip_instance, stop_template, delete_template)."
 - **Git**: "Ветка 0005-recurring-transactions, PR #5 открыт как Draft."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0005-recurring-transactions`
