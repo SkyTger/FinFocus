@@ -32,7 +32,8 @@ def create_dashboard_layout():
                 id="dashboard-period",
                 data={"period": "month"},
             ),
-            # Header с переключателем периода (КРИТИЧНО: должен быть в статическом layout)
+            # Header с переключателем периода
+            # КРИТИЧНО: должен быть в статическом layout
             html.Div(
                 [
                     html.H5("Overview", className="mb-0"),
