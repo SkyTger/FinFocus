@@ -4,6 +4,47 @@
 
 ---
 
+## Шаг 5: UI форма создания recurring
+
+**Дата**: 2026-01-20
+
+**Действия**:
+- Добавлены UI элементы в create modal `app/components/transactions.py`:
+  - `dbc.Checkbox` "Повторяющаяся операция" (`create-is-recurring`)
+  - `dbc.Select` период повторения (`create-recurring-period`)
+  - `dbc.Input` дата окончания (`create-recurring-end-date`)
+  - Секция `create-recurring-section` скрыта по умолчанию
+- Добавлен callback `toggle_recurring_section()` — показ/скрытие секции при изменении checkbox
+- Расширен callback `create_transaction()`:
+  - Добавлены State для 3 новых полей
+  - Поддержка создания recurring шаблонов
+  - Reset формы при успешном создании
+- Расширен `TransactionService.create_transaction()`:
+  - Новые параметры: `is_recurring`, `recurring_period`, `recurring_end_date`
+  - Валидация recurring полей (период обязателен, допустимые значения)
+- Добавлена индикация recurring в таблице (иконка `bi-arrow-repeat`)
+- Создан файл `app/assets/transactions.css` с CSS стилями
+
+**Файлы**:
+- `app/components/transactions.py` — UI + callbacks (+~170 строк)
+- `app/services/transaction_service.py` — валидация recurring (+~40 строк)
+- `app/assets/transactions.css` — новый файл (~38 строк)
+
+**Проверки**:
+- black: ✅ All done
+- flake8: ✅ No errors
+- pytest: ✅ 75 passed
+
+---
+
+**Restore context: protocol-0005#ctx-4** (2026-01-20)
+- Восстановлен контекст после прерывания
+- Обнаружены незакоммиченные изменения (Сценарий B): Шаг 5 почти завершен предыдущей сессией
+- Добавлены noqa комментарии для длинных строк в options
+- Готов к завершению Шага 5 (коммит + обновление context.md)
+
+---
+
 **Restore context: protocol-0005#ctx-3** (2026-01-20)
 - Восстановлен контекст после прерывания
 - Обнаружены незакоммиченные изменения (Сценарий B): Шаг 4 уже выполнен предыдущей сессией

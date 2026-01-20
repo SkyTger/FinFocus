@@ -1,7 +1,7 @@
-- **Current Step**: 5
+- **Current Step**: 6
 - **Status**: Ready
-- **Last Action Summary**: "Шаг 4 завершен: интеграция RecurringService с CalendarService — добавлены фильтры recurring в 5 методов, расширен TransactionInfo TypedDict, создан метод get_all_transactions_for_period(), 8 unit тестов."
-- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-ui-create-recurring.md`) — UI форма создания recurring операций (checkbox, period selector, end date)."
-- **Git**: "Ветка 0005-recurring-transactions, PR #5 открыт как Draft, commit b810236."
+- **Last Action Summary**: "Шаг 5 завершен: UI форма создания recurring — добавлены checkbox, period selector, end date picker в create modal, расширен TransactionService, создан transactions.css, добавлена индикация в таблице."
+- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-ui-calendar-recurring.md`) — отображение recurring в календаре."
+- **Git**: "Ветка 0005-recurring-transactions, ожидает коммит Шага 5."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0005-recurring-transactions`

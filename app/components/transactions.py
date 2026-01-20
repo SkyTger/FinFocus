@@ -72,9 +72,17 @@ def _build_transactions_table(transactions: list) -> list:
             amount_class = "text-danger fw-bold text-end"
             amount_prefix = "-"
 
+        # Иконка recurring
+        recurring_icon = None
+        if tx.is_recurring:
+            recurring_icon = html.I(
+                className="bi bi-arrow-repeat text-success me-2",
+                title="Повторяющаяся операция",
+            )
+
         row = html.Tr(
             [
-                html.Td(format_date(tx.transaction_date)),
+                html.Td([recurring_icon, format_date(tx.transaction_date)]),
                 html.Td(type_badge),
                 html.Td(
                     f"{amount_prefix}{format_amount(tx.amount)}", className=amount_class
@@ -276,6 +284,76 @@ def create_transactions_layout():
                                 ],
                                 className="mb-3",
                             ),
+                            # Чекбокс "Повторяющаяся операция"
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            dbc.Checkbox(
+                                                id="create-is-recurring",
+                                                label="Повторяющаяся операция",
+                                                value=False,
+                                            ),
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Секция recurring (скрыта по умолчанию)
+                            html.Div(
+                                id="create-recurring-section",
+                                style={"display": "none"},
+                                children=[
+                                    # Период повторения
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(
+                                                [
+                                                    dbc.Label("Период повторения"),
+                                                    dbc.Select(
+                                                        id="create-recurring-period",
+                                                        options=[
+                                                            {
+                                                                "label": "Еженедельно",
+                                                                "value": "weekly",
+                                                            },
+                                                            {
+                                                                "label": "Раз в 2 недели",  # noqa: E501
+                                                                "value": "biweekly",
+                                                            },
+                                                            {
+                                                                "label": "Ежемесячно",
+                                                                "value": "monthly",
+                                                            },
+                                                            {
+                                                                "label": "Ежеквартально",  # noqa: E501
+                                                                "value": "quarterly",
+                                                            },
+                                                        ],
+                                                        value="monthly",
+                                                    ),
+                                                ],
+                                                width=6,
+                                            ),
+                                            dbc.Col(
+                                                [
+                                                    dbc.Label(
+                                                        "Дата окончания (опционально)"
+                                                    ),
+                                                    dbc.Input(
+                                                        id="create-recurring-end-date",
+                                                        type="date",
+                                                        placeholder="Бессрочно",
+                                                    ),
+                                                ],
+                                                width=6,
+                                            ),
+                                        ],
+                                        className="mb-3",
+                                    ),
+                                ],
+                            ),
                         ]
                     ),
                     dbc.ModalFooter(
@@ -459,6 +537,18 @@ def toggle_create_modal(add_clicks, cancel_clicks, is_open):
 
 
 @callback(
+    Output("create-recurring-section", "style"),
+    Input("create-is-recurring", "value"),
+    prevent_initial_call=True,
+)
+def toggle_recurring_section(is_recurring: bool):
+    """Показывает/скрывает секцию настроек recurring."""
+    if is_recurring:
+        return {"display": "block"}
+    return {"display": "none"}
+
+
+@callback(
     [
         Output("create-modal", "is_open", allow_duplicate=True),
         Output("transactions-table", "children", allow_duplicate=True),
@@ -466,6 +556,9 @@ def toggle_create_modal(add_clicks, cancel_clicks, is_open):
         Output("create-type-select", "value"),
         Output("create-date-picker", "date"),
         Output("create-description-input", "value"),
+        Output("create-is-recurring", "value"),
+        Output("create-recurring-period", "value"),
+        Output("create-recurring-end-date", "value"),
         Output("transaction-error-alert", "children", allow_duplicate=True),
         Output("transaction-error-alert", "is_open", allow_duplicate=True),
     ],
@@ -475,11 +568,23 @@ def toggle_create_modal(add_clicks, cancel_clicks, is_open):
         State("create-type-select", "value"),
         State("create-date-picker", "date"),
         State("create-description-input", "value"),
+        State("create-is-recurring", "value"),
+        State("create-recurring-period", "value"),
+        State("create-recurring-end-date", "value"),
     ],
     prevent_initial_call=True,
 )
-def create_transaction(n_clicks, amount, transaction_type, date_str, description):
-    """Создает новую транзакцию через TransactionService."""
+def create_transaction(
+    n_clicks,
+    amount,
+    transaction_type,
+    date_str,
+    description,
+    is_recurring,
+    recurring_period,
+    recurring_end_date,
+):
+    """Создает новую транзакцию или шаблон recurring через TransactionService."""
     if not n_clicks or not amount:
         raise PreventUpdate
 
@@ -493,9 +598,17 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
             no_update,
             no_update,
             no_update,
+            no_update,
+            no_update,
+            no_update,
             "Неверный формат даты",
             True,  # Показать Alert
         )
+
+    # Парсинг даты окончания recurring (если указана)
+    parsed_end_date = None
+    if is_recurring and recurring_end_date:
+        parsed_end_date = parse_date_safe(recurring_end_date)
 
     try:
         with get_db_session() as session:
@@ -506,24 +619,36 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
                 transaction_type=TransactionType[transaction_type],
                 transaction_date=transaction_date,
                 description=description if description else None,
+                is_recurring=is_recurring or False,
+                recurring_period=recurring_period if is_recurring else None,
+                recurring_end_date=parsed_end_date,
             )
             transactions = service.get_all_by_user(user_id=1)
-            logger.info(f"Создана транзакция: {transaction_type} {amount}")
+            log_msg = f"Создана транзакция: {transaction_type} {amount}"
+            if is_recurring:
+                log_msg += f" (recurring: {recurring_period})"
+            logger.info(log_msg)
             # Успех: закрываем модал, очищаем форму, скрываем Alert
             return (
-                False,
-                _build_transactions_table(transactions),
-                None,
-                "EXPENSE",
-                date.today().isoformat(),
-                "",
-                "",
-                False,
+                False,  # is_open
+                _build_transactions_table(transactions),  # table
+                None,  # amount
+                "EXPENSE",  # type
+                date.today().isoformat(),  # date
+                "",  # description
+                False,  # is_recurring
+                "monthly",  # recurring_period
+                None,  # recurring_end_date
+                "",  # alert text
+                False,  # alert is_open
             )
     except ValidationError as e:
         logger.warning(f"Ошибка валидации при создании: {e}")
         return (
             True,  # Модал остаётся открытым
+            no_update,
+            no_update,
+            no_update,
             no_update,
             no_update,
             no_update,
