@@ -101,3 +101,57 @@
 
 ---
 
+## Шаг 4-m: Финальное слияние (Merge)
+
+**Дата**: 2026-01-20
+
+**Проверка окружения**:
+- CWD: `/home/skytiger/PycharmProjects/FinFocus` ✅
+- Ветка: `main` ✅
+
+**Выполненные команды**:
+1. `git checkout main` — ✅
+2. `git pull origin main` — ✅ (main опережал origin на 1 коммит с review артефактами)
+3. `git push origin main` — ✅ (синхронизировал review артефакты)
+4. `git merge --no-ff 0005-recurring-transactions` — ✅ Merge made by 'ort' strategy
+5. `git push origin main` — ✅ (28a5804..b2fb330)
+
+**Merge commit**: `b2fb330`
+
+**Статус**: Слияние выполнено успешно.
+
+---
+
+## Шаг 5-m: Очистка
+
+**Дата**: 2026-01-20
+
+**Проверка окружения**:
+- CWD: `/home/skytiger/PycharmProjects/FinFocus` ✅
+- Ветка: `main` ✅
+
+**Выполненные команды**:
+1. `git push origin --delete 0005-recurring-transactions` — ✅ Ветка удалена на сервере
+2. `git worktree remove ../worktrees/0005-recurring-transactions --force` — ✅ Worktree удален
+3. `git branch -d 0005-recurring-transactions` — ✅ Локальная ветка удалена (была 54ca3f2)
+
+**Статус**: Очистка выполнена успешно.
+
+---
+
+## Итоги ревью
+
+**Протокол**: 0005 — Повторяющиеся операции (Recurring Transactions)
+**PR**: #5 → merged
+**Merge commit**: `b2fb330`
+
+**Результат**: ✅ **APPROVED AND MERGED**
+
+**Статистика**:
+- 28 файлов изменено
+- +5368 строк добавлено
+- 75 тестов (все проходят)
+- ADR-004 создан
+
+**Ревьюер**: Claude QA Agent
+**Дата завершения**: 2026-01-20
