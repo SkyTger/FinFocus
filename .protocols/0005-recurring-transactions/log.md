@@ -4,6 +4,40 @@
 
 ---
 
+**Restore context**: protocol-0005#ctx-5
+
+## Шаг 6: UI — визуализация и редактирование recurring
+
+**Дата**: 2026-01-20
+
+**Действия**:
+- Обновлён `app/components/calendar.py`:
+  - `build_day_cell()` расширен для отображения иконок `is_skipped`, `is_exception`
+  - Добавлен класс `has-virtual` для ячеек с виртуальными транзакциями
+  - Интеграция с `get_all_transactions_for_period(include_recurring=True)`
+- Обновлён `app/components/transactions.py`:
+  - Модифицирован `open_edit_modal()` — проверка `is_recurring` и открытие scope modal
+  - Добавлен модал `recurring-edit-scope-modal` с выбором "экземпляр vs серия"
+  - Добавлен callback `cancel_recurring_edit_scope()` — отмена scope диалога
+  - Добавлен callback `process_recurring_edit_scope()` — обработка выбора scope
+  - Добавлена кнопка "Пропустить" в edit modal (скрыта для обычных операций)
+  - Добавлен callback `skip_recurring_instance()` — пропуск экземпляра recurring
+  - Импорт `RecurringService` для работы с пропусками
+- Обновлён `app/assets/calendar.css`:
+  - `.recurring-indicator` — зеленая иконка повторяющейся операции
+  - `.recurring-indicator.skipped` — полупрозрачная иконка пропущенной операции
+  - `.exception-indicator` — оранжевая иконка изменённого экземпляра
+  - `.calendar-day.has-virtual` — левая зеленая граница для ячеек с recurring
+
+**Файлы**:
+- `app/components/calendar.py` — иконки recurring в ячейках (+~25 строк)
+- `app/components/transactions.py` — scope wizard + skip functionality (+~130 строк)
+- `app/assets/calendar.css` — стили recurring (+~24 строки)
+
+**Тесты**: 75/75 passed
+
+---
+
 ## Шаг 5: UI форма создания recurring
 
 **Дата**: 2026-01-20

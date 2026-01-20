@@ -1,7 +1,7 @@
-- **Current Step**: 6
+- **Current Step**: 7
 - **Status**: Ready
-- **Last Action Summary**: "Шаг 5 завершен: UI форма создания recurring — добавлены checkbox, period selector, end date picker в create modal, расширен TransactionService, создан transactions.css, добавлена индикация в таблице."
-- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-ui-calendar-recurring.md`) — отображение recurring в календаре."
-- **Git**: "Ветка 0005-recurring-transactions, ожидает коммит Шага 5."
+- **Last Action Summary**: "Шаг 6 завершен: UI визуализация recurring — добавлены иконки в календаре (skipped, exception), scope wizard для редактирования, кнопка Пропустить, интеграция с RecurringService."
+- **Next Action**: "Приступить к выполнению Шага 7 (см. `07-finalize.md`) — финализация: тесты UI callbacks, документация, итоговый review."
+- **Git**: "Ветка 0005-recurring-transactions, ожидает коммит Шага 6."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0005-recurring-transactions`

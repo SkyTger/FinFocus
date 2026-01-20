@@ -189,3 +189,27 @@
         display: none;
     }
 }
+
+/* ==================== RECURRING INDICATORS ==================== */
+
+.recurring-indicator {
+    color: #28a745;
+    font-size: 0.75rem;
+    margin-left: 4px;
+}
+
+.recurring-indicator.skipped {
+    opacity: 0.4;
+    text-decoration: line-through;
+}
+
+.exception-indicator {
+    color: #fd7e14;
+    font-size: 0.65rem;
+    margin-left: 2px;
+}
+
+/* Virtual transaction styling */
+.calendar-day.has-virtual {
+    border-left: 2px solid #28a745;
+}
