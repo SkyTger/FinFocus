@@ -403,6 +403,11 @@ def build_day_cell(
     if is_weekend:
         css_classes.append("calendar-day-weekend")
 
+    # Добавляем класс если есть виртуальные (recurring) транзакции
+    has_virtual = any(t.get("is_virtual") for t in transactions)
+    if has_virtual:
+        css_classes.append("has-virtual")
+
     # Форматируем баланс
     balance_text, balance_class = format_balance(balance)
 
@@ -410,11 +415,39 @@ def build_day_cell(
     icons = []
     has_income = any(t.get("transaction_type") == "income" for t in transactions)
     has_expense = any(t.get("transaction_type") == "expense" for t in transactions)
+    has_recurring = any(
+        t.get("is_recurring") or t.get("is_virtual") for t in transactions
+    )
+    has_skipped = any(t.get("is_skipped") for t in transactions)
+    has_exception = any(
+        t.get("recurring_parent_id") and not t.get("is_skipped") for t in transactions
+    )
 
     if has_income:
         icons.append(html.Span("↓", className="text-success me-1", title="Доход"))
     if has_expense:
         icons.append(html.Span("↑", className="text-danger me-1", title="Расход"))
+    if has_recurring:
+        # Определяем класс recurring иконки
+        recurring_class = "bi bi-arrow-repeat recurring-indicator"
+        recurring_title = "Повторяющаяся операция"
+        if has_skipped:
+            recurring_class += " skipped"
+            recurring_title = "Пропущенная операция"
+        icons.append(
+            html.I(
+                className=recurring_class,
+                title=recurring_title,
+            )
+        )
+        # Добавляем иконку изменённого экземпляра
+        if has_exception:
+            icons.append(
+                html.I(
+                    className="bi bi-pencil-fill exception-indicator",
+                    title="Изменённый экземпляр",
+                )
+            )
 
     return html.Div(
         [
@@ -536,16 +569,17 @@ def load_and_navigate_calendar(
         with get_db_session() as session:
             service = CalendarService(session)
 
-            # Получаем данные за месяц
+            # Получаем данные за месяц (включая recurring)
             balances = service.calculate_daily_balances(
                 user_id=DEFAULT_USER_ID,
                 start_date=start_date,
                 end_date=end_date,
             )
-            transactions_by_date = service.get_transactions_by_date(
+            transactions_by_date = service.get_all_transactions_for_period(
                 user_id=DEFAULT_USER_ID,
                 start_date=start_date,
                 end_date=end_date,
+                include_recurring=True,
             )
             summary = service.get_month_summary(
                 user_id=DEFAULT_USER_ID,
@@ -692,10 +726,11 @@ def refresh_calendar_after_transaction(
                 start_date=start_date,
                 end_date=end_date,
             )
-            transactions_by_date = service.get_transactions_by_date(
+            transactions_by_date = service.get_all_transactions_for_period(
                 user_id=DEFAULT_USER_ID,
                 start_date=start_date,
                 end_date=end_date,
+                include_recurring=True,
             )
             summary = service.get_month_summary(
                 user_id=DEFAULT_USER_ID,

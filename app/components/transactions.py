@@ -12,7 +12,7 @@ from loguru import logger
 
 from app.core import get_db_session, ValidationError
 from app.models.database import TransactionType
-from app.services import TransactionService
+from app.services import TransactionService, RecurringService
 from app.utils.formatters import format_amount, format_date, parse_date_safe
 
 
@@ -72,9 +72,17 @@ def _build_transactions_table(transactions: list) -> list:
             amount_class = "text-danger fw-bold text-end"
             amount_prefix = "-"
 
+        # Иконка recurring
+        recurring_icon = None
+        if tx.is_recurring:
+            recurring_icon = html.I(
+                className="bi bi-arrow-repeat text-success me-2",
+                title="Повторяющаяся операция",
+            )
+
         row = html.Tr(
             [
-                html.Td(format_date(tx.transaction_date)),
+                html.Td([recurring_icon, format_date(tx.transaction_date)]),
                 html.Td(type_badge),
                 html.Td(
                     f"{amount_prefix}{format_amount(tx.amount)}", className=amount_class
@@ -276,6 +284,76 @@ def create_transactions_layout():
                                 ],
                                 className="mb-3",
                             ),
+                            # Чекбокс "Повторяющаяся операция"
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        [
+                                            dbc.Checkbox(
+                                                id="create-is-recurring",
+                                                label="Повторяющаяся операция",
+                                                value=False,
+                                            ),
+                                        ],
+                                        width=12,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Секция recurring (скрыта по умолчанию)
+                            html.Div(
+                                id="create-recurring-section",
+                                style={"display": "none"},
+                                children=[
+                                    # Период повторения
+                                    dbc.Row(
+                                        [
+                                            dbc.Col(
+                                                [
+                                                    dbc.Label("Период повторения"),
+                                                    dbc.Select(
+                                                        id="create-recurring-period",
+                                                        options=[
+                                                            {
+                                                                "label": "Еженедельно",
+                                                                "value": "weekly",
+                                                            },
+                                                            {
+                                                                "label": "Раз в 2 недели",  # noqa: E501
+                                                                "value": "biweekly",
+                                                            },
+                                                            {
+                                                                "label": "Ежемесячно",
+                                                                "value": "monthly",
+                                                            },
+                                                            {
+                                                                "label": "Ежеквартально",  # noqa: E501
+                                                                "value": "quarterly",
+                                                            },
+                                                        ],
+                                                        value="monthly",
+                                                    ),
+                                                ],
+                                                width=6,
+                                            ),
+                                            dbc.Col(
+                                                [
+                                                    dbc.Label(
+                                                        "Дата окончания (опционально)"
+                                                    ),
+                                                    dbc.Input(
+                                                        id="create-recurring-end-date",
+                                                        type="date",
+                                                        placeholder="Бессрочно",
+                                                    ),
+                                                ],
+                                                width=6,
+                                            ),
+                                        ],
+                                        className="mb-3",
+                                    ),
+                                ],
+                            ),
                         ]
                     ),
                     dbc.ModalFooter(
@@ -403,6 +481,14 @@ def create_transactions_layout():
                                 className="me-2",
                             ),
                             dbc.Button(
+                                "Пропустить",
+                                id="edit-skip-instance",
+                                color="warning",
+                                outline=True,
+                                className="me-2",
+                                style={"display": "none"},
+                            ),
+                            dbc.Button(
                                 "Сохранить", id="edit-submit-btn", color="success"
                             ),
                         ]
@@ -414,6 +500,58 @@ def create_transactions_layout():
             ),
             # Store для хранения ID редактируемой транзакции
             dcc.Store(id="edit-transaction-id"),
+            # Модальное окно выбора scope редактирования recurring
+            dbc.Modal(
+                [
+                    dbc.ModalHeader(dbc.ModalTitle("Изменить повторяющуюся операцию")),
+                    dbc.ModalBody(
+                        [
+                            html.P("Выберите, что вы хотите изменить:"),
+                            dbc.RadioItems(
+                                id="recurring-edit-scope",
+                                options=[
+                                    {
+                                        "label": "Только этот экземпляр",
+                                        "value": "instance",
+                                    },
+                                    {
+                                        "label": "Всю серию (все экземпляры)",
+                                        "value": "all",
+                                    },
+                                ],
+                                value="instance",
+                                className="mb-3",
+                            ),
+                            html.P(
+                                "Примечание: изменение серии повлияет на все "
+                                "будущие экземпляры.",
+                                className="text-muted small",
+                            ),
+                        ]
+                    ),
+                    dbc.ModalFooter(
+                        [
+                            dbc.Button(
+                                "Отмена",
+                                id="recurring-edit-cancel",
+                                color="secondary",
+                                outline=True,
+                                className="me-2",
+                            ),
+                            dbc.Button(
+                                "Продолжить",
+                                id="recurring-edit-continue",
+                                color="primary",
+                            ),
+                        ]
+                    ),
+                ],
+                id="recurring-edit-scope-modal",
+                is_open=False,
+                centered=True,
+            ),
+            # Store для контекста редактирования recurring
+            dcc.Store(id="recurring-edit-context", data=None),
         ]
     )
 
@@ -459,6 +597,18 @@ def toggle_create_modal(add_clicks, cancel_clicks, is_open):
 
 
 @callback(
+    Output("create-recurring-section", "style"),
+    Input("create-is-recurring", "value"),
+    prevent_initial_call=True,
+)
+def toggle_recurring_section(is_recurring: bool):
+    """Показывает/скрывает секцию настроек recurring."""
+    if is_recurring:
+        return {"display": "block"}
+    return {"display": "none"}
+
+
+@callback(
     [
         Output("create-modal", "is_open", allow_duplicate=True),
         Output("transactions-table", "children", allow_duplicate=True),
@@ -466,6 +616,9 @@ def toggle_create_modal(add_clicks, cancel_clicks, is_open):
         Output("create-type-select", "value"),
         Output("create-date-picker", "date"),
         Output("create-description-input", "value"),
+        Output("create-is-recurring", "value"),
+        Output("create-recurring-period", "value"),
+        Output("create-recurring-end-date", "value"),
         Output("transaction-error-alert", "children", allow_duplicate=True),
         Output("transaction-error-alert", "is_open", allow_duplicate=True),
     ],
@@ -475,11 +628,23 @@ def toggle_create_modal(add_clicks, cancel_clicks, is_open):
         State("create-type-select", "value"),
         State("create-date-picker", "date"),
         State("create-description-input", "value"),
+        State("create-is-recurring", "value"),
+        State("create-recurring-period", "value"),
+        State("create-recurring-end-date", "value"),
     ],
     prevent_initial_call=True,
 )
-def create_transaction(n_clicks, amount, transaction_type, date_str, description):
-    """Создает новую транзакцию через TransactionService."""
+def create_transaction(
+    n_clicks,
+    amount,
+    transaction_type,
+    date_str,
+    description,
+    is_recurring,
+    recurring_period,
+    recurring_end_date,
+):
+    """Создает новую транзакцию или шаблон recurring через TransactionService."""
     if not n_clicks or not amount:
         raise PreventUpdate
 
@@ -493,9 +658,17 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
             no_update,
             no_update,
             no_update,
+            no_update,
+            no_update,
+            no_update,
             "Неверный формат даты",
             True,  # Показать Alert
         )
+
+    # Парсинг даты окончания recurring (если указана)
+    parsed_end_date = None
+    if is_recurring and recurring_end_date:
+        parsed_end_date = parse_date_safe(recurring_end_date)
 
     try:
         with get_db_session() as session:
@@ -506,24 +679,36 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
                 transaction_type=TransactionType[transaction_type],
                 transaction_date=transaction_date,
                 description=description if description else None,
+                is_recurring=is_recurring or False,
+                recurring_period=recurring_period if is_recurring else None,
+                recurring_end_date=parsed_end_date,
             )
             transactions = service.get_all_by_user(user_id=1)
-            logger.info(f"Создана транзакция: {transaction_type} {amount}")
+            log_msg = f"Создана транзакция: {transaction_type} {amount}"
+            if is_recurring:
+                log_msg += f" (recurring: {recurring_period})"
+            logger.info(log_msg)
             # Успех: закрываем модал, очищаем форму, скрываем Alert
             return (
-                False,
-                _build_transactions_table(transactions),
-                None,
-                "EXPENSE",
-                date.today().isoformat(),
-                "",
-                "",
-                False,
+                False,  # is_open
+                _build_transactions_table(transactions),  # table
+                None,  # amount
+                "EXPENSE",  # type
+                date.today().isoformat(),  # date
+                "",  # description
+                False,  # is_recurring
+                "monthly",  # recurring_period
+                None,  # recurring_end_date
+                "",  # alert text
+                False,  # alert is_open
             )
     except ValidationError as e:
         logger.warning(f"Ошибка валидации при создании: {e}")
         return (
             True,  # Модал остаётся открытым
+            no_update,
+            no_update,
+            no_update,
             no_update,
             no_update,
             no_update,
@@ -542,6 +727,8 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
         Output("edit-type-select", "value"),
         Output("edit-date-picker", "date"),
         Output("edit-description-input", "value"),
+        Output("recurring-edit-scope-modal", "is_open"),
+        Output("recurring-edit-context", "data"),
     ],
     [
         Input({"type": "edit-btn", "index": ALL}, "n_clicks"),
@@ -551,7 +738,10 @@ def create_transaction(n_clicks, amount, transaction_type, date_str, description
     prevent_initial_call=True,
 )
 def open_edit_modal(edit_clicks_list, cancel_click, is_open):
-    """Открывает модал редактирования с данными транзакции."""
+    """Открывает модал редактирования с данными транзакции.
+
+    Для recurring операций показывает диалог выбора scope.
+    """
     # Проверяем какая кнопка была нажата
     triggered_id = ctx.triggered_id
 
@@ -561,7 +751,7 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
 
     # Если нажата кнопка отмены
     if triggered_id == "edit-cancel-btn":
-        return False, None, None, None, None, None
+        return False, None, None, None, None, None, False, None
 
     # Если нажата кнопка редактирования
     if not isinstance(triggered_id, dict) or triggered_id.get("type") != "edit-btn":
@@ -582,6 +772,23 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
         if not tx:
             raise PreventUpdate
 
+        # Проверяем, является ли транзакция recurring
+        is_recurring_tx = tx.is_recurring or tx.recurring_parent_id is not None
+
+        if is_recurring_tx:
+            # Открываем scope modal для выбора "экземпляр vs серия"
+            logger.debug(
+                f"Открыт scope modal для recurring транзакции {transaction_id}"
+            )
+            context = {
+                "transaction_id": transaction_id,
+                "template_id": tx.recurring_parent_id or transaction_id,
+                "instance_date": tx.transaction_date.isoformat(),
+                "is_template": tx.is_recurring,
+            }
+            return False, None, None, None, None, None, True, context
+
+        # Обычная транзакция — открываем edit modal напрямую
         logger.debug(f"Открыт модал редактирования для транзакции {transaction_id}")
         return (
             True,
@@ -590,6 +797,8 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
             tx.transaction_type.name,
             tx.transaction_date.isoformat(),
             tx.description or "",
+            False,
+            None,
         )
 
 
@@ -673,3 +882,134 @@ def delete_transaction(n_clicks_list):
         transactions = service.get_all_by_user(user_id=1)
         logger.info(f"Удалена транзакция {transaction_id}")
         return _build_transactions_table(transactions)
+
+
+# ==================== RECURRING EDIT CALLBACKS ====================
+
+
+@callback(
+    Output("recurring-edit-scope-modal", "is_open", allow_duplicate=True),
+    Input("recurring-edit-cancel", "n_clicks"),
+    prevent_initial_call=True,
+)
+def cancel_recurring_edit_scope(n_clicks):
+    """Закрывает модал выбора scope редактирования."""
+    if not n_clicks:
+        raise PreventUpdate
+    return False
+
+
+@callback(
+    [
+        Output("edit-modal", "is_open", allow_duplicate=True),
+        Output("edit-transaction-id", "data", allow_duplicate=True),
+        Output("edit-amount-input", "value", allow_duplicate=True),
+        Output("edit-type-select", "value", allow_duplicate=True),
+        Output("edit-date-picker", "date", allow_duplicate=True),
+        Output("edit-description-input", "value", allow_duplicate=True),
+        Output("recurring-edit-scope-modal", "is_open", allow_duplicate=True),
+        Output("edit-skip-instance", "style"),
+        Output("recurring-edit-context", "data", allow_duplicate=True),
+    ],
+    Input("recurring-edit-continue", "n_clicks"),
+    [
+        State("recurring-edit-scope", "value"),
+        State("recurring-edit-context", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def process_recurring_edit_scope(n_clicks, scope, context):
+    """Обрабатывает выбор scope редактирования recurring операции.
+
+    Args:
+        n_clicks: Количество кликов на кнопку "Продолжить"
+        scope: Выбранный scope ("instance" или "all")
+        context: Контекст редактирования (transaction_id, template_id, etc.)
+
+    Returns:
+        Tuple с данными для открытия edit modal
+    """
+    if not n_clicks or not context:
+        raise PreventUpdate
+
+    transaction_id = context.get("transaction_id")
+    template_id = context.get("template_id")
+    instance_date = context.get("instance_date")
+
+    with get_db_session() as session:
+        service = TransactionService(session)
+
+        if scope == "all":
+            # Редактируем шаблон (всю серию)
+            tx = service.get_by_id(template_id)
+            logger.debug(f"Редактирование шаблона recurring {template_id}")
+            skip_button_style = {"display": "none"}
+            updated_context = None  # Не нужен контекст для шаблона
+        else:
+            # scope == "instance" — редактируем конкретный экземпляр
+            tx = service.get_by_id(transaction_id)
+            logger.debug(f"Редактирование экземпляра recurring {transaction_id}")
+            skip_button_style = {"display": "inline-block"}
+            # Сохраняем контекст для кнопки "Пропустить"
+            updated_context = {
+                "template_id": template_id,
+                "instance_date": instance_date,
+                "scope": scope,
+            }
+
+        if not tx:
+            raise PreventUpdate
+
+        return (
+            True,  # Открыть edit modal
+            tx.id,
+            float(tx.amount),
+            tx.transaction_type.name,
+            tx.transaction_date.isoformat(),
+            tx.description or "",
+            False,  # Закрыть scope modal
+            skip_button_style,
+            updated_context,
+        )
+
+
+@callback(
+    [
+        Output("edit-modal", "is_open", allow_duplicate=True),
+        Output("transactions-table", "children", allow_duplicate=True),
+    ],
+    Input("edit-skip-instance", "n_clicks"),
+    State("recurring-edit-context", "data"),
+    prevent_initial_call=True,
+)
+def skip_recurring_instance(n_clicks, context):
+    """Пропускает экземпляр recurring операции.
+
+    Создает exception с is_skipped=True для указанной даты.
+    """
+    if not n_clicks or not context:
+        raise PreventUpdate
+
+    template_id = context.get("template_id")
+    instance_date_str = context.get("instance_date")
+
+    if not template_id or not instance_date_str:
+        raise PreventUpdate
+
+    instance_date = date.fromisoformat(instance_date_str)
+
+    with get_db_session() as session:
+        recurring_service = RecurringService(session)
+        transaction_service = TransactionService(session)
+
+        # Пропускаем экземпляр через RecurringService
+        recurring_service.skip_instance(template_id, instance_date)
+        session.commit()
+
+        logger.info(
+            f"Пропущен экземпляр recurring {template_id} на дату {instance_date}"
+        )
+
+        # Обновляем таблицу транзакций
+        transactions = transaction_service.get_all_by_user(user_id=1)
+        return False, _build_transactions_table(transactions)

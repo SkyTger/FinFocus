@@ -25,17 +25,22 @@ class MonthSummary(TypedDict):
 
 
 class TransactionInfo(TypedDict):
-    """Минимальные данные о транзакции для UI календаря.
+    """Информация о транзакции для UI календаря.
 
     Используется вместо ORM-объекта Transaction для передачи
     данных из CalendarService в UI-компоненты после закрытия сессии БД.
-    Поле description добавлено для расширяемости (tooltip в будущем).
+    Поддерживает как обычные транзакции, так и recurring instances.
     """
 
-    id: int  # ID транзакции
+    id: int | None  # ID транзакции (None для виртуальных recurring)
+    template_id: int | None  # ID шаблона для recurring (None для обычных)
     transaction_type: str  # "income" | "expense" | "transfer"
     amount: str  # Decimal в строковом формате
-    description: str | None  # Описание (для будущих tooltip)
+    description: str | None  # Описание
+    date: str  # ISO format (YYYY-MM-DD)
+    is_virtual: bool  # True для виртуальных recurring instances
+    is_recurring: bool  # True для recurring (виртуальных и exceptions)
+    is_exception: bool  # True для exceptions (материализованных recurring)
 
 
 class YearSummary(TypedDict):
@@ -180,6 +185,10 @@ class CalendarService:
                 Transaction.transaction_type.in_(
                     [TransactionType.INCOME, TransactionType.EXPENSE]
                 ),
+                # Исключаем recurring шаблоны (учитываются отдельно)
+                Transaction.is_recurring == False,  # noqa: E712
+                # Исключаем exceptions (учитываются в recurring расчетах)
+                Transaction.recurring_parent_id == None,  # noqa: E711
             )
             .scalar()
         )
@@ -223,6 +232,10 @@ class CalendarService:
                 Transaction.transaction_type.in_(
                     [TransactionType.INCOME, TransactionType.EXPENSE]
                 ),
+                # Исключаем recurring шаблоны (учитываются отдельно)
+                Transaction.is_recurring == False,  # noqa: E712
+                # Исключаем exceptions (учитываются в recurring расчетах)
+                Transaction.recurring_parent_id == None,  # noqa: E711
             )
             .group_by(Transaction.transaction_date)
             .all()
@@ -259,6 +272,8 @@ class CalendarService:
                 Transaction.user_id == user_id,
                 Transaction.transaction_date >= start_date,
                 Transaction.transaction_date <= end_date,
+                # Исключаем recurring шаблоны (учитываются отдельно)
+                Transaction.is_recurring == False,  # noqa: E712
             )
             .order_by(Transaction.transaction_date, Transaction.id)
             .all()
@@ -266,14 +281,19 @@ class CalendarService:
 
         result: dict[date, list[TransactionInfo]] = defaultdict(list)
         for txn in transactions:
-            # Defensive coding: защита от corrupted data
+            is_exception = txn.recurring_parent_id is not None
             txn_info: TransactionInfo = {
                 "id": txn.id,
+                "template_id": txn.recurring_parent_id,
                 "transaction_type": (
                     txn.transaction_type.value if txn.transaction_type else "unknown"
                 ),
                 "amount": str(txn.amount) if txn.amount is not None else "0",
                 "description": txn.description,
+                "date": txn.transaction_date.isoformat(),
+                "is_virtual": False,
+                "is_recurring": is_exception,
+                "is_exception": is_exception,
             }
             result[txn.transaction_date].append(txn_info)
 
@@ -333,6 +353,10 @@ class CalendarService:
                 Transaction.transaction_type.in_(
                     [TransactionType.INCOME, TransactionType.EXPENSE]
                 ),
+                # Исключаем recurring шаблоны (учитываются отдельно)
+                Transaction.is_recurring == False,  # noqa: E712
+                # Исключаем exceptions (учитываются в recurring расчетах)
+                Transaction.recurring_parent_id == None,  # noqa: E711
             )
             .first()
         )
@@ -424,6 +448,10 @@ class CalendarService:
                 Transaction.transaction_type.in_(
                     [TransactionType.INCOME, TransactionType.EXPENSE]
                 ),
+                # Исключаем recurring шаблоны (учитываются отдельно)
+                Transaction.is_recurring == False,  # noqa: E712
+                # Исключаем exceptions (учитываются в recurring расчетах)
+                Transaction.recurring_parent_id == None,  # noqa: E711
             )
             .first()
         )
@@ -441,3 +469,104 @@ class CalendarService:
             ),
             year=year,
         )
+
+    def get_all_transactions_for_period(
+        self,
+        user_id: int,
+        start_date: date,
+        end_date: date,
+        include_recurring: bool = True,
+    ) -> dict[date, list[TransactionInfo]]:
+        """Получает все транзакции включая recurring для периода.
+
+        Объединяет:
+        - Обычные транзакции из БД (is_recurring=False, recurring_parent_id=None)
+        - Виртуальные recurring экземпляры из RecurringService (если include_recurring)
+        - Exceptions заменяют виртуальные на соответствующие даты
+
+        Args:
+            user_id: ID пользователя.
+            start_date: Начало периода.
+            end_date: Конец периода.
+            include_recurring: Включать ли recurring операции.
+
+        Returns:
+            Словарь: дата -> список транзакций.
+        """
+        from app.services.recurring_service import RecurringService
+
+        result: dict[date, list[TransactionInfo]] = defaultdict(list)
+
+        # 1. Получить обычные транзакции (не шаблоны, не exceptions)
+        regular_transactions = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.transaction_date >= start_date,
+                Transaction.transaction_date <= end_date,
+                Transaction.is_recurring == False,  # noqa: E712
+                Transaction.recurring_parent_id == None,  # noqa: E711
+            )
+            .order_by(Transaction.transaction_date, Transaction.id)
+            .all()
+        )
+
+        for txn in regular_transactions:
+            result[txn.transaction_date].append(
+                TransactionInfo(
+                    id=txn.id,
+                    template_id=None,
+                    amount=str(txn.amount),
+                    transaction_type=txn.transaction_type.value,
+                    description=txn.description,
+                    date=txn.transaction_date.isoformat(),
+                    is_virtual=False,
+                    is_recurring=False,
+                    is_exception=False,
+                )
+            )
+
+        # 2. Добавить recurring экземпляры (если запрошено)
+        if include_recurring:
+            recurring_service = RecurringService(self.session)
+            recurring_instances = recurring_service.get_instances_with_exceptions(
+                user_id, start_date, end_date
+            )
+
+            for instance in recurring_instances:
+                if isinstance(instance, dict):  # VirtualTransaction
+                    instance_date = date.fromisoformat(instance["instance_date"])
+                    result[instance_date].append(
+                        TransactionInfo(
+                            id=None,
+                            template_id=instance["template_id"],
+                            amount=instance["amount"],
+                            transaction_type=instance["transaction_type"],
+                            description=instance["description"],
+                            date=instance["instance_date"],
+                            is_virtual=True,
+                            is_recurring=True,
+                            is_exception=False,
+                        )
+                    )
+                else:  # Transaction (exception)
+                    result[instance.transaction_date].append(
+                        TransactionInfo(
+                            id=instance.id,
+                            template_id=instance.recurring_parent_id,
+                            amount=str(instance.amount),
+                            transaction_type=instance.transaction_type.value,
+                            description=instance.description,
+                            date=instance.transaction_date.isoformat(),
+                            is_virtual=False,
+                            is_recurring=True,
+                            is_exception=True,
+                        )
+                    )
+
+        logger.debug(
+            f"get_all_transactions_for_period: {sum(len(v) for v in result.values())} "
+            f"транзакций для пользователя {user_id} в периоде {start_date} - {end_date}"
+        )
+
+        return dict(result)

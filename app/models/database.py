@@ -17,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     Enum,
     Index,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
@@ -66,11 +67,27 @@ class User(Base):
 
 
 class Transaction(Base):
-    """Модель финансовой операции (доходы/расходы)."""
+    """Модель финансовой операции (доходы/расходы).
+
+    Поддерживает повторяющиеся операции (recurring) через:
+    - is_recurring: флаг шаблона
+    - recurring_period: периодичность (monthly, weekly, etc.)
+    - recurring_end_date: дата окончания серии (None = бессрочно)
+    - recurring_parent_id: FK на шаблон (для exceptions)
+    - original_date: исходная дата экземпляра (для exceptions)
+    - is_skipped: пропущен ли экземпляр
+    """
 
     __tablename__ = "transactions"
     __table_args__ = (
         Index("ix_transactions_user_date", "user_id", "transaction_date"),
+        Index("ix_transaction_recurring_parent", "recurring_parent_id"),
+        Index("ix_transaction_is_recurring", "is_recurring"),
+        UniqueConstraint(
+            "recurring_parent_id",
+            "original_date",
+            name="uq_recurring_exception_date",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
@@ -83,9 +100,17 @@ class Transaction(Base):
     description = Column(String(500))
     category = Column(String(100))  # Категория (на будущее)
 
-    # Повторяющиеся операции (на Батч 2)
+    # Повторяющиеся операции (Recurring)
     is_recurring = Column(Boolean, default=False)
     recurring_period = Column(String(20))  # monthly, weekly, etc.
+    recurring_end_date = Column(Date, nullable=True)  # Дата окончания серии
+    recurring_parent_id = Column(
+        Integer,
+        ForeignKey("transactions.id", ondelete="CASCADE"),
+        nullable=True,
+    )  # FK на шаблон (для exceptions)
+    original_date = Column(Date, nullable=True)  # Исходная дата экземпляра
+    is_skipped = Column(Boolean, default=False, nullable=False)  # Пропущен ли экземпляр
 
     # Метаданные
     created_at = Column(DateTime, default=func.now())
@@ -93,6 +118,46 @@ class Transaction(Base):
 
     # Связи
     user = relationship("User", back_populates="transactions")
+    recurring_parent = relationship(
+        "Transaction",
+        remote_side="Transaction.id",
+        backref="recurring_exceptions",
+    )
+
+    @property
+    def anchor_day(self) -> int | None:
+        """День месяца для Anchored-алгоритма.
+
+        Только для шаблонов (is_recurring=True).
+        Возвращает день из transaction_date (start_date серии).
+
+        Returns:
+            int | None: День месяца (1-31) или None если не recurring.
+
+        Note:
+            GUARD CLAUSE: Если is_recurring=True, но transaction_date=None,
+            логируем ошибку и возвращаем None (data integrity issue).
+        """
+        if not self.is_recurring:
+            return None
+
+        # Guard: проверяем transaction_date для recurring шаблона
+        if self.transaction_date is None:
+            from loguru import logger
+
+            logger.error(
+                f"Data integrity issue: Transaction {self.id} имеет "
+                f"is_recurring=True, но transaction_date=None. "
+                f"Это не должно происходить - проверьте данные."
+            )
+            return None
+
+        return self.transaction_date.day
+
+    @property
+    def is_exception(self) -> bool:
+        """Является ли транзакция исключением из recurring серии."""
+        return self.recurring_parent_id is not None
 
     def __repr__(self) -> str:
         return (

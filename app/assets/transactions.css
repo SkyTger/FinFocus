@@ -1,0 +1,37 @@
+/* Transactions component styles */
+
+/* Recurring section in create modal */
+#create-recurring-section {
+    padding: 15px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    margin-top: 10px;
+    border-left: 3px solid #28a745;
+}
+
+#create-recurring-section .form-label {
+    font-weight: 500;
+    color: #495057;
+}
+
+/* Checkbox styling */
+#create-is-recurring {
+    font-weight: 500;
+}
+
+/* Recurring badge in table */
+.recurring-badge {
+    color: #28a745;
+    font-size: 1rem;
+}
+
+/* Table responsive adjustments */
+@media (max-width: 768px) {
+    #create-recurring-section .row > div {
+        margin-bottom: 15px;
+    }
+
+    #create-recurring-section .row > div:last-child {
+        margin-bottom: 0;
+    }
+}

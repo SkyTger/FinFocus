@@ -29,8 +29,11 @@ class TransactionService:
         transaction_date: date,
         description: str | None = None,
         category: str | None = None,
+        is_recurring: bool = False,
+        recurring_period: str | None = None,
+        recurring_end_date: date | None = None,
     ) -> Transaction:
-        """Создает новую транзакцию с валидацией бизнес-правил.
+        """Создает новую транзакцию или шаблон recurring с валидацией.
 
         Args:
             user_id: ID пользователя
@@ -39,14 +42,19 @@ class TransactionService:
             transaction_date: Дата операции
             description: Описание операции (опционально)
             category: Категория операции (опционально)
+            is_recurring: Флаг повторяющейся операции
+            recurring_period: Период повторения (weekly/biweekly/monthly/quarterly)
+            recurring_end_date: Дата окончания серии (опционально)
 
         Returns:
-            Transaction: Созданная транзакция
+            Transaction: Созданная транзакция или шаблон
 
         Raises:
             ValidationError: Если нарушены бизнес-правила:
                 - amount <= 0
                 - transaction_date > 1 год в будущем
+                - recurring без периода
+                - недопустимый период
         """
         # Валидация: amount > 0
         if amount <= 0:
@@ -60,6 +68,23 @@ class TransactionService:
                 field="transaction_date",
             )
 
+        # Валидация recurring полей
+        if is_recurring:
+            if not recurring_period:
+                raise ValidationError(
+                    "Период повторения обязателен для recurring операций",
+                    field="recurring_period",
+                )
+
+            from app.services.recurring_service import VALID_RECURRING_PERIODS
+
+            if recurring_period not in VALID_RECURRING_PERIODS:
+                raise ValidationError(
+                    f"Недопустимый период: {recurring_period}. "
+                    f"Допустимые: {', '.join(VALID_RECURRING_PERIODS)}",
+                    field="recurring_period",
+                )
+
         # Создание транзакции
         transaction = Transaction(
             user_id=user_id,
@@ -68,15 +93,21 @@ class TransactionService:
             transaction_date=transaction_date,
             description=description,
             category=category,
+            is_recurring=is_recurring,
+            recurring_period=recurring_period if is_recurring else None,
+            recurring_end_date=recurring_end_date if is_recurring else None,
         )
 
         self.session.add(transaction)
         self.session.flush()  # Получить ID без commit
 
-        logger.info(
+        log_msg = (
             f"Создана транзакция {transaction.id} для user {user_id}: "
             f"{transaction_type.value} {amount}"
         )
+        if is_recurring:
+            log_msg += f" (recurring: {recurring_period})"
+        logger.info(log_msg)
 
         return transaction
 
