@@ -4,6 +4,43 @@
 
 ---
 
+**Restore context: protocol-0005#ctx-2** (2026-01-20)
+- Восстановлен контекст после прерывания
+- Обнаружены незакоммиченные изменения (Сценарий B): все CRUD методы уже добавлены предыдущей сессией
+- Проверены изменения, запущены quality checks
+- Исправлены deprecation warnings (Query.get() → Session.get())
+- Завершено выполнение Шага 3
+
+---
+
+## Шаг 3: RecurringService — CRUD для exceptions
+
+**Дата**: 2026-01-20
+
+**Действия**:
+- Добавлены 7 методов CRUD в `app/services/recurring_service.py`:
+  - `get_exceptions_for_template()` — получение exceptions шаблона
+  - `create_exception()` — создание/обновление exception
+  - `skip_instance()` — пропуск экземпляра (is_skipped=True)
+  - `stop_template()` — soft delete (recurring_end_date)
+  - `delete_template()` — hard delete с CASCADE
+  - `update_template_period()` — изменение периода с savepoint
+  - `get_instances_with_exceptions()` — объединение виртуальных + exceptions
+- Добавлены импорты: `Decimal`, `ValidationError`
+- Исправлены deprecation warnings: `Query.get()` → `Session.get()` (5 мест)
+- Добавлены 10 unit тестов в `tests/test_recurring_service.py`
+
+**Файлы**:
+- `app/services/recurring_service.py` — расширение (+348 строк)
+- `tests/test_recurring_service.py` — расширение (+367 строк)
+
+**Проверки**:
+- black: ✅ All done
+- flake8: ✅ No errors
+- pytest: ✅ 67 passed (было 57, добавлено 10)
+
+---
+
 **Restore context: protocol-0005#ctx-1** (2026-01-20)
 - Восстановлен контекст после прерывания
 - Обнаружены незакоммиченные изменения в `context.md` (обновление статуса Шаг 0 → Шаг 1)

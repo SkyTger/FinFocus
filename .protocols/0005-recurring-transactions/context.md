@@ -1,7 +1,7 @@
-- **Current Step**: 3
+- **Current Step**: 4
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 2 завершен: создан RecurringService с Anchored-алгоритмом генерации виртуальных экземпляров (VirtualTransaction), 13 unit тестов."
-- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-recurring-service-exceptions.md`) — CRUD для exceptions (create_exception, skip_instance, stop_template, delete_template)."
+- **Last Action Summary**: "Шаг 3 завершен: добавлены 7 CRUD методов для exceptions в RecurringService (create_exception, skip_instance, stop_template, delete_template, update_template_period, get_instances_with_exceptions), 10 unit тестов. Исправлены deprecation warnings."
+- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-calendar-integration.md`) — интеграция RecurringService с CalendarService, фильтрация recurring шаблонов."
 - **Git**: "Ветка 0005-recurring-transactions, PR #5 открыт как Draft."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0005-recurring-transactions`

@@ -4,10 +4,13 @@
 из шаблонов повторяющихся операций.
 """
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
+
+from app.core.exceptions import ValidationError
 from app.models.database import Transaction, TransactionType
 from app.services.recurring_service import RecurringService
 
@@ -379,3 +382,367 @@ class TestVirtualTransactionStructure:
         assert vt["transaction_type"] == "income"
         assert vt["description"] == "Зарплата"
         assert vt["is_virtual"] is True
+
+
+# === Тесты для CRUD exceptions ===
+
+
+class TestCreateException:
+    """Тесты для метода create_exception."""
+
+    def test_create_exception_new(self, db_session, test_user):
+        """Создание нового exception."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        exception = service.create_exception(
+            template_id=template.id,
+            original_date=date(2026, 2, 15),
+            new_amount=Decimal("5500.00"),
+            new_description="Зарплата с премией",
+        )
+        db_session.commit()
+
+        assert exception.id is not None
+        assert exception.recurring_parent_id == template.id
+        assert exception.original_date == date(2026, 2, 15)
+        assert exception.amount == Decimal("5500.00")
+        assert exception.description == "Зарплата с премией"
+        assert exception.is_skipped is False
+
+    def test_create_exception_update_existing(self, db_session, test_user):
+        """Обновление существующего exception."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+
+        # Создаем первый exception
+        exc1 = service.create_exception(
+            template_id=template.id,
+            original_date=date(2026, 2, 15),
+            new_amount=Decimal("5500.00"),
+        )
+        db_session.commit()
+        exc1_id = exc1.id
+
+        # Обновляем тот же exception
+        exc2 = service.create_exception(
+            template_id=template.id,
+            original_date=date(2026, 2, 15),
+            new_amount=Decimal("6000.00"),
+        )
+        db_session.commit()
+
+        # Должен быть тот же объект
+        assert exc2.id == exc1_id
+        assert exc2.amount == Decimal("6000.00")
+
+    def test_create_exception_invalid_date(self, db_session, test_user):
+        """original_date раньше начала серии вызывает ошибку."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+
+        with pytest.raises(ValidationError) as exc_info:
+            service.create_exception(
+                template_id=template.id,
+                original_date=date(2025, 12, 15),  # Раньше начала!
+            )
+
+        assert "раньше начала серии" in str(exc_info.value)
+
+
+class TestSkipInstance:
+    """Тесты для метода skip_instance."""
+
+    def test_skip_instance_new(self, db_session, test_user):
+        """Пропуск нового экземпляра."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        skipped = service.skip_instance(template.id, date(2026, 2, 15))
+        db_session.commit()
+
+        assert skipped.is_skipped is True
+        assert skipped.original_date == date(2026, 2, 15)
+        assert skipped.recurring_parent_id == template.id
+
+    def test_skip_instance_existing(self, db_session, test_user):
+        """Пропуск существующего exception."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+
+        # Сначала создаем exception
+        exc = service.create_exception(
+            template_id=template.id,
+            original_date=date(2026, 2, 15),
+            new_amount=Decimal("5500.00"),
+        )
+        db_session.commit()
+        assert exc.is_skipped is False
+
+        # Теперь пропускаем
+        skipped = service.skip_instance(template.id, date(2026, 2, 15))
+        db_session.commit()
+
+        assert skipped.id == exc.id
+        assert skipped.is_skipped is True
+
+
+class TestStopTemplate:
+    """Тесты для метода stop_template."""
+
+    def test_stop_template(self, db_session, test_user):
+        """Soft delete шаблона."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        stopped = service.stop_template(template.id, stop_date=date(2026, 6, 30))
+        db_session.commit()
+
+        assert stopped.recurring_end_date == date(2026, 6, 30)
+        assert stopped.is_recurring is True  # Шаблон не удален
+
+
+class TestDeleteTemplate:
+    """Тесты для метода delete_template."""
+
+    def test_delete_template_cascades(self, db_session, test_user):
+        """Hard delete с CASCADE удаляет exceptions."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+        template_id = template.id
+
+        service = RecurringService(db_session)
+
+        # Создаем exceptions
+        service.create_exception(template_id, date(2026, 2, 15))
+        service.create_exception(template_id, date(2026, 3, 15))
+        db_session.commit()
+
+        # Проверяем что exceptions созданы
+        exceptions = service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 2
+
+        # Удаляем шаблон
+        result = service.delete_template(template_id)
+        db_session.commit()
+
+        assert result is True
+
+        # Проверяем что шаблон и exceptions удалены
+        deleted_template = db_session.get(Transaction, template_id)
+        assert deleted_template is None
+
+        remaining_exceptions = (
+            db_session.query(Transaction)
+            .filter(Transaction.recurring_parent_id == template_id)
+            .all()
+        )
+        assert len(remaining_exceptions) == 0
+
+
+class TestUpdateTemplatePeriod:
+    """Тесты для метода update_template_period."""
+
+    def test_update_period_deletes_future_exceptions(self, db_session, test_user):
+        """Изменение периода удаляет future exceptions."""
+        today = date.today()
+
+        # Шаблон начинается 60 дней назад
+        template_start = today - timedelta(days=60)
+
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=template_start,
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+
+        # Создаем past и future exceptions относительно today
+        past_date = today - timedelta(days=30)
+        future_date = today + timedelta(days=30)
+
+        service.create_exception(template.id, past_date)
+        service.create_exception(template.id, future_date)
+        db_session.commit()
+
+        # Изменяем период
+        updated = service.update_template_period(template.id, "weekly")
+        db_session.commit()
+
+        assert updated.recurring_period == "weekly"
+
+        # Проверяем: past exception остался, future удален
+        exceptions = service.get_exceptions_for_template(template.id)
+        assert len(exceptions) == 1
+        assert exceptions[0].original_date == past_date
+
+
+class TestGetInstancesWithExceptions:
+    """Тесты для метода get_instances_with_exceptions."""
+
+    def test_replaces_virtual_with_exception(self, db_session, test_user):
+        """Заменяет виртуальные экземпляры на exceptions."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+
+        # Создаем exception на февраль
+        service.create_exception(
+            template.id,
+            date(2026, 2, 15),
+            new_amount=Decimal("5500.00"),
+        )
+        db_session.commit()
+
+        # Получаем экземпляры
+        instances = service.get_instances_with_exceptions(
+            test_user.id,
+            date(2026, 1, 1),
+            date(2026, 3, 31),
+        )
+
+        assert len(instances) == 3
+
+        # Январь — виртуальный
+        jan = instances[0]
+        assert isinstance(jan, dict)
+        assert jan["is_virtual"] is True
+
+        # Февраль — exception (Transaction)
+        feb = instances[1]
+        assert isinstance(feb, Transaction)
+        assert feb.amount == Decimal("5500.00")
+
+        # Март — виртуальный
+        mar = instances[2]
+        assert isinstance(mar, dict)
+        assert mar["is_virtual"] is True
+
+    def test_skipped_instances_not_returned(self, db_session, test_user):
+        """Пропущенные экземпляры не возвращаются."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+
+        # Пропускаем февраль
+        service.skip_instance(template.id, date(2026, 2, 15))
+        db_session.commit()
+
+        # Получаем экземпляры
+        instances = service.get_instances_with_exceptions(
+            test_user.id,
+            date(2026, 1, 1),
+            date(2026, 3, 31),
+        )
+
+        # Должно быть 2: январь и март (февраль пропущен)
+        assert len(instances) == 2
+
+        dates = [
+            i["instance_date"]
+            if isinstance(i, dict)
+            else i.transaction_date.isoformat()
+            for i in instances
+        ]
+        assert "2026-01-15" in dates
+        assert "2026-02-15" not in dates
+        assert "2026-03-15" in dates
