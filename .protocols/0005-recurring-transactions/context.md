@@ -1,0 +1,7 @@
+- **Current Step**: 0
+- **Status**: Not Started
+- **Last Action Summary**: "План сгенерирован и ожидает утверждения."
+- **Next Action**: "Приступить к выполнению Шага 0 (см. `00-setup.md`)."
+- **Git**: "Ветка 0005-recurring-transactions создана, но пока пуста."
+- **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
+- **CWD**: `/home/skytiger/PycharmProjects/worktrees/0005-recurring-transactions`
