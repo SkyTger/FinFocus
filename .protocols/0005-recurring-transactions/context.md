@@ -1,7 +1,7 @@
-- **Current Step**: 0
-- **Status**: Not Started
-- **Last Action Summary**: "План сгенерирован и ожидает утверждения."
-- **Next Action**: "Приступить к выполнению Шага 0 (см. `00-setup.md`)."
-- **Git**: "Ветка 0005-recurring-transactions создана, но пока пуста."
+- **Current Step**: 2
+- **Status**: In Progress
+- **Last Action Summary**: "Шаг 1 завершен: модель Transaction расширена полями recurring_end_date, recurring_parent_id, original_date, is_skipped. Добавлены relationship, constraints, properties, 7 unit тестов."
+- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-recurring-service-generation.md`) — создание RecurringService с Anchored-алгоритмом генерации экземпляров."
+- **Git**: "Ветка 0005-recurring-transactions, PR #5 открыт как Draft."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0005-recurring-transactions`
