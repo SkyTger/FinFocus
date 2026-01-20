@@ -4,12 +4,50 @@
 
 ---
 
+**Restore context: protocol-0005#ctx-3** (2026-01-20)
+- Восстановлен контекст после прерывания
+- Обнаружены незакоммиченные изменения (Сценарий B): Шаг 4 уже выполнен предыдущей сессией
+- Проверены изменения, запущены quality checks (black ✅, flake8 ✅, pytest 75/75 ✅)
+- Готов к завершению Шага 4 (коммит + обновление context.md)
+
+---
+
 **Restore context: protocol-0005#ctx-2** (2026-01-20)
 - Восстановлен контекст после прерывания
 - Обнаружены незакоммиченные изменения (Сценарий B): все CRUD методы уже добавлены предыдущей сессией
 - Проверены изменения, запущены quality checks
 - Исправлены deprecation warnings (Query.get() → Session.get())
 - Завершено выполнение Шага 3
+
+---
+
+## Шаг 4: Интеграция с CalendarService
+
+**Дата**: 2026-01-20
+
+**Действия**:
+- Добавлены фильтры recurring в 5 методов `app/services/calendar_service.py`:
+  - `_calculate_balance_before_date()` — `is_recurring == False`, `recurring_parent_id == None`
+  - `_get_daily_changes()` — `is_recurring == False`, `recurring_parent_id == None`
+  - `get_transactions_by_date()` — `is_recurring == False` (exceptions нужны для UI)
+  - `get_month_summary()` — `is_recurring == False`, `recurring_parent_id == None`
+  - `get_year_summary()` — `is_recurring == False`, `recurring_parent_id == None`
+- Расширен TypedDict `TransactionInfo` для поддержки recurring:
+  - Добавлены поля: `template_id`, `date`, `is_virtual`, `is_recurring`, `is_exception`
+  - Изменено: `id` теперь `int | None` (для виртуальных)
+- Добавлен новый метод `get_all_transactions_for_period()`:
+  - Объединяет обычные транзакции + recurring instances
+  - Поддерживает параметр `include_recurring`
+- Создан файл `tests/test_calendar_recurring.py` с 8 unit тестами
+
+**Файлы**:
+- `app/services/calendar_service.py` — изменения + новый метод (+~120 строк)
+- `tests/test_calendar_recurring.py` — новый файл (~305 строк)
+
+**Проверки**:
+- black: ✅ All done
+- flake8: ✅ No errors
+- pytest: ✅ 75 passed (было 67, добавлено 8)
 
 ---
 

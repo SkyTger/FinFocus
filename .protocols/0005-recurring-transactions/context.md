@@ -1,7 +1,7 @@
-- **Current Step**: 4
-- **Status**: In Progress
-- **Last Action Summary**: "Шаг 3 завершен: добавлены 7 CRUD методов для exceptions в RecurringService (create_exception, skip_instance, stop_template, delete_template, update_template_period, get_instances_with_exceptions), 10 unit тестов. Исправлены deprecation warnings."
-- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-calendar-integration.md`) — интеграция RecurringService с CalendarService, фильтрация recurring шаблонов."
-- **Git**: "Ветка 0005-recurring-transactions, PR #5 открыт как Draft."
+- **Current Step**: 5
+- **Status**: Ready
+- **Last Action Summary**: "Шаг 4 завершен: интеграция RecurringService с CalendarService — добавлены фильтры recurring в 5 методов, расширен TransactionInfo TypedDict, создан метод get_all_transactions_for_period(), 8 unit тестов."
+- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-ui-create-recurring.md`) — UI форма создания recurring операций (checkbox, period selector, end date)."
+- **Git**: "Ветка 0005-recurring-transactions, PR #5 открыт как Draft, commit b810236."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0005-recurring-transactions`
