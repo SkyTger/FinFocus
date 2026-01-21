@@ -67,3 +67,26 @@
 **Решения**:
 - Методы размещены в GoalService с TODO о переносе в UserService при рефакторинге
 - Паттерн аналогичен существующим get/update_savings_budget
+
+---
+
+## Шаг 3: AllocationService модификация
+
+**Дата**: 2026-01-21
+
+**Действия**:
+- Добавлена константа `SAVINGS_MODE_MULTIPLIERS` с множителями {free: 1.0, medium: 1.15, strict: 1.5}
+- Добавлен параметр `savings_mode: str = "free"` в `calculate_allocation()`
+- Множитель применяется внутри цикла: `monthly_needed = base_monthly * multiplier`
+- Добавлено логирование warning при неизвестном режиме (fallback на 1.0)
+- Написаны 3 unit теста для каждого режима
+
+**Изменения файлов**:
+- `app/services/allocation_service.py:10-15` — константа SAVINGS_MODE_MULTIPLIERS
+- `app/services/allocation_service.py:29,56-61,87-89` — параметр и применение множителя
+- `tests/test_allocation_service.py:350-430` — 3 теста (free, medium, strict)
+
+**Решения**:
+- Множитель применяется ВНУТРИ цикла, а не к итоговому total_needed — обеспечивает корректный расчет для каждой цели
+- `monthly_contribution_needed` в результате содержит ADJUSTED значение (base * multiplier)
+- Default `savings_mode="free"` обеспечивает полную обратную совместимость

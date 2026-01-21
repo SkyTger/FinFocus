@@ -1,7 +1,7 @@
-- **Current Step**: 3
+- **Current Step**: 4
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 2 завершен: добавлены методы get/update_savings_mode() в GoalService, константа VALID_SAVINGS_MODES, 6 unit тестов."
-- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-allocation-service.md`)."
+- **Last Action Summary**: "Шаг 3 завершен: добавлен параметр savings_mode в AllocationService с множителями, 3 unit теста."
+- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-ui-stores.md`)."
 - **Git**: "Ветка 0007-savings-mode, PR #7 в статусе Draft."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/7"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
