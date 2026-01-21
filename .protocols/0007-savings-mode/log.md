@@ -2,6 +2,7 @@
 
 Этот раздел является **журналом**. Записи только добавляются, старые не изменяются.
 
+**Restore context**: protocol-0007#ctx-3
 **Restore context**: protocol-0007#ctx-2
 **Restore context**: protocol-0007#ctx-1
 
@@ -149,3 +150,56 @@
 - Row/Col с lg=8/4 — summary слева, mode selector справа на десктопах
 - `savings_mode or "free"` во всех вызовах — fallback при None из store
 - Стили используют фирменный цвет #198754 (primary-green) для консистентности
+
+---
+
+## Шаг 6: Финализация
+
+**Дата**: 2026-01-21
+
+**Действия**:
+- Запущен black — переформатировано 2 файла (allocation_service.py, goals.py)
+- Запущен flake8 — найдено 5 ошибок, все исправлены:
+  - E501 (line too long) в goals.py, goal_service.py, serializers.py
+  - F841 (unused variable) в goals.py
+- Запущен pytest — все 111 тестов проходят (было 98, добавлено 13 тестов savings_mode)
+- PR #7 переведен в статус Ready for Review
+
+**Изменения файлов**:
+- `app/components/goals.py` — black форматирование, исправлены длинные строки
+- `app/services/allocation_service.py` — black форматирование
+- `app/services/goal_service.py` — исправлен длинный комментарий
+- `app/utils/serializers.py` — исправлены длинные строки в docstring
+
+**Результаты верификации**:
+- Black: 2 файла переформатированы, 44 без изменений
+- Flake8: 0 ошибок после исправлений
+- Pytest: 111/111 passed in 2.01s
+
+**Коммиты**:
+- `8f7b1b7`: chore: final QA fixes [protocol-0007/06]
+
+**PR Status**: Ready for Review
+**URL**: https://github.com/SkyTger/FinFocus/pull/7
+
+---
+
+## Протокол завершен
+
+**Итого по протоколу 0007-savings-mode**:
+- Шагов выполнено: 7 (0-6)
+- Коммитов: 7
+- Новых файлов: 4 (migrate_002, test_migration_002, test_savings_mode, serializers)
+- Измененных файлов: 6 (database.py, goal_service.py, allocation_service.py, goals.py, goals.css, __init__.py)
+- Новых тестов: 13 (3 миграция + 7 savings_mode + 3 allocation modes)
+- Всего тестов: 111 (было 98)
+- PR: https://github.com/SkyTger/FinFocus/pull/7
+
+**Критерии приёмки**:
+- [x] Поле `User.savings_mode` добавлено в модель с default='free'
+- [x] `AllocationService.calculate_allocation()` принимает параметр `savings_mode` и применяет множитель
+- [x] UI селектор отображает три режима с описаниями
+- [x] Изменение режима пересчитывает и обновляет UI allocation
+- [x] Миграционный скрипт создан и работает идемпотентно
+- [x] Unit тесты покрывают все три режима в AllocationService
+- [x] Существующие тесты проходят без изменений
