@@ -1,7 +1,7 @@
-- **Current Step**: 4
+- **Current Step**: 5
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 3 завершен: создан AllocationService с жадным алгоритмом распределения бюджета. Реализован метод calculate_allocation(), обработка ACTIVE/PAUSED/COMPLETED статусов, skipped_reason для неактивных целей. Написаны 7 тестов. Верификация: 93/93 тестов прошли."
-- **Next Action**: "Приступить к выполнению Шага 4: Goals UI - List Layout (см. `04-goals-ui-list.md`)."
+- **Last Action Summary**: "Шаг 4 завершен: рефакторинг Goals UI для списка целей. Созданы _build_summary_section(), _build_budget_alert(), _build_goals_list(). Переписаны _build_goal_card() и load_goal_data() с поддержкой AllocationService. Добавлены allocation badges, priority badges, кнопки ↑↓. Обновлены стили. Верификация: 93/93 тестов прошли."
+- **Next Action**: "Приступить к выполнению Шага 5: Goals UI - Callbacks (см. `05-goals-ui-callbacks.md`)."
 - **Git**: "Ветка 0006-multiple-goals, PR #6 (Draft)"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0006-multiple-goals`

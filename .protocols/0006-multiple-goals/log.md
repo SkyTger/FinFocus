@@ -144,3 +144,55 @@
 - app/services/allocation_service.py (создан, 113 строк)
 - app/services/__init__.py (+4 импорта, +4 экспорта в __all__)
 - tests/test_allocation_service.py (создан, 311 строк)
+
+---
+
+## Шаг 4: Goals UI — список целей (2026-01-21)
+
+**Действия:**
+- Рефакторинг Goals UI для отображения списка карточек целей вместо одной карточки
+- Созданы новые UI функции:
+  - _build_summary_section() — сводная секция с общим прогрессом и статусом распределения (127 строк)
+  - _build_budget_alert() — info-alert для ненастроенного бюджета
+  - _build_goals_list() — список карточек целей с сортировкой по priority
+- Переписан _build_goal_card() для поддержки списка:
+  - Добавлено отображение allocated_amount (если есть)
+  - Добавлен allocation_status badge ("Полностью", "Частично", "Не профинансирована", "Пропущена")
+  - Добавлен priority badge (#1, #2, #3...)
+  - Добавлены кнопки ↑↓ для изменения приоритетов (pattern-matching IDs)
+  - Metrics row адаптирован для 4 колонок (allocation section)
+- Обновлен _build_action_buttons() для pattern-matching IDs (edit, toggle, delete)
+- Переписан load_goal_data() callback:
+  - Загружает ВСЕ цели (ACTIVE + PAUSED)
+  - Получает бюджет через get_savings_budget()
+  - Вызывает AllocationService.calculate_allocation()
+  - Формирует GoalsSummary
+  - Строит layout: summary + alert + goals_list
+- Обновлен create_goals_layout(): добавлена кнопка "Создать цель" в заголовок
+- Обновлен toggle_create_goal_modal(): слушает обе кнопки (empty state + header)
+- Удалены дублирующие TypedDicts (GoalDisplayData теперь импортируется из app.services)
+
+**Стили** (app/assets/goals.css, +95 строк):
+- .goals-list — flexbox контейнер для списка карточек
+- .goal-card-priority — badge с номером приоритета
+- .goal-card-allocation — секция с allocated_amount (gradient background)
+- .priority-btn — кнопки ↑↓ с hover эффектом
+- .summary-section — сводная секция (gradient header, shadow)
+- .budget-alert — info-alert с левым border
+- .create-goal-header-btn — кнопка в заголовке
+- Адаптивность: 768px, 576px breakpoints
+
+**Решения:**
+- Layout остался тем же (goal-card-container), но внутри возвращается html.Div со списком элементов
+- Pattern-matching IDs используются для всех кнопок действий (готовность к callbacks в Шаге 5)
+- AllocationResult преобразуется в dict для удобного доступа по goal_id
+- История взносов показывается для первой цели (по приоритету)
+
+**Верификация:**
+- ✅ black: 1 файл отформатирован (goals.py)
+- ✅ flake8: без ошибок (1 noqa: E501 для длинной строки)
+- ✅ pytest: 93/93 тестов прошли
+
+**Файлы изменены:**
+- app/components/goals.py (+380 строк новой логики, -100 строк удалено)
+- app/assets/goals.css (+95 строк новых стилей)
