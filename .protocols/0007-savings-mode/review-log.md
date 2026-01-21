@@ -67,3 +67,87 @@
 
 ---
 
+## Шаг 3-m: Ревью кода
+
+**Время:** 2026-01-21
+
+**Проверка окружения:**
+- CWD: `/home/skytiger/PycharmProjects/FinFocus`
+- Ветка: `main`
+
+### 3.1 Соответствие плану
+
+| Шаг плана | Статус | Коммиты |
+|-----------|--------|---------|
+| 0: Подготовка | ✅ | Артефакты созданы |
+| 1: Миграция БД | ✅ | User.savings_mode |
+| 2: GoalService | ✅ | get/update_savings_mode |
+| 3: AllocationService | ✅ | savings_mode + multipliers |
+| 4: UI stores | ✅ | dcc.Store + helper |
+| 5: UI selector | ✅ | RadioItems + callback |
+| 6: Финализация | ✅ | black, flake8, pytest |
+
+**Вывод:** План полностью выполнен.
+
+### 3.2 Статистика изменений
+
+```
+21 files changed, +1941, -35 lines
+```
+
+### 3.3 Детальный анализ компонентов
+
+**User.savings_mode (database.py:65-67):**
+- Тип: String(20), default="free", nullable=False
+- Комментарий: валидные значения и ссылка на GoalService
+- Статус: ✅ APPROVED
+
+**GoalService (goal_service.py:448-500):**
+- VALID_SAVINGS_MODES = {"free", "medium", "strict"}
+- get_savings_mode() — возвращает режим или ValidationError
+- update_savings_mode() — валидация + flush + logging
+- TODO о рефакторинге в UserService
+- Статус: ✅ APPROVED
+
+**AllocationService (allocation_service.py:10-89):**
+- SAVINGS_MODE_MULTIPLIERS: free=1.0, medium=1.15, strict=1.5
+- savings_mode parameter с default="free" — обратная совместимость
+- Множитель применяется внутри цикла к base_monthly
+- Warning logging для неизвестных режимов
+- Статус: ✅ APPROVED
+
+**UI goals.py:**
+- MODE_OPTIONS — label/description для UI
+- _build_mode_selector() — RadioItems в dbc.Card
+- dcc.Store("goals-savings-mode-store") — хранение режима
+- _recalculate_and_render() — расширен savings_mode параметром
+- 9 callbacks обновлены с State для savings_mode
+- save_savings_mode() — новый callback для сохранения
+- Статус: ✅ APPROVED
+
+**CSS (goals.css:301-380):**
+- .mode-selector-card — стили карточки
+- .savings-mode-radio — стили RadioItems
+- Фирменный цвет #198754 (primary-green)
+- Статус: ✅ APPROVED
+
+**Тесты:**
+- test_migration_002.py — 3 теста миграции
+- test_savings_mode.py — 7 тестов GoalService
+- test_allocation_service.py — 3 теста режимов
+- Всего новых: 13 тестов
+- Статус: ✅ APPROVED
+
+**Миграция (migrate_002_savings_mode.py):**
+- Idempotent через PRAGMA table_info
+- DEFAULT 'free' для существующих пользователей
+- Статус: ✅ APPROVED
+
+### 3.4 Критичные замечания
+
+**Нет критичных замечаний.** Код соответствует плану, стандартам и best practices.
+
+**Результат:** ✅ Код ревью пройдено, готов к слиянию
+
+---
+
