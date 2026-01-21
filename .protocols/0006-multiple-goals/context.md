@@ -1,7 +1,7 @@
-- **Current Step**: 3
+- **Current Step**: 4
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 2 завершен: расширен GoalService для множественных целей - удалено ограничение D009, добавлены методы приоритетов (get_next_priority, update_priority, move_up/down) и бюджета (get/update_savings_budget). Написаны 8 тестов. Верификация: 86/86 тестов прошли."
-- **Next Action**: "Приступить к выполнению Шага 3: AllocationService (см. `03-allocation-service.md`)."
+- **Last Action Summary**: "Шаг 3 завершен: создан AllocationService с жадным алгоритмом распределения бюджета. Реализован метод calculate_allocation(), обработка ACTIVE/PAUSED/COMPLETED статусов, skipped_reason для неактивных целей. Написаны 7 тестов. Верификация: 93/93 тестов прошли."
+- **Next Action**: "Приступить к выполнению Шага 4: Goals UI - List Layout (см. `04-goals-ui-list.md`)."
 - **Git**: "Ветка 0006-multiple-goals, PR #6 (Draft)"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0006-multiple-goals`

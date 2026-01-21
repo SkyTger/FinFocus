@@ -4,6 +4,10 @@
 
 ---
 
+## Restore context: protocol-0006#ctx-3
+
+---
+
 ## Restore context: protocol-0006#ctx-2
 
 ---
@@ -101,3 +105,42 @@
 **Файлы изменены:**
 - app/services/goal_service.py (+171 строка, -12 строк удалено D009)
 - tests/test_goal_service_priority.py (создан, 186 строк)
+
+---
+
+## Шаг 3: AllocationService (2026-01-21)
+
+**Действия:**
+- Создан новый сервис AllocationService для распределения бюджета накоплений между целями
+- Реализован жадный алгоритм в calculate_allocation():
+  - Сортировка целей по priority ASC (1, 2, 3...)
+  - Для каждой цели: allocated = min(monthly_contribution, remaining_budget)
+  - COMPLETED цели → skipped_reason="completed"
+  - PAUSED цели → skipped_reason="paused"
+  - Цели с monthly_contribution <= 0 → skipped_reason="zero_contribution"
+- Обновлен app/services/__init__.py с экспортами AllocationService и TypedDicts
+- Написаны 7 unit тестов для всех сценариев распределения
+
+**Решения:**
+- Жадный алгоритм выделяет бюджет строго по приоритету (высший получает первым)
+- TypedDicts (AllocationResult, AllocationSummary) используются для типизации результата
+- Метод calculate_allocation() не зависит от session — чистая функция на основе списка целей
+
+**Верификация:**
+- ✅ black: 2 файла отформатированы (allocation_service.py, test_allocation_service.py)
+- ✅ flake8: без ошибок
+- ✅ pytest: 93/93 тестов прошли (включая 7 новых тестов AllocationService)
+
+**Написаны тесты** (tests/test_allocation_service.py, 7 тестов):
+- test_empty_goals_list — пустой список целей → empty results, totals = 0
+- test_single_goal_fully_funded — одна цель, бюджет покрывает полностью
+- test_single_goal_partially_funded — одна цель, бюджет частично
+- test_multiple_goals_full_coverage — несколько целей, бюджет покрывает все
+- test_multiple_goals_partial_coverage — 3 цели, бюджет покрывает только 1.5
+- test_zero_budget — нулевой бюджет → budget_not_set=True
+- test_mixed_statuses — цели с разными статусами (ACTIVE, PAUSED, COMPLETED)
+
+**Файлы изменены:**
+- app/services/allocation_service.py (создан, 113 строк)
+- app/services/__init__.py (+4 импорта, +4 экспорта в __all__)
+- tests/test_allocation_service.py (создан, 311 строк)
