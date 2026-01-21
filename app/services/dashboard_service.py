@@ -120,21 +120,30 @@ class DashboardService:
             period_income = summary["total_income"]
             period_expense = summary["total_expense"]
 
-        # 3. Savings из активной цели
+        # 3. Savings из всех активных целей
         active_goals = self._goal_service.get_all_by_user(
             user_id, status=GoalStatus.ACTIVE
         )
 
         if active_goals:
-            goal = active_goals[0]
-            savings_current = goal.current_amount
-            savings_target = goal.target_amount
-            savings_name = goal.name
-            savings_progress = goal.progress_percentage
+            # Агрегация по всем активным целям
+            savings_current = sum(g.current_amount for g in active_goals)
+            savings_target = sum(g.target_amount for g in active_goals)
+            savings_progress = (
+                float(savings_current / savings_target * 100)
+                if savings_target > 0
+                else 0.0
+            )
+
+            # Название зависит от количества целей
+            if len(active_goals) == 1:
+                savings_name = active_goals[0].name
+            else:
+                savings_name = f"{len(active_goals)} целей"
         else:
             savings_current = Decimal("0")
             savings_target = Decimal("0")
-            savings_name = None
+            savings_name = "Нет целей"
             savings_progress = 0.0
 
         return OverviewMetrics(

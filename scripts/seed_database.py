@@ -6,14 +6,19 @@ import sys
 import os
 
 # Добавляем корневую директорию проекта в путь импорта
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.models.database import (
-    init_database, get_session,
-    User, Transaction, Goal, GoalContribution,
-    TransactionType, GoalStatus
+from app.models.database import (  # noqa: E402
+    init_database,
+    get_session,
+    User,
+    Transaction,
+    Goal,
+    GoalContribution,
+    TransactionType,
+    GoalStatus,
 )
-from app.services.goal_service import GoalService
+from app.services.goal_service import GoalService  # noqa: E402
 
 
 def seed_database():
@@ -27,7 +32,7 @@ def seed_database():
         user = User(
             name="Тестовый Пользователь",
             email="test@example.com",
-            starting_balance=Decimal('50000.00')  # Начальный баланс 50К
+            starting_balance=Decimal("50000.00"),  # Начальный баланс 50К
         )
         session.add(user)
         session.flush()  # Получаем ID пользователя
@@ -40,44 +45,44 @@ def seed_database():
             # Доходы
             Transaction(
                 user_id=user.id,
-                amount=Decimal('80000.00'),
+                amount=Decimal("80000.00"),
                 transaction_type=TransactionType.INCOME,
                 transaction_date=date.today() - timedelta(days=30),
                 description="Зарплата за прошлый месяц",
-                category="Зарплата"
+                category="Зарплата",
             ),
             Transaction(
                 user_id=user.id,
-                amount=Decimal('85000.00'),
+                amount=Decimal("85000.00"),
                 transaction_type=TransactionType.INCOME,
                 transaction_date=date.today() - timedelta(days=5),
                 description="Зарплата текущего месяца",
-                category="Зарплата"
+                category="Зарплата",
             ),
             # Расходы
             Transaction(
                 user_id=user.id,
-                amount=Decimal('25000.00'),
+                amount=Decimal("25000.00"),
                 transaction_type=TransactionType.EXPENSE,
                 transaction_date=date.today() - timedelta(days=28),
                 description="Аренда квартиры",
-                category="Жилье"
+                category="Жилье",
             ),
             Transaction(
                 user_id=user.id,
-                amount=Decimal('8000.00'),
+                amount=Decimal("8000.00"),
                 transaction_type=TransactionType.EXPENSE,
                 transaction_date=date.today() - timedelta(days=20),
                 description="Продукты питания",
-                category="Продукты"
+                category="Продукты",
             ),
             Transaction(
                 user_id=user.id,
-                amount=Decimal('15000.00'),
+                amount=Decimal("15000.00"),
                 transaction_type=TransactionType.EXPENSE,
                 transaction_date=date.today() - timedelta(days=10),
                 description="Коммунальные платежи",
-                category="ЖКХ"
+                category="ЖКХ",
             ),
         ]
 
@@ -90,11 +95,11 @@ def seed_database():
         goal = Goal(
             user_id=user.id,
             name="Отпуск в Турции",
-            target_amount=Decimal('150000.00'),
-            current_amount=Decimal('0'),  # Начинаем с 0
+            target_amount=Decimal("150000.00"),
+            current_amount=Decimal("0"),  # Начинаем с 0
             target_date=date.today() + timedelta(days=180),  # Через 6 месяцев
             status=GoalStatus.ACTIVE,
-            priority=1
+            priority=1,
         )
         session.add(goal)
         session.flush()
@@ -103,29 +108,23 @@ def seed_database():
 
         # Используем GoalService для добавления взносов
         goal_service = GoalService(session)
-        goal_service.add_contribution(
-            goal_id=goal.id,
-            amount=Decimal('15000.00')
-        )
-        goal_service.add_contribution(
-            goal_id=goal.id,
-            amount=Decimal('15000.00')
-        )
+        goal_service.add_contribution(goal_id=goal.id, amount=Decimal("15000.00"))
+        goal_service.add_contribution(goal_id=goal.id, amount=Decimal("15000.00"))
         # Теперь goal.current_amount автоматически = 30000
 
         # Создаем записи GoalContribution с историческими датами для отображения
         contributions = [
             GoalContribution(
                 goal_id=goal.id,
-                amount=Decimal('15000.00'),
+                amount=Decimal("15000.00"),
                 contribution_date=date.today() - timedelta(days=60),
-                description="Первый взнос"
+                description="Первый взнос",
             ),
             GoalContribution(
                 goal_id=goal.id,
-                amount=Decimal('15000.00'),
+                amount=Decimal("15000.00"),
                 contribution_date=date.today() - timedelta(days=30),
-                description="Второй взнос"
+                description="Второй взнос",
             ),
         ]
 
@@ -133,7 +132,10 @@ def seed_database():
             session.add(contribution)
 
         print(f"✅ Создано взносов в цель: {len(contributions)}")
-        print(f"   Прогресс: {goal.current_amount}/{goal.target_amount} ({goal.progress_percentage:.1f}%)")
+        print(
+            f"   Прогресс: {goal.current_amount}/{goal.target_amount} "
+            f"({goal.progress_percentage:.1f}%)"
+        )
 
         # Сохранение всех изменений
         session.commit()

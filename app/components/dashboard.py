@@ -255,7 +255,7 @@ def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
     period_income = f"${metrics['period_income']:,.2f}"
     period_expense = f"${metrics['period_expense']:,.2f}"
 
-    if metrics["savings_name"]:
+    if metrics["savings_name"] != "Нет целей":
         savings_value = f"${metrics['savings_current']:,.2f}"
         savings_subtitle = (
             f"{metrics['savings_progress']:.0f}% of "
@@ -263,7 +263,7 @@ def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
         )
     else:
         savings_value = "$0.00"
-        savings_subtitle = "No active goal"
+        savings_subtitle = "Нет активных целей"
 
     period_label = "This Month" if period == "month" else "This Year"
 

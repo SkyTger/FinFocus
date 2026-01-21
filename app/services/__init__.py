@@ -1,7 +1,14 @@
 """Сервисный слой приложения."""
 
 from app.core import ValidationError
+from app.types.goals import (
+    AllocationResult,
+    AllocationSummary,
+    GoalDisplayData,
+    GoalsSummary,
+)
 
+from .allocation_service import AllocationService
 from .calendar_service import (
     CalendarService,
     MonthSummary,
@@ -26,6 +33,10 @@ from .recurring_service import (
 from .transaction_service import TransactionService
 
 __all__ = [
+    # Allocation
+    "AllocationService",
+    "AllocationResult",
+    "AllocationSummary",
     # Calendar
     "CalendarService",
     "MonthSummary",
@@ -39,6 +50,8 @@ __all__ = [
     "RecentTransaction",
     # Goals
     "GoalService",
+    "GoalDisplayData",
+    "GoalsSummary",
     # Transactions
     "TransactionService",
     # Recurring

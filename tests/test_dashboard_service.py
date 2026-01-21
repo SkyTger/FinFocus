@@ -129,8 +129,105 @@ class TestGetOverviewMetrics:
 
         assert result["savings_current"] == Decimal("0")
         assert result["savings_target"] == Decimal("0")
-        assert result["savings_name"] is None
+        assert result["savings_name"] == "Нет целей"
         assert result["savings_progress"] == 0.0
+
+    def test_savings_multiple_active_goals(self, db_session, test_user):
+        """Метрики агрегируют savings по нескольким активным целям."""
+        # Arrange - создаем 3 активных цели
+        goals = [
+            Goal(
+                user_id=test_user.id,
+                name="Отпуск",
+                target_amount=Decimal("100000.00"),
+                current_amount=Decimal("25000.00"),
+                target_date=date(2026, 12, 31),
+                status=GoalStatus.ACTIVE,
+                priority=1,
+            ),
+            Goal(
+                user_id=test_user.id,
+                name="Автомобиль",
+                target_amount=Decimal("500000.00"),
+                current_amount=Decimal("150000.00"),
+                target_date=date(2027, 6, 30),
+                status=GoalStatus.ACTIVE,
+                priority=2,
+            ),
+            Goal(
+                user_id=test_user.id,
+                name="Ремонт",
+                target_amount=Decimal("200000.00"),
+                current_amount=Decimal("50000.00"),
+                target_date=date(2027, 12, 31),
+                status=GoalStatus.ACTIVE,
+                priority=3,
+            ),
+        ]
+        for goal in goals:
+            db_session.add(goal)
+        db_session.commit()
+
+        service = DashboardService(db_session)
+
+        # Act
+        result = service.get_overview_metrics(test_user.id, period="month")
+
+        # Assert - должны суммироваться все активные цели
+        # total_current = 25000 + 150000 + 50000 = 225000
+        # total_target = 100000 + 500000 + 200000 = 800000
+        # progress = 225000 / 800000 * 100 = 28.125%
+        assert result["savings_current"] == Decimal("225000.00")
+        assert result["savings_target"] == Decimal("800000.00")
+        assert result["savings_name"] == "3 целей"
+        assert result["savings_progress"] == 28.125
+
+    def test_savings_mixed_statuses(self, db_session, test_user):
+        """Учитываются только ACTIVE цели, PAUSED и COMPLETED игнорируются."""
+        # Arrange
+        goals = [
+            Goal(
+                user_id=test_user.id,
+                name="Активная цель",
+                target_amount=Decimal("100000.00"),
+                current_amount=Decimal("30000.00"),
+                target_date=date(2026, 12, 31),
+                status=GoalStatus.ACTIVE,
+                priority=1,
+            ),
+            Goal(
+                user_id=test_user.id,
+                name="Приостановленная",
+                target_amount=Decimal("50000.00"),
+                current_amount=Decimal("10000.00"),
+                target_date=date(2027, 6, 30),
+                status=GoalStatus.PAUSED,
+                priority=2,
+            ),
+            Goal(
+                user_id=test_user.id,
+                name="Завершенная",
+                target_amount=Decimal("20000.00"),
+                current_amount=Decimal("20000.00"),
+                target_date=date(2025, 12, 31),
+                status=GoalStatus.COMPLETED,
+                priority=3,
+            ),
+        ]
+        for goal in goals:
+            db_session.add(goal)
+        db_session.commit()
+
+        service = DashboardService(db_session)
+
+        # Act
+        result = service.get_overview_metrics(test_user.id, period="month")
+
+        # Assert - только активная цель учитывается
+        assert result["savings_current"] == Decimal("30000.00")
+        assert result["savings_target"] == Decimal("100000.00")
+        assert result["savings_name"] == "Активная цель"
+        assert result["savings_progress"] == 30.0
 
     def test_transfer_excluded_from_balance(self, db_session, test_user):
         """TRANSFER транзакции не влияют на баланс."""

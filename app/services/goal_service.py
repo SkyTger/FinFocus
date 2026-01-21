@@ -21,12 +21,31 @@ class GoalService:
         """
         self.session = session
 
+    def get_next_priority(self, user_id: int) -> int:
+        """Возвращает следующий приоритет для новой цели.
+
+        Args:
+            user_id: ID пользователя
+
+        Returns:
+            int: max(priority среди ACTIVE целей) + 1, или 1 если нет активных
+        """
+        max_priority = (
+            self.session.query(Goal.priority)
+            .filter_by(user_id=user_id, status=GoalStatus.ACTIVE)
+            .order_by(Goal.priority.desc())
+            .first()
+        )
+
+        return (max_priority[0] + 1) if max_priority else 1
+
     def create_goal(
         self,
         user_id: int,
         name: str,
         target_amount: Decimal,
         target_date: date,
+        priority: int | None = None,
     ) -> Goal:
         """Создает новую накопительную цель с валидацией бизнес-правил.
 
@@ -35,6 +54,7 @@ class GoalService:
             name: Название цели
             target_amount: Целевая сумма
             target_date: Дата достижения цели
+            priority: Приоритет цели (опционально, auto-assign если не указан)
 
         Returns:
             Goal: Созданная цель
@@ -43,7 +63,6 @@ class GoalService:
             ValidationError: Если нарушены бизнес-правила:
                 - target_amount <= 0
                 - target_date в прошлом
-                - у пользователя уже есть активная цель (MVP ограничение)
         """
         # Валидация: target_amount > 0
         if target_amount <= 0:
@@ -61,18 +80,9 @@ class GoalService:
                 field="target_date",
             )
 
-        # Валидация: только одна активная цель (MVP ограничение)
-        active_goals_count = (
-            self.session.query(Goal)
-            .filter_by(user_id=user_id, status=GoalStatus.ACTIVE)
-            .count()
-        )
-
-        if active_goals_count >= 1:
-            raise ValidationError(
-                "В MVP версии можно иметь только одну активную цель. "
-                "Завершите или удалите текущую цель перед созданием новой."
-            )
+        # Auto-priority если не указан
+        if priority is None:
+            priority = self.get_next_priority(user_id)
 
         # Создание цели
         goal = Goal(
@@ -81,7 +91,7 @@ class GoalService:
             target_amount=target_amount,
             current_amount=Decimal("0"),
             target_date=target_date,
-            priority=1,  # В MVP всегда 1
+            priority=priority,
             status=GoalStatus.ACTIVE,
         )
 
@@ -89,7 +99,8 @@ class GoalService:
         self.session.flush()  # Получить ID без commit
 
         logger.info(
-            f"Создана цель {goal.id} '{name}' для user {user_id}: {target_amount}"
+            f"Создана цель {goal.id} '{name}' для user {user_id}: "
+            f"{target_amount}, приоритет {priority}"
         )
 
         return goal
@@ -276,3 +287,161 @@ class GoalService:
             .limit(limit)
             .all()
         )
+
+    def update_priority(self, goal_id: int, new_priority: int) -> Goal:
+        """Изменяет приоритет цели с автоматическим сдвигом конфликтующих.
+
+        Алгоритм shift-down:
+        - Если new < old: сдвинуть цели с priority >= new AND < old на +1
+        - Если new > old: сдвинуть цели с priority > old AND <= new на -1
+        - Установить new_priority для целевой цели
+
+        Args:
+            goal_id: ID цели
+            new_priority: Новый приоритет
+
+        Returns:
+            Goal: Обновленная цель
+
+        Raises:
+            ValidationError: Если цель не найдена или new_priority < 1
+        """
+        goal = self.session.get(Goal, goal_id)
+        if not goal:
+            raise ValidationError(f"Цель с ID {goal_id} не найдена")
+
+        if new_priority < 1:
+            raise ValidationError("Приоритет должен быть >= 1", field="priority")
+
+        old_priority = goal.priority
+        user_id = goal.user_id
+
+        # Пропускаем если приоритет не изменился
+        if new_priority == old_priority:
+            return goal
+
+        # Shift-down алгоритм
+        if new_priority < old_priority:
+            # Повышение приоритета (уменьшение числа): сдвиг вниз
+            goals_to_shift = (
+                self.session.query(Goal)
+                .filter(
+                    Goal.user_id == user_id,
+                    Goal.status == GoalStatus.ACTIVE,
+                    Goal.id != goal_id,
+                    Goal.priority >= new_priority,
+                    Goal.priority < old_priority,
+                )
+                .all()
+            )
+            for g in goals_to_shift:
+                g.priority += 1
+        else:
+            # Понижение приоритета (увеличение числа): сдвиг вверх
+            goals_to_shift = (
+                self.session.query(Goal)
+                .filter(
+                    Goal.user_id == user_id,
+                    Goal.status == GoalStatus.ACTIVE,
+                    Goal.id != goal_id,
+                    Goal.priority > old_priority,
+                    Goal.priority <= new_priority,
+                )
+                .all()
+            )
+            for g in goals_to_shift:
+                g.priority -= 1
+
+        goal.priority = new_priority
+        self.session.flush()
+
+        logger.info(
+            f"Изменен приоритет цели {goal_id} " f"с {old_priority} на {new_priority}"
+        )
+
+        return goal
+
+    def move_priority_up(self, goal_id: int) -> Goal:
+        """Перемещает цель на один приоритет вверх (уменьшает priority).
+
+        Args:
+            goal_id: ID цели
+
+        Returns:
+            Goal: Обновленная цель
+
+        Raises:
+            ValidationError: Если цель не найдена или уже имеет priority=1
+        """
+        goal = self.session.get(Goal, goal_id)
+        if not goal:
+            raise ValidationError(f"Цель с ID {goal_id} не найдена")
+
+        if goal.priority <= 1:
+            raise ValidationError("Цель уже имеет наивысший приоритет")
+
+        return self.update_priority(goal_id, goal.priority - 1)
+
+    def move_priority_down(self, goal_id: int) -> Goal:
+        """Перемещает цель на один приоритет вниз (увеличивает priority).
+
+        Args:
+            goal_id: ID цели
+
+        Returns:
+            Goal: Обновленная цель
+
+        Raises:
+            ValidationError: Если цель не найдена
+        """
+        goal = self.session.get(Goal, goal_id)
+        if not goal:
+            raise ValidationError(f"Цель с ID {goal_id} не найдена")
+
+        return self.update_priority(goal_id, goal.priority + 1)
+
+    def get_savings_budget(self, user_id: int) -> Decimal:
+        """Получает месячный бюджет накоплений пользователя.
+
+        Args:
+            user_id: ID пользователя
+
+        Returns:
+            Decimal: Месячный бюджет накоплений
+
+        Raises:
+            ValidationError: Если пользователь не найден
+        """
+        from app.models.database import User
+
+        user = self.session.get(User, user_id)
+        if not user:
+            raise ValidationError(f"Пользователь с ID {user_id} не найден")
+
+        return user.monthly_savings_budget
+
+    def update_savings_budget(self, user_id: int, budget: Decimal) -> None:
+        """Обновляет бюджет накоплений пользователя.
+
+        Args:
+            user_id: ID пользователя
+            budget: Новый месячный бюджет (должен быть >= 0)
+
+        Raises:
+            ValidationError: Если пользователь не найден или budget < 0
+        """
+        from app.models.database import User
+
+        user = self.session.get(User, user_id)
+        if not user:
+            raise ValidationError(f"Пользователь с ID {user_id} не найден")
+
+        if budget < 0:
+            raise ValidationError(
+                "Бюджет должен быть >= 0", field="monthly_savings_budget"
+            )
+
+        user.monthly_savings_budget = budget
+        self.session.flush()
+
+        logger.info(f"Обновлен бюджет накоплений для user {user_id}: {budget}")

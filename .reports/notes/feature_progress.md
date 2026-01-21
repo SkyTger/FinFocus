@@ -2,10 +2,100 @@
 
 ## 📊 Общий статус проекта: Epic-02-EnhancedPlanning - В ПРОЦЕССЕ
 
-**Последнее обновление**: 2026/01/20
-**Текущий этап**: Батч 2 (Enhanced Planning) — Recurring Transactions завершены
-**Прогресс Epic-02**: 25% (1/4 фичи)
+**Последнее обновление**: 2026/01/21
+**Текущий этап**: Батч 2 (Enhanced Planning) — Multiple Goals завершены
+**Прогресс Epic-02**: 50% (2/4 фичи)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 9: Multiple Goals with Priorities (2026-01-21) - ЗАВЕРШЕН
+
+**Дата**: 2026/01/21
+**Протокол**: 0006-multiple-goals
+**PR**: https://github.com/SkyTger/FinFocus/pull/6
+**Статус**: ✅ Полностью завершен
+
+### 🎯 Цель батча:
+Реализовать множественные накопительные цели с приоритетами и автоматическим распределением бюджета — вторую фичу Батча 2 (Enhanced Planning).
+
+### ✅ Выполненные задачи:
+
+1. **Миграция БД и Types модуль** (Шаг 1)
+   - Добавлено поле `User.monthly_savings_budget` (Numeric(10,2), default=0)
+   - Создан модуль `app/types/` с централизованными TypedDicts
+   - AllocationResult, AllocationSummary, GoalDisplayData, GoalsSummary
+   - Миграционный скрипт `migrate_001_savings_budget.py` (idempotent)
+   - 3 unit теста миграции
+
+2. **GoalService расширен** (Шаг 2)
+   - Удалено ограничение D009 (одна активная цель)
+   - Методы управления приоритетами: get_next_priority(), update_priority() (shift-down алгоритм)
+   - Convenience методы: move_priority_up(), move_priority_down()
+   - Методы управления бюджетом: get_savings_budget(), update_savings_budget()
+   - 8 unit тестов приоритетов
+
+3. **AllocationService создан** (Шаг 3)
+   - Жадный алгоритм распределения: цели обрабатываются по priority (1, 2, 3...)
+   - calculate_allocation() — возвращает AllocationSummary с детализацией
+   - Обработка статусов: COMPLETED, PAUSED, zero_contribution → skipped
+   - 7 unit тестов (все сценарии распределения)
+
+4. **Goals UI рефакторинг** (Шаги 4-5)
+   - Список карточек целей вместо одной карточки
+   - Summary section: общий прогресс, статус распределения
+   - Budget alert для ненастроенного бюджета
+   - Priority badges (#1, #2, #3...) и кнопки ↑↓ для изменения
+   - Allocation badges (Полностью/Частично/Не профинансирована/Пропущена)
+   - Модал настройки бюджета накоплений
+   - Pattern-Matching callbacks для приоритетов
+   - Helper функция _recalculate_and_render() для переиспользования логики
+   - dcc.Store для синхронизации состояния (budget, allocation)
+
+5. **Dashboard интеграция** (Шаг 6)
+   - DashboardService.get_overview_metrics() агрегирует savings по всем ACTIVE целям
+   - Условное именование: "Нет целей" | "имя цели" | "N целей"
+   - Dashboard UI обновлен для корректной обработки нового формата
+   - 2 новых unit теста (multiple goals, mixed statuses)
+
+6. **Интеграционные тесты** (Шаг 7)
+   - test_create_multiple_goals_with_auto_priority — E2E создание целей
+   - test_priority_reorder_updates_allocation — E2E изменение приоритетов
+   - test_budget_change_updates_allocation — E2E изменение бюджета
+
+### 📊 Результат:
+- ✅ 98 unit и integration тестов (все проходят)
+- ✅ Coverage: allocation_service 100%, goal_service расширен, dashboard_service обновлен
+- ✅ Протокол 0006 полностью завершен (7 шагов)
+
+### 💡 Ключевые уроки:
+
+1. **Shift-down алгоритм** — эффективен для изменения приоритетов без manual re-numbering
+2. **Жадный алгоритм** — простой и понятный, покрывает 95% use cases для MVP
+3. **TypedDicts модуль** — централизация типов снижает дублирование между services и UI
+4. **Helper функции** — _recalculate_and_render() инкапсулирует сложную логику UI пересчетов
+5. **dcc.Store pattern** — эффективен для синхронизации состояния между callbacks
+6. **Integration тесты** — критичны для проверки E2E сценариев с реальными датами
+
+### 🔧 Технические детали:
+
+**Новые файлы:**
+- `app/types/__init__.py`, `app/types/goals.py` — TypedDicts
+- `app/services/allocation_service.py` — AllocationService
+- `scripts/migrate_001_savings_budget.py` — миграция БД
+- `tests/test_allocation_service.py` — 7 тестов
+- `tests/test_goal_service_priority.py` — 8 тестов
+- `tests/test_migration.py` — 3 теста
+- `tests/test_goals_integration.py` — 3 E2E теста
+
+**Модифицированные файлы:**
+- `app/models/database.py` — +monthly_savings_budget
+- `app/services/goal_service.py` — +6 методов приоритетов/бюджета
+- `app/services/dashboard_service.py` — обновлен get_overview_metrics()
+- `app/components/goals.py` — полный рефакторинг UI (+600 строк)
+- `app/components/dashboard.py` — обновлена проверка savings_name
+- `app/assets/goals.css` — +95 строк новых стилей
+- `tests/test_dashboard_service.py` — +2 теста
 
 ---
 

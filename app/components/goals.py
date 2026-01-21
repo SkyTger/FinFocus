@@ -5,13 +5,20 @@ from decimal import Decimal
 from typing import TypedDict
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ctx, no_update
+from dash import html, dcc, callback, Input, Output, State, ctx, no_update, ALL
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
 from app.core import get_db_session
 from app.models.database import GoalStatus
-from app.services import GoalService
+from app.services import (
+    GoalService,
+    AllocationService,
+    AllocationResult,
+    AllocationSummary,
+    GoalDisplayData,
+    GoalsSummary,
+)
 from app.utils.formatters import (
     format_amount,
     format_date,
@@ -23,21 +30,6 @@ from app.utils.formatters import (
 # Константы
 DEFAULT_USER_ID = 1
 MIN_GOAL_DAYS = 7  # Минимум 7 дней до дедлайна
-
-
-class GoalDisplayData(TypedDict):
-    """Данные для отображения цели в UI."""
-
-    id: int
-    name: str
-    target_amount: Decimal
-    current_amount: Decimal
-    target_date: date
-    status: str
-    progress_percentage: float
-    monthly_contribution: Decimal
-    days_remaining: int
-    is_completed: bool
 
 
 class ContributionDisplayData(TypedDict):
@@ -110,6 +102,143 @@ def _build_empty_state() -> dbc.Card:
     )
 
 
+def _build_budget_alert() -> dbc.Alert:
+    """Строит info-alert с призывом настроить бюджет.
+
+    Returns:
+        dbc.Alert: Bootstrap Alert с информацией о ненастроенном бюджете
+    """
+    return dbc.Alert(
+        [
+            html.I(className="bi bi-info-circle me-2"),
+            "Бюджет накоплений не настроен. Настройте его для получения "
+            "рекомендаций по взносам.",
+        ],
+        color="info",
+        dismissable=True,
+        className="budget-alert mb-3",
+    )
+
+
+def _build_summary_section(
+    goals_summary: GoalsSummary,
+    allocation_summary: AllocationSummary,
+) -> dbc.Card:
+    """Строит сводную секцию с общим прогрессом и статусом распределения.
+
+    Args:
+        goals_summary: Сводка по всем активным целям
+        allocation_summary: Результат распределения бюджета
+
+    Returns:
+        dbc.Card: Карточка со сводной информацией
+    """
+    # Статус распределения
+    if allocation_summary["all_goals_funded"]:
+        distribution_status = dbc.Alert(
+            [
+                html.I(className="bi bi-check-circle me-2"),
+                "Все цели полностью профинансированы",
+            ],
+            color="success",
+            className="mb-0",
+        )
+    else:
+        shortfall = allocation_summary["total_shortfall"]
+        distribution_status = dbc.Alert(
+            [
+                html.I(className="bi bi-exclamation-triangle me-2"),
+                f"Недостаток бюджета: {format_amount(shortfall)}",
+            ],
+            color="warning",
+            className="mb-0",
+        )
+
+    # Бюджет накоплений
+    budget_display = (
+        format_amount(goals_summary["monthly_budget"])
+        if not allocation_summary["budget_not_set"]
+        else "Не настроен"
+    )
+
+    return dbc.Card(
+        [
+            dbc.CardHeader(html.H5("Сводка по целям", className="mb-0")),
+            dbc.CardBody(
+                [
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                [
+                                    html.P(
+                                        "Общий прогресс",
+                                        className="text-muted mb-1 small",
+                                    ),
+                                    html.H5(
+                                        [
+                                            format_amount(
+                                                goals_summary["total_current_amount"]
+                                            ),
+                                            html.Span(" / ", className="text-muted"),
+                                            html.Span(
+                                                format_amount(
+                                                    goals_summary["total_target_amount"]
+                                                ),
+                                                className="text-muted",
+                                            ),
+                                            html.Small(
+                                                f" ({goals_summary['total_progress_percentage']:.1f}%)",  # noqa: E501
+                                                className="text-muted ms-2",
+                                            ),
+                                        ],
+                                        className="mb-0",
+                                    ),
+                                ],
+                                md=6,
+                            ),
+                            dbc.Col(
+                                [
+                                    html.P(
+                                        "Бюджет накоплений",
+                                        className="text-muted mb-1 small",
+                                    ),
+                                    html.H5(
+                                        [
+                                            budget_display,
+                                            html.Span(
+                                                "/мес", className="text-muted ms-1"
+                                            ),
+                                        ],
+                                        className="mb-0",
+                                    ),
+                                ],
+                                md=6,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    distribution_status,
+                    html.Div(
+                        dbc.Button(
+                            [
+                                html.I(className="bi bi-gear me-2"),
+                                "Настроить бюджет",
+                            ],
+                            id="open-budget-modal-btn",
+                            color="primary",
+                            outline=True,
+                            size="sm",
+                            className="mt-3",
+                        ),
+                        className="text-end",
+                    ),
+                ]
+            ),
+        ],
+        className="summary-section mb-4",
+    )
+
+
 def _build_progress_bar(progress: float, current: Decimal, target: Decimal) -> html.Div:
     """Создает прогресс-бар с подписями.
 
@@ -166,12 +295,13 @@ def _build_action_buttons(goal_data: GoalDisplayData) -> dbc.ButtonGroup:
     """
     is_active = goal_data["status"] == "active"
     is_completed = goal_data["is_completed"]
+    goal_id = goal_data["id"]
 
     # Кнопка Pause/Resume
     if is_active:
         toggle_btn = dbc.Button(
             [html.I(className="bi bi-pause-fill me-1"), "Приостановить"],
-            id="toggle-status-btn",
+            id={"type": "toggle-status-btn", "index": goal_id},
             color="warning",
             outline=True,
             size="sm",
@@ -180,7 +310,7 @@ def _build_action_buttons(goal_data: GoalDisplayData) -> dbc.ButtonGroup:
     else:
         toggle_btn = dbc.Button(
             [html.I(className="bi bi-play-fill me-1"), "Возобновить"],
-            id="toggle-status-btn",
+            id={"type": "toggle-status-btn", "index": goal_id},
             color="success",
             outline=True,
             size="sm",
@@ -191,7 +321,7 @@ def _build_action_buttons(goal_data: GoalDisplayData) -> dbc.ButtonGroup:
         [
             dbc.Button(
                 [html.I(className="bi bi-pencil me-1"), "Редактировать"],
-                id="edit-goal-btn",
+                id={"type": "edit-goal-btn", "index": goal_id},
                 color="primary",
                 outline=True,
                 size="sm",
@@ -200,28 +330,25 @@ def _build_action_buttons(goal_data: GoalDisplayData) -> dbc.ButtonGroup:
             toggle_btn,
             dbc.Button(
                 [html.I(className="bi bi-trash me-1"), "Удалить"],
-                id="delete-goal-btn",
+                id={"type": "delete-goal-btn", "index": goal_id},
                 color="danger",
                 outline=True,
                 size="sm",
             ),
         ],
-        className="mt-3",
+        size="sm",
     )
 
 
-def _build_goal_card(goal_data: GoalDisplayData | None) -> dbc.Card:
-    """Создает карточку активной цели или empty state.
+def _build_goal_card(goal_data: GoalDisplayData) -> dbc.Card:
+    """Создает карточку цели для списка с приоритетами и allocation.
 
     Args:
-        goal_data: Данные цели или None если нет активной
+        goal_data: Данные цели с allocated_amount и allocation_status
 
     Returns:
-        dbc.Card: Карточка с информацией о цели или empty state
+        dbc.Card: Карточка с информацией о цели
     """
-    if goal_data is None:
-        return _build_empty_state()
-
     # Определяем badge статуса
     status_badges = {
         "active": dbc.Badge("Активна", color="success", className="ms-2"),
@@ -230,73 +357,150 @@ def _build_goal_card(goal_data: GoalDisplayData | None) -> dbc.Card:
     }
     status_badge = status_badges.get(goal_data["status"], None)
 
-    # Метрики
-    metrics_row = dbc.Row(
+    # Badge приоритета
+    priority_badge = dbc.Badge(
+        f"#{goal_data['priority']}",
+        color="secondary",
+        className="goal-card-priority me-2",
+    )
+
+    # Badge allocation status
+    allocation_badge = None
+    if goal_data.get("allocation_status"):
+        allocation_badges = {
+            "fully_funded": dbc.Badge("Полностью", color="success", className="ms-2"),
+            "partial": dbc.Badge("Частично", color="warning", className="ms-2"),
+            "not_funded": dbc.Badge(
+                "Не профинансирована", color="danger", className="ms-2"
+            ),
+            "skipped": dbc.Badge("Пропущена", color="secondary", className="ms-2"),
+        }
+        allocation_badge = allocation_badges.get(goal_data["allocation_status"])
+
+    # Кнопки приоритетов (arrows)
+    priority_buttons = dbc.ButtonGroup(
         [
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody(
-                        [
-                            html.P("Накоплено", className="text-muted mb-1 small"),
-                            html.H5(
-                                format_amount(goal_data["current_amount"]),
-                                className="mb-0 text-success",
-                            ),
-                        ]
-                    ),
-                    className="goal-metric-card",
-                ),
-                md=4,
+            dbc.Button(
+                html.I(className="bi bi-arrow-up"),
+                id={"type": "priority-up-btn", "index": goal_data["id"]},
+                color="light",
+                size="sm",
+                outline=True,
+                className="priority-btn",
             ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody(
-                        [
-                            html.P(
-                                "Рекомендуемый взнос", className="text-muted mb-1 small"
-                            ),
-                            html.H5(
-                                format_amount(goal_data["monthly_contribution"])
-                                + "/мес",
-                                className="mb-0 text-primary",
-                            ),
-                        ]
-                    ),
-                    className="goal-metric-card",
-                ),
-                md=4,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody(
-                        [
-                            html.P("Осталось", className="text-muted mb-1 small"),
-                            html.H5(
-                                format_days_remaining(goal_data["days_remaining"]),
-                                className="mb-0",
-                            ),
-                        ]
-                    ),
-                    className="goal-metric-card",
-                ),
-                md=4,
+            dbc.Button(
+                html.I(className="bi bi-arrow-down"),
+                id={"type": "priority-down-btn", "index": goal_data["id"]},
+                color="light",
+                size="sm",
+                outline=True,
+                className="priority-btn",
             ),
         ],
-        className="mb-3",
+        size="sm",
     )
+
+    # Allocation секция (если есть)
+    allocation_section = None
+    if goal_data.get("allocated_amount") is not None:
+        allocation_section = dbc.Card(
+            dbc.CardBody(
+                [
+                    html.P("Выделено из бюджета", className="text-muted mb-1 small"),
+                    html.H5(
+                        [
+                            format_amount(goal_data["allocated_amount"]),
+                            html.Span("/мес", className="text-muted ms-1"),
+                            allocation_badge if allocation_badge else None,
+                        ],
+                        className="mb-0",
+                    ),
+                ],
+            ),
+            className="goal-metric-card goal-card-allocation",
+        )
+
+    # Метрики
+    metric_cols = [
+        dbc.Col(
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        html.P("Накоплено", className="text-muted mb-1 small"),
+                        html.H5(
+                            format_amount(goal_data["current_amount"]),
+                            className="mb-0 text-success",
+                        ),
+                    ]
+                ),
+                className="goal-metric-card",
+            ),
+            md=3 if allocation_section else 4,
+        ),
+        dbc.Col(
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        html.P(
+                            "Рекомендуемый взнос",
+                            className="text-muted mb-1 small",
+                        ),
+                        html.H5(
+                            format_amount(goal_data["monthly_contribution"]) + "/мес",
+                            className="mb-0 text-primary",
+                        ),
+                    ]
+                ),
+                className="goal-metric-card",
+            ),
+            md=3 if allocation_section else 4,
+        ),
+        dbc.Col(
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        html.P("Осталось", className="text-muted mb-1 small"),
+                        html.H5(
+                            format_days_remaining(goal_data["days_remaining"]),
+                            className="mb-0",
+                        ),
+                    ]
+                ),
+                className="goal-metric-card",
+            ),
+            md=3 if allocation_section else 4,
+        ),
+    ]
+
+    if allocation_section:
+        metric_cols.append(dbc.Col(allocation_section, md=3))
+
+    metrics_row = dbc.Row(metric_cols, className="mb-3")
 
     return dbc.Card(
         [
             dbc.CardHeader(
                 html.Div(
                     [
-                        html.H4(
-                            [goal_data["name"], status_badge],
-                            className="mb-0",
+                        html.Div(
+                            [
+                                priority_badge,
+                                html.H5(
+                                    [goal_data["name"], status_badge],
+                                    className="d-inline mb-0",
+                                ),
+                            ],
+                            className="d-flex align-items-center",
                         ),
-                        html.Small(
-                            f"Дедлайн: {format_date(goal_data['target_date'])}",
-                            className="text-muted",
+                        html.Div(
+                            [
+                                html.Small(
+                                    f"Дедлайн: {format_date(goal_data['target_date'])}",
+                                    className="text-muted me-3",
+                                ),
+                                priority_buttons,
+                            ],
+                            className="d-flex align-items-center",
                         ),
                     ],
                     className="d-flex justify-content-between align-items-center",
@@ -317,9 +521,13 @@ def _build_goal_card(goal_data: GoalDisplayData | None) -> dbc.Card:
                                     html.I(className="bi bi-plus-circle me-2"),
                                     "Внести взнос",
                                 ],
-                                id="add-contribution-btn",
+                                id={
+                                    "type": "add-contribution-btn",
+                                    "index": goal_data["id"],
+                                },
                                 color="success",
                                 className="me-2",
+                                size="sm",
                                 disabled=goal_data["is_completed"]
                                 or goal_data["status"] == "paused",
                             ),
@@ -330,8 +538,59 @@ def _build_goal_card(goal_data: GoalDisplayData | None) -> dbc.Card:
                 ]
             ),
         ],
-        className="goal-card mb-4",
+        className="goal-card mb-3",
     )
+
+
+def _build_goals_list(
+    goals: list,
+    allocation_results: dict[int, AllocationResult],
+) -> html.Div:
+    """Строит список карточек целей с сортировкой по приоритету.
+
+    Args:
+        goals: Список ORM Goal объектов
+        allocation_results: Словарь {goal_id: AllocationResult}
+
+    Returns:
+        html.Div: Контейнер со списком карточек целей
+    """
+    if not goals:
+        return _build_empty_state()
+
+    # Сортировка по priority
+    sorted_goals = sorted(goals, key=lambda g: g.priority)
+
+    # Построение карточек
+    goal_cards = []
+    for goal in sorted_goals:
+        # Конвертируем Goal в GoalDisplayData
+        goal_display = _goal_to_display_data(goal)
+
+        # Добавляем allocation данные если есть
+        if goal.id in allocation_results:
+            allocation = allocation_results[goal.id]
+            goal_display["allocated_amount"] = allocation["allocated_amount"]
+
+            # Определяем allocation_status
+            if allocation["skipped_reason"]:
+                goal_display["allocation_status"] = "skipped"
+            elif allocation["is_fully_funded"]:
+                goal_display["allocation_status"] = "fully_funded"
+            elif allocation["allocated_amount"] > Decimal("0"):
+                goal_display["allocation_status"] = "partial"
+            else:
+                goal_display["allocation_status"] = "not_funded"
+        else:
+            goal_display["allocated_amount"] = None
+            goal_display["allocation_status"] = None
+
+        # Добавляем priority для отображения
+        goal_display["priority"] = goal.priority
+
+        goal_cards.append(_build_goal_card(goal_display))
+
+    return html.Div(goal_cards, className="goals-list")
 
 
 def _build_contributions_table(
@@ -398,6 +657,61 @@ def _build_contributions_table(
         hover=True,
         responsive=True,
         className="contributions-table",
+    )
+
+
+def _build_budget_modal() -> dbc.Modal:
+    """Создает модал для настройки месячного бюджета накоплений.
+
+    Returns:
+        dbc.Modal: Модал с формой настройки бюджета
+    """
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Настройка бюджета накоплений")),
+            dbc.ModalBody(
+                [
+                    dbc.Row(
+                        [
+                            dbc.Label("Месячный бюджет", width=4),
+                            dbc.Col(
+                                dbc.Input(
+                                    id="budget-input",
+                                    type="number",
+                                    min=0,
+                                    step=0.01,
+                                    placeholder="10000",
+                                    required=True,
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    html.P(
+                        "Укажите сумму, которую вы планируете откладывать ежемесячно на все цели.",  # noqa: E501
+                        className="text-muted small",
+                    ),
+                ]
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "Отмена",
+                        id="budget-cancel-btn",
+                        color="secondary",
+                        outline=True,
+                    ),
+                    dbc.Button(
+                        "Сохранить",
+                        id="save-budget-btn",
+                        color="primary",
+                    ),
+                ]
+            ),
+        ],
+        id="budget-modal",
+        is_open=False,
     )
 
 
@@ -632,6 +946,85 @@ def _build_contribution_modal() -> dbc.Modal:
     )
 
 
+def _recalculate_and_render(session, user_id: int, budget: Decimal):
+    """Пересчитывает allocation и возвращает обновленный UI.
+
+    Helper функция для переиспользования логики пересчета в callbacks.
+    Загружает все цели, вызывает AllocationService, строит UI компоненты.
+
+    Args:
+        session: SQLAlchemy session
+        user_id: ID пользователя
+        budget: Месячный бюджет накоплений
+
+    Returns:
+        Tuple[goals_container_children, allocation_summary_dict, goals_summary_dict]
+    """
+    service = GoalService(session)
+    allocation_service = AllocationService()
+
+    # Получаем все цели (ACTIVE + PAUSED)
+    active_goals = service.get_all_by_user(user_id=user_id, status=GoalStatus.ACTIVE)
+    paused_goals = service.get_all_by_user(user_id=user_id, status=GoalStatus.PAUSED)
+    all_goals = active_goals + paused_goals
+
+    # Если нет целей - empty state
+    if not all_goals:
+        return (
+            [_build_empty_state()],
+            None,  # allocation_summary
+            None,  # goals_summary
+        )
+
+    # Расчет allocation
+    allocation_summary = allocation_service.calculate_allocation(
+        goals=all_goals,
+        monthly_budget=budget,
+    )
+
+    # Формируем GoalsSummary
+    total_target = sum(g.target_amount for g in all_goals)
+    total_current = sum(g.current_amount for g in all_goals)
+    goals_summary = GoalsSummary(
+        total_goals_count=len(all_goals),
+        active_goals_count=len(active_goals),
+        total_target_amount=total_target,
+        total_current_amount=total_current,
+        total_progress_percentage=(
+            float(total_current / total_target * 100) if total_target > 0 else 0
+        ),
+        monthly_budget=budget,
+        total_allocated=allocation_summary["total_allocated"],
+        total_shortfall=allocation_summary["total_shortfall"],
+        all_goals_on_track=allocation_summary["all_goals_funded"],
+        budget_not_set=allocation_summary["budget_not_set"],
+    )
+
+    # Преобразуем AllocationResult в dict для удобства
+    allocation_dict = {r["goal_id"]: r for r in allocation_summary["results"]}
+
+    # Строим layout
+    goals_container_children = []
+
+    # 1. Summary section
+    goals_container_children.append(
+        _build_summary_section(goals_summary, allocation_summary)
+    )
+
+    # 2. Budget alert (если бюджет не настроен)
+    if allocation_summary["budget_not_set"]:
+        goals_container_children.append(_build_budget_alert())
+
+    # 3. Goals list
+    goals_container_children.append(_build_goals_list(all_goals, allocation_dict))
+
+    return (
+        goals_container_children,
+        allocation_summary,  # для store
+        goals_summary,  # для использования в callbacks if needed
+    )
+
+
 def create_goals_layout() -> html.Div:
     """Создает layout страницы накопительных целей.
 
@@ -640,7 +1033,7 @@ def create_goals_layout() -> html.Div:
     """
     return html.Div(
         [
-            # Заголовок страницы
+            # Заголовок страницы с кнопкой создания
             html.Div(
                 [
                     html.Div(
@@ -651,6 +1044,12 @@ def create_goals_layout() -> html.Div:
                                 className="text-muted mb-0",
                             ),
                         ]
+                    ),
+                    dbc.Button(
+                        [html.I(className="bi bi-plus-lg me-2"), "Создать цель"],
+                        id="create-goal-btn-header",
+                        color="success",
+                        className="create-goal-header-btn",
                     ),
                 ],
                 className="d-flex justify-content-between align-items-center mb-4",
@@ -674,6 +1073,7 @@ def create_goals_layout() -> html.Div:
                 className="mt-4",
             ),
             # Модалы
+            _build_budget_modal(),
             _build_create_goal_modal(),
             _build_edit_goal_modal(),
             _build_contribution_modal(),
@@ -685,6 +1085,10 @@ def create_goals_layout() -> html.Div:
             ),
             # Store для ID текущей цели
             dcc.Store(id="current-goal-id", data=None),
+            # Store для бюджета накоплений
+            dcc.Store(id="goals-budget-store", data=None),
+            # Store для результатов allocation
+            dcc.Store(id="goals-allocation-store", data=None),
         ],
         className="goals-container",
     )
@@ -698,46 +1102,61 @@ def create_goals_layout() -> html.Div:
         Output("goal-card-container", "children"),
         Output("contributions-table-container", "children"),
         Output("current-goal-id", "data"),
+        Output("goals-budget-store", "data"),
+        Output("goals-allocation-store", "data"),
     ],
     Input("url", "pathname"),
 )
 def load_goal_data(pathname: str):
-    """Загружает данные активной цели и историю взносов.
+    """Загружает данные всех целей с распределением бюджета.
 
     Callback срабатывает при переходе на /goals.
-    Если нет активной цели, показывает empty state.
+    Загружает ACTIVE и PAUSED цели, вызывает AllocationService,
+    строит summary section и список карточек целей.
+    Инициализирует budget и allocation stores.
 
     Args:
         pathname: Текущий URL
 
     Returns:
-        Tuple[goal_card, contributions_table, goal_id]
+        Tuple[goals_container, contributions_table, first_goal_id, budget, allocation]
     """
     if pathname != "/goals":
         raise PreventUpdate
 
     with get_db_session() as session:
         service = GoalService(session)
-        # Получаем активную цель пользователя
-        goals = service.get_all_by_user(
+
+        # Получаем бюджет
+        monthly_budget = service.get_savings_budget(DEFAULT_USER_ID)
+
+        # Получаем все цели (ACTIVE + PAUSED)
+        active_goals = service.get_all_by_user(
             user_id=DEFAULT_USER_ID, status=GoalStatus.ACTIVE
         )
+        paused_goals = service.get_all_by_user(
+            user_id=DEFAULT_USER_ID, status=GoalStatus.PAUSED
+        )
+        all_goals = active_goals + paused_goals
 
-        # Также проверяем PAUSED цели
-        if not goals:
-            goals = service.get_all_by_user(
-                user_id=DEFAULT_USER_ID, status=GoalStatus.PAUSED
+        # Если нет целей - empty state
+        if not all_goals:
+            return (
+                _build_empty_state(),
+                _build_contributions_table([]),
+                None,
+                monthly_budget,  # инициализируем budget store
+                None,  # allocation store пуст
             )
 
-        if not goals:
-            # Empty state - нет активной/приостановленной цели
-            return _build_empty_state(), _build_contributions_table([]), None
+        # Пересчитываем allocation и строим UI
+        goals_container_children, allocation_summary, _ = _recalculate_and_render(
+            session, DEFAULT_USER_ID, monthly_budget
+        )
 
-        goal = goals[0]  # MVP: одна цель
-        goal_data = _goal_to_display_data(goal)
-
-        # Получаем историю взносов
-        contributions = service.get_contributions(goal.id, limit=10)
+        # История взносов для первой цели (по приоритету)
+        first_goal = sorted(all_goals, key=lambda g: g.priority)[0]
+        contributions = service.get_contributions(first_goal.id, limit=10)
         contrib_data = [
             ContributionDisplayData(
                 id=c.id,
@@ -749,9 +1168,11 @@ def load_goal_data(pathname: str):
         ]
 
         return (
-            _build_goal_card(goal_data),
+            html.Div(goals_container_children),
             _build_contributions_table(contrib_data),
-            goal.id,
+            first_goal.id,
+            monthly_budget,  # инициализируем budget store
+            allocation_summary,  # инициализируем allocation store
         )
 
 
@@ -759,19 +1180,22 @@ def load_goal_data(pathname: str):
     Output("create-goal-modal", "is_open"),
     [
         Input("create-goal-btn", "n_clicks"),
+        Input("create-goal-btn-header", "n_clicks"),
         Input("create-goal-cancel-btn", "n_clicks"),
     ],
     State("create-goal-modal", "is_open"),
     prevent_initial_call=True,
 )
-def toggle_create_goal_modal(create_clicks, cancel_clicks, is_open):
+def toggle_create_goal_modal(
+    create_clicks_empty, create_clicks_header, cancel_clicks, is_open
+):
     """Открывает/закрывает модал создания цели.
 
     Simple callback без Pattern-Matching - guard clauses из ADR-003 не нужны.
     """
     triggered_id = ctx.triggered_id
 
-    if triggered_id == "create-goal-btn":
+    if triggered_id in ["create-goal-btn", "create-goal-btn-header"]:
         return True
     if triggered_id == "create-goal-cancel-btn":
         return False
@@ -1200,3 +1624,267 @@ def toggle_goal_status(n_clicks, goal_id):
         logger.info(f"Статус цели {goal_id} изменен на {new_status.value}")
 
         return _build_goal_card(goal_data)
+
+
+@callback(
+    [
+        Output("budget-modal", "is_open"),
+        Output("budget-input", "value"),
+    ],
+    Input("open-budget-modal-btn", "n_clicks"),
+    State("goals-budget-store", "data"),
+    prevent_initial_call=True,
+)
+def open_budget_modal(n_clicks, current_budget):
+    """Открывает модал настройки бюджета с текущим значением.
+
+    Args:
+        n_clicks: Количество кликов на кнопку открытия
+        current_budget: Текущий бюджет из Store (может быть None)
+
+    Returns:
+        Tuple[is_open, budget_value]
+    """
+    if not n_clicks:
+        raise PreventUpdate
+
+    # Загружаем текущий бюджет из БД если не в Store
+    if current_budget is None:
+        with get_db_session() as session:
+            service = GoalService(session)
+            current_budget = service.get_savings_budget(DEFAULT_USER_ID)
+
+    # Конвертируем Decimal в float для Input
+    budget_value = float(current_budget) if current_budget else None
+
+    return True, budget_value
+
+
+@callback(
+    [
+        Output("budget-modal", "is_open", allow_duplicate=True),
+        Output("budget-cancel-btn", "n_clicks"),
+    ],
+    Input("budget-cancel-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def close_budget_modal(n_clicks):
+    """Закрывает модал настройки бюджета при клике на Отмена.
+
+    Args:
+        n_clicks: Количество кликов на кнопку Отмена
+
+    Returns:
+        Tuple[is_open, reset_n_clicks]
+    """
+    if not n_clicks:
+        raise PreventUpdate
+
+    return False, 0
+
+
+@callback(
+    [
+        Output("budget-modal", "is_open", allow_duplicate=True),
+        Output("goals-budget-store", "data"),
+        Output("goals-allocation-store", "data"),
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goal-error-alert", "children", allow_duplicate=True),
+        Output("goal-error-alert", "is_open", allow_duplicate=True),
+    ],
+    Input("save-budget-btn", "n_clicks"),
+    [
+        State("budget-input", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def save_budget(n_clicks, budget_value):
+    """Сохраняет бюджет и пересчитывает allocation для всех целей.
+
+    Args:
+        n_clicks: Количество кликов на кнопку Сохранить
+        budget_value: Значение бюджета из Input
+
+    Returns:
+        Tuple[is_open, budget_store, allocation_store, goals_container, error_msg, error_open]  # noqa: E501
+    """
+    if not n_clicks:
+        raise PreventUpdate
+
+    # Валидация
+    if budget_value is None or budget_value < 0:
+        return (
+            True,  # keep modal open
+            no_update,
+            no_update,
+            no_update,
+            "Бюджет должен быть неотрицательным числом",
+            True,
+        )
+
+    budget = Decimal(str(budget_value))
+
+    try:
+        with get_db_session() as session:
+            service = GoalService(session)
+
+            # Сохраняем бюджет в БД
+            service.update_savings_budget(DEFAULT_USER_ID, budget)
+            session.commit()
+
+            # Пересчитываем allocation и строим UI
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget
+            )
+
+            logger.info(f"Бюджет накоплений обновлен: {budget}")
+
+            return (
+                False,  # close modal
+                budget,  # update budget store
+                allocation_summary,  # update allocation store
+                html.Div(goals_container_children),  # update goals container
+                "",
+                False,
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка сохранения бюджета: {e}")
+        return (
+            True,
+            no_update,
+            no_update,
+            no_update,
+            f"Ошибка сохранения: {str(e)}",
+            True,
+        )
+
+
+@callback(
+    [
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
+    ],
+    Input({"type": "priority-up-btn", "index": ALL}, "n_clicks"),
+    [
+        State("goals-budget-store", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def move_priority_up(n_clicks_list, budget):
+    """Перемещает цель на один приоритет вверх (уменьшает priority на 1).
+
+    Pattern-Matching callback с guard clauses согласно ADR-003.
+    После изменения приоритета пересчитывает allocation.
+
+    Args:
+        n_clicks_list: Список кликов на все кнопки priority-up
+        budget: Текущий бюджет из Store
+
+    Returns:
+        Tuple[goals_container, allocation_store]
+    """
+    # Guard: проверка автовызова при DOM updates (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+
+    # Guard: проверка валидного triggered_id
+    if not triggered_id or not triggered_id.get("index"):
+        raise PreventUpdate
+
+    goal_id = triggered_id["index"]
+
+    try:
+        with get_db_session() as session:
+            service = GoalService(session)
+
+            # Получаем текущий бюджет если не в Store
+            if budget is None:
+                budget = service.get_savings_budget(DEFAULT_USER_ID)
+
+            # Перемещаем приоритет вверх
+            service.move_priority_up(goal_id)
+            session.commit()
+
+            # Пересчитываем allocation и строим UI
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget
+            )
+
+            logger.info(f"Приоритет цели {goal_id} повышен")
+
+            return (
+                html.Div(goals_container_children),
+                allocation_summary,
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка изменения приоритета: {e}")
+        raise PreventUpdate
+
+
+@callback(
+    [
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
+    ],
+    Input({"type": "priority-down-btn", "index": ALL}, "n_clicks"),
+    [
+        State("goals-budget-store", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def move_priority_down(n_clicks_list, budget):
+    """Перемещает цель на один приоритет вниз (увеличивает priority на 1).
+
+    Pattern-Matching callback с guard clauses согласно ADR-003.
+    После изменения приоритета пересчитывает allocation.
+
+    Args:
+        n_clicks_list: Список кликов на все кнопки priority-down
+        budget: Текущий бюджет из Store
+
+    Returns:
+        Tuple[goals_container, allocation_store]
+    """
+    # Guard: проверка автовызова при DOM updates (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+
+    # Guard: проверка валидного triggered_id
+    if not triggered_id or not triggered_id.get("index"):
+        raise PreventUpdate
+
+    goal_id = triggered_id["index"]
+
+    try:
+        with get_db_session() as session:
+            service = GoalService(session)
+
+            # Получаем текущий бюджет если не в Store
+            if budget is None:
+                budget = service.get_savings_budget(DEFAULT_USER_ID)
+
+            # Перемещаем приоритет вниз
+            service.move_priority_down(goal_id)
+            session.commit()
+
+            # Пересчитываем allocation и строим UI
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget
+            )
+
+            logger.info(f"Приоритет цели {goal_id} понижен")
+
+            return (
+                html.Div(goals_container_children),
+                allocation_summary,
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка изменения приоритета: {e}")
+        raise PreventUpdate

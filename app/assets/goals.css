@@ -192,3 +192,108 @@
         font-size: 0.875rem;
     }
 }
+
+/* === MULTIPLE GOALS SUPPORT === */
+/* Goals List Container */
+.goals-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* Priority Badge */
+.goal-card-priority {
+    font-size: 0.875rem;
+    font-weight: 600;
+    padding: 0.375rem 0.625rem;
+    border-radius: 6px;
+}
+
+/* Priority Buttons */
+.priority-btn {
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.priority-btn:hover {
+    background-color: #e9ecef;
+    transform: translateY(-1px);
+}
+
+/* Allocation Section */
+.goal-card-allocation {
+    background: linear-gradient(135deg, #e7f5ff 0%, #d0ebff 100%);
+    border: 1px solid #a5d8ff;
+}
+
+.goal-card-allocation .card-body {
+    padding: 1rem;
+}
+
+/* Summary Section */
+.summary-section {
+    border: none;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    border-radius: 12px;
+    background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+}
+
+.summary-section .card-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+    color: white;
+    border-radius: 12px 12px 0 0;
+    padding: 1rem 1.25rem;
+}
+
+.summary-section .card-body {
+    padding: 1.5rem;
+}
+
+/* Budget Alert */
+.budget-alert {
+    border-left: 4px solid #0dcaf0;
+    background-color: #cff4fc;
+}
+
+/* Create Goal Header Button */
+.create-goal-header-btn {
+    font-weight: 600;
+    border-radius: 8px;
+    padding: 0.5rem 1.25rem;
+}
+
+/* === RESPONSIVE UPDATES FOR MULTIPLE GOALS === */
+@media (max-width: 768px) {
+    .goals-list {
+        gap: 0.75rem;
+    }
+
+    .goal-card-priority {
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+    }
+
+    .priority-btn {
+        padding: 0.2rem 0.4rem;
+    }
+
+    .summary-section .card-body {
+        padding: 1rem;
+    }
+
+    .create-goal-header-btn {
+        padding: 0.375rem 1rem;
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .goal-card .card-header h5 {
+        font-size: 1rem;
+    }
+
+    .goal-card-allocation .card-body {
+        padding: 0.75rem;
+    }
+}
