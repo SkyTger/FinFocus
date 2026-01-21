@@ -449,8 +449,9 @@ class GoalService:
 
         logger.info(f"Обновлен бюджет накоплений для user {user_id}: {budget}")
 
-    # TODO: Перенести методы работы с User (get/update_savings_mode, get/update_savings_budget)
-    # в отдельный UserService при рефакторинге. Временно размещены здесь для MVP.
+    # TODO: Перенести методы работы с User
+    # (get/update_savings_mode, get/update_savings_budget) в отдельный UserService
+    # при рефакторинге. Временно размещены здесь для MVP.
 
     def get_savings_mode(self, user_id: int) -> str:
         """Получает режим накоплений пользователя.

@@ -1214,7 +1214,8 @@ def load_goal_data(pathname: str):
         pathname: Текущий URL
 
     Returns:
-        Tuple[goals_container, contributions_table, first_goal_id, budget, allocation, savings_mode]
+        Tuple[goals_container, contributions_table, first_goal_id,
+              budget, allocation, savings_mode]
     """
     if pathname != "/goals":
         raise PreventUpdate
@@ -1432,7 +1433,10 @@ def create_goal(n_clicks, name, target_amount, target_date_str, budget, savings_
             # Пересчитываем allocation и строим UI
             budget_decimal = _safe_budget_decimal(budget)
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
+                session,
+                DEFAULT_USER_ID,
+                budget_decimal,
+                savings_mode=savings_mode or "free",
             )
 
             # История взносов для созданной цели
@@ -1537,7 +1541,9 @@ def toggle_contribution_modal(add_clicks_list, cancel_clicks, is_open):
     ],
     prevent_initial_call=True,
 )
-def add_contribution(n_clicks, goal_id, amount, date_str, description, budget, savings_mode):
+def add_contribution(
+    n_clicks, goal_id, amount, date_str, description, budget, savings_mode
+):
     """Добавляет взнос в цель."""
     if not n_clicks or not goal_id:
         raise PreventUpdate
@@ -1573,7 +1579,10 @@ def add_contribution(n_clicks, goal_id, amount, date_str, description, budget, s
             # Пересчитываем allocation и строим UI
             budget_decimal = _safe_budget_decimal(budget)
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
+                session,
+                DEFAULT_USER_ID,
+                budget_decimal,
+                savings_mode=savings_mode or "free",
             )
 
             # Получаем обновленную историю взносов
@@ -1688,7 +1697,9 @@ def toggle_edit_modal(edit_clicks_list, cancel_clicks, is_open):
     ],
     prevent_initial_call=True,
 )
-def update_goal(n_clicks, goal_id, name, target_amount, target_date_str, budget, savings_mode):
+def update_goal(
+    n_clicks, goal_id, name, target_amount, target_date_str, budget, savings_mode
+):
     """Обновляет параметры цели."""
     if not n_clicks or not goal_id:
         raise PreventUpdate
@@ -1698,7 +1709,7 @@ def update_goal(n_clicks, goal_id, name, target_amount, target_date_str, budget,
     try:
         with get_db_session() as session:
             service = GoalService(session)
-            goal = service.update_goal(
+            service.update_goal(
                 goal_id=goal_id,
                 name=name.strip() if name else None,
                 target_amount=Decimal(str(target_amount)) if target_amount else None,
@@ -1711,7 +1722,10 @@ def update_goal(n_clicks, goal_id, name, target_amount, target_date_str, budget,
             # Пересчитываем allocation и строим UI
             budget_decimal = _safe_budget_decimal(budget)
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
+                session,
+                DEFAULT_USER_ID,
+                budget_decimal,
+                savings_mode=savings_mode or "free",
             )
 
             return (
@@ -1802,7 +1816,10 @@ def confirm_delete_goal(submit_clicks, goal_id, budget, savings_mode):
         # Пересчитываем allocation и строим UI
         budget_decimal = _safe_budget_decimal(budget)
         goals_container_children, allocation_summary, _ = _recalculate_and_render(
-            session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
+            session,
+            DEFAULT_USER_ID,
+            budget_decimal,
+            savings_mode=savings_mode or "free",
         )
 
         # Если есть оставшиеся цели - показываем contributions первой по priority
@@ -1904,7 +1921,10 @@ def toggle_goal_status(n_clicks_list, budget, savings_mode):
         # Пересчитываем allocation и UI
         budget_decimal = _safe_budget_decimal(budget)
         goals_container, allocation_data, _ = _recalculate_and_render(
-            session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
+            session,
+            DEFAULT_USER_ID,
+            budget_decimal,
+            savings_mode=savings_mode or "free",
         )
 
         return goals_container, serialize_allocation_summary(allocation_data)

@@ -9,9 +9,9 @@ from app.schema.goals import AllocationResult, AllocationSummary
 
 # Множители для режимов накоплений
 SAVINGS_MODE_MULTIPLIERS: dict[str, Decimal] = {
-    "free": Decimal("1.0"),     # 100% — минимальные взносы
+    "free": Decimal("1.0"),  # 100% — минимальные взносы
     "medium": Decimal("1.15"),  # 115% — буфер для страховки
-    "strict": Decimal("1.5"),   # 150% — максимизация накоплений
+    "strict": Decimal("1.5"),  # 150% — максимизация накоплений
 }
 
 
