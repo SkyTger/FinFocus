@@ -1,7 +1,7 @@
-- **Current Step**: 4
+- **Current Step**: 5
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 3 завершен: добавлен параметр savings_mode в AllocationService с множителями, 3 unit теста."
-- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-ui-stores.md`)."
+- **Last Action Summary**: "Шаг 4 завершен: добавлен MODE_OPTIONS, dcc.Store для savings_mode, расширен helper и load_goal_data callback."
+- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-ui-selector.md`)."
 - **Git**: "Ветка 0007-savings-mode, PR #7 в статусе Draft."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/7"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"

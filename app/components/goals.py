@@ -32,6 +32,22 @@ from app.utils.serializers import serialize_allocation_summary
 DEFAULT_USER_ID = 1
 MIN_GOAL_DAYS = 7  # Минимум 7 дней до дедлайна
 
+# Опции режимов накоплений для UI
+MODE_OPTIONS = {
+    "free": {
+        "label": "Свободный (100%)",
+        "description": "Минимальные взносы точно по графику",
+    },
+    "medium": {
+        "label": "Средний (115%)",
+        "description": "+15% буфер для непредвиденных расходов",
+    },
+    "strict": {
+        "label": "Строгий (150%)",
+        "description": "Максимизация накоплений для раннего достижения",
+    },
+}
+
 
 def _safe_budget_decimal(budget) -> Decimal:
     """Безопасно конвертирует budget в Decimal.
@@ -960,7 +976,9 @@ def _build_contribution_modal() -> dbc.Modal:
     )
 
 
-def _recalculate_and_render(session, user_id: int, budget: Decimal):
+def _recalculate_and_render(
+    session, user_id: int, budget: Decimal, savings_mode: str = "free"
+):
     """Пересчитывает allocation и возвращает обновленный UI.
 
     Helper функция для переиспользования логики пересчета в callbacks.
@@ -970,6 +988,7 @@ def _recalculate_and_render(session, user_id: int, budget: Decimal):
         session: SQLAlchemy session
         user_id: ID пользователя
         budget: Месячный бюджет накоплений
+        savings_mode: Режим накоплений ("free", "medium", "strict")
 
     Returns:
         Tuple[goals_container_children, allocation_summary_dict, goals_summary_dict]
@@ -994,6 +1013,7 @@ def _recalculate_and_render(session, user_id: int, budget: Decimal):
     allocation_summary = allocation_service.calculate_allocation(
         goals=all_goals,
         monthly_budget=budget,
+        savings_mode=savings_mode,
     )
 
     # Формируем GoalsSummary
@@ -1103,6 +1123,8 @@ def create_goals_layout() -> html.Div:
             dcc.Store(id="goals-budget-store", data=None),
             # Store для результатов allocation
             dcc.Store(id="goals-allocation-store", data=None),
+            # Store для режима накоплений
+            dcc.Store(id="goals-savings-mode-store", data=None),
         ],
         className="goals-container",
     )
@@ -1118,6 +1140,7 @@ def create_goals_layout() -> html.Div:
         Output("current-goal-id", "data"),
         Output("goals-budget-store", "data"),
         Output("goals-allocation-store", "data"),
+        Output("goals-savings-mode-store", "data"),
     ],
     Input("url", "pathname"),
 )
@@ -1127,13 +1150,13 @@ def load_goal_data(pathname: str):
     Callback срабатывает при переходе на /goals.
     Загружает ACTIVE и PAUSED цели, вызывает AllocationService,
     строит summary section и список карточек целей.
-    Инициализирует budget и allocation stores.
+    Инициализирует budget, allocation и savings_mode stores.
 
     Args:
         pathname: Текущий URL
 
     Returns:
-        Tuple[goals_container, contributions_table, first_goal_id, budget, allocation]
+        Tuple[goals_container, contributions_table, first_goal_id, budget, allocation, savings_mode]
     """
     if pathname != "/goals":
         raise PreventUpdate
@@ -1141,8 +1164,9 @@ def load_goal_data(pathname: str):
     with get_db_session() as session:
         service = GoalService(session)
 
-        # Получаем бюджет
+        # Получаем бюджет и режим накоплений
         monthly_budget = service.get_savings_budget(DEFAULT_USER_ID)
+        savings_mode = service.get_savings_mode(DEFAULT_USER_ID)
 
         # Получаем все цели (ACTIVE + PAUSED)
         active_goals = service.get_all_by_user(
@@ -1161,11 +1185,12 @@ def load_goal_data(pathname: str):
                 None,
                 monthly_budget,  # инициализируем budget store
                 None,  # allocation store пуст
+                savings_mode,  # инициализируем savings_mode store
             )
 
         # Пересчитываем allocation и строим UI
         goals_container_children, allocation_summary, _ = _recalculate_and_render(
-            session, DEFAULT_USER_ID, monthly_budget
+            session, DEFAULT_USER_ID, monthly_budget, savings_mode=savings_mode
         )
 
         # История взносов для первой цели (по приоритету)
@@ -1187,6 +1212,7 @@ def load_goal_data(pathname: str):
             first_goal.id,
             monthly_budget,  # инициализируем budget store
             allocation_summary,  # инициализируем allocation store
+            savings_mode,  # инициализируем savings_mode store
         )
 
 

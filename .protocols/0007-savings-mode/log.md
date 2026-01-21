@@ -2,6 +2,7 @@
 
 Этот раздел является **журналом**. Записи только добавляются, старые не изменяются.
 
+**Restore context**: protocol-0007#ctx-2
 **Restore context**: protocol-0007#ctx-1
 
 ---
@@ -90,3 +91,26 @@
 - Множитель применяется ВНУТРИ цикла, а не к итоговому total_needed — обеспечивает корректный расчет для каждой цели
 - `monthly_contribution_needed` в результате содержит ADJUSTED значение (base * multiplier)
 - Default `savings_mode="free"` обеспечивает полную обратную совместимость
+
+---
+
+## Шаг 4: UI stores и helper
+
+**Дата**: 2026-01-21
+
+**Действия**:
+- Добавлена константа `MODE_OPTIONS` с label/description для каждого режима
+- Добавлен `dcc.Store(id="goals-savings-mode-store")` в layout
+- Расширена функция `_recalculate_and_render()` параметром `savings_mode`
+- Обновлен `load_goal_data()` callback: новый Output, чтение режима из БД, передача в helper
+
+**Изменения файлов**:
+- `app/components/goals.py:35-49` — константа MODE_OPTIONS
+- `app/components/goals.py:1122-1123` — dcc.Store для savings_mode
+- `app/components/goals.py:979-1017` — расширение _recalculate_and_render
+- `app/components/goals.py:1136-1216` — обновление load_goal_data callback
+
+**Решения**:
+- MODE_OPTIONS содержит готовые label/description для UI selector (Шаг 5)
+- Все stores инициализируются при загрузке страницы /goals
+- Helper принимает default `savings_mode="free"` для обратной совместимости с другими callbacks
