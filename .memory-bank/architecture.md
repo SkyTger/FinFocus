@@ -22,18 +22,38 @@
 ### 2. Application Layer (Business Logic)
 **Сервисы**: `app/services/`
 - **TransactionService** - CRUD операций, валидация
-- **GoalService** - управление целями, расчет взносов, contributions
+- **GoalService** - управление целями, расчет взносов, contributions, приоритеты, бюджет
+- **CalendarService** - расчет остатков по дням, агрегация за месяц/год
+- **RecurringService** - генерация виртуальных экземпляров, управление exceptions
+- **DashboardService** - агрегация метрик, cashflow данные (composition)
+- **AllocationService** - жадный алгоритм распределения бюджета между целями
 
 **Паттерн**: Service Layer с изолированной бизнес-логикой, session management через flush()
 
 ### 3. Data Access Layer (ORM)
 **Модели**: `app/models/database.py`
-- **User** - пользователи, starting_balance
-- **Transaction** - операции (income/expense/transfer)
-- **Goal** - накопительные цели
+- **User** - пользователи, starting_balance, monthly_savings_budget, savings_mode
+- **Transaction** - операции (income/expense/transfer), recurring поля
+- **Goal** - накопительные цели, priority
 - **GoalContribution** - взносы в цели
 
 **Паттерн**: Active Record через SQLAlchemy, calculated properties (@property)
+
+### 6. Schema Layer (NEW)
+**Модуль**: `app/schema/`
+- **goals.py** - TypedDicts для накопительных целей
+  - AllocationResult, AllocationSummary
+  - GoalDisplayData, GoalsSummary
+
+**Паттерн**: Централизованная типизация для переиспользования между services и UI
+
+### 7. Utils Layer (NEW)
+**Модуль**: `app/utils/`
+- **formatters.py** - функции форматирования для UI
+  - format_amount(), format_date(), format_days_remaining()
+  - parse_date_safe()
+
+**Паттерн**: DRY для общих утилит отображения
 
 ### 4. Database Layer
 **SQLite** (development) / **PostgreSQL** (production)
@@ -203,71 +223,90 @@ refresh_transactions_table() - updates table
 - Предотвращение division by zero
 - Явная обработка edge cases
 
+**~~D009~~**: ~~Одна активная цель в MVP~~ (УДАЛЕНО в протоколе 0006)
+
 **D010**: Session management через flush()
 - Атомарность операций
 - Гибкость для caller (commit/rollback)
 
+**Протокол 0006**: Множественные цели с приоритетами
+- AllocationService с жадным алгоритмом
+- TypedDicts в app/schema/ для DRY
+
+**Протокол 0007**: Режимы накоплений (free/medium/strict)
+- Множители к monthly_contribution
+- User.savings_mode поле
+
 ## Диаграмма компонентов
 
 ```
-┌─────────────────────────────────────────┐
-│          app/main.py (Entry)            │
-│  - Dash app initialization              │
-│  - URL routing (display_page callback)  │
-└────────────┬────────────────────────────┘
-             │
-             ├─────────────────┬──────────────────┬──────────────────┐
-             ▼                 ▼                  ▼                  ▼
-    ┌─────────────────┐ ┌─────────────┐  ┌──────────────┐  ┌─────────────┐
-    │   dashboard.py  │ │ sidebar.py  │  │transactions.py│  │ (future)    │
-    │   - Metrics     │ │ - Nav links │  │  - CRUD forms │  │             │
-    │   - Charts      │ │ - User info │  │  - Table      │  │             │
-    └────────┬────────┘ └─────────────┘  └───────┬───────┘  └─────────────┘
-             │                                    │
-             └──────────────┬─────────────────────┘
-                            ▼
-                 ┌────────────────────────┐
-                 │   app/services/        │
-                 │  - TransactionService  │
-                 │  - GoalService         │
-                 └──────────┬─────────────┘
-                            │
-             ┌──────────────┼──────────────┐
-             ▼              ▼              ▼
-  ┌──────────────────┐ ┌────────────┐ ┌────────────────┐
-  │   app/core/      │ │app/models/ │ │   loguru       │
-  │  - database.py   │ │database.py │ │   (logging)    │
-  │  - exceptions.py │ │ - ORM      │ │                │
-  │  - logging.py    │ │            │ │                │
-  └────────┬─────────┘ └─────┬──────┘ └────────────────┘
-           │                 │
-           └────────┬────────┘
+┌─────────────────────────────────────────────────────────┐
+│              app/main.py (Entry)                        │
+│  - Dash app initialization                              │
+│  - URL routing (display_page callback)                  │
+└───────────────────┬─────────────────────────────────────┘
+                    │
+      ┌─────────────┼─────────────┬─────────────┬─────────────┐
+      ▼             ▼             ▼             ▼             ▼
+┌──────────┐ ┌──────────┐ ┌──────────────┐ ┌─────────┐ ┌─────────┐
+│dashboard │ │calendar  │ │transactions  │ │ goals   │ │sidebar  │
+│- Metrics │ │- Grid    │ │  - CRUD      │ │- Cards  │ │- Nav    │
+│- Charts  │ │- Stats   │ │  - Modals    │ │- Budget │ │         │
+└─────┬────┘ └─────┬────┘ └──────┬───────┘ └────┬────┘ └─────────┘
+      │            │              │               │
+      └────────────┴──────────────┴───────────────┘
+                    │
                     ▼
-         ┌────────────────────────┐
-         │   SQLite Database      │
-         │   data/finfocus.db     │
-         └────────────────────────┘
+         ┌──────────────────────────────┐
+         │      app/services/           │
+         │  - TransactionService        │
+         │  - GoalService               │
+         │  - CalendarService           │
+         │  - RecurringService          │
+         │  - DashboardService          │
+         │  - AllocationService         │
+         └──────────────┬───────────────┘
+                        │
+           ┌────────────┼────────────┬─────────────┐
+           ▼            ▼            ▼             ▼
+    ┌──────────┐ ┌──────────┐ ┌──────────┐  ┌──────────┐
+    │app/core/ │ │app/models│ │app/schema│  │app/utils │
+    │-database │ │-ORM      │ │-TypedDicts│  │-formatters│
+    │-exceptions││          │ │          │  │          │
+    │-logging  │ │          │ │          │  │          │
+    └────┬─────┘ └─────┬────┘ └──────────┘  └──────────┘
+         │             │
+         └──────┬──────┘
+                ▼
+    ┌───────────────────────┐
+    │  SQLite Database      │
+    │  data/finfocus.db     │
+    │  + миграции scripts/  │
+    └───────────────────────┘
 ```
 
 ## Планируемые изменения (Roadmap)
 
-**Фаза 3** (Кассовый календарь):
-- Новый компонент `calendar.py`
-- Сервис для расчета остатков по дням
-- Интеграция с Transaction для прогноза
+**~~Фаза 3~~ Кассовый календарь**: ✅ ЗАВЕРШЕНА (PR #2)
 
-**Батч 2** (Enhanced Planning):
-- Повторяющиеся операции (recurring transactions)
-- Множественные цели с приоритетами
-- Сервис перераспределения средств
+**~~Фаза 4~~ Dashboard integration**: ✅ ЗАВЕРШЕНА (PR #3)
 
-**Батч 3** (Analytics):
+**~~Фаза 5~~ Goals UI**: ✅ ЗАВЕРШЕНА (PR #4)
+
+**~~Батч 2~~ Enhanced Planning** (50% завершено):
+- ✅ Повторяющиеся операции (PR #5)
+- ✅ Множественные цели с приоритетами (PR #6)
+- 🔄 Три режима накоплений (PR #7 в процессе)
+- ⏳ Перераспределение средств между целями
+
+**Батч 3** (Analytics & UX):
 - Категоризация операций
-- Аналитические графики
-- Export/Import сервисы
+- Аналитические графики (trends, структура)
+- Улучшенная навигация и фильтры
+- Export/Import данных
 
 ---
 
 Референсы:
 - Детали Pattern-Matching Callbacks: `docs/adr/ADR-003-pattern-matching-callbacks-issue.md`
-- История архитектурных решений: `.reports/epics/epic-01-coreMVP/decisions.md`
+- История архитектурных решений: `.reports/epics/epic-01-coreMVP/decisions.md`, `.reports/epics/epic-02-enhancedPlanning/decisions.md`

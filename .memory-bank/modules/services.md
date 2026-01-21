@@ -42,28 +42,45 @@ session.commit()  # Caller управляет commit
 **Инициализация**: `GoalService(session)` - принимает SQLAlchemy session
 
 **CRUD методы**:
-- `create_goal(user_id, name, target_amount, target_date)` - создание цели
+- `create_goal(user_id, name, target_amount, target_date, priority=None)` - создание цели
+  - priority авто-генерируется через get_next_priority() если None
 - `get_by_id(goal_id)` - получение по ID
-- `get_all_by_user(user_id)` - список целей пользователя
+- `get_all_by_user(user_id)` - список целей пользователя (сортировка по priority ASC)
 - `update_goal(goal_id, **kwargs)` - обновление
 - `delete_goal(goal_id)` - удаление
+- `get_contributions(goal_id)` - получить все взносы цели
 
 **Contributions**:
 - `add_contribution(goal_id, amount, contribution_date)` - добавление взноса
   - Автоматически обновляет `goal.current_amount`
   - Автоматически меняет статус на COMPLETED если достигнута
 
+**Priority Management** (Протокол 0006):
+- `get_next_priority(user_id)` - возвращает max(priority) + 1
+- `update_priority(goal_id, new_priority)` - shift-down алгоритм для переприоритизации
+- `move_priority_up(goal_id)` - уменьшает priority на 1 (повышает важность)
+- `move_priority_down(goal_id)` - увеличивает priority на 1 (понижает важность)
+
+**Budget Management** (Протокол 0006):
+- `get_savings_budget(user_id)` - получает User.monthly_savings_budget
+- `update_savings_budget(user_id, budget)` - обновляет бюджет с валидацией >= 0
+
+**Savings Mode** (Протокол 0007):
+- `get_savings_mode(user_id)` - возвращает режим накоплений (free/medium/strict)
+- `update_savings_mode(user_id, mode)` - обновляет режим с валидацией
+
 **Валидация**:
 - target_amount > 0
-- target_date в будущем (не в прошлом)
-- у пользователя только 1 активная цель (MVP ограничение)
+- target_date в будущем (минимум 7 дней от сегодня)
 - contribution amount > 0
+- budget >= 0
+- savings_mode в {"free", "medium", "strict"}
 
 **Пример использования**:
 ```python
 service = GoalService(session)
 
-# Создание цели
+# Создание цели (priority авто-генерируется)
 goal = service.create_goal(
     user_id=1,
     name='Отпуск',
@@ -77,6 +94,13 @@ service.add_contribution(
     amount=Decimal('5000.00'),
     contribution_date=date.today()
 )
+
+# Настройка бюджета накоплений
+service.update_savings_budget(user_id=1, budget=Decimal('15000.00'))
+
+# Изменение режима накоплений
+service.update_savings_mode(user_id=1, mode="medium")
+
 session.commit()
 ```
 
@@ -141,10 +165,23 @@ raise ValidationError("Сумма должна быть больше 0", field="
   - Для отображения иконок доходов/расходов в ячейках
 - `get_month_summary(user_id, year, month)` → `MonthSummary`
   - Агрегация за месяц: total_income, total_expense, start_balance, end_balance
+- `get_balance_on_date(user_id, target_date)` → `Decimal`
+  - Баланс на конец указанного дня (включительно)
+- `get_year_summary(user_id, year)` → `YearSummary`
+  - Агрегация за год: total_income, total_expense, start_balance, end_balance
+- `get_all_transactions_for_period(user_id, start_date, end_date)` → `list[Transaction]`
+  - Все транзакции + виртуальные recurring экземпляры за период
+  - **КРИТИЧНО**: исключает recurring шаблоны (is_recurring=True, recurring_parent_id=None)
 
 **TypedDict**:
 ```python
 class MonthSummary(TypedDict):
+    total_income: Decimal
+    total_expense: Decimal
+    start_balance: Decimal
+    end_balance: Decimal
+
+class YearSummary(TypedDict):
     total_income: Decimal
     total_expense: Decimal
     start_balance: Decimal
@@ -169,6 +206,9 @@ with get_db_session() as session:
     # Сводка по месяцу
     summary = service.get_month_summary(user_id=1, year=2026, month=1)
     # {'total_income': Decimal('50000'), 'total_expense': Decimal('35000'), ...}
+
+    # Баланс на конкретную дату
+    balance = service.get_balance_on_date(user_id=1, target_date=date(2026, 1, 15))
 ```
 
 **Внутренние методы**:
@@ -185,8 +225,8 @@ case(
 )
 ```
 
-**Unit тесты**: 15 тестов в `tests/test_calendar_service.py`
-- Покрытие: пустые данные, один день, несколько дней, TRANSFER исключение
+**Unit тесты**: 19 тестов в `tests/test_calendar_service.py`
+- Покрытие: пустые данные, один день, несколько дней, TRANSFER исключение, get_balance_on_date, get_year_summary
 
 ## RecurringService (Батч 2 — ЗАВЕРШЕН)
 
@@ -262,6 +302,120 @@ with get_db_session() as session:
 **Unit тесты**: 28 тестов в `tests/test_recurring_service.py`
 - Покрытие: generate, exceptions, skip, stop, delete, anchored edge cases
 
+## DashboardService (Фаза 4 — ЗАВЕРШЕНА)
+
+**Файл**: `app/services/dashboard_service.py` (~290 строк)
+
+**Инициализация**: `DashboardService(session)` - принимает SQLAlchemy session
+
+**Методы**:
+- `get_overview_metrics(user_id, period, reference_date)` → `OverviewMetrics`
+  - Агрегирует balance, income, expense, savings за указанный период
+  - Использует CalendarService и GoalService (composition)
+  - period: "month" или "year"
+- `get_cashflow_data(user_id, period, reference_date)` → `list[CashflowDataPoint]`
+  - period="month": последние 12 месяцев
+  - period="year": последние 5 лет
+  - Один SQL-запрос с GROUP BY (оптимизация)
+- `get_recent_transactions(user_id, limit)` → `list[RecentTransaction]`
+  - Последние N транзакций, отсортированных по дате DESC
+
+**TypedDicts**:
+```python
+class OverviewMetrics(TypedDict):
+    total_balance: Decimal
+    period_income: Decimal
+    period_expense: Decimal
+    savings_amount: Decimal | None
+    savings_name: str | None
+
+class CashflowDataPoint(TypedDict):
+    period_label: str
+    income: Decimal
+    expense: Decimal
+
+class RecentTransaction(TypedDict):
+    id: int
+    date: str
+    description: str | None
+    amount: Decimal
+    type: str
+```
+
+**Пример использования**:
+```python
+from app.services import DashboardService
+
+with get_db_session() as session:
+    service = DashboardService(session)
+
+    # Метрики за месяц
+    metrics = service.get_overview_metrics(
+        user_id=1, period="month", reference_date=date.today()
+    )
+
+    # Cashflow за последние 12 месяцев
+    cashflow = service.get_cashflow_data(
+        user_id=1, period="month", reference_date=date.today()
+    )
+```
+
+**Composition Pattern**: DashboardService содержит CalendarService и GoalService
+
+**Unit тесты**: 12 тестов в `tests/test_dashboard_service.py`
+
+## AllocationService (Батч 2 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/allocation_service.py` (~200 строк)
+
+**Константы**:
+```python
+SAVINGS_MODE_MULTIPLIERS = {
+    "free": 1.0,    # минимальные взносы точно по графику
+    "medium": 1.15, # +15% буфер для страховки
+    "strict": 1.5   # агрессивные накопления
+}
+```
+
+**Инициализация**: `AllocationService(session)` - принимает SQLAlchemy session
+
+**Методы**:
+- `calculate_allocation(user_id, savings_mode="free")` → `AllocationSummary`
+  - Жадный алгоритм распределения бюджета по приоритетам
+  - Применяет множитель savings_mode к monthly_contribution каждой цели
+  - Обрабатывает статусы: COMPLETED, PAUSED, zero_contribution → skipped
+
+**Жадный алгоритм**:
+```
+1. Сортировка целей по priority ASC (1, 2, 3...)
+2. Для каждой цели:
+   - monthly_needed = goal.monthly_contribution * SAVINGS_MODE_MULTIPLIERS[mode]
+   - allocated = min(monthly_needed, budget_remaining)
+   - budget_remaining -= allocated
+3. Возврат AllocationSummary с детализацией
+```
+
+**TypedDict**: `AllocationSummary`, `AllocationResult` (см. [schema.md])
+
+**Пример использования**:
+```python
+from app.services import AllocationService
+
+with get_db_session() as session:
+    service = AllocationService(session)
+
+    # Распределение в режиме "free"
+    summary = service.calculate_allocation(user_id=1, savings_mode="free")
+    # summary['all_goals_funded'] → True/False
+    # summary['results'] → список AllocationResult для каждой цели
+
+    # Распределение в режиме "strict"
+    summary = service.calculate_allocation(user_id=1, savings_mode="strict")
+```
+
+**Unit тесты**: 10 тестов в `tests/test_allocation_service.py`
+- Покрытие: все сценарии распределения, режимы free/medium/strict, edge cases
+
 ## Критичные решения
 
 **D010**: Session management через flush() вместо commit() для гибкости caller
@@ -272,6 +426,10 @@ with get_db_session() as session:
 
 **Фаза 3**: TRANSFER транзакции исключаются из CalendarService расчетов баланса
 
+**Протокол 0006**: Удалено ограничение D009 (одна активная цель), добавлены приоритеты и AllocationService
+
+**Протокол 0007**: Добавлены режимы накоплений (free/medium/strict) с множителями
+
 ---
 
-Детали: `architecture.md` (Service Layer Pattern), `code-style.md` (Session Management Pattern)
+Детали: `architecture.md` (Service Layer Pattern), `code-style.md` (Session Management Pattern), `schema.md` (TypedDicts)

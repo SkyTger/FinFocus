@@ -3,9 +3,11 @@
 ## Суть проекта
 **FinFocus** - веб-приложение для планирования личного и семейного бюджета с фокусом на кассовый календарь и целевые накопления.
 
-**Уникальная ценность**: Кассовое планирование с прогнозом остатков по дням + автоматический расчет взносов для достижения накопительных целей.
+**Уникальная ценность**: Кассовое планирование с прогнозом остатков по дням + автоматическое распределение бюджета между множественными накопительными целями с приоритетами.
 
-**Статус**: Epic-01-CoreMVP в процессе (40% завершено, Фаза 2 из 5 готова)
+**Статус**: Epic-02-EnhancedPlanning в процессе (50% завершено, 2 из 4 фич готовы)
+
+**Последнее обновление**: 2026-01-21 (после протоколов 0002-0007)
 
 ## Быстрые ссылки на разделы
 
@@ -18,9 +20,11 @@
 
 ### Модули системы (краткие описания)
 - [modules/database.md] - SQLAlchemy ORM: User, Transaction, Goal, GoalContribution
-- [modules/services.md] - TransactionService, GoalService, CRUD логика, валидация
-- [modules/ui-components.md] - Dashboard, Sidebar, Transactions - Dash компоненты
+- [modules/services.md] - TransactionService, GoalService, CalendarService, RecurringService, DashboardService, AllocationService
+- [modules/ui-components.md] - Dashboard, Sidebar, Transactions, Calendar, Goals - Dash компоненты
 - [modules/routing.md] - URL-based routing, display_page callback
+- [modules/schema.md] - TypedDicts для типизации (app/schema/)
+- [modules/utils.md] - Утилиты форматирования и сериализации (app/utils/)
 
 ### Процессы и инструменты
 - [testing.md] - pytest, coverage, QA workflow
@@ -61,23 +65,23 @@
 
 ## Текущие приоритеты (из ROADMAP.md)
 
-**Epic-01-CoreMVP** (Батч 1, 40% завершено):
-- ✅ Фаза 1: Database Integration (завершена)
-- ✅ Фаза 2: Формы управления операциями (завершена)
-- 🔄 Фаза 3: Кассовый календарь с остатками по дням (следующая)
-- ⏳ Фаза 4: Простой дашборд (месяц/год)
-- ⏳ Фаза 5: Одна накопительная цель с расчётом взносов
+**Epic-02-EnhancedPlanning** (Батч 2, 50% завершено):
+- ✅ Повторяющиеся операции (завершена, PR #5)
+- ✅ Множественные цели с приоритетами (завершена, PR #6)
+- 🔄 Три режима накоплений (в процессе, PR #7)
+- ⏳ Перераспределение средств между целями
 
 **Ближайшие задачи**:
-1. Реализовать кассовый календарь с расчетом остатков
-2. Добавить валидацию форм операций
-3. Интегрировать Dashboard с реальными данными из БД
+1. Завершить режимы накоплений (free/medium/strict)
+2. Реализовать перераспределение средств
+3. Начать Батч 3: Analytics & UX
 
 ## Критичные детали
 
 **Starting Balance Formula**:
 ```
 остаток на дату = starting_balance + SUM(доходы) - SUM(расходы) до даты
+TRANSFER транзакции исключаются из расчетов баланса
 ```
 
 **Monthly Contribution Formula** (Goal):
@@ -86,9 +90,26 @@ monthly_contribution = (target_amount - current_amount) / months_remaining
 # Guard clauses: target_date в прошлом → 0, цель достигнута → 0
 ```
 
+**Allocation Algorithm** (AllocationService):
+```python
+# Жадный алгоритм: цели обрабатываются по priority (1, 2, 3...)
+# Цель с priority=1 получает полное финансирование первой
+# Остаток бюджета распределяется на следующие цели
+
+# Savings Mode множители:
+# free: 1.0 (минимальные взносы)
+# medium: 1.15 (+15% буфер)
+# strict: 1.5 (агрессивные накопления)
+```
+
 **Pattern-Matching Callbacks** (Dash):
 - При `ALL` callbacks проверять `ctx.triggered[0].get('value') is None` для фильтрации автовызовов
 - Использовать `prevent_initial_call=True` для модалов
+
+**Recurring Transactions**:
+- Anchored-алгоритм: 31 янв → 28 фев → 31 мар (сохраняет исходный день месяца)
+- Шаблоны (is_recurring=True) + exceptions (recurring_parent_id)
+- Виртуальные экземпляры генерируются RecurringService
 
 ## Полезные команды
 
@@ -103,8 +124,9 @@ pytest -v --cov
 black app/
 flake8 app/
 
-# База данных (автоинициализация при запуске)
-# SQLite: data/finfocus.db
+# База данных
+# SQLite: data/finfocus.db (автоинициализация при запуске)
+# Миграции: scripts/migrate_*.py
 ```
 
 ## Структура Memory Bank
@@ -121,12 +143,14 @@ memory-bank/
     ├── database.md       # ORM модели
     ├── services.md       # Бизнес-логика
     ├── ui-components.md  # UI компоненты
-    └── routing.md        # Система роутинга
+    ├── routing.md        # Система роутинга
+    ├── schema.md         # TypedDicts (NEW)
+    └── utils.md          # Утилиты (NEW)
 ```
 
 ---
 
-**Версия Memory Bank**: 1.0
+**Версия Memory Bank**: 2.0
 **Дата создания**: 2026-01-17
-**Последнее обновление**: 2026-01-17
+**Последнее обновление**: 2026-01-21 (после протоколов 0002-0007)
 **GitHub**: https://github.com/SkyTger/FinFocus

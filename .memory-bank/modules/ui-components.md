@@ -172,16 +172,86 @@ if ctx.triggered[0].get('value') is None:
 - `WARNING_BALANCE_THRESHOLD = Decimal("5000")` — порог предупреждения
 - `MAX_MONTHS_OFFSET = 12` — ограничение навигации
 
-## Следующие шаги
+## Dashboard Component (Фаза 4 — ЗАВЕРШЕНА)
 
-**Фаза 4** (Dashboard integration):
-- Callbacks для загрузки реальных данных из БД
-- Динамические графики с фильтрами (месяц/год)
+**Файлы**:
+- `app/components/dashboard.py` — UI + callbacks (~685 строк)
+- `app/assets/dashboard.css` — стили
 
-**Фаза 5** (Goals):
-- Компонент управления накопительными целями
-- Интеграция с GoalService
+**Layout**:
+- 4 metric cards (Balance, Income, Expense, Goals) с реальными данными
+- Cashflow bar chart (Plotly) — последние 12 месяцев или 5 лет
+- Recent transactions table — последние 5 транзакций
+- Period switcher (month/year) через RadioItems
+
+**Callbacks**:
+- `load_dashboard_data()` — загрузка данных из DashboardService при открытии страницы
+- `update_period_state()` — обновление dcc.Store при смене периода
+- Использует guard clauses (ADR-003) для безопасности
+
+**State Management**:
+- `dcc.Store(id="dashboard-period-store")` — хранит текущий период (month/year)
+
+**Build Functions**:
+- `build_metric_cards()` — динамическая генерация карточек из OverviewMetrics
+- `build_cashflow_chart()` — Plotly график из CashflowDataPoint[]
+- `build_recent_transactions()` — таблица из RecentTransaction[]
+
+**Интеграция**:
+- DashboardService для данных
+- CalendarService для балансов
+- GoalService для savings (агрегация по всем ACTIVE целям)
+
+## Goals Component (Фаза 5 — ЗАВЕРШЕНА, Протокол 0006 — РЕФАКТОРИНГ)
+
+**Файлы**:
+- `app/components/goals.py` — UI + callbacks (~1500 строк после протокола 0006)
+- `app/assets/goals.css` — стили (~270 строк после протокола 0006)
+
+**Layout** (после протокола 0006):
+- Empty state для новых пользователей
+- Summary section:
+  - Общий прогресс по всем целям
+  - Статус распределения бюджета (Budget Alert если не настроен)
+  - Кнопка "Настроить бюджет"
+- Список карточек целей (вместо одной карточки):
+  - Priority badge (#1, #2, #3...)
+  - Кнопки ↑↓ для изменения приоритета
+  - Прогресс-бар
+  - Allocation badge (Полностью/Частично/Не профинансирована/Пропущена)
+- Модалы:
+  - Создание цели
+  - Редактирование цели
+  - Добавление взноса
+  - Настройка бюджета накоплений
+  - Выбор режима накоплений (free/medium/strict) — Протокол 0007
+- dcc.ConfirmDialog для удаления
+
+**Callbacks** (10+ callbacks):
+- CRUD операции (create, edit, delete, add_contribution)
+- Смена статуса (pause, resume)
+- Управление приоритетами (move_up, move_down) — Pattern-Matching
+- Настройка бюджета (update_budget)
+- Смена режима накоплений (update_savings_mode) — Протокол 0007
+- `_recalculate_and_render()` — helper для пересчета allocation и рендера
+
+**State Management**:
+- `dcc.Store(id="goals-store")` — ID активной цели (для модалов)
+- `dcc.Store(id="goals-budget-store")` — текущий бюджет
+- `dcc.Store(id="goals-allocation-store")` — результаты AllocationService
+- `dcc.Store(id="goals-savings-mode-store")` — режим накоплений (free/medium/strict)
+
+**Интеграция**:
+- GoalService для CRUD
+- AllocationService для распределения бюджета
+- Утилиты форматирования (app/utils/formatters.py)
+
+**Ключевые уроки**:
+- Simple IDs > Pattern-Matching для Goals UI (простота callbacks)
+- dcc.Store для синхронизации состояния между callbacks
+- allow_duplicate=True для множественных Outputs на один компонент
+- Helper функции (_recalculate_and_render) для DRY
 
 ---
 
-Детали: `architecture.md` (Presentation Layer), `code-style.md` (Dash Callbacks Pattern)
+Детали: `architecture.md` (Presentation Layer), `code-style.md` (Dash Callbacks Pattern), `schema.md` (TypedDicts)

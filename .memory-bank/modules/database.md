@@ -10,19 +10,34 @@ SQLAlchemy ORM модели для доменных сущностей: User, Tr
 
 ### User
 ```python
-starting_balance: Decimal  # Начальный баланс для кассового календаря
+starting_balance: Decimal          # Начальный баланс для кассового календаря
+monthly_savings_budget: Decimal    # Месячный бюджет на накопления (default=0)
+savings_mode: String(20)           # Режим накоплений: free/medium/strict (default="free")
+
 # Формула остатка: starting_balance + SUM(доходы) - SUM(расходы) до даты
+# TRANSFER транзакции исключаются из расчетов баланса
 ```
 **Relationships**: transactions (1:N), goals (1:N)
 
 ### Transaction
 ```python
-amount: Decimal           # Сумма операции
-transaction_type: Enum    # INCOME | EXPENSE | TRANSFER
-transaction_date: Date    # Дата операции
-is_recurring: Boolean     # Повторяющаяся операция (для Батча 2)
+amount: Decimal                # Сумма операции
+transaction_type: Enum         # INCOME | EXPENSE | TRANSFER
+transaction_date: Date         # Дата операции
+is_recurring: Boolean          # Повторяющаяся операция (шаблон)
+recurring_period: String       # weekly | biweekly | monthly | quarterly (nullable)
+recurring_end_date: Date       # Дата окончания серии (nullable)
+recurring_parent_id: Integer   # ID родительского шаблона для exceptions (nullable)
+original_date: Date            # Исходная дата для exceptions (nullable)
+is_skipped: Boolean            # Пропущенный экземпляр (default=False)
 ```
+
 **Relationships**: user (N:1)
+
+**Property**:
+- `anchor_day` - день месяца шаблона для Anchored-алгоритма (guard clause для None)
+
+**UniqueConstraint**: (recurring_parent_id, original_date) - один exception на дату
 
 ### Goal
 ```python
@@ -30,6 +45,7 @@ target_amount: Decimal    # Целевая сумма
 current_amount: Decimal   # Текущая сумма (автообновляется через contributions)
 target_date: Date         # Дедлайн
 status: Enum              # ACTIVE | COMPLETED | PAUSED
+priority: Integer         # Приоритет (1 = самый важный, default=1, nullable=False)
 ```
 
 **Calculated Properties**:
@@ -38,6 +54,8 @@ status: Enum              # ACTIVE | COMPLETED | PAUSED
 - `monthly_contribution` - (target - current) / months_remaining с guard clauses
 
 **Relationships**: user (N:1), contributions (1:N)
+
+**Index**: idx_user_priority на (user_id, priority) для быстрой сортировки
 
 ### GoalContribution
 ```python
@@ -67,7 +85,13 @@ contribution_date: Date   # Дата взноса
 
 **D008**: Guard clauses для предотвращения division by zero в monthly_contribution
 
-**D009**: MVP ограничение - одна активная цель на пользователя (временно)
+**~~D009~~**: ~~MVP ограничение - одна активная цель на пользователя~~ (УДАЛЕНО в протоколе 0006)
+
+**Протокол 0005**: Расширена Transaction для recurring (6 новых полей), UniqueConstraint
+
+**Протокол 0006**: User.monthly_savings_budget, Goal.priority, idx_user_priority
+
+**Протокол 0007**: User.savings_mode (free/medium/strict)
 
 ---
 
