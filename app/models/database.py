@@ -61,6 +61,9 @@ class User(Base):
     name = Column(String(100), nullable=False)
     starting_balance = Column(Numeric(10, 2), default=0, nullable=False)
     monthly_savings_budget = Column(Numeric(10, 2), default=0, nullable=False)
+    # Режим накоплений: "free" (100%), "medium" (115%), "strict" (150%)
+    # Валидация допустимых значений в GoalService.update_savings_mode()
+    savings_mode = Column(String(20), default="free", nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

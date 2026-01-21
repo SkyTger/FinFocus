@@ -22,7 +22,7 @@ from .dashboard_service import (
     PeriodType,
     RecentTransaction,
 )
-from .goal_service import GoalService
+from .goal_service import GoalService, VALID_SAVINGS_MODES
 from .recurring_service import (
     MAX_FORECAST_DAYS,
     MAX_INSTANCES_PER_CALL,
@@ -52,6 +52,7 @@ __all__ = [
     "GoalService",
     "GoalDisplayData",
     "GoalsSummary",
+    "VALID_SAVINGS_MODES",
     # Transactions
     "TransactionService",
     # Recurring

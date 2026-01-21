@@ -1,8 +1,18 @@
 """Сервис распределения бюджета накоплений между целями."""
 
 from decimal import Decimal
+
+from loguru import logger
+
 from app.models.database import Goal, GoalStatus
 from app.schema.goals import AllocationResult, AllocationSummary
+
+# Множители для режимов накоплений
+SAVINGS_MODE_MULTIPLIERS: dict[str, Decimal] = {
+    "free": Decimal("1.0"),  # 100% — минимальные взносы
+    "medium": Decimal("1.15"),  # 115% — буфер для страховки
+    "strict": Decimal("1.5"),  # 150% — максимизация накоплений
+}
 
 
 class AllocationService:
@@ -16,26 +26,40 @@ class AllocationService:
         self,
         goals: list[Goal],
         monthly_budget: Decimal,
+        savings_mode: str = "free",
     ) -> AllocationSummary:
-        """Распределяет бюджет между целями по приоритету.
+        """Распределяет бюджет между целями по приоритету с учетом режима накоплений.
 
         Args:
             goals: Список целей для распределения.
             monthly_budget: Месячный бюджет на накопления.
+            savings_mode: Режим накоплений ("free", "medium", "strict").
+                - "free" (1.0x) — минимальные взносы точно по графику
+                - "medium" (1.15x) — +15% буфер для страховки
+                - "strict" (1.5x) — максимизация накоплений
 
         Returns:
             AllocationSummary: Сводка распределения с детализацией по целям.
 
         Algorithm:
-            1. Сортировка целей по priority ASC (1, 2, 3...).
-            2. Для каждой цели:
+            1. Получение множителя для savings_mode.
+            2. Сортировка целей по priority ASC (1, 2, 3...).
+            3. Для каждой цели:
                - Если COMPLETED → skipped (completed).
                - Если PAUSED → skipped (paused).
                - Если monthly_contribution <= 0 → skipped (zero_contribution).
-               - Иначе: allocated = min(needed, remaining_budget).
-            3. Подсчет totals (allocated, needed, shortfall).
-            4. Формирование AllocationSummary.
+               - Иначе: monthly_needed = base * multiplier,
+                        allocated = min(monthly_needed, remaining_budget).
+            4. Подсчет totals (allocated, needed, shortfall).
+            5. Формирование AllocationSummary.
         """
+        # Получаем множитель для режима накоплений
+        multiplier = SAVINGS_MODE_MULTIPLIERS.get(savings_mode, Decimal("1.0"))
+        if savings_mode not in SAVINGS_MODE_MULTIPLIERS:
+            logger.warning(
+                f"Неизвестный режим накоплений: {savings_mode}, используется 1.0"
+            )
+
         # Guard: пустой список целей
         if not goals:
             return AllocationSummary(
@@ -60,7 +84,9 @@ class AllocationService:
 
         # Жадный алгоритм
         for goal in sorted_goals:
-            monthly_needed = goal.monthly_contribution
+            # Применяем множитель к базовому monthly_contribution
+            base_monthly = goal.monthly_contribution
+            monthly_needed = base_monthly * multiplier
 
             # Определяем причину пропуска (если есть)
             skipped_reason = None

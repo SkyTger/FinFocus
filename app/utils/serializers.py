@@ -8,8 +8,9 @@ def serialize_allocation_summary(summary: dict | None) -> dict | None:
 
     Конвертирует Decimal поля в float для JSON-совместимости.
 
-    Note: float conversion is acceptable for MVP (sums < 10^15, precision ~15-16 digits).
-    For production with larger sums or high-precision requirements, consider using str().
+    Note: float conversion is acceptable for MVP (sums < 10^15,
+    precision ~15-16 digits). For production with larger sums or
+    high-precision requirements, consider using str().
 
     Args:
         summary: AllocationSummary TypedDict или None

@@ -9,6 +9,9 @@ from sqlalchemy.orm import Session
 from app.core import ValidationError
 from app.models.database import Goal, GoalContribution, GoalStatus
 
+# Допустимые значения для User.savings_mode
+VALID_SAVINGS_MODES = {"free", "medium", "strict"}
+
 
 class GoalService:
     """Сервис для операций с целями накопления."""
@@ -445,3 +448,53 @@ class GoalService:
         self.session.flush()
 
         logger.info(f"Обновлен бюджет накоплений для user {user_id}: {budget}")
+
+    # TODO: Перенести методы работы с User
+    # (get/update_savings_mode, get/update_savings_budget) в отдельный UserService
+    # при рефакторинге. Временно размещены здесь для MVP.
+
+    def get_savings_mode(self, user_id: int) -> str:
+        """Получает режим накоплений пользователя.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            str: "free", "medium" или "strict"
+
+        Raises:
+            ValidationError: Если пользователь не найден.
+        """
+        from app.models.database import User
+
+        user = self.session.get(User, user_id)
+        if not user:
+            raise ValidationError(f"Пользователь с ID {user_id} не найден")
+        return user.savings_mode
+
+    def update_savings_mode(self, user_id: int, mode: str) -> None:
+        """Обновляет режим накоплений пользователя.
+
+        Args:
+            user_id: ID пользователя.
+            mode: Новый режим ("free", "medium", "strict").
+
+        Raises:
+            ValidationError: Если пользователь не найден или mode невалидный.
+        """
+        from app.models.database import User
+
+        if mode not in VALID_SAVINGS_MODES:
+            raise ValidationError(
+                f"Недопустимый режим накоплений: {mode}. "
+                f"Допустимые значения: {', '.join(sorted(VALID_SAVINGS_MODES))}"
+            )
+
+        user = self.session.get(User, user_id)
+        if not user:
+            raise ValidationError(f"Пользователь с ID {user_id} не найден")
+
+        user.savings_mode = mode
+        self.session.flush()
+
+        logger.info(f"Обновлен режим накоплений для user {user_id}: {mode}")

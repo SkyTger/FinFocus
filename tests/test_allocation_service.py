@@ -344,3 +344,102 @@ def test_mixed_statuses(allocation_service, goal_service, test_user, db_session)
     assert results[3]["goal_name"] == "Expired Goal"
     assert results[3]["allocated_amount"] == Decimal("0")
     assert results[3]["skipped_reason"] == "zero_contribution"
+
+
+# --- Тесты savings_mode multipliers ---
+
+
+def test_allocation_free_mode(allocation_service, goal_service, test_user):
+    """Режим 'free' (1.0x) — monthly_contribution_needed = base."""
+    target_date = date.today() + timedelta(days=180)
+    goal = goal_service.create_goal(
+        user_id=test_user.id,
+        name="Test Goal",
+        target_amount=Decimal("6000.00"),
+        target_date=target_date,
+        priority=1,
+    )
+
+    # monthly_contribution ≈ 6000 / 6 = 1000
+    base_monthly = goal.monthly_contribution
+
+    # Режим free (default) — множитель 1.0
+    summary = allocation_service.calculate_allocation(
+        goals=[goal],
+        monthly_budget=Decimal("5000.00"),
+        savings_mode="free",
+    )
+
+    result = summary["results"][0]
+    # monthly_contribution_needed должен быть равен base (1.0x)
+    assert result["monthly_contribution_needed"] == base_monthly
+    assert result["is_fully_funded"] is True
+
+
+def test_allocation_medium_mode(allocation_service, goal_service, test_user):
+    """Режим 'medium' (1.15x) — monthly_contribution_needed = base * 1.15."""
+    target_date = date.today() + timedelta(days=180)
+    goal = goal_service.create_goal(
+        user_id=test_user.id,
+        name="Test Goal",
+        target_amount=Decimal("6000.00"),
+        target_date=target_date,
+        priority=1,
+    )
+
+    # monthly_contribution ≈ 6000 / 6 = 1000
+    base_monthly = goal.monthly_contribution
+    expected_needed = base_monthly * Decimal("1.15")
+
+    # Режим medium — множитель 1.15
+    summary = allocation_service.calculate_allocation(
+        goals=[goal],
+        monthly_budget=Decimal("5000.00"),
+        savings_mode="medium",
+    )
+
+    result = summary["results"][0]
+    # monthly_contribution_needed должен быть base * 1.15
+    assert result["monthly_contribution_needed"] == expected_needed
+    assert result["is_fully_funded"] is True
+
+    # total_needed тоже должен отражать adjusted значение
+    assert summary["total_needed"] == expected_needed
+
+
+def test_allocation_strict_mode(allocation_service, goal_service, test_user):
+    """Режим 'strict' (1.5x) — monthly_contribution_needed = base * 1.5."""
+    target_date = date.today() + timedelta(days=180)
+    goal = goal_service.create_goal(
+        user_id=test_user.id,
+        name="Test Goal",
+        target_amount=Decimal("6000.00"),
+        target_date=target_date,
+        priority=1,
+    )
+
+    # monthly_contribution ≈ 6000 / 6 = 1000
+    base_monthly = goal.monthly_contribution
+    expected_needed = base_monthly * Decimal("1.5")
+
+    # Режим strict — множитель 1.5
+    # Бюджет 1200 < needed 1500 → partially funded
+    budget = Decimal("1200.00")
+    summary = allocation_service.calculate_allocation(
+        goals=[goal],
+        monthly_budget=budget,
+        savings_mode="strict",
+    )
+
+    result = summary["results"][0]
+    # monthly_contribution_needed должен быть base * 1.5
+    assert result["monthly_contribution_needed"] == expected_needed
+    # allocated = min(needed, budget) = budget
+    assert result["allocated_amount"] == budget
+    assert result["is_fully_funded"] is False
+    assert result["shortfall"] == expected_needed - budget
+
+    # totals
+    assert summary["total_needed"] == expected_needed
+    assert summary["total_allocated"] == budget
+    assert summary["total_shortfall"] == expected_needed - budget
