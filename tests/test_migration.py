@@ -6,9 +6,7 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.models.database import Base, User
 from scripts.migrate_001_savings_budget import (
     column_exists,
     migrate_add_savings_budget,

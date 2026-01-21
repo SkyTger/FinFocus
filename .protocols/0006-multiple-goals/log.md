@@ -271,3 +271,42 @@
 - app/services/dashboard_service.py (+18 строк измененной логики в get_overview_metrics)
 - app/components/dashboard.py (+2 строки: изменена проверка savings_name)
 - tests/test_dashboard_service.py (+109 строк: 2 новых теста + обновлен test_savings_no_goals)
+
+---
+
+## Шаг 7: Финализация (2026-01-21)
+
+**Действия:**
+- Написаны 3 интеграционных теста в tests/test_goals_integration.py:
+  - test_create_multiple_goals_with_auto_priority — E2E создание целей с auto-priority
+  - test_priority_reorder_updates_allocation — E2E изменение приоритетов пересчитывает allocation
+  - test_budget_change_updates_allocation — E2E изменение бюджета пересчитывает allocation
+- Обновлена документация:
+  - ROADMAP.md — отмечена фича "Множественные цели с приоритетами" как завершенная, прогресс Батч 2: 50%
+  - feature_progress.md — добавлена запись о Батч 9: Multiple Goals with Priorities
+- Финальная верификация:
+  - black: 38 файлов без изменений
+  - flake8: без ошибок (исправлены 4 unused imports/variables)
+  - pytest: 98/98 тестов прошли
+
+**Решения:**
+- Интеграционные тесты используют real dates, поэтому assertions проверяют относительные значения (goal1_needed, expected_goal2)
+- is_fully_funded проверяется вместо hardcoded диапазонов для гибкости
+- Неиспользуемые импорты (sessionmaker, Base, User) удалены из test_migration.py
+- Неиспользуемая переменная goal2_needed удалена из test_goals_integration.py
+
+**Верификация:**
+- ✅ black: без изменений
+- ✅ flake8: без ошибок
+- ✅ pytest: 98/98 тестов прошли (включая 3 новых integration теста)
+
+**Файлы изменены:**
+- tests/test_goals_integration.py (создан, 233 строки, 3 E2E теста)
+- ROADMAP.md (обновлен прогресс Батч 2: 50%)
+- .reports/notes/feature_progress.md (добавлена запись о Батч 9)
+- tests/test_migration.py (-3 строки: удалены unused imports)
+
+**Протокол 0006 завершен:**
+- 7 шагов выполнены
+- 98 тестов (все проходят)
+- PR #6 готов к review
