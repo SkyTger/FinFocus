@@ -1,7 +1,7 @@
-- **Current Step**: 5
+- **Current Step**: 6
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 4 завершен: добавлен MODE_OPTIONS, dcc.Store для savings_mode, расширен helper и load_goal_data callback."
-- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-ui-selector.md`)."
+- **Last Action Summary**: "Шаг 5 завершен: создан mode selector с RadioItems, callback save_savings_mode(), обновлены 9 callbacks, добавлены CSS стили."
+- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-final-verification.md`)."
 - **Git**: "Ветка 0007-savings-mode, PR #7 в статусе Draft."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/7"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"

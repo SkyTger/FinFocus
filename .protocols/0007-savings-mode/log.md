@@ -114,3 +114,38 @@
 - MODE_OPTIONS содержит готовые label/description для UI selector (Шаг 5)
 - Все stores инициализируются при загрузке страницы /goals
 - Helper принимает default `savings_mode="free"` для обратной совместимости с другими callbacks
+
+---
+
+## Шаг 5: UI selector и callback
+
+**Дата**: 2026-01-21
+
+**Действия**:
+- Создана функция `_build_mode_selector()` с RadioItems
+- Интегрирован selector в layout через Row/Col (lg=8/4 для адаптивности)
+- Создан callback `save_savings_mode()` для сохранения режима в БД
+- Обновлены 9 callbacks для передачи savings_mode в `_recalculate_and_render()`
+- Добавлены CSS стили (~80 строк) для mode selector
+
+**Изменения файлов**:
+- `app/components/goals.py:52-92` — функция _build_mode_selector()
+- `app/components/goals.py:1086-1104` — интеграция в layout (Row/Col)
+- `app/components/goals.py:1277-1312` — callback save_savings_mode()
+- `app/components/goals.py` — обновлены callbacks: create_goal, add_contribution, update_goal, confirm_delete_goal, toggle_goal_status, save_budget, move_priority_up, move_priority_down
+- `app/assets/goals.css:301-380` — стили для mode selector
+
+**Обновленные callbacks**:
+1. `create_goal` — +State savings_mode, +параметр, +передача в helper
+2. `add_contribution` — +State savings_mode, +параметр, +передача в helper
+3. `update_goal` — +State savings_mode, +параметр, +передача в helper
+4. `confirm_delete_goal` — +State savings_mode, +параметр, +передача в helper
+5. `toggle_goal_status` — +State savings_mode, +параметр, +передача в helper
+6. `save_budget` — +State savings_mode, +параметр, +передача в helper
+7. `move_priority_up` — +State savings_mode, +параметр, +передача в helper
+8. `move_priority_down` — +State savings_mode, +параметр, +передача в helper
+
+**Решения**:
+- Row/Col с lg=8/4 — summary слева, mode selector справа на десктопах
+- `savings_mode or "free"` во всех вызовах — fallback при None из store
+- Стили используют фирменный цвет #198754 (primary-green) для консистентности

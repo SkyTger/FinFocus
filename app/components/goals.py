@@ -49,6 +49,49 @@ MODE_OPTIONS = {
 }
 
 
+def _build_mode_selector(current_mode: str) -> dbc.Card:
+    """Создает RadioItems для выбора режима накоплений.
+
+    Args:
+        current_mode: Текущий режим ("free", "medium", "strict")
+
+    Returns:
+        dbc.Card: Карточка с переключателем режимов
+    """
+    options = [
+        {
+            "label": html.Div(
+                [
+                    html.Span(MODE_OPTIONS[mode]["label"], className="mode-label"),
+                    html.Br(),
+                    html.Small(
+                        MODE_OPTIONS[mode]["description"], className="mode-description"
+                    ),
+                ]
+            ),
+            "value": mode,
+        }
+        for mode in ["free", "medium", "strict"]
+    ]
+
+    return dbc.Card(
+        [
+            dbc.CardHeader(html.H6("Режим накоплений", className="mb-0")),
+            dbc.CardBody(
+                [
+                    dbc.RadioItems(
+                        id="savings-mode-selector",
+                        options=options,
+                        value=current_mode,
+                        className="savings-mode-radio",
+                    ),
+                ]
+            ),
+        ],
+        className="mode-selector-card",
+    )
+
+
 def _safe_budget_decimal(budget) -> Decimal:
     """Безопасно конвертирует budget в Decimal.
 
@@ -1040,9 +1083,24 @@ def _recalculate_and_render(
     # Строим layout
     goals_container_children = []
 
-    # 1. Summary section
+    # 1. Summary section + Mode selector (Row для адаптивности)
     goals_container_children.append(
-        _build_summary_section(goals_summary, allocation_summary)
+        dbc.Row(
+            [
+                dbc.Col(
+                    _build_summary_section(goals_summary, allocation_summary),
+                    lg=8,
+                    md=12,
+                    className="mb-3 mb-lg-0",
+                ),
+                dbc.Col(
+                    _build_mode_selector(savings_mode),
+                    lg=4,
+                    md=12,
+                ),
+            ],
+            className="mb-4",
+        )
     )
 
     # 2. Budget alert (если бюджет не настроен)
@@ -1217,6 +1275,44 @@ def load_goal_data(pathname: str):
 
 
 @callback(
+    Output("goal-card-container", "children", allow_duplicate=True),
+    Output("goals-allocation-store", "data", allow_duplicate=True),
+    Output("goals-savings-mode-store", "data", allow_duplicate=True),
+    Input("savings-mode-selector", "value"),
+    State("goals-budget-store", "data"),
+    prevent_initial_call=True,
+)
+def save_savings_mode(new_mode, budget):
+    """Сохраняет выбранный режим накоплений и пересчитывает allocation.
+
+    Args:
+        new_mode: Новый режим ("free", "medium", "strict")
+        budget: Текущий бюджет из store
+
+    Returns:
+        Tuple[goals_container, allocation_data, savings_mode]
+    """
+    if new_mode is None:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = GoalService(session)
+        service.update_savings_mode(DEFAULT_USER_ID, new_mode)
+        session.commit()
+
+        budget_decimal = _safe_budget_decimal(budget)
+        goals_container_children, allocation_summary, _ = _recalculate_and_render(
+            session, DEFAULT_USER_ID, budget_decimal, savings_mode=new_mode
+        )
+
+        return (
+            html.Div(goals_container_children),
+            allocation_summary,
+            new_mode,
+        )
+
+
+@callback(
     Output("create-goal-modal", "is_open"),
     [
         Input("create-goal-btn-header", "n_clicks"),
@@ -1266,10 +1362,11 @@ def toggle_create_goal_modal(create_clicks, cancel_clicks, is_open):
         State("create-goal-amount-input", "value"),
         State("create-goal-date-picker", "date"),
         State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def create_goal(n_clicks, name, target_amount, target_date_str, budget):
+def create_goal(n_clicks, name, target_amount, target_date_str, budget, savings_mode):
     """Создает новую накопительную цель."""
     if not n_clicks:
         raise PreventUpdate
@@ -1335,7 +1432,7 @@ def create_goal(n_clicks, name, target_amount, target_date_str, budget):
             # Пересчитываем allocation и строим UI
             budget_decimal = _safe_budget_decimal(budget)
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget_decimal
+                session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
             )
 
             # История взносов для созданной цели
@@ -1436,10 +1533,11 @@ def toggle_contribution_modal(add_clicks_list, cancel_clicks, is_open):
         State("contribution-date-picker", "date"),
         State("contribution-description-input", "value"),
         State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def add_contribution(n_clicks, goal_id, amount, date_str, description, budget):
+def add_contribution(n_clicks, goal_id, amount, date_str, description, budget, savings_mode):
     """Добавляет взнос в цель."""
     if not n_clicks or not goal_id:
         raise PreventUpdate
@@ -1475,7 +1573,7 @@ def add_contribution(n_clicks, goal_id, amount, date_str, description, budget):
             # Пересчитываем allocation и строим UI
             budget_decimal = _safe_budget_decimal(budget)
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget_decimal
+                session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
             )
 
             # Получаем обновленную историю взносов
@@ -1586,10 +1684,11 @@ def toggle_edit_modal(edit_clicks_list, cancel_clicks, is_open):
         State("edit-goal-amount-input", "value"),
         State("edit-goal-date-picker", "date"),
         State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def update_goal(n_clicks, goal_id, name, target_amount, target_date_str, budget):
+def update_goal(n_clicks, goal_id, name, target_amount, target_date_str, budget, savings_mode):
     """Обновляет параметры цели."""
     if not n_clicks or not goal_id:
         raise PreventUpdate
@@ -1612,7 +1711,7 @@ def update_goal(n_clicks, goal_id, name, target_amount, target_date_str, budget)
             # Пересчитываем allocation и строим UI
             budget_decimal = _safe_budget_decimal(budget)
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget_decimal
+                session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
             )
 
             return (
@@ -1678,10 +1777,11 @@ def request_delete_goal(n_clicks_list):
     [
         State("current-goal-id", "data"),
         State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def confirm_delete_goal(submit_clicks, goal_id, budget):
+def confirm_delete_goal(submit_clicks, goal_id, budget, savings_mode):
     """Удаляет цель после подтверждения.
 
     Callback срабатывает при клике "OK" в ConfirmDialog.
@@ -1702,7 +1802,7 @@ def confirm_delete_goal(submit_clicks, goal_id, budget):
         # Пересчитываем allocation и строим UI
         budget_decimal = _safe_budget_decimal(budget)
         goals_container_children, allocation_summary, _ = _recalculate_and_render(
-            session, DEFAULT_USER_ID, budget_decimal
+            session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
         )
 
         # Если есть оставшиеся цели - показываем contributions первой по priority
@@ -1749,10 +1849,13 @@ def confirm_delete_goal(submit_clicks, goal_id, budget):
         Output("goals-allocation-store", "data", allow_duplicate=True),
     ],
     Input({"type": "toggle-status-btn", "index": ALL}, "n_clicks"),
-    State("goals-budget-store", "data"),
+    [
+        State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
+    ],
     prevent_initial_call=True,
 )
-def toggle_goal_status(n_clicks_list, budget):
+def toggle_goal_status(n_clicks_list, budget, savings_mode):
     """Переключает статус цели ACTIVE <-> PAUSED.
 
     Бизнес-правила:
@@ -1801,7 +1904,7 @@ def toggle_goal_status(n_clicks_list, budget):
         # Пересчитываем allocation и UI
         budget_decimal = _safe_budget_decimal(budget)
         goals_container, allocation_data, _ = _recalculate_and_render(
-            session, DEFAULT_USER_ID, budget_decimal
+            session, DEFAULT_USER_ID, budget_decimal, savings_mode=savings_mode or "free"
         )
 
         return goals_container, serialize_allocation_summary(allocation_data)
@@ -1876,10 +1979,11 @@ def close_budget_modal(n_clicks):
     Input("save-budget-btn", "n_clicks"),
     [
         State("budget-input", "value"),
+        State("goals-savings-mode-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def save_budget(n_clicks, budget_value):
+def save_budget(n_clicks, budget_value, savings_mode):
     """Сохраняет бюджет и пересчитывает allocation для всех целей.
 
     Args:
@@ -1915,7 +2019,7 @@ def save_budget(n_clicks, budget_value):
 
             # Пересчитываем allocation и строим UI
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget
+                session, DEFAULT_USER_ID, budget, savings_mode=savings_mode or "free"
             )
 
             logger.info(f"Бюджет накоплений обновлен: {budget}")
@@ -1951,10 +2055,11 @@ def save_budget(n_clicks, budget_value):
     Input({"type": "priority-up-btn", "index": ALL}, "n_clicks"),
     [
         State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def move_priority_up(n_clicks_list, budget):
+def move_priority_up(n_clicks_list, budget, savings_mode):
     """Перемещает цель на один приоритет вверх (уменьшает priority на 1).
 
     Pattern-Matching callback с guard clauses согласно ADR-003.
@@ -1993,7 +2098,7 @@ def move_priority_up(n_clicks_list, budget):
 
             # Пересчитываем allocation и строим UI
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget
+                session, DEFAULT_USER_ID, budget, savings_mode=savings_mode or "free"
             )
 
             logger.info(f"Приоритет цели {goal_id} повышен")
@@ -2016,10 +2121,11 @@ def move_priority_up(n_clicks_list, budget):
     Input({"type": "priority-down-btn", "index": ALL}, "n_clicks"),
     [
         State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def move_priority_down(n_clicks_list, budget):
+def move_priority_down(n_clicks_list, budget, savings_mode):
     """Перемещает цель на один приоритет вниз (увеличивает priority на 1).
 
     Pattern-Matching callback с guard clauses согласно ADR-003.
@@ -2058,7 +2164,7 @@ def move_priority_down(n_clicks_list, budget):
 
             # Пересчитываем allocation и строим UI
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
-                session, DEFAULT_USER_ID, budget
+                session, DEFAULT_USER_ID, budget, savings_mode=savings_mode or "free"
             )
 
             logger.info(f"Приоритет цели {goal_id} понижен")
