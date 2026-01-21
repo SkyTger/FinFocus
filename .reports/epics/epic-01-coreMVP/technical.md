@@ -250,74 +250,48 @@ contribution = GoalContribution(
 
 **Пример использования**:
 ```python
-from app.models.database import create_database_engine
+from app.core.database import get_engine
 
-engine = create_database_engine()  # SQLite по умолчанию
-# или
-engine = create_database_engine("postgresql://user:pass@localhost/finfocus")
+engine = get_engine()  # SQLite по умолчанию
 ```
 
 ---
 
-#### `create_tables(engine: Engine) -> None`
-
-**Описание**: Создает все таблицы в базе данных согласно моделям
-
-**Входные данные**:
-- `engine` (Engine) - движок базы данных
-
-**Выходные данные**: None (side effect: создание таблиц)
-
-**Пример использования**:
-```python
-from app.models.database import create_database_engine, create_tables
-
-engine = create_database_engine()
-create_tables(engine)
-```
-
----
-
-#### `get_session(engine: Engine) -> Session`
-
-**Описание**: Создает сессию для работы с базой данных
-
-**Входные данные**:
-- `engine` (Engine) - движок базы данных
-
-**Выходные данные**: SQLAlchemy Session
-
-**Пример использования**:
-```python
-from app.models.database import create_database_engine, get_session
-
-engine = create_database_engine()
-session = get_session(engine)
-
-# Использование
-user = session.query(User).first()
-session.add(new_transaction)
-session.commit()
-session.close()
-```
-
----
-
-#### `init_database(database_url: str) -> Engine`
+#### `init_database() -> None`
 
 **Описание**: Инициализирует базу данных (создает движок и таблицы)
 
-**Входные данные**:
-- `database_url` (str, default: `"sqlite:///data/finfocus.db"`) - URL базы данных
+**Входные данные**: None (использует DATABASE_URL из окружения или дефолт)
 
-**Выходные данные**: SQLAlchemy Engine
+**Выходные данные**: None
 
 **Пример использования**:
 ```python
-from app.models.database import init_database
+from app.core.database import init_database
 
 # Инициализация при старте приложения
-engine = init_database()  # Создаст data/finfocus.db и все таблицы
+init_database()  # Создаст data/finfocus.db и все таблицы
+```
+
+---
+
+#### `get_db_session() -> Generator[Session, None, None]`
+
+**Описание**: Context manager для работы с базой данных (автоматически управляет commit/rollback/close)
+
+**Входные данные**: None
+
+**Выходные данные**: SQLAlchemy Session (context manager)
+
+**Пример использования**:
+```python
+from app.core.database import get_db_session
+
+# Использование с context manager
+with get_db_session() as session:
+    user = session.query(User).first()
+    session.add(new_transaction)
+    # commit/rollback/close выполняются автоматически
 ```
 
 ---

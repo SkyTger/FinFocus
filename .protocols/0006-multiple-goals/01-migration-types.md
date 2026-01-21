@@ -1,4 +1,4 @@
-# Шаг 1: Миграция и Types
+sddsd# Шаг 1: Миграция и Types
 
 ## Briefing
 - **Цель:** Добавить поле `monthly_savings_budget` в модель User и создать централизованные TypedDicts для типизации данных между сервисами и UI.
@@ -26,7 +26,7 @@
 3. **Создать `app/types/__init__.py`**:
    ```python
    """Централизованные типы данных для FinFocus."""
-   from app.types.goals import (
+   from app.schema.goals import (
        AllocationResult,
        AllocationSummary,
        GoalDisplayData,

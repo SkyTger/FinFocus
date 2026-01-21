@@ -25,11 +25,26 @@ from app.utils.formatters import (
     format_days_remaining,
     parse_date_safe,
 )
+from app.utils.serializers import serialize_allocation_summary
 
 
 # Константы
 DEFAULT_USER_ID = 1
 MIN_GOAL_DAYS = 7  # Минимум 7 дней до дедлайна
+
+
+def _safe_budget_decimal(budget) -> Decimal:
+    """Безопасно конвертирует budget в Decimal.
+
+    Используется в callbacks для преобразования данных из dcc.Store.
+
+    Args:
+        budget: Значение из goals-budget-store (может быть None, str, int, float)
+
+    Returns:
+        Decimal: Конвертированное значение или Decimal("0") если budget пустой
+    """
+    return Decimal(str(budget)) if budget else Decimal("0")
 
 
 class ContributionDisplayData(TypedDict):
@@ -41,11 +56,15 @@ class ContributionDisplayData(TypedDict):
     description: str | None
 
 
-def _goal_to_display_data(goal) -> GoalDisplayData:
+def _goal_to_display_data(
+    goal, allocated_amount: Decimal | None = None, allocation_status: str | None = None
+) -> GoalDisplayData:
     """Конвертирует ORM Goal в GoalDisplayData для UI.
 
     Args:
         goal: SQLAlchemy Goal объект
+        allocated_amount: Выделенная сумма из бюджета (опционально)
+        allocation_status: Статус распределения (опционально)
 
     Returns:
         GoalDisplayData: TypedDict с данными для отображения
@@ -62,6 +81,9 @@ def _goal_to_display_data(goal) -> GoalDisplayData:
         monthly_contribution=goal.monthly_contribution,
         days_remaining=days_remaining,
         is_completed=goal.is_completed,
+        priority=goal.priority,
+        allocated_amount=allocated_amount,
+        allocation_status=allocation_status,
     )
 
 
@@ -73,30 +95,22 @@ def _build_empty_state() -> dbc.Card:
     """
     return dbc.Card(
         dbc.CardBody(
-            [
-                html.Div(
-                    [
-                        html.I(
-                            className="bi bi-bullseye",
-                            style={"fontSize": "4rem", "color": "#6c757d"},
-                        ),
-                        html.H4("Нет активной цели", className="mt-3 text-muted"),
-                        html.P(
-                            "Создайте накопительную цель, "
-                            "чтобы начать откладывать деньги",
-                            className="text-muted",
-                        ),
-                        dbc.Button(
-                            [html.I(className="bi bi-plus-lg me-2"), "Создать цель"],
-                            id="create-goal-btn",
-                            color="success",
-                            size="lg",
-                            className="mt-3",
-                        ),
-                    ],
-                    className="text-center py-5",
-                )
-            ]
+            html.Div(
+                [
+                    html.I(
+                        className="bi bi-bullseye",
+                        style={"fontSize": "4rem", "color": "#6c757d"},
+                    ),
+                    html.H4("Нет активной цели", className="mt-3 text-muted"),
+                    html.P(
+                        "Создайте накопительную цель с помощью кнопки выше, "
+                        "чтобы начать откладывать деньги",
+                        className="text-muted",
+                    ),
+                    # Кнопка УДАЛЕНА - используется create-goal-btn-header в header
+                ],
+                className="text-center py-5",
+            )
         ),
         className="goal-empty-state",
     )
@@ -1179,25 +1193,29 @@ def load_goal_data(pathname: str):
 @callback(
     Output("create-goal-modal", "is_open"),
     [
-        Input("create-goal-btn", "n_clicks"),
         Input("create-goal-btn-header", "n_clicks"),
         Input("create-goal-cancel-btn", "n_clicks"),
     ],
     State("create-goal-modal", "is_open"),
     prevent_initial_call=True,
 )
-def toggle_create_goal_modal(
-    create_clicks_empty, create_clicks_header, cancel_clicks, is_open
-):
+def toggle_create_goal_modal(create_clicks, cancel_clicks, is_open):
     """Открывает/закрывает модал создания цели.
 
-    Simple callback без Pattern-Matching - guard clauses из ADR-003 не нужны.
+    Кнопка "Создать цель" находится в header страницы (create-goal-btn-header)
+    и всегда доступна. Empty state больше не содержит дублирующую кнопку.
     """
-    triggered_id = ctx.triggered_id
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
 
-    if triggered_id in ["create-goal-btn", "create-goal-btn-header"]:
+    if not ctx.triggered_id:
+        raise PreventUpdate
+
+    if ctx.triggered_id == "create-goal-btn-header":
         return True
-    if triggered_id == "create-goal-cancel-btn":
+
+    if ctx.triggered_id == "create-goal-cancel-btn":
         return False
 
     return is_open
@@ -1209,6 +1227,7 @@ def toggle_create_goal_modal(
         Output("goal-card-container", "children", allow_duplicate=True),
         Output("contributions-table-container", "children", allow_duplicate=True),
         Output("current-goal-id", "data", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
         Output("create-goal-name-input", "value"),
         Output("create-goal-amount-input", "value"),
         Output("create-goal-date-picker", "date"),
@@ -1220,10 +1239,11 @@ def toggle_create_goal_modal(
         State("create-goal-name-input", "value"),
         State("create-goal-amount-input", "value"),
         State("create-goal-date-picker", "date"),
+        State("goals-budget-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def create_goal(n_clicks, name, target_amount, target_date_str):
+def create_goal(n_clicks, name, target_amount, target_date_str, budget):
     """Создает новую накопительную цель."""
     if not n_clicks:
         raise PreventUpdate
@@ -1238,6 +1258,7 @@ def create_goal(n_clicks, name, target_amount, target_date_str):
             no_update,
             no_update,
             no_update,
+            no_update,
             "Укажите название цели",
             True,
         )
@@ -1245,6 +1266,7 @@ def create_goal(n_clicks, name, target_amount, target_date_str):
     if not target_amount or target_amount <= 0:
         return (
             True,
+            no_update,
             no_update,
             no_update,
             no_update,
@@ -1266,6 +1288,7 @@ def create_goal(n_clicks, name, target_amount, target_date_str):
             no_update,
             no_update,
             no_update,
+            no_update,
             "Укажите дату достижения цели",
             True,
         )
@@ -1281,16 +1304,36 @@ def create_goal(n_clicks, name, target_amount, target_date_str):
             )
             session.commit()
 
-            goal_data = _goal_to_display_data(goal)
             logger.info(f"Создана цель: {goal.name} (id={goal.id})")
 
-            # Успех: закрываем модал, очищаем форму, обновляем карточку
+            # Пересчитываем allocation и строим UI
+            budget_decimal = _safe_budget_decimal(budget)
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget_decimal
+            )
+
+            # История взносов для созданной цели
+            contributions = service.get_contributions(goal.id, limit=10)
+            contrib_data = [
+                ContributionDisplayData(
+                    id=c.id,
+                    amount=c.amount,
+                    contribution_date=c.contribution_date,
+                    description=c.description,
+                )
+                for c in contributions
+            ]
+
+            # Успех: закрываем модал, очищаем форму, обновляем UI
             min_date = (date.today() + timedelta(days=MIN_GOAL_DAYS)).isoformat()
             return (
                 False,  # close modal
-                _build_goal_card(goal_data),
-                _build_contributions_table([]),  # нет взносов
+                html.Div(goals_container_children),
+                _build_contributions_table(contrib_data),
                 goal.id,
+                serialize_allocation_summary(
+                    allocation_summary
+                ),  # сериализуем для Store
                 "",  # clear name
                 None,  # clear amount
                 min_date,  # reset date
@@ -1308,35 +1351,44 @@ def create_goal(n_clicks, name, target_amount, target_date_str):
             no_update,
             no_update,
             no_update,
+            no_update,
             str(e),
             True,
         )
 
 
 @callback(
-    Output("contribution-modal", "is_open"),
     [
-        Input("add-contribution-btn", "n_clicks"),
+        Output("contribution-modal", "is_open"),
+        Output("current-goal-id", "data", allow_duplicate=True),
+    ],
+    [
+        Input({"type": "add-contribution-btn", "index": ALL}, "n_clicks"),
         Input("contribution-cancel-btn", "n_clicks"),
     ],
     State("contribution-modal", "is_open"),
     prevent_initial_call=True,
 )
-def toggle_contribution_modal(add_clicks, cancel_clicks, is_open):
+def toggle_contribution_modal(add_clicks_list, cancel_clicks, is_open):
     """Открывает/закрывает модал добавления взноса."""
     # Guard: проверка реального клика (ADR-003)
-    # Кнопка создается динамически, Dash триггерит callback при появлении в DOM
     if ctx.triggered[0].get("value") is None:
         raise PreventUpdate
 
     triggered_id = ctx.triggered_id
 
-    if triggered_id == "add-contribution-btn":
-        return True
-    if triggered_id == "contribution-cancel-btn":
-        return False
+    # Pattern-Matching button clicked
+    if (
+        isinstance(triggered_id, dict)
+        and triggered_id.get("type") == "add-contribution-btn"
+    ):
+        goal_id = triggered_id["index"]
+        return True, goal_id
 
-    return is_open
+    if triggered_id == "contribution-cancel-btn":
+        return False, no_update
+
+    return is_open, no_update
 
 
 @callback(
@@ -1344,6 +1396,7 @@ def toggle_contribution_modal(add_clicks, cancel_clicks, is_open):
         Output("contribution-modal", "is_open", allow_duplicate=True),
         Output("goal-card-container", "children", allow_duplicate=True),
         Output("contributions-table-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
         Output("contribution-amount-input", "value"),
         Output("contribution-date-picker", "date"),
         Output("contribution-description-input", "value"),
@@ -1356,10 +1409,11 @@ def toggle_contribution_modal(add_clicks, cancel_clicks, is_open):
         State("contribution-amount-input", "value"),
         State("contribution-date-picker", "date"),
         State("contribution-description-input", "value"),
+        State("goals-budget-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def add_contribution(n_clicks, goal_id, amount, date_str, description):
+def add_contribution(n_clicks, goal_id, amount, date_str, description, budget):
     """Добавляет взнос в цель."""
     if not n_clicks or not goal_id:
         raise PreventUpdate
@@ -1367,6 +1421,7 @@ def add_contribution(n_clicks, goal_id, amount, date_str, description):
     if not amount or amount <= 0:
         return (
             True,
+            no_update,
             no_update,
             no_update,
             no_update,
@@ -1389,7 +1444,13 @@ def add_contribution(n_clicks, goal_id, amount, date_str, description):
             )
             session.commit()
 
-            goal_data = _goal_to_display_data(goal)
+            logger.info(f"Добавлен взнос {amount} в цель {goal_id}")
+
+            # Пересчитываем allocation и строим UI
+            budget_decimal = _safe_budget_decimal(budget)
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget_decimal
+            )
 
             # Получаем обновленную историю взносов
             contributions = service.get_contributions(goal.id, limit=10)
@@ -1403,12 +1464,13 @@ def add_contribution(n_clicks, goal_id, amount, date_str, description):
                 for c in contributions
             ]
 
-            logger.info(f"Добавлен взнос {amount} в цель {goal_id}")
-
             return (
                 False,  # close modal
-                _build_goal_card(goal_data),
+                html.Div(goals_container_children),
                 _build_contributions_table(contrib_data),
+                serialize_allocation_summary(
+                    allocation_summary
+                ),  # сериализуем для Store
                 None,  # clear amount
                 date.today().isoformat(),  # reset date
                 "",  # clear description
@@ -1425,6 +1487,7 @@ def add_contribution(n_clicks, goal_id, amount, date_str, description):
             no_update,
             no_update,
             no_update,
+            no_update,
             str(e),
             True,
         )
@@ -1436,34 +1499,33 @@ def add_contribution(n_clicks, goal_id, amount, date_str, description):
         Output("edit-goal-name-input", "value"),
         Output("edit-goal-amount-input", "value"),
         Output("edit-goal-date-picker", "date"),
+        Output("current-goal-id", "data", allow_duplicate=True),
     ],
     [
-        Input("edit-goal-btn", "n_clicks"),
+        Input({"type": "edit-goal-btn", "index": ALL}, "n_clicks"),
         Input("edit-goal-cancel-btn", "n_clicks"),
     ],
-    State("current-goal-id", "data"),
     State("edit-goal-modal", "is_open"),
     prevent_initial_call=True,
 )
-def toggle_edit_modal(edit_clicks, cancel_clicks, goal_id, is_open):
+def toggle_edit_modal(edit_clicks_list, cancel_clicks, is_open):
     """Открывает/закрывает модал редактирования с загрузкой данных.
 
-    Simple callback - goal_id берем из dcc.Store, не нужен Pattern-Matching.
+    Pattern-Matching callback - goal_id извлекается из triggered_id["index"].
     При открытии загружаем актуальные данные цели из БД.
     """
     # Guard: проверка реального клика (ADR-003)
-    # Кнопка создается динамически, Dash триггерит callback при появлении в DOM
     if ctx.triggered[0].get("value") is None:
         raise PreventUpdate
 
     triggered_id = ctx.triggered_id
 
     if triggered_id == "edit-goal-cancel-btn":
-        return False, no_update, no_update, no_update
+        return False, no_update, no_update, no_update, no_update
 
-    if triggered_id == "edit-goal-btn":
-        if not goal_id:
-            raise PreventUpdate
+    # Pattern-Matching button clicked
+    if isinstance(triggered_id, dict) and triggered_id.get("type") == "edit-goal-btn":
+        goal_id = triggered_id["index"]
 
         with get_db_session() as session:
             service = GoalService(session)
@@ -1477,6 +1539,7 @@ def toggle_edit_modal(edit_clicks, cancel_clicks, goal_id, is_open):
                 goal.name,
                 float(goal.target_amount),
                 goal.target_date.isoformat(),
+                goal_id,
             )
 
     raise PreventUpdate
@@ -1486,6 +1549,7 @@ def toggle_edit_modal(edit_clicks, cancel_clicks, goal_id, is_open):
     [
         Output("edit-goal-modal", "is_open", allow_duplicate=True),
         Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
         Output("goal-error-alert", "children", allow_duplicate=True),
         Output("goal-error-alert", "is_open", allow_duplicate=True),
     ],
@@ -1495,10 +1559,11 @@ def toggle_edit_modal(edit_clicks, cancel_clicks, goal_id, is_open):
         State("edit-goal-name-input", "value"),
         State("edit-goal-amount-input", "value"),
         State("edit-goal-date-picker", "date"),
+        State("goals-budget-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def update_goal(n_clicks, goal_id, name, target_amount, target_date_str):
+def update_goal(n_clicks, goal_id, name, target_amount, target_date_str, budget):
     """Обновляет параметры цели."""
     if not n_clicks or not goal_id:
         raise PreventUpdate
@@ -1516,35 +1581,64 @@ def update_goal(n_clicks, goal_id, name, target_amount, target_date_str):
             )
             session.commit()
 
-            goal_data = _goal_to_display_data(goal)
             logger.info(f"Обновлена цель {goal_id}")
 
-            return False, _build_goal_card(goal_data), "", False
+            # Пересчитываем allocation и строим UI
+            budget_decimal = _safe_budget_decimal(budget)
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget_decimal
+            )
+
+            return (
+                False,
+                html.Div(goals_container_children),
+                serialize_allocation_summary(
+                    allocation_summary
+                ),  # сериализуем для Store
+                "",
+                False,
+            )
 
     except Exception as e:
         logger.warning(f"Ошибка обновления цели: {e}")
-        return True, no_update, str(e), True
+        return True, no_update, no_update, str(e), True
 
 
 @callback(
-    Output("confirm-delete-goal", "displayed"),
-    Input("delete-goal-btn", "n_clicks"),
-    State("current-goal-id", "data"),
+    [
+        Output("confirm-delete-goal", "displayed"),
+        Output("current-goal-id", "data", allow_duplicate=True),
+    ],
+    Input({"type": "delete-goal-btn", "index": ALL}, "n_clicks"),
     prevent_initial_call=True,
 )
-def request_delete_goal(n_clicks, goal_id):
+def request_delete_goal(n_clicks_list):
     """Открывает диалог подтверждения удаления.
 
     Использует dcc.ConfirmDialog - нативный браузерный диалог.
+    Pattern-Matching callback - goal_id извлекается из triggered_id["index"].
     """
+    # DEBUG: Remove after BUG-02 resolved
+    logger.debug(f"request_delete_goal called: ctx.triggered={ctx.triggered}")
+    logger.debug(f"triggered_id={ctx.triggered_id}")
+    logger.debug(f"n_clicks_list={n_clicks_list}")
+
     # Guard: проверка реального клика (ADR-003)
     if ctx.triggered[0].get("value") is None:
+        logger.debug("Guard clause: value is None, raising PreventUpdate")
         raise PreventUpdate
 
-    if not n_clicks or not goal_id:
+    triggered_id = ctx.triggered_id
+    if (
+        not isinstance(triggered_id, dict)
+        or triggered_id.get("type") != "delete-goal-btn"
+    ):
+        logger.debug("Guard clause: invalid triggered_id, raising PreventUpdate")
         raise PreventUpdate
 
-    return True
+    goal_id = triggered_id["index"]
+    logger.debug(f"Opening delete confirmation for goal_id={goal_id}")
+    return True, goal_id
 
 
 @callback(
@@ -1552,12 +1646,16 @@ def request_delete_goal(n_clicks, goal_id):
         Output("goal-card-container", "children", allow_duplicate=True),
         Output("contributions-table-container", "children", allow_duplicate=True),
         Output("current-goal-id", "data", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
     ],
     Input("confirm-delete-goal", "submit_n_clicks"),
-    State("current-goal-id", "data"),
+    [
+        State("current-goal-id", "data"),
+        State("goals-budget-store", "data"),
+    ],
     prevent_initial_call=True,
 )
-def confirm_delete_goal(submit_clicks, goal_id):
+def confirm_delete_goal(submit_clicks, goal_id, budget):
     """Удаляет цель после подтверждения.
 
     Callback срабатывает при клике "OK" в ConfirmDialog.
@@ -1575,30 +1673,82 @@ def confirm_delete_goal(submit_clicks, goal_id):
 
         logger.info(f"Удалена цель {goal_id}")
 
-        # Показываем empty state
-        return _build_empty_state(), _build_contributions_table([]), None
+        # Пересчитываем allocation и строим UI
+        budget_decimal = _safe_budget_decimal(budget)
+        goals_container_children, allocation_summary, _ = _recalculate_and_render(
+            session, DEFAULT_USER_ID, budget_decimal
+        )
+
+        # Если есть оставшиеся цели - показываем contributions первой по priority
+        active_goals = service.get_all_by_user(
+            user_id=DEFAULT_USER_ID, status=GoalStatus.ACTIVE
+        )
+        paused_goals = service.get_all_by_user(
+            user_id=DEFAULT_USER_ID, status=GoalStatus.PAUSED
+        )
+        all_goals = active_goals + paused_goals
+
+        if all_goals:
+            # Сортируем по priority и берем первую
+            first_goal = sorted(all_goals, key=lambda g: g.priority)[0]
+            contributions = service.get_contributions(first_goal.id, limit=10)
+            contrib_data = [
+                ContributionDisplayData(
+                    id=c.id,
+                    amount=c.amount,
+                    contribution_date=c.contribution_date,
+                    description=c.description,
+                )
+                for c in contributions
+            ]
+            return (
+                html.Div(goals_container_children),
+                _build_contributions_table(contrib_data),
+                first_goal.id,
+                serialize_allocation_summary(allocation_summary),
+            )
+        else:
+            # Нет целей - empty state
+            return (
+                html.Div(goals_container_children),
+                _build_contributions_table([]),
+                None,
+                None,
+            )
 
 
 @callback(
-    Output("goal-card-container", "children", allow_duplicate=True),
-    Input("toggle-status-btn", "n_clicks"),
-    State("current-goal-id", "data"),
+    [
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
+    ],
+    Input({"type": "toggle-status-btn", "index": ALL}, "n_clicks"),
+    State("goals-budget-store", "data"),
     prevent_initial_call=True,
 )
-def toggle_goal_status(n_clicks, goal_id):
+def toggle_goal_status(n_clicks_list, budget):
     """Переключает статус цели ACTIVE <-> PAUSED.
 
     Бизнес-правила:
     - ACTIVE -> PAUSED: всегда разрешено
-    - PAUSED -> ACTIVE: разрешено (в MVP нет других активных целей)
+    - PAUSED -> ACTIVE: разрешено
     - COMPLETED -> любой: запрещено (возврат из COMPLETED не поддерживается)
+
+    Pattern-Matching callback - goal_id извлекается из triggered_id["index"].
+    После изменения статуса пересчитывает allocation.
     """
     # Guard: проверка реального клика (ADR-003)
     if ctx.triggered[0].get("value") is None:
         raise PreventUpdate
 
-    if not n_clicks or not goal_id:
+    triggered_id = ctx.triggered_id
+    if (
+        not isinstance(triggered_id, dict)
+        or triggered_id.get("type") != "toggle-status-btn"
+    ):
         raise PreventUpdate
+
+    goal_id = triggered_id["index"]
 
     with get_db_session() as session:
         service = GoalService(session)
@@ -1617,13 +1767,18 @@ def toggle_goal_status(n_clicks, goal_id):
             GoalStatus.PAUSED if goal.status == GoalStatus.ACTIVE else GoalStatus.ACTIVE
         )
 
-        updated_goal = service.update_goal(goal_id, status=new_status)
+        service.update_goal(goal_id, status=new_status)
         session.commit()
 
-        goal_data = _goal_to_display_data(updated_goal)
         logger.info(f"Статус цели {goal_id} изменен на {new_status.value}")
 
-        return _build_goal_card(goal_data)
+        # Пересчитываем allocation и UI
+        budget_decimal = _safe_budget_decimal(budget)
+        goals_container, allocation_data, _ = _recalculate_and_render(
+            session, DEFAULT_USER_ID, budget_decimal
+        )
+
+        return goals_container, serialize_allocation_summary(allocation_data)
 
 
 @callback(
@@ -1686,8 +1841,8 @@ def close_budget_modal(n_clicks):
 @callback(
     [
         Output("budget-modal", "is_open", allow_duplicate=True),
-        Output("goals-budget-store", "data"),
-        Output("goals-allocation-store", "data"),
+        Output("goals-budget-store", "data", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
         Output("goal-card-container", "children", allow_duplicate=True),
         Output("goal-error-alert", "children", allow_duplicate=True),
         Output("goal-error-alert", "is_open", allow_duplicate=True),
@@ -1742,7 +1897,9 @@ def save_budget(n_clicks, budget_value):
             return (
                 False,  # close modal
                 budget,  # update budget store
-                allocation_summary,  # update allocation store
+                serialize_allocation_summary(
+                    allocation_summary
+                ),  # update allocation store
                 html.Div(goals_container_children),  # update goals container
                 "",
                 False,
@@ -1817,7 +1974,7 @@ def move_priority_up(n_clicks_list, budget):
 
             return (
                 html.Div(goals_container_children),
-                allocation_summary,
+                serialize_allocation_summary(allocation_summary),
             )
 
     except Exception as e:
@@ -1882,7 +2039,7 @@ def move_priority_down(n_clicks_list, budget):
 
             return (
                 html.Div(goals_container_children),
-                allocation_summary,
+                serialize_allocation_summary(allocation_summary),
             )
 
     except Exception as e:

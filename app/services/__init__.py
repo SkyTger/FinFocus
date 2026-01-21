@@ -1,7 +1,7 @@
 """Сервисный слой приложения."""
 
 from app.core import ValidationError
-from app.types.goals import (
+from app.schema.goals import (
     AllocationResult,
     AllocationSummary,
     GoalDisplayData,

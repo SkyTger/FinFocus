@@ -20,7 +20,7 @@
 
    from decimal import Decimal
    from app.models.database import Goal, GoalStatus
-   from app.types.goals import AllocationResult, AllocationSummary
+   from app.schema.goals import AllocationResult, AllocationSummary
 
 
    class AllocationService:

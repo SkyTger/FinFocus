@@ -7,27 +7,23 @@ import os
 from datetime import date, timedelta
 from decimal import Decimal
 
-# Добавляем путь к app
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
+# Добавляем корневую директорию проекта в путь импорта
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from models.database import (  # noqa: E402
-    create_database_engine,
-    get_session,
-    User,
-    TransactionType,
-)
-from services import TransactionService  # noqa: E402
+from app.core.database import init_database, get_db_session  # noqa: E402
+from app.models.database import User, TransactionType  # noqa: E402
+from app.services.transaction_service import TransactionService  # noqa: E402
 
 
 def seed_test_data():
     """Создает тестовые данные в БД."""
     print("🌱 Seeding test data...")
 
-    # Создаем engine и session
-    engine = create_database_engine()
-    session = get_session(engine)
+    # Инициализация базы данных
+    init_database()
 
-    try:
+    # Context manager автоматически управляет commit/rollback/close
+    with get_db_session() as session:
         # Проверяем есть ли уже пользователь с id=1
         user = session.query(User).filter_by(id=1).first()
 
@@ -40,7 +36,7 @@ def seed_test_data():
                 starting_balance=Decimal("50000.00"),
             )
             session.add(user)
-            session.commit()
+            session.flush()
             print("✅ Создан пользователь: Иван Иванов")
         else:
             print("ℹ️  Пользователь уже существует")
@@ -99,17 +95,8 @@ def seed_test_data():
             service.create_transaction(user_id=1, **tx_data)
             created_count += 1
 
-        session.commit()
         print(f"✅ Создано {created_count} тестовых транзакций")
         print("✨ Seeding завершен успешно!")
-
-    except Exception as e:
-        session.rollback()
-        print(f"❌ Ошибка: {e}")
-        raise
-
-    finally:
-        session.close()
 
 
 if __name__ == "__main__":

@@ -1,226 +1,429 @@
 # Critique - Solution v1
-Date: 2026-01-20
+Date: 2026-01-21
 Reviewer: AI Critic (Claude Opus 4.5)
 
 ---
 
 ## 🎯 Общая оценка
 
-**Рейтинг:** ⭐⭐⭐ (3/5)
+**Рейтинг:** ⭐⭐⭐⭐ (4/5)
 
 **Вердикт:**
-- [ ] ✅ Отлично, можно кодировать как есть
-- [ ] 🟢 Хорошо, с минорными улучшениями
-- [x] 🟡 Требуются значительные изменения
-- [ ] 🔴 Не рекомендуется, нужен другой подход
+- [ ] Отлично, можно кодировать как есть
+- [x] Хорошо, с минорными улучшениями
+- [ ] Требуются значительные изменения
+- [ ] Не рекомендуется, нужен другой подход
 
 **Краткая суммаризация:**
-Решение хорошо структурировано и следует существующим паттернам проекта, однако содержит критичный пробел в хранении monthly_savings_budget пользователя и несколько важных архитектурных проблем, которые нужно устранить перед реализацией.
+Решение грамотно спроектировано с минимальными изменениями существующей архитектуры. Использование Enum для режимов и применение множителя в AllocationService корректны. Требуется уточнение нескольких технических деталей, в частности места хранения констант множителей и точки применения множителя в алгоритме.
 
 ---
 
 ## ✅ Сильные стороны
 
-1. **Следование существующим паттернам проекта**
-   - AllocationService использует ту же структуру что и DashboardService (dependency injection session, TypedDicts для результатов)
-   - Новые методы GoalService согласованы с существующим API
-   - UI рефакторинг переиспользует существующие паттерны из goals.py
+1. **Соответствие существующим паттернам**
+   - Решение следует архитектуре проекта: Service Layer, calculated properties, TypedDicts
+   - Методы `get_savings_mode()` / `update_savings_mode()` аналогичны существующим `get_savings_budget()` / `update_savings_budget()`
+   - Миграционный скрипт по образцу `migrate_001_savings_budget.py`
 
-2. **Правильная декомпозиция**
-   - AllocationService выделен в отдельный сервис (Single Responsibility)
-   - Разделение между расчетной логикой (AllocationService) и UI (goals.py)
-   - Методы GoalService для приоритетов не смешаны с основным CRUD
+2. **Минимальное воздействие на существующий код**
+   - Новый параметр `savings_mode` с default значением обеспечивает обратную совместимость
+   - Существующие тесты не требуют изменений
+   - AllocationService расширяется без рефакторинга core алгоритма
 
-3. **Продуманный алгоритм распределения**
-   - Жадный алгоритм по приоритетам прост и понятен
-   - AllocationResult содержит все нужные поля для UI (shortfall, is_fully_funded)
-   - AllocationSummary предоставляет сводку для быстрой проверки
+3. **Продуманная модель данных**
+   - Python Enum `SavingsMode` для type safety
+   - SQLAlchemy `Enum(SavingsMode)` для корректного хранения в БД
+   - Default='free' для обратной совместимости
 
-4. **Учет известных проблем**
-   - В рисках упоминается Pattern-Matching callbacks (D011)
-   - Предложено использовать простые IDs вместо ALL pattern
-   - Адаптивность для мобильных устройств в плане
+4. **Грамотный UI подход**
+   - RadioItems вместо Dropdown - подходит для 3 взаимоисключающих опций
+   - Интеграция в summary section - логичное место рядом с бюджетом
+   - Использование существующего паттерна dcc.Store для состояния
 
-5. **Реалистичная оценка времени**
-   - 10-12 часов разбито на понятные фазы
-   - Фазы упорядочены логично (сервис -> UI -> интеграция)
+5. **Корректный план реализации**
+   - 5-6 шагов с понятным scope
+   - Зависимости между шагами учтены (миграция -> service -> UI)
 
 ---
 
 ## 🔴 Критичные проблемы (Blockers)
 
-### 1. Отсутствует хранение monthly_savings_budget
+### Нет критичных проблем
 
-**Где:**
-- Файл/компонент: Solution v1, раздел "Ключевые интерфейсы"
-- Brief FR-3: "Пользователь указывает общую доступную сумму для накоплений (monthly_savings_budget)"
-
-**Проблема:**
-В решении AllocationService.calculate_allocation() принимает monthly_budget как параметр, но нигде не описано:
-- Где хранится эта настройка (User.monthly_savings_budget?)
-- Как пользователь её вводит/редактирует через UI
-- Какое значение по умолчанию
-
-В модели User поле monthly_savings_budget отсутствует. Существует только User.starting_balance.
-
-**Почему критично:**
-- Без персистентного хранения бюджета, пользователь должен вводить его каждый раз
-- Рекомендуемые взносы не могут быть рассчитаны при загрузке страницы
-- FR-3 не выполнимо: "Показывается breakdown: сколько на каждую цель"
-
-**Рекомендация:**
-Добавить в модель User:
-```python
-class User(Base):
-    # ... existing ...
-    monthly_savings_budget = Column(Numeric(10, 2), default=0, nullable=False)
-```
-
----
-
-### 2. Не определена логика автоматического сдвига приоритетов
-
-**Где:**
-- Файл: GoalService.update_priority() docstring
-- Строка solution: "Автоматически сдвигает приоритеты других целей при конфликте"
-
-**Проблема:**
-Docstring говорит "сдвигает приоритеты", но алгоритм не описан:
-- Что происходит при установке priority=2 для цели, когда priority=2 уже занят?
-- Смещаются ли все последующие (2->3, 3->4)?
-- Или только конфликтующий (2->3)?
-- Что если gaps (1, 3, 5) - нужна ли нормализация?
-
-**Почему критично:**
-- Разные интерпретации приведут к багам
-- Без четкого алгоритма тесты не покроют все edge cases
-- Конфликты приоритетов могут "сломать" сортировку в UI
-
-**Рекомендация:**
-Описать алгоритм явно с примером:
-```
-Сценарий: Цель A имеет priority=4, устанавливаем priority=2
-
-До:  B(1), C(2), D(3), A(4)
-
-1. Сдвигаем все >= new_priority на +1 (кроме самой цели)
-   B(1), C(3), D(4), A(4)
-
-2. Устанавливаем новый приоритет
-   B(1), A(2), C(3), D(4)
-
-После: B(1), A(2), C(3), D(4)
-```
+Решение не содержит блокирующих архитектурных ошибок.
 
 ---
 
 ## 🟡 Важные проблемы (Should Fix)
 
-### 3. GoalsSummary.monthly_budget не связан с источником данных
+### 1. Неопределено место применения множителя в алгоритме
 
 **Где:**
-- TypedDict GoalsSummary содержит monthly_budget
+- `app/services/allocation_service.py`
+- Секция "AllocationService модификация" в solution
 
 **Проблема:**
-GoalsSummary используется в UI, но откуда берется monthly_budget? Если это User.monthly_savings_budget (см. критичную проблему #1), то нужно явно указать связь.
+Решение говорит "Применить множитель к `monthly_needed` в алгоритме", но не определяет точно где и как. Текущий алгоритм использует `goal.monthly_contribution` (property из ORM модели). Есть два варианта:
+
+1. Применить множитель к результату `goal.monthly_contribution` внутри цикла
+2. Изменить логику property `Goal.monthly_contribution` (нежелательно - это меняет модель)
+
+**Почему важно:**
+Неправильное место применения множителя приведет к:
+- Некорректному расчету shortfall (если множитель применен только к allocated)
+- Нарушению консистентности между `monthly_contribution_needed` в AllocationResult и фактическим расчетом
 
 **Рекомендация:**
-Показать data flow: User.monthly_savings_budget → GoalsSummary.monthly_budget → UI
-
----
-
-### 4. Dashboard интеграция неполна для множественных целей
-
-**Где:**
-- Фаза 4 плана: "Обновить DashboardService.get_overview_metrics() для агрегации"
-- Текущий DashboardService.get_overview_metrics()
-
-**Проблема:**
-В текущей реализации берется только первая активная цель. Для множественных целей нужна агрегация, но формула не описана:
-- Суммировать target_amount всех целей?
-- Суммировать current_amount всех целей?
-- Как рассчитать общий savings_progress?
-
-**Рекомендация:**
-Определить формулу агрегации:
+Определить явно в решении:
 ```python
-total_target = sum(goal.target_amount for goal in active_goals)
-total_current = sum(goal.current_amount for goal in active_goals)
-savings_progress = (total_current / total_target * 100) if total_target > 0 else 0
+# Внутри цикла for goal in sorted_goals:
+base_monthly = goal.monthly_contribution  # Без множителя
+multiplier = SAVINGS_MODE_MULTIPLIERS[savings_mode]
+monthly_needed = base_monthly * multiplier  # С множителем
+
+# Далее использовать monthly_needed для allocation
 ```
 
+Также явно указать, что `monthly_contribution_needed` в AllocationResult будет содержать УЖЕ умноженное значение (adjusted), а не базовое.
+
 ---
 
-### 5. reorder_priorities() может нарушить консистентность
+### 2. SAVINGS_MODE_MULTIPLIERS - неопределено место хранения
 
 **Где:**
-- GoalService.reorder_priorities() docstring
+- Решение упоминает "Константы множителей в отдельном модуле для переиспользования"
+- Код показывает их в `app/models/database.py`
 
 **Проблема:**
-Метод принимает goal_ids_in_order, но:
-1. Что если передан неполный список (только часть целей пользователя)?
-2. Что если в списке дубликаты?
-3. Учитываются ли только ACTIVE цели или все?
-4. Что с PAUSED/COMPLETED целями - они сохраняют свой priority?
+Константы бизнес-логики (`SAVINGS_MODE_MULTIPLIERS`) размещаются в модуле моделей данных. Это нарушает разделение ответственности - модель должна содержать только структуру данных, а не бизнес-константы.
+
+**Почему важно:**
+- При изменении множителей придется редактировать `database.py` (модуль с ORM моделями)
+- Импорт констант из database.py создает неявную зависимость
+- Тесты allocation сервиса будут импортировать database.py для констант
 
 **Рекомендация:**
-- Валидация: goal_ids_in_order должен содержать ВСЕ активные цели пользователя
-- Если дубликаты → ValidationError
-- PAUSED/COMPLETED цели сохраняют свой приоритет (не участвуют в reorder)
+Создать `app/core/constants.py` или разместить константы непосредственно в `app/services/allocation_service.py`:
+```python
+# app/services/allocation_service.py
+from app.models.database import SavingsMode
+
+SAVINGS_MODE_MULTIPLIERS: dict[SavingsMode, Decimal] = {
+    SavingsMode.FREE: Decimal("1.0"),
+    SavingsMode.MEDIUM: Decimal("1.15"),
+    SavingsMode.STRICT: Decimal("1.5"),
+}
+```
+
+Альтернативно: создать `app/schema/savings_mode.py` для SavingsMode Enum и констант, оставив database.py только для ORM моделей.
 
 ---
 
-### 6. Нет UI для ввода приоритета при создании цели
+### 3. Размещение методов savings_mode в GoalService
 
 **Где:**
-- FR-2: "Приоритет задается при создании цели"
-- Solution: "при создании новой цели по умолчанию назначается приоритет = (max существующих + 1)"
+- `app/services/goal_service.py`
+- Методы `get_savings_mode()`, `update_savings_mode()`
 
 **Проблема:**
-В решении сказано "автоназначение priority = max+1", но FR-2 говорит о возможности задать приоритет. UI для явного ввода priority при создании не описан.
+Методы для работы с `User.savings_mode` размещаются в `GoalService`, хотя они работают с сущностью User, а не Goal. Это создает неконсистентность - в GoalService уже есть методы `get_savings_budget()` и `update_savings_budget()` для User, что означает что GoalService становится "частичным UserService".
+
+**Почему важно:**
+- Нарушение Single Responsibility Principle
+- При создании отдельного UserService придется мигрировать методы
+- Потенциальная путаница для разработчиков
 
 **Рекомендация:**
 Два варианта:
-1. **Простой (рекомендуется для MVP)**: Всегда автоназначать max+1, редактировать через reorder
-2. **Расширенный**: Добавить dropdown в модал создания (1, 2, 3... или "Последний")
+
+**Вариант A (минимальные изменения, OK для MVP):**
+Оставить в GoalService, но добавить docstring-комментарий:
+```python
+# User settings management (temporary in GoalService until UserService created)
+def get_savings_mode(self, user_id: int) -> SavingsMode:
+    ...
+```
+
+**Вариант B (clean architecture):**
+Создать минимальный `UserService` с методами:
+- `get_savings_budget()` (перенести из GoalService)
+- `update_savings_budget()` (перенести из GoalService)
+- `get_savings_mode()`
+- `update_savings_mode()`
+
+Рекомендую **Вариант A** для MVP с пометкой TODO для рефакторинга.
+
+---
+
+### 4. Отсутствует обновление существующих вызовов AllocationService
+
+**Где:**
+- `app/components/goals.py` - функция `_recalculate_and_render()`
+- Callback `load_goal_data()` и другие callbacks
+
+**Проблема:**
+Решение не описывает как будут обновлены существующие вызовы `AllocationService.calculate_allocation()`. Текущий вызов:
+```python
+allocation_summary = allocation_service.calculate_allocation(
+    goals=all_goals,
+    monthly_budget=budget,
+)
+```
+После изменений должен стать:
+```python
+allocation_summary = allocation_service.calculate_allocation(
+    goals=all_goals,
+    monthly_budget=budget,
+    savings_mode=current_savings_mode,  # Откуда брать?
+)
+```
+
+**Почему важно:**
+- Без передачи savings_mode всегда будет использоваться default (FREE)
+- Нужен источник текущего savings_mode для каждого вызова calculate_allocation
+
+**Рекомендация:**
+Добавить в решение:
+
+1. Расширить `_recalculate_and_render()` параметром `savings_mode`:
+```python
+def _recalculate_and_render(session, user_id: int, budget: Decimal, savings_mode: SavingsMode):
+```
+
+2. Во всех callbacks получать savings_mode из GoalService или dcc.Store:
+```python
+savings_mode = service.get_savings_mode(user_id)
+```
+
+3. Добавить dcc.Store для savings_mode по аналогии с goals-budget-store:
+```python
+dcc.Store(id="goals-savings-mode-store", data=None),
+```
 
 ---
 
 ## 🟢 Незначительные замечания (Optional)
 
-### 7. Отсутствует пагинация для списка целей
+### 5. SavingsModeInfo TypedDict - избыточен
 
-При 20+ целях UI может стать медленным и неудобным. Добавить в план: "Показать все" кнопка или collapsible.
+**Где:**
+- `app/schema/goals.py` (предлагаемый)
+- Секция "Модель данных" в solution
 
-### 8. TypedDicts определены в разных местах
+**Проблема:**
+`SavingsModeInfo` TypedDict избыточен. Информация о режимах (label, description, multiplier) может быть hardcoded в UI коде, так как это display-only данные для 3 фиксированных значений.
 
-AllocationResult, AllocationSummary в allocation_service.py; GoalDisplayData, GoalsSummary в goals.py. Рассмотреть централизацию.
+**Рекомендация:**
+Убрать SavingsModeInfo, использовать простой dict в UI:
+```python
+MODE_OPTIONS = {
+    SavingsMode.FREE: {"label": "Свободный (100%)", "description": "..."},
+    SavingsMode.MEDIUM: {"label": "Средний (115%)", "description": "..."},
+    SavingsMode.STRICT: {"label": "Строгий (150%)", "description": "..."},
+}
+```
+
+---
+
+### 6. adjusted_contribution в AllocationResult - спорная необходимость
+
+**Где:**
+- Расширение AllocationResult
+
+**Проблема:**
+`adjusted_contribution` и `savings_mode_multiplier` в AllocationResult могут быть избыточны. Если `monthly_contribution_needed` уже содержит умноженное значение, дополнительные поля создают дублирование.
+
+**Рекомендация:**
+Оценить необходимость:
+- Если UI нужно показывать "базовый взнос: X, с режимом: Y" - поля нужны
+- Если достаточно показывать итоговый взнос - убрать поля, `monthly_contribution_needed` уже adjusted
+
+---
+
+### 7. Риск "Режим не применяется при первой загрузке" - недостаточно раскрыт
+
+**Где:**
+- Таблица "Риски и mitigation"
+
+**Проблема:**
+Mitigation "Инициализировать mode из БД в `load_goal_data()` callback" не раскрывает детали. Как именно передавать mode в `_recalculate_and_render()`? Через dcc.Store?
+
+**Рекомендация:**
+Уточнить flow:
+1. `load_goal_data()` читает `savings_mode` из БД
+2. Передает в `_recalculate_and_render()`
+3. Сохраняет в `goals-savings-mode-store`
+4. Callback изменения режима обновляет Store и вызывает пересчет
+
+---
+
+## 📊 Детальный анализ по аспектам
+
+### Аспект 1: Соответствие требованиям
+
+**Статус:** ✅ Хорошо
+
+**Детали:**
+- Requirement 1 (User.savings_mode): Покрыт полностью
+- Requirement 2 (AllocationService.calculate_allocation с savings_mode): Покрыт
+- Requirement 3 (UI селектор): Покрыт
+- Requirement 4 (Пересчет при изменении): Описан концептуально
+- Requirement 5 (Миграция): Покрыт
+- Requirement 6 (Unit тесты): Покрыт
+- Requirement 7 (Существующие тесты): Обеспечено default параметром
+
+**Комментарий:**
+Все функциональные требования адресованы. Нефункциональные требования (производительность, идемпотентность) также учтены.
+
+### Аспект 2: Архитектурное качество
+
+**Статус:** ⚠️ Проблемы (см. важные замечания 2, 3)
+
+**Детали:**
+- SOLID:
+  - S (Single Responsibility): Нарушение - GoalService содержит User-методы
+  - O (Open/Closed): ОК - расширение без модификации core логики
+  - L (Liskov): N/A
+  - I (Interface Segregation): N/A
+  - D (Dependency Inversion): ОК - зависимость от абстракций (SavingsMode enum)
+- Coupling: Низкий - минимальные изменения существующих интерфейсов
+- Cohesion: Средний - константы в database.py снижают cohesion
+
+**Проблемы:**
+- Размещение SAVINGS_MODE_MULTIPLIERS в database.py
+- Методы User в GoalService
+
+### Аспект 3: Производительность
+
+**Статус:** ✅ Отлично
+
+**Детали:**
+- Сложность алгоритмов: O(n) где n = количество целей (без изменений)
+- Bottlenecks: Нет - множитель применяется в памяти, без доп. SQL запросов
+- Масштабируемость: ОК - savings_mode передается параметром, не читается из БД в цикле
+
+### Аспект 4: Обработка ошибок
+
+**Статус:** ✅ Хорошо
+
+**Детали:**
+- Покрытие ошибок: 80%
+- Edge cases: Частично
+  - Default SavingsMode.FREE для обратной совместимости
+  - ValidationError при некорректном mode (упомянуто)
+  - Не описано: что если User не существует при get_savings_mode()
+- Fallback стратегии: Default параметр в calculate_allocation()
+
+### Аспект 5: Безопасность
+
+**Статус:** ✅ Отлично
+
+**Детали:**
+- Input validation: Да - через Enum (нельзя передать произвольное значение)
+- SQL injection protection: Да - SQLAlchemy ORM
+- Secrets management: N/A
+
+### Аспект 6: Сложность реализации
+
+**Статус:** ✅ Хорошо
+
+**Детали:**
+- Реалистичность оценки: Да - 5-6 шагов адекватны для scope
+- Скрытая сложность: Частично - обновление всех callbacks не детализировано
+- Зависимости: Проверены - новые библиотеки не требуются
+
+### Аспект 7: Альтернативные подходы
+
+**Статус:** ⚠️ Частично
+
+**Детали:**
+- Рассмотрены альтернативы: Нет явно
+- Обоснование выбора: Нет явно
+
+---
+
+## 🔄 Альтернативные подходы
+
+### Подход A: Множитель как property модели Goal
+
+**Идея:**
+Вместо изменения AllocationService, добавить property `Goal.adjusted_monthly_contribution(savings_mode)` или вычислять в модели.
+
+**Плюсы:**
+- Инкапсуляция логики в модели
+- AllocationService не знает о режимах
+
+**Минусы:**
+- Property не может принимать параметры (нужен метод)
+- Нарушает текущий паттерн (calculated properties без параметров)
+- Goal не должен знать о savings_mode пользователя
+
+**Почему текущий подход лучше:**
+Текущий подход (параметр в AllocationService) корректнее с точки зрения separation of concerns.
+
+### Подход B: Создание SavingsModeService
+
+**Идея:**
+Отдельный сервис для режимов накопления с методами:
+- `get_mode(user_id)`
+- `update_mode(user_id, mode)`
+- `apply_multiplier(base_amount, mode)`
+
+**Плюсы:**
+- Чистое разделение ответственности
+- Легко расширять (например, кастомные множители)
+
+**Минусы:**
+- Overengineering для 3 простых режимов
+- Дополнительный сервис для 4 строк кода
+
+**Рекомендация:**
+НЕ рекомендую. Текущий подход (методы в GoalService) достаточен для MVP.
 
 ---
 
 ## ❓ Вопросы для архитектора
 
-1. **monthly_savings_budget**: Должен ли храниться в User модели или предполагается вводить при каждом посещении страницы Goals?
+1. **Отображение базового vs adjusted взноса:** Нужно ли UI показывать оба значения (например, "Базовый взнос: 10000, С режимом STRICT: 15000") или достаточно итогового?
 
-2. **Приоритеты PAUSED целей**: Участвуют ли они в allocation? Сохраняют ли свой priority при reorder?
+2. **Изменение режима и активные цели:** Если пользователь меняет режим с STRICT на FREE, а его бюджет теперь не покрывает все цели - нужно ли показывать предупреждение?
 
-3. **UI для приоритетов**: Предпочтительный подход — числовой ввод, drag-and-drop, или кнопки вверх/вниз?
-
-4. **Частичный reorder**: Что если пользователь хочет изменить приоритет только одной цели через update_priority(), а не всех через reorder_priorities()?
+3. **Tooltips vs inline descriptions:** Предпочтительнее tooltips при hover на RadioItems или inline текст под каждой опцией?
 
 ---
 
 ## 📋 Рекомендации для следующей итерации
 
 ### Обязательно:
-1. **Добавить monthly_savings_budget в User модель** и описать UI для его ввода/редактирования
-2. **Описать алгоритм сдвига приоритетов** в update_priority() с примером
+1. Уточнить точку применения множителя в алгоритме AllocationService (внутри цикла, к `monthly_needed`)
+2. Определить место хранения `SAVINGS_MODE_MULTIPLIERS` (рекомендую: `allocation_service.py`)
+3. Описать обновление `_recalculate_and_render()` и callbacks для передачи `savings_mode`
 
 ### Желательно:
-3. Уточнить формулу агрегации для Dashboard (savings_progress при >1 цели)
-4. Добавить валидацию для reorder_priorities() (дубликаты, неполный список)
-5. Определить поведение для PAUSED целей в контексте allocation
+4. Добавить dcc.Store для savings_mode (`goals-savings-mode-store`)
+5. Добавить комментарий TODO о переносе User-методов в отдельный UserService
 
 ### Опционально:
-6. Централизовать TypedDicts в отдельный модуль
-7. Добавить пагинацию в план реализации (если >10 целей)
+6. Убрать избыточный SavingsModeInfo TypedDict
+7. Оценить необходимость `adjusted_contribution` в AllocationResult
+
+---
+
+## 🔄 Изменения с предыдущей итерации
+(N = 1, это первая итерация)
+
+N/A - первая версия решения.
+
+---
+
+## Заметки критика
+
+Решение демонстрирует хорошее понимание существующей архитектуры проекта и следует установленным паттернам (Service Layer, TypedDicts, Pattern-Matching callbacks). Основные замечания касаются organization кода (где хранить константы, где размещать методы), а не архитектурных ошибок.
+
+Особенно ценно:
+- Обратная совместимость через default параметр
+- Использование Python Enum для type safety
+- Учет существующих паттернов миграций
+
+Главный gap - недостаточная детализация интеграции с UI callbacks, что потребует уточнения перед началом реализации.

@@ -1,541 +1,339 @@
-# Solution v2: Множественные цели с приоритетным распределением взносов (Revised)
+# Solution v2: Savings Mode с детализированной интеграцией и точным применением множителя
 
 ## Обзор решения
-
-Решение расширяет систему накопительных целей, добавляя поддержку множественных целей с приоритетами и автоматическим распределением бюджета накоплений. Ключевые изменения относительно v1: добавлено поле `monthly_savings_budget` в модель User, детально описан алгоритм сдвига приоритетов при изменении, определено поведение PAUSED целей (не участвуют в allocation), и UI реализует drag-and-drop для управления порядком приоритетов.
-
-## Учтённые замечания из критики v1
-
-| Замечание из critique v1 | Как решено |
-|--------------------------|------------|
-| 🔴 **1. Отсутствует хранение monthly_savings_budget** | Добавлено поле `User.monthly_savings_budget` в модель (Numeric(10,2), default=0). UI для редактирования — модал настроек на странице Goals |
-| 🔴 **2. Не определена логика сдвига приоритетов** | Детальный алгоритм shift-down с примером: при установке priority=2 все цели с priority>=2 сдвигаются на +1 |
-| 🟡 **3. GoalsSummary.monthly_budget не связан с источником** | Явно указан data flow: User.monthly_savings_budget → GoalsSummary.monthly_budget → UI |
-| 🟡 **4. Dashboard интеграция неполна** | Формула агрегации: total_target = sum(all goals), total_current = sum(all goals), progress = total_current/total_target |
-| 🟡 **5. reorder_priorities() может нарушить консистентность** | Добавлена валидация: список должен содержать ВСЕ активные цели, проверка дубликатов, PAUSED цели сохраняют priority |
-| 🟡 **6. Нет UI для ввода приоритета при создании** | Решение: auto-assign (max+1) при создании, drag-and-drop для изменения порядка |
-
-## Ответы на вопросы критика
-
-1. **Вопрос:** monthly_savings_budget — хранить в User модели или вводить каждый раз?
-   **Ответ:** Хранить в User модели (добавить поле `monthly_savings_budget = Column(Numeric(10, 2), default=0)`). Это позволяет рассчитывать рекомендуемые взносы при загрузке страницы без ввода пользователем. Редактирование через модал настроек на странице Goals.
-
-2. **Вопрос:** Участвуют ли PAUSED цели в allocation? Сохраняют ли priority при reorder?
-   **Ответ:** PAUSED цели НЕ участвуют в allocation (только ACTIVE). При reorder_priorities() PAUSED цели сохраняют свой текущий priority и не входят в список для переупорядочивания. Это логично: приостановленные цели временно "заморожены", но при возобновлении вернутся с тем же приоритетом.
-
-3. **Вопрос:** UI для приоритетов — числовой ввод, drag-and-drop или кнопки?
-   **Ответ:** Drag-and-drop для карточек целей. Интуитивно понятен, визуален, не требует знания текущих значений priority. Используем библиотеку `dash-draggable` или нативные HTML5 drag events через callbacks.
-
-4. **Вопрос:** Приоритет при создании — автоназначение или UI выбор?
-   **Ответ:** Auto-assign (max+1). Новая цель получает самый низкий приоритет. Пользователь может изменить порядок через drag-and-drop после создания. Это упрощает UX создания цели и избегает конфликтов.
+Режим накоплений (`savings_mode`) добавляется как String поле в модель User (вместо SQLAlchemy Enum для совместимости с SQLite миграциями). AllocationService расширяется параметром `savings_mode`, который применяет множитель к `monthly_contribution` каждой цели внутри цикла распределения. Константы множителей хранятся непосредственно в `allocation_service.py`. UI получает RadioItems селектор рядом с кнопкой "Настроить бюджет" в summary section.
 
 ## Архитектура
 
 ### Компоненты
 
-**1. User модель (расширение)**
-- Новое поле `monthly_savings_budget: Decimal` для хранения бюджета накоплений
-- Default = 0 (пользователь должен настроить)
+**1. Модель данных (`app/models/database.py`)**
+- Поле `User.savings_mode` как `Column(String(20), default="free", nullable=False)`
+- Выбран String вместо SQLAlchemy Enum для упрощения SQLite миграций (ALTER TABLE не поддерживает Enum)
+- Валидация значений выполняется на уровне сервиса
 
-**2. GoalService (расширение)**
-- Снятие проверки D009 (ограничение одной цели)
-- Новый метод `update_priority()` с алгоритмом shift-down
-- Новый метод `reorder_priorities()` с валидацией
-- Новый метод `get_next_priority()` для auto-assign
-- Обновление сортировки в `get_all_by_user()`
+**2. AllocationService (`app/services/allocation_service.py`)**
+- Новый параметр `savings_mode: str = "free"` в `calculate_allocation()`
+- Константы `SAVINGS_MODE_MULTIPLIERS` определены в этом модуле
+- Множитель применяется внутри цикла: `monthly_needed = goal.monthly_contribution * multiplier`
+- `monthly_contribution_needed` в AllocationResult содержит adjusted (умноженное) значение
 
-**3. AllocationService (новый)**
-- Жадный алгоритм распределения бюджета по приоритетам
-- Учитывает только ACTIVE цели
-- Возвращает AllocationSummary с детализацией по каждой цели
+**3. GoalService (`app/services/goal_service.py`)**
+- Методы `get_savings_mode(user_id)` и `update_savings_mode(user_id, mode)`
+- TODO комментарий о переносе в отдельный UserService
+- Валидация mode через константу `VALID_SAVINGS_MODES`
 
-**4. UserService (новый)**
-- Метод `update_savings_budget()` для изменения monthly_savings_budget
-- Метод `get_savings_budget()` для получения текущего значения
-
-**5. Goals UI (рефакторинг)**
-- Список карточек с drag-and-drop для приоритетов
-- Модал настроек бюджета накоплений
-- Сводная секция с общим прогрессом
-- Pattern-Matching IDs с простыми идентификаторами (не ALL)
-
-**6. DashboardService (обновление)**
-- Агрегация savings по всем активным целям
+**4. Goals UI (`app/components/goals.py`)**
+- `dcc.Store(id="goals-savings-mode-store")` для хранения текущего режима
+- RadioItems селектор в summary section
+- Callback `save_savings_mode()` с пересчетом allocation
+- Функция `_recalculate_and_render()` расширена параметром `savings_mode`
 
 ### Диаграмма взаимодействия
-
 ```
-+------------------+     +------------------+     +------------------+
-|    Goals UI      |---->|   GoalService    |---->|     Database     |
-|   (goals.py)     |     | (goal_service)   |     | (User, Goal, ..)|
-+------------------+     +------------------+     +------------------+
-        |                        ^
-        |                        |
-        v                        |
-+------------------+             |
-|AllocationService |-------------+
-| (allocation_svc) |
-+------------------+
-        ^
-        |
-+------------------+
-|   UserService    |---- User.monthly_savings_budget
-|  (user_service)  |
-+------------------+
+Page Load (/goals)
+        ↓
+load_goal_data() callback
+        ↓
+GoalService.get_savings_mode(user_id) → current_mode
+        ↓
+_recalculate_and_render(session, user_id, budget, savings_mode=current_mode)
+        ↓
+AllocationService.calculate_allocation(goals, budget, savings_mode)
+        ↓
+for goal in sorted_goals:
+    multiplier = SAVINGS_MODE_MULTIPLIERS[savings_mode]
+    monthly_needed = goal.monthly_contribution * multiplier  ← Точка применения
+    ...
+        ↓
+Return AllocationSummary (monthly_contribution_needed = adjusted)
+        ↓
+UI updated, stores initialized (budget, allocation, savings_mode)
 
-Flow создания цели:
-1. UI -> GoalService.create_goal() (без проверки лимита)
-2. GoalService.get_next_priority() -> max + 1
-3. GoalService -> DB (INSERT Goal с auto-priority)
-4. UI обновляет список карточек
+---
 
-Flow изменения приоритета (drag-and-drop):
-1. UI получает новый порядок карточек
-2. UI -> GoalService.reorder_priorities(goal_ids_in_order)
-3. GoalService валидирует список (все ACTIVE цели, без дубликатов)
-4. GoalService обновляет priorities в транзакции
-5. UI -> AllocationService.calculate_allocation()
-6. UI обновляет рекомендуемые взносы на карточках
-
-Flow расчета рекомендаций:
-1. UI загружается
-2. UI -> UserService.get_savings_budget()
-3. UI -> GoalService.get_all_by_user(status=ACTIVE)
-4. UI -> AllocationService.calculate_allocation(goals, budget)
-5. UI отображает карточки с allocated_amount
+User changes mode (RadioItems)
+        ↓
+save_savings_mode() callback
+        ↓
+GoalService.update_savings_mode(user_id, new_mode)
+        ↓
+DB commit (users.savings_mode updated)
+        ↓
+_recalculate_and_render(session, user_id, budget, savings_mode=new_mode)
+        ↓
+UI updated with new allocation badges
 ```
 
 ## Файловая структура
-
 ```
-app/models/database.py           — ИЗМЕНЕНИЕ: добавить User.monthly_savings_budget
-app/services/allocation_service.py  — НОВЫЙ: расчет распределения бюджета
-app/services/user_service.py     — НОВЫЙ: управление настройками пользователя
-app/services/goal_service.py     — ИЗМЕНЕНИЕ: снять D009, добавить методы приоритетов
-app/services/__init__.py         — ИЗМЕНЕНИЕ: экспорт новых сервисов
-app/components/goals.py          — ИЗМЕНЕНИЕ: рефакторинг UI для списка целей
-app/components/dashboard.py      — ИЗМЕНЕНИЕ: агрегация по всем целям
-app/assets/goals.css             — ИЗМЕНЕНИЕ: стили для списка карточек, drag-and-drop
-tests/test_allocation_service.py — НОВЫЙ: тесты распределения (min 7)
-tests/test_goal_service.py       — ИЗМЕНЕНИЕ: тесты множественных целей (min 6)
-tests/test_user_service.py       — НОВЫЙ: тесты настроек пользователя (min 3)
+app/models/database.py              — +User.savings_mode (String, default="free")
+app/services/allocation_service.py  — +SAVINGS_MODE_MULTIPLIERS, +параметр savings_mode
+app/services/goal_service.py        — +get_savings_mode(), +update_savings_mode(), +VALID_SAVINGS_MODES
+app/services/__init__.py            — экспорт VALID_SAVINGS_MODES
+app/components/goals.py             — +dcc.Store, +RadioItems, +callback, обновить _recalculate_and_render
+app/assets/goals.css                — +стили для mode selector (~15 строк)
+scripts/migrate_002_savings_mode.py — миграция БД (новый файл)
+tests/test_allocation_service.py    — +3 теста для режимов
+tests/test_savings_mode.py          — +5 тестов для GoalService методов (новый файл)
 ```
 
 ## Ключевые интерфейсы
 
 ```python
-# app/models/database.py (дополнение к User)
-
+# app/models/database.py
 class User(Base):
     # ... existing fields ...
-    monthly_savings_budget = Column(Numeric(10, 2), default=0, nullable=False)
-    # Бюджет на накопления в месяц. Используется AllocationService
-    # для расчета рекомендуемых взносов по целям.
+    savings_mode = Column(String(20), default="free", nullable=False)
+    # Допустимые значения: "free", "medium", "strict"
+    # Валидация на уровне GoalService.update_savings_mode()
 
 
-# app/services/user_service.py (НОВЫЙ)
-
-class UserService:
-    """Сервис для управления настройками пользователя."""
-
-    def __init__(self, session: Session):
-        self.session = session
-
-    def get_savings_budget(self, user_id: int) -> Decimal:
-        """Получает месячный бюджет накоплений пользователя.
-
-        Returns:
-            Decimal: monthly_savings_budget или 0 если пользователь не найден
-        """
-        ...
-
-    def update_savings_budget(
-        self, user_id: int, budget: Decimal
-    ) -> User:
-        """Обновляет бюджет накоплений.
-
-        Args:
-            user_id: ID пользователя
-            budget: Новое значение бюджета (>= 0)
-
-        Raises:
-            ValidationError: Если budget < 0 или пользователь не найден
-        """
-        ...
-
-
-# app/services/allocation_service.py (НОВЫЙ)
-
+# app/services/allocation_service.py
 from decimal import Decimal
-from typing import TypedDict
 
-from app.models.database import Goal
-
-
-class AllocationResult(TypedDict):
-    """Результат распределения для одной цели."""
-    goal_id: int
-    goal_name: str
-    priority: int
-    monthly_contribution_needed: Decimal  # сколько нужно по формуле Goal.monthly_contribution
-    allocated_amount: Decimal             # сколько выделено из бюджета
-    is_fully_funded: bool                 # allocated >= needed
-    shortfall: Decimal                    # max(0, needed - allocated)
-
-
-class AllocationSummary(TypedDict):
-    """Сводка распределения бюджета."""
-    total_budget: Decimal                 # User.monthly_savings_budget
-    total_allocated: Decimal              # сумма allocated по всем целям
-    total_needed: Decimal                 # сумма needed по всем целям
-    total_shortfall: Decimal              # сумма shortfall по всем целям
-    results: list[AllocationResult]       # детализация по целям
-    all_goals_funded: bool                # total_shortfall == 0
+# Константы бизнес-логики — рядом с алгоритмом использования
+SAVINGS_MODE_MULTIPLIERS: dict[str, Decimal] = {
+    "free": Decimal("1.0"),     # 100% — минимальные взносы
+    "medium": Decimal("1.15"),  # 115% — буфер для страховки
+    "strict": Decimal("1.5"),   # 150% — максимизация накоплений
+}
 
 
 class AllocationService:
-    """Сервис распределения бюджета накоплений между целями.
-
-    Использует жадный алгоритм: цели обрабатываются в порядке priority (1, 2, 3...),
-    каждая получает минимум из (needed, remaining_budget).
-    Только ACTIVE цели участвуют в распределении.
-    """
-
     def calculate_allocation(
         self,
         goals: list[Goal],
         monthly_budget: Decimal,
+        savings_mode: str = "free",  # NEW: default для обратной совместимости
     ) -> AllocationSummary:
-        """Распределяет бюджет между целями по приоритету.
+        """Распределяет бюджет с учетом режима накоплений.
 
         Args:
-            goals: Список АКТИВНЫХ целей, отсортированных по priority ASC
-            monthly_budget: Общий месячный бюджет (User.monthly_savings_budget)
+            goals: Список целей для распределения.
+            monthly_budget: Месячный бюджет на накопления.
+            savings_mode: Режим накоплений ("free", "medium", "strict").
 
         Returns:
-            AllocationSummary: Сводка с детализацией по каждой цели
-
-        Note:
-            - Если goals пустой, возвращает summary с пустым results
-            - Если budget <= 0, все цели получают allocated=0
-            - Цели с monthly_contribution_needed=0 (достигнутые) пропускаются
+            AllocationSummary: Сводка распределения.
+            monthly_contribution_needed в результатах содержит ADJUSTED значение.
         """
         ...
 
 
-# app/services/goal_service.py (дополнения)
+# app/services/goal_service.py
+# TODO: Перенести методы User в отдельный UserService при рефакторинге
+VALID_SAVINGS_MODES = {"free", "medium", "strict"}
+
 
 class GoalService:
-    # ... существующие методы (create_goal без D009 проверки) ...
-
-    def update_priority(self, goal_id: int, new_priority: int) -> Goal:
-        """Изменяет приоритет цели с автоматическим сдвигом конфликтующих.
-
-        Алгоритм shift-down:
-        1. Получить текущий priority цели (old_priority)
-        2. Если new_priority == old_priority, ничего не делать
-        3. Если new_priority < old_priority (повышение приоритета):
-           - Сдвинуть все цели с priority >= new_priority AND < old_priority на +1
-        4. Если new_priority > old_priority (понижение приоритета):
-           - Сдвинуть все цели с priority > old_priority AND <= new_priority на -1
-        5. Установить new_priority для цели
-
-        Args:
-            goal_id: ID цели
-            new_priority: Новый приоритет (>= 1)
+    def get_savings_mode(self, user_id: int) -> str:
+        """Получает режим накоплений пользователя.
 
         Returns:
-            Goal: Обновленная цель
+            str: "free", "medium" или "strict"
 
         Raises:
-            ValidationError: Если new_priority < 1 или цель не найдена
+            ValidationError: Если пользователь не найден
         """
         ...
 
-    def reorder_priorities(
-        self, user_id: int, goal_ids_in_order: list[int]
-    ) -> list[Goal]:
-        """Переупорядочивает приоритеты АКТИВНЫХ целей.
+    def update_savings_mode(self, user_id: int, mode: str) -> None:
+        """Обновляет режим накоплений пользователя.
 
         Args:
-            user_id: ID пользователя
-            goal_ids_in_order: Список ID целей в желаемом порядке
-                              [0] -> priority=1, [1] -> priority=2, etc.
-
-        Returns:
-            list[Goal]: Обновленные цели в новом порядке
+            mode: Новый режим ("free", "medium", "strict")
 
         Raises:
-            ValidationError:
-                - Если список содержит дубликаты
-                - Если список не содержит ВСЕ активные цели пользователя
-                - Если какой-то goal_id не принадлежит пользователю
-
-        Note:
-            PAUSED/COMPLETED цели НЕ должны быть в списке и сохраняют свой priority.
+            ValidationError: Если пользователь не найден или mode невалидный
         """
+        if mode not in VALID_SAVINGS_MODES:
+            raise ValidationError(
+                f"Недопустимый режим: {mode}. Допустимые: {VALID_SAVINGS_MODES}",
+                field="savings_mode"
+            )
         ...
 
-    def get_next_priority(self, user_id: int) -> int:
-        """Возвращает следующий приоритет для новой цели.
 
-        Returns:
-            int: max(priority среди ACTIVE целей) + 1, или 1 если нет активных
-        """
-        ...
+# app/components/goals.py
+def _recalculate_and_render(
+    session,
+    user_id: int,
+    budget: Decimal,
+    savings_mode: str = "free",  # NEW PARAM
+):
+    """Пересчитывает allocation и возвращает обновленный UI.
 
-    def create_goal(
-        self,
-        user_id: int,
-        name: str,
-        target_amount: Decimal,
-        target_date: date,
-    ) -> Goal:
-        """Создает цель с автоматическим назначением приоритета.
-
-        Изменения относительно текущей версии:
-        - УБРАНА проверка active_goals_count >= 1 (D009)
-        - priority = get_next_priority(user_id) вместо hardcoded 1
-        """
-        ...
+    Args:
+        savings_mode: Режим накоплений для применения множителя
+    """
+    ...
+    allocation_summary = allocation_service.calculate_allocation(
+        goals=all_goals,
+        monthly_budget=budget,
+        savings_mode=savings_mode,  # Передаем режим
+    )
+    ...
 ```
 
 ## Модель данных
 
-### Изменения в User
-
+**Точка применения множителя в AllocationService.calculate_allocation():**
 ```python
-# app/models/database.py
+# Внутри цикла for goal in sorted_goals:
+# Получаем множитель для текущего режима
+multiplier = SAVINGS_MODE_MULTIPLIERS.get(savings_mode, Decimal("1.0"))
 
-class User(Base):
-    """Модель пользователя."""
-    __tablename__ = "users"
+# Применяем множитель к базовому monthly_contribution
+base_monthly = goal.monthly_contribution  # Property из ORM модели
+monthly_needed = base_monthly * multiplier  # ADJUSTED значение
 
-    id = Column(Integer, primary_key=True)
-    email = Column(String(255), unique=True, nullable=False)
-    name = Column(String(100), nullable=False)
-    starting_balance = Column(Numeric(10, 2), default=0, nullable=False)
-
-    # НОВОЕ ПОЛЕ
-    monthly_savings_budget = Column(Numeric(10, 2), default=0, nullable=False)
-    # Ежемесячный бюджет на накопления.
-    # Используется AllocationService для расчета рекомендуемых взносов.
-    # default=0 означает "не настроено" - UI покажет подсказку.
-
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    # ... relationships ...
+# Далее monthly_needed используется для:
+# 1. Расчета allocated = min(monthly_needed, remaining_budget)
+# 2. Формирования result.monthly_contribution_needed = monthly_needed (adjusted!)
+# 3. Подсчета total_needed += monthly_needed
+# 4. Расчета shortfall = max(0, monthly_needed - allocated)
 ```
 
-### TypedDicts для UI
-
+**MODE_OPTIONS для UI (константа в goals.py):**
 ```python
-# app/components/goals.py (расширение)
-
-class GoalDisplayData(TypedDict):
-    """Данные для отображения цели в UI."""
-    id: int
-    name: str
-    target_amount: Decimal
-    current_amount: Decimal
-    target_date: date
-    status: str
-    progress_percentage: float
-    monthly_contribution: Decimal  # нужно по формуле
-    days_remaining: int
-    is_completed: bool
-    priority: int                  # ДОБАВИТЬ
-    allocated_amount: Decimal | None  # ДОБАВИТЬ - рекомендуемый взнос из бюджета
-
-
-class GoalsSummary(TypedDict):
-    """Сводка по всем активным целям."""
-    total_goals_count: int
-    total_target_amount: Decimal       # sum(target_amount) всех активных
-    total_current_amount: Decimal      # sum(current_amount) всех активных
-    total_progress_percentage: float   # total_current / total_target * 100
-    monthly_budget: Decimal            # User.monthly_savings_budget
-    total_allocated: Decimal           # сумма распределенного бюджета
-    total_shortfall: Decimal           # дефицит бюджета
-    all_goals_on_track: bool           # all_goals_funded
-```
-
-## Алгоритм сдвига приоритетов
-
-### update_priority() — shift-down алгоритм
-
-**Сценарий 1: Повышение приоритета (new < old)**
-
-```
-До:  B(1), C(2), D(3), A(4)
-Цель A получает priority=2
-
-1. old_priority=4, new_priority=2
-2. Сдвигаем все с priority >= 2 AND < 4 на +1:
-   - C(2) -> C(3)
-   - D(3) -> D(4)
-   Результат: B(1), C(3), D(4), A(4)
-
-3. Устанавливаем A.priority = 2
-   Результат: B(1), A(2), C(3), D(4)
-
-После: B(1), A(2), C(3), D(4)
-```
-
-**Сценарий 2: Понижение приоритета (new > old)**
-
-```
-До:  A(1), B(2), C(3), D(4)
-Цель A получает priority=3
-
-1. old_priority=1, new_priority=3
-2. Сдвигаем все с priority > 1 AND <= 3 на -1:
-   - B(2) -> B(1)
-   - C(3) -> C(2)
-   Результат: A(1), B(1), C(2), D(4)
-
-3. Устанавливаем A.priority = 3
-   Результат: B(1), C(2), A(3), D(4)
-
-После: B(1), C(2), A(3), D(4)
-```
-
-### reorder_priorities() — bulk update
-
-```python
-def reorder_priorities(self, user_id: int, goal_ids_in_order: list[int]) -> list[Goal]:
-    # Валидация
-    if len(goal_ids_in_order) != len(set(goal_ids_in_order)):
-        raise ValidationError("Список содержит дубликаты goal_id")
-
-    active_goals = self.get_all_by_user(user_id, status=GoalStatus.ACTIVE)
-    active_ids = {g.id for g in active_goals}
-
-    if set(goal_ids_in_order) != active_ids:
-        raise ValidationError(
-            "Список должен содержать ровно все активные цели пользователя"
-        )
-
-    # Bulk update priorities
-    goals_dict = {g.id: g for g in active_goals}
-    updated = []
-
-    for new_priority, goal_id in enumerate(goal_ids_in_order, start=1):
-        goal = goals_dict[goal_id]
-        goal.priority = new_priority
-        updated.append(goal)
-
-    self.session.flush()
-    return updated
+MODE_OPTIONS = {
+    "free": {
+        "label": "Свободный (100%)",
+        "description": "Минимальные взносы точно по графику",
+    },
+    "medium": {
+        "label": "Средний (115%)",
+        "description": "+15% буфер для непредвиденных расходов",
+    },
+    "strict": {
+        "label": "Строгий (150%)",
+        "description": "Максимизация накоплений для раннего достижения",
+    },
+}
 ```
 
 ## Обработка ошибок
 
-```python
-# Использовать существующий ValidationError из app.core
+**GoalService.get_savings_mode():**
+- ValidationError если User не существует (аналогично get_savings_budget)
+- Default fallback не нужен — поле имеет NOT NULL DEFAULT "free"
 
-# Сценарии ошибок:
+**GoalService.update_savings_mode():**
+- ValidationError если User не существует
+- ValidationError если mode не в VALID_SAVINGS_MODES
 
-# AllocationService
-# - monthly_budget < 0 -> ValidationError("Бюджет накоплений не может быть отрицательным")
-# - goals содержит не ACTIVE -> логируем warning, пропускаем (defensive)
+**AllocationService.calculate_allocation():**
+- Fallback на Decimal("1.0") если savings_mode не найден в MULTIPLIERS
+- Логирование warning при неизвестном режиме (для обнаружения багов)
+- Обратная совместимость через default parameter
 
-# GoalService.update_priority()
-# - new_priority < 1 -> ValidationError("Приоритет должен быть не меньше 1")
-# - goal_id не найден -> ValidationError(f"Цель с ID {goal_id} не найдена")
-# - goal не принадлежит user -> ValidationError("Цель не принадлежит пользователю")
-
-# GoalService.reorder_priorities()
-# - Дубликаты в списке -> ValidationError("Список содержит дубликаты")
-# - Неполный список -> ValidationError("Список должен содержать все активные цели")
-# - goal_id не принадлежит user -> ValidationError("Цель X не принадлежит пользователю")
-
-# UserService.update_savings_budget()
-# - budget < 0 -> ValidationError("Бюджет накоплений не может быть отрицательным")
-# - user_id не найден -> ValidationError("Пользователь не найден")
-
-# UI обработка ошибок:
-# - Все ValidationError показываются через goal-error-alert
-# - Timeout на drag-and-drop операции (если запрос завис > 5 сек)
-# - Optimistic UI update с откатом при ошибке сервера
-```
+**UI:**
+- RadioItems не позволяет выбрать невалидный режим (options фиксированы)
+- Graceful handling если savings_mode из БД невалидный (показать как "free")
 
 ## План реализации
 
-1. **Фаза 1: Модель и UserService** (~1.5ч)
-   - Добавить `monthly_savings_budget` в User модель
-   - Создать `app/services/user_service.py` с методами get/update
-   - Написать unit тесты (3 теста)
-   - Обновить `app/services/__init__.py`
+1. **Миграция БД и модель** (1 шаг)
+   - Добавить `User.savings_mode = Column(String(20), default="free", nullable=False)`
+   - Создать `scripts/migrate_002_savings_mode.py` (по образцу migrate_001)
+   - Idempotent check через `column_exists()`
+   - Тест миграции (1 unit test)
 
-2. **Фаза 2: AllocationService** (~2ч)
-   - Создать `app/services/allocation_service.py`
-   - Реализовать `calculate_allocation()` с жадным алгоритмом
-   - Написать unit тесты (7 тестов):
-     - Пустой список целей
-     - Одна цель, бюджет покрывает
-     - Одна цель, бюджет не покрывает
-     - Несколько целей, полное покрытие
-     - Несколько целей, частичное покрытие
-     - Нулевой бюджет
-     - Цель с monthly_contribution=0 (достигнута)
-   - Обновить `app/services/__init__.py`
+2. **GoalService расширение** (1 шаг)
+   - Добавить константу `VALID_SAVINGS_MODES = {"free", "medium", "strict"}`
+   - Добавить `get_savings_mode(user_id)` метод
+   - Добавить `update_savings_mode(user_id, mode)` метод с валидацией
+   - 4 unit теста в `tests/test_savings_mode.py`:
+     - test_get_savings_mode_default
+     - test_get_savings_mode_user_not_found
+     - test_update_savings_mode_success
+     - test_update_savings_mode_invalid_mode
 
-3. **Фаза 3: GoalService расширение** (~2.5ч)
-   - Удалить проверку D009 из `create_goal()`
-   - Добавить `get_next_priority()` и использовать в `create_goal()`
-   - Добавить `update_priority()` с shift-down алгоритмом
-   - Добавить `reorder_priorities()` с валидацией
-   - Написать unit тесты (6 тестов):
-     - create_goal() назначает auto priority
-     - update_priority() повышение приоритета
-     - update_priority() понижение приоритета
-     - reorder_priorities() валидация дубликатов
-     - reorder_priorities() валидация неполного списка
-     - reorder_priorities() успешное переупорядочивание
+3. **AllocationService модификация** (1 шаг)
+   - Добавить `SAVINGS_MODE_MULTIPLIERS` константу в модуль
+   - Добавить параметр `savings_mode: str = "free"` в `calculate_allocation()`
+   - Применить множитель внутри цикла к `goal.monthly_contribution`
+   - `monthly_contribution_needed` в результате содержит adjusted значение
+   - 3 unit теста:
+     - test_allocation_free_mode (множитель 1.0)
+     - test_allocation_medium_mode (множитель 1.15)
+     - test_allocation_strict_mode (множитель 1.5)
+   - Убедиться что существующие тесты проходят (default="free")
 
-4. **Фаза 4: Goals UI рефакторинг** (~5ч)
-   - Создать `_build_goals_list()` с карточками и drag-and-drop
-   - Добавить модал настройки бюджета накоплений
-   - Добавить сводную секцию вверху страницы
-   - Обновить callbacks для CRUD множественных целей
-   - Интегрировать AllocationService для показа рекомендуемых взносов
-   - Использовать Pattern-Matching IDs с `{"type": "goal-card", "index": goal_id}`
+4. **UI компоненты (часть 1: stores и helper)** (1 шаг)
+   - Добавить `dcc.Store(id="goals-savings-mode-store", data=None)` в layout
+   - Добавить `MODE_OPTIONS` константу для UI
+   - Расширить `_recalculate_and_render()` параметром `savings_mode`
+   - Обновить `load_goal_data()`:
+     - Читать `savings_mode = service.get_savings_mode(user_id)`
+     - Передавать в `_recalculate_and_render()`
+     - Инициализировать `goals-savings-mode-store`
 
-5. **Фаза 5: Dashboard интеграция** (~1.5ч)
-   - Обновить `DashboardService.get_overview_metrics()`:
-     - `savings_current = sum(g.current_amount for g in active_goals)`
-     - `savings_target = sum(g.target_amount for g in active_goals)`
-     - `savings_progress = (savings_current / savings_target * 100) if savings_target > 0 else 0`
-     - `savings_name = f"{len(active_goals)} целей"` если > 1
-   - Написать unit тесты для агрегации
+5. **UI компоненты (часть 2: selector и callback)** (1 шаг)
+   - Создать `_build_mode_selector()` функцию (RadioItems)
+   - Интегрировать в `_build_summary_section()` рядом с кнопкой бюджета
+   - Создать callback `save_savings_mode()`:
+     - Input: RadioItems value change
+     - State: budget store
+     - Actions: update_savings_mode(), _recalculate_and_render()
+     - Output: goal-card-container, goals-savings-mode-store, goals-allocation-store
+   - Обновить все callbacks что вызывают `_recalculate_and_render()`:
+     - create_goal()
+     - save_budget()
+     - add_contribution()
+     - toggle_goal_status()
+     - change_priority()
+     - delete_goal()
 
-6. **Фаза 6: Стили и polish** (~1.5ч)
-   - Обновить `goals.css` для drag-and-drop визуализации
-   - Добавить индикатор перетаскивания
-   - Адаптивность для мобильных (touch events)
-   - Финальное тестирование всех сценариев
-
-**Общая оценка**: 14-16 часов
+6. **Стили и интеграционные тесты** (1 шаг)
+   - CSS для mode selector в `goals.css` (~15 строк)
+   - Интеграционный тест: смена режима пересчитывает allocation
+   - Обновить ROADMAP.md (отметить фичу как завершенную)
 
 ## Зависимости
-
-Новые библиотеки:
-- **dash-draggable** (опционально) — для drag-and-drop. Альтернатива: нативные HTML5 drag events через clientside callbacks.
-
-Существующие:
-- SQLAlchemy 2.0.23 (ORM)
-- Dash 2.17.1 + dbc 1.5.0 (UI)
-- loguru (logging)
-- decimal (точные вычисления)
+Новые библиотеки не требуются. Используются существующие:
+- SQLAlchemy (String column type вместо Enum для простоты миграций)
+- Dash Bootstrap Components (RadioItems для selector)
 
 ## Риски и mitigation
 
 | Риск | Вероятность | Mitigation |
 |------|-------------|------------|
-| Drag-and-drop сложен в Dash | Средняя | Альтернатива: кнопки вверх/вниз для изменения приоритета. Или использовать `dash-draggable` компонент |
-| UI становится перегруженным с 10+ целями | Средняя | Collapsible карточки, показывать только top-5, кнопка "Показать все" |
-| Pattern-Matching callbacks конфликты | Низкая | Использовать простые IDs с `{"type": "...", "index": goal_id}`, guard clauses из ADR-003 |
-| Race condition при reorder | Низкая | Транзакция в session.flush(), optimistic locking если нужно |
-| Пользователь не понимает allocation | Средняя | Tooltip с объяснением, показать формулу в модале настроек |
-| Миграция существующих данных | Низкая | `monthly_savings_budget` default=0, существующие цели с priority=1 работают |
+| Режим не применяется при первой загрузке | Средняя | `load_goal_data()` читает mode из БД и передает в `_recalculate_and_render()` |
+| Обратная несовместимость с существующими вызовами AllocationService | Низкая | Default parameter `savings_mode="free"` |
+| Миграция не отрабатывает на существующих данных | Низкая | Idempotent check + default="free" для существующих users |
+| Callbacks не получают актуальный savings_mode | Средняя | dcc.Store + чтение из БД в каждом callback что вызывает _recalculate_and_render |
+| UI перегружен информацией | Низкая | Компактный RadioItems с inline descriptions |
+| Невалидный режим в БД | Низкая | Fallback на "free" + logging warning |
+
+## Учтённые замечания из критики
+
+| Замечание из critique v1 | Как решено |
+|--------------------------|------------|
+| 🟡 Неопределено место применения множителя в алгоритме | Явно указано: внутри цикла `for goal in sorted_goals`, применяется к `goal.monthly_contribution`, результат `monthly_needed` используется для allocation. Диаграмма и код показывают точное место. |
+| 🟡 SAVINGS_MODE_MULTIPLIERS - неопределено место хранения | Константы размещены непосредственно в `allocation_service.py` рядом с алгоритмом использования. Это обеспечивает cohesion и избегает импорта из database.py. |
+| 🟡 Размещение методов savings_mode в GoalService | Оставлено в GoalService с TODO комментарием о переносе в UserService. Это осознанное решение для MVP - минимизация изменений архитектуры. |
+| 🟡 Отсутствует обновление существующих вызовов AllocationService | Явно описано: расширить `_recalculate_and_render()` параметром `savings_mode`, обновить все 7 callbacks что её вызывают. План реализации содержит список callbacks. |
+| 🟢 SavingsModeInfo TypedDict - избыточен | Убран. Используется простой dict `MODE_OPTIONS` в UI коде. |
+| 🟢 adjusted_contribution в AllocationResult - спорная необходимость | Убран. `monthly_contribution_needed` УЖЕ содержит adjusted значение. Дополнительные поля не нужны. |
+| 🟢 Риск "Режим не применяется при первой загрузке" - недостаточно раскрыт | Полностью расписан flow: `load_goal_data()` читает mode из БД, передает в `_recalculate_and_render()`, сохраняет в `goals-savings-mode-store`. |
+
+## Ответы на вопросы критика
+
+1. **Вопрос:** Отображение базового vs adjusted взноса — нужно ли UI показывать оба значения?
+   **Ответ:** Нет, для MVP достаточно показывать только итоговый (adjusted) взнос. Это упрощает UI и не перегружает пользователя. Базовый взнос можно вычислить делением на множитель, но это усложнение без явной пользы. Если потребуется в будущем — можно добавить tooltip с базовым значением.
+
+2. **Вопрос:** Изменение режима и активные цели — нужно ли показывать предупреждение если бюджет теперь не покрывает все цели?
+   **Ответ:** Нет специального предупреждения не нужно. Существующий UI уже показывает shortfall alert ("Недостаток бюджета: X руб") в summary section когда `all_goals_funded=False`. Этого достаточно — пользователь сразу видит последствия изменения режима. Дополнительный confirm dialog создаст friction без пользы.
+
+3. **Вопрос:** Tooltips vs inline descriptions для RadioItems?
+   **Ответ:** Inline текст под каждой опцией. Причины: 1) Tooltips на мобильных устройствах работают плохо (нет hover). 2) Информация важная, не должна быть скрыта. 3) Три режима с короткими описаниями (~10 слов каждый) не перегружают UI. Формат: `Свободный (100%)\nМинимальные взносы точно по графику`.
+
+## Критичные файлы для реализации
+
+1. `app/services/allocation_service.py` — SAVINGS_MODE_MULTIPLIERS + параметр savings_mode
+2. `app/services/goal_service.py` — методы get/update savings_mode + VALID_SAVINGS_MODES
+3. `app/components/goals.py` — расширить _recalculate_and_render(), добавить mode selector, обновить все callbacks
+4. `app/models/database.py` — User.savings_mode String column
+5. `scripts/migrate_002_savings_mode.py` — миграция БД (по образцу migrate_001)

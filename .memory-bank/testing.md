@@ -127,24 +127,30 @@ def test_create_transaction_e2e(dash_duo):
 ```python
 # tests/conftest.py
 import pytest
-from app.models.database import create_database_engine, get_session, Base
+from sqlalchemy import create_engine
+from app.models.database import Base, User
 
 @pytest.fixture(scope="function")
 def db_engine():
-    engine = create_database_engine("sqlite:///:memory:")
+    """Создает in-memory SQLite engine для тестов"""
+    engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     yield engine
     Base.metadata.drop_all(engine)
 
 @pytest.fixture
 def db_session(db_engine):
-    session = get_session(db_engine)
+    """Создает session для тестов с автоматическим rollback"""
+    from sqlalchemy.orm import sessionmaker
+    Session = sessionmaker(bind=db_engine)
+    session = Session()
     yield session
     session.rollback()
     session.close()
 
 @pytest.fixture
 def test_user(db_session):
+    """Создает тестового пользователя"""
     user = User(email="test@test.com", name="Test User")
     db_session.add(user)
     db_session.commit()

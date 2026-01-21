@@ -8,9 +8,8 @@ import os
 # Добавляем корневую директорию проекта в путь импорта
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+from app.core.database import init_database, get_db_session  # noqa: E402
 from app.models.database import (  # noqa: E402
-    init_database,
-    get_session,
     User,
     Transaction,
     Goal,
@@ -24,10 +23,10 @@ from app.services.goal_service import GoalService  # noqa: E402
 def seed_database():
     """Наполняет базу данных тестовыми данными для разработки."""
     # Инициализация базы данных
-    engine = init_database()
-    session = get_session(engine)
+    init_database()
 
-    try:
+    # Context manager автоматически управляет commit/rollback/close
+    with get_db_session() as session:
         # Создание тестового пользователя
         user = User(
             name="Тестовый Пользователь",
@@ -137,16 +136,7 @@ def seed_database():
             f"({goal.progress_percentage:.1f}%)"
         )
 
-        # Сохранение всех изменений
-        session.commit()
         print("\n🎉 База данных успешно наполнена тестовыми данными!")
-
-    except Exception as e:
-        session.rollback()
-        print(f"\n❌ Ошибка при наполнении базы данных: {e}")
-        raise
-    finally:
-        session.close()
 
 
 if __name__ == "__main__":
