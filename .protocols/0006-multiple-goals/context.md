@@ -1,7 +1,7 @@
-- **Current Step**: 5
+- **Current Step**: 6
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 4 завершен: рефакторинг Goals UI для списка целей. Созданы _build_summary_section(), _build_budget_alert(), _build_goals_list(). Переписаны _build_goal_card() и load_goal_data() с поддержкой AllocationService. Добавлены allocation badges, priority badges, кнопки ↑↓. Обновлены стили. Верификация: 93/93 тестов прошли."
-- **Next Action**: "Приступить к выполнению Шага 5: Goals UI - Callbacks (см. `05-goals-ui-callbacks.md`)."
+- **Last Action Summary**: "Шаг 5 завершен: реализованы callbacks для Goals UI. Добавлены dcc.Store компоненты, helper функция _recalculate_and_render(), 3 callback'а модала бюджета (open/close/save), 2 Pattern-Matching callback'а для изменения приоритетов (↑↓). Обновлен load_goal_data() с инициализацией stores. Верификация: 93/93 тестов прошли, black/flake8 без ошибок."
+- **Next Action**: "Приступить к выполнению Шага 6: Dashboard Integration (см. `06-dashboard.md`)."
 - **Git**: "Ветка 0006-multiple-goals, PR #6 (Draft)"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0006-multiple-goals`

@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import TypedDict
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ctx, no_update
+from dash import html, dcc, callback, Input, Output, State, ctx, no_update, ALL
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
@@ -660,6 +660,61 @@ def _build_contributions_table(
     )
 
 
+def _build_budget_modal() -> dbc.Modal:
+    """Создает модал для настройки месячного бюджета накоплений.
+
+    Returns:
+        dbc.Modal: Модал с формой настройки бюджета
+    """
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Настройка бюджета накоплений")),
+            dbc.ModalBody(
+                [
+                    dbc.Row(
+                        [
+                            dbc.Label("Месячный бюджет", width=4),
+                            dbc.Col(
+                                dbc.Input(
+                                    id="budget-input",
+                                    type="number",
+                                    min=0,
+                                    step=0.01,
+                                    placeholder="10000",
+                                    required=True,
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    html.P(
+                        "Укажите сумму, которую вы планируете откладывать ежемесячно на все цели.",  # noqa: E501
+                        className="text-muted small",
+                    ),
+                ]
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "Отмена",
+                        id="budget-cancel-btn",
+                        color="secondary",
+                        outline=True,
+                    ),
+                    dbc.Button(
+                        "Сохранить",
+                        id="save-budget-btn",
+                        color="primary",
+                    ),
+                ]
+            ),
+        ],
+        id="budget-modal",
+        is_open=False,
+    )
+
+
 def _build_create_goal_modal() -> dbc.Modal:
     """Создает модал для создания новой цели."""
     min_date = (date.today() + timedelta(days=MIN_GOAL_DAYS)).isoformat()
@@ -891,6 +946,85 @@ def _build_contribution_modal() -> dbc.Modal:
     )
 
 
+def _recalculate_and_render(session, user_id: int, budget: Decimal):
+    """Пересчитывает allocation и возвращает обновленный UI.
+
+    Helper функция для переиспользования логики пересчета в callbacks.
+    Загружает все цели, вызывает AllocationService, строит UI компоненты.
+
+    Args:
+        session: SQLAlchemy session
+        user_id: ID пользователя
+        budget: Месячный бюджет накоплений
+
+    Returns:
+        Tuple[goals_container_children, allocation_summary_dict, goals_summary_dict]
+    """
+    service = GoalService(session)
+    allocation_service = AllocationService()
+
+    # Получаем все цели (ACTIVE + PAUSED)
+    active_goals = service.get_all_by_user(user_id=user_id, status=GoalStatus.ACTIVE)
+    paused_goals = service.get_all_by_user(user_id=user_id, status=GoalStatus.PAUSED)
+    all_goals = active_goals + paused_goals
+
+    # Если нет целей - empty state
+    if not all_goals:
+        return (
+            [_build_empty_state()],
+            None,  # allocation_summary
+            None,  # goals_summary
+        )
+
+    # Расчет allocation
+    allocation_summary = allocation_service.calculate_allocation(
+        goals=all_goals,
+        monthly_budget=budget,
+    )
+
+    # Формируем GoalsSummary
+    total_target = sum(g.target_amount for g in all_goals)
+    total_current = sum(g.current_amount for g in all_goals)
+    goals_summary = GoalsSummary(
+        total_goals_count=len(all_goals),
+        active_goals_count=len(active_goals),
+        total_target_amount=total_target,
+        total_current_amount=total_current,
+        total_progress_percentage=(
+            float(total_current / total_target * 100) if total_target > 0 else 0
+        ),
+        monthly_budget=budget,
+        total_allocated=allocation_summary["total_allocated"],
+        total_shortfall=allocation_summary["total_shortfall"],
+        all_goals_on_track=allocation_summary["all_goals_funded"],
+        budget_not_set=allocation_summary["budget_not_set"],
+    )
+
+    # Преобразуем AllocationResult в dict для удобства
+    allocation_dict = {r["goal_id"]: r for r in allocation_summary["results"]}
+
+    # Строим layout
+    goals_container_children = []
+
+    # 1. Summary section
+    goals_container_children.append(
+        _build_summary_section(goals_summary, allocation_summary)
+    )
+
+    # 2. Budget alert (если бюджет не настроен)
+    if allocation_summary["budget_not_set"]:
+        goals_container_children.append(_build_budget_alert())
+
+    # 3. Goals list
+    goals_container_children.append(_build_goals_list(all_goals, allocation_dict))
+
+    return (
+        goals_container_children,
+        allocation_summary,  # для store
+        goals_summary,  # для использования в callbacks if needed
+    )
+
+
 def create_goals_layout() -> html.Div:
     """Создает layout страницы накопительных целей.
 
@@ -939,6 +1073,7 @@ def create_goals_layout() -> html.Div:
                 className="mt-4",
             ),
             # Модалы
+            _build_budget_modal(),
             _build_create_goal_modal(),
             _build_edit_goal_modal(),
             _build_contribution_modal(),
@@ -950,6 +1085,10 @@ def create_goals_layout() -> html.Div:
             ),
             # Store для ID текущей цели
             dcc.Store(id="current-goal-id", data=None),
+            # Store для бюджета накоплений
+            dcc.Store(id="goals-budget-store", data=None),
+            # Store для результатов allocation
+            dcc.Store(id="goals-allocation-store", data=None),
         ],
         className="goals-container",
     )
@@ -963,6 +1102,8 @@ def create_goals_layout() -> html.Div:
         Output("goal-card-container", "children"),
         Output("contributions-table-container", "children"),
         Output("current-goal-id", "data"),
+        Output("goals-budget-store", "data"),
+        Output("goals-allocation-store", "data"),
     ],
     Input("url", "pathname"),
 )
@@ -972,19 +1113,22 @@ def load_goal_data(pathname: str):
     Callback срабатывает при переходе на /goals.
     Загружает ACTIVE и PAUSED цели, вызывает AllocationService,
     строит summary section и список карточек целей.
+    Инициализирует budget и allocation stores.
 
     Args:
         pathname: Текущий URL
 
     Returns:
-        Tuple[goals_container, contributions_table, first_goal_id]
+        Tuple[goals_container, contributions_table, first_goal_id, budget, allocation]
     """
     if pathname != "/goals":
         raise PreventUpdate
 
     with get_db_session() as session:
         service = GoalService(session)
-        allocation_service = AllocationService()
+
+        # Получаем бюджет
+        monthly_budget = service.get_savings_budget(DEFAULT_USER_ID)
 
         # Получаем все цели (ACTIVE + PAUSED)
         active_goals = service.get_all_by_user(
@@ -997,52 +1141,18 @@ def load_goal_data(pathname: str):
 
         # Если нет целей - empty state
         if not all_goals:
-            return _build_empty_state(), _build_contributions_table([]), None
+            return (
+                _build_empty_state(),
+                _build_contributions_table([]),
+                None,
+                monthly_budget,  # инициализируем budget store
+                None,  # allocation store пуст
+            )
 
-        # Получаем бюджет
-        monthly_budget = service.get_savings_budget(DEFAULT_USER_ID)
-
-        # Расчет allocation
-        allocation_summary = allocation_service.calculate_allocation(
-            goals=all_goals,
-            monthly_budget=monthly_budget,
+        # Пересчитываем allocation и строим UI
+        goals_container_children, allocation_summary, _ = _recalculate_and_render(
+            session, DEFAULT_USER_ID, monthly_budget
         )
-
-        # Формируем GoalsSummary
-        total_target = sum(g.target_amount for g in all_goals)
-        total_current = sum(g.current_amount for g in all_goals)
-        goals_summary = GoalsSummary(
-            total_goals_count=len(all_goals),
-            active_goals_count=len(active_goals),
-            total_target_amount=total_target,
-            total_current_amount=total_current,
-            total_progress_percentage=(
-                float(total_current / total_target * 100) if total_target > 0 else 0
-            ),
-            monthly_budget=monthly_budget,
-            total_allocated=allocation_summary["total_allocated"],
-            total_shortfall=allocation_summary["total_shortfall"],
-            all_goals_on_track=allocation_summary["all_goals_funded"],
-            budget_not_set=allocation_summary["budget_not_set"],
-        )
-
-        # Преобразуем AllocationResult в dict для удобства
-        allocation_dict = {r["goal_id"]: r for r in allocation_summary["results"]}
-
-        # Строим layout
-        goals_container_children = []
-
-        # 1. Summary section
-        goals_container_children.append(
-            _build_summary_section(goals_summary, allocation_summary)
-        )
-
-        # 2. Budget alert (если бюджет не настроен)
-        if allocation_summary["budget_not_set"]:
-            goals_container_children.append(_build_budget_alert())
-
-        # 3. Goals list
-        goals_container_children.append(_build_goals_list(all_goals, allocation_dict))
 
         # История взносов для первой цели (по приоритету)
         first_goal = sorted(all_goals, key=lambda g: g.priority)[0]
@@ -1061,6 +1171,8 @@ def load_goal_data(pathname: str):
             html.Div(goals_container_children),
             _build_contributions_table(contrib_data),
             first_goal.id,
+            monthly_budget,  # инициализируем budget store
+            allocation_summary,  # инициализируем allocation store
         )
 
 
@@ -1512,3 +1624,267 @@ def toggle_goal_status(n_clicks, goal_id):
         logger.info(f"Статус цели {goal_id} изменен на {new_status.value}")
 
         return _build_goal_card(goal_data)
+
+
+@callback(
+    [
+        Output("budget-modal", "is_open"),
+        Output("budget-input", "value"),
+    ],
+    Input("open-budget-modal-btn", "n_clicks"),
+    State("goals-budget-store", "data"),
+    prevent_initial_call=True,
+)
+def open_budget_modal(n_clicks, current_budget):
+    """Открывает модал настройки бюджета с текущим значением.
+
+    Args:
+        n_clicks: Количество кликов на кнопку открытия
+        current_budget: Текущий бюджет из Store (может быть None)
+
+    Returns:
+        Tuple[is_open, budget_value]
+    """
+    if not n_clicks:
+        raise PreventUpdate
+
+    # Загружаем текущий бюджет из БД если не в Store
+    if current_budget is None:
+        with get_db_session() as session:
+            service = GoalService(session)
+            current_budget = service.get_savings_budget(DEFAULT_USER_ID)
+
+    # Конвертируем Decimal в float для Input
+    budget_value = float(current_budget) if current_budget else None
+
+    return True, budget_value
+
+
+@callback(
+    [
+        Output("budget-modal", "is_open", allow_duplicate=True),
+        Output("budget-cancel-btn", "n_clicks"),
+    ],
+    Input("budget-cancel-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def close_budget_modal(n_clicks):
+    """Закрывает модал настройки бюджета при клике на Отмена.
+
+    Args:
+        n_clicks: Количество кликов на кнопку Отмена
+
+    Returns:
+        Tuple[is_open, reset_n_clicks]
+    """
+    if not n_clicks:
+        raise PreventUpdate
+
+    return False, 0
+
+
+@callback(
+    [
+        Output("budget-modal", "is_open", allow_duplicate=True),
+        Output("goals-budget-store", "data"),
+        Output("goals-allocation-store", "data"),
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goal-error-alert", "children", allow_duplicate=True),
+        Output("goal-error-alert", "is_open", allow_duplicate=True),
+    ],
+    Input("save-budget-btn", "n_clicks"),
+    [
+        State("budget-input", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def save_budget(n_clicks, budget_value):
+    """Сохраняет бюджет и пересчитывает allocation для всех целей.
+
+    Args:
+        n_clicks: Количество кликов на кнопку Сохранить
+        budget_value: Значение бюджета из Input
+
+    Returns:
+        Tuple[is_open, budget_store, allocation_store, goals_container, error_msg, error_open]  # noqa: E501
+    """
+    if not n_clicks:
+        raise PreventUpdate
+
+    # Валидация
+    if budget_value is None or budget_value < 0:
+        return (
+            True,  # keep modal open
+            no_update,
+            no_update,
+            no_update,
+            "Бюджет должен быть неотрицательным числом",
+            True,
+        )
+
+    budget = Decimal(str(budget_value))
+
+    try:
+        with get_db_session() as session:
+            service = GoalService(session)
+
+            # Сохраняем бюджет в БД
+            service.update_savings_budget(DEFAULT_USER_ID, budget)
+            session.commit()
+
+            # Пересчитываем allocation и строим UI
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget
+            )
+
+            logger.info(f"Бюджет накоплений обновлен: {budget}")
+
+            return (
+                False,  # close modal
+                budget,  # update budget store
+                allocation_summary,  # update allocation store
+                html.Div(goals_container_children),  # update goals container
+                "",
+                False,
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка сохранения бюджета: {e}")
+        return (
+            True,
+            no_update,
+            no_update,
+            no_update,
+            f"Ошибка сохранения: {str(e)}",
+            True,
+        )
+
+
+@callback(
+    [
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
+    ],
+    Input({"type": "priority-up-btn", "index": ALL}, "n_clicks"),
+    [
+        State("goals-budget-store", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def move_priority_up(n_clicks_list, budget):
+    """Перемещает цель на один приоритет вверх (уменьшает priority на 1).
+
+    Pattern-Matching callback с guard clauses согласно ADR-003.
+    После изменения приоритета пересчитывает allocation.
+
+    Args:
+        n_clicks_list: Список кликов на все кнопки priority-up
+        budget: Текущий бюджет из Store
+
+    Returns:
+        Tuple[goals_container, allocation_store]
+    """
+    # Guard: проверка автовызова при DOM updates (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+
+    # Guard: проверка валидного triggered_id
+    if not triggered_id or not triggered_id.get("index"):
+        raise PreventUpdate
+
+    goal_id = triggered_id["index"]
+
+    try:
+        with get_db_session() as session:
+            service = GoalService(session)
+
+            # Получаем текущий бюджет если не в Store
+            if budget is None:
+                budget = service.get_savings_budget(DEFAULT_USER_ID)
+
+            # Перемещаем приоритет вверх
+            service.move_priority_up(goal_id)
+            session.commit()
+
+            # Пересчитываем allocation и строим UI
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget
+            )
+
+            logger.info(f"Приоритет цели {goal_id} повышен")
+
+            return (
+                html.Div(goals_container_children),
+                allocation_summary,
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка изменения приоритета: {e}")
+        raise PreventUpdate
+
+
+@callback(
+    [
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
+    ],
+    Input({"type": "priority-down-btn", "index": ALL}, "n_clicks"),
+    [
+        State("goals-budget-store", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def move_priority_down(n_clicks_list, budget):
+    """Перемещает цель на один приоритет вниз (увеличивает priority на 1).
+
+    Pattern-Matching callback с guard clauses согласно ADR-003.
+    После изменения приоритета пересчитывает allocation.
+
+    Args:
+        n_clicks_list: Список кликов на все кнопки priority-down
+        budget: Текущий бюджет из Store
+
+    Returns:
+        Tuple[goals_container, allocation_store]
+    """
+    # Guard: проверка автовызова при DOM updates (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+
+    # Guard: проверка валидного triggered_id
+    if not triggered_id or not triggered_id.get("index"):
+        raise PreventUpdate
+
+    goal_id = triggered_id["index"]
+
+    try:
+        with get_db_session() as session:
+            service = GoalService(session)
+
+            # Получаем текущий бюджет если не в Store
+            if budget is None:
+                budget = service.get_savings_budget(DEFAULT_USER_ID)
+
+            # Перемещаем приоритет вниз
+            service.move_priority_down(goal_id)
+            session.commit()
+
+            # Пересчитываем allocation и строим UI
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, budget
+            )
+
+            logger.info(f"Приоритет цели {goal_id} понижен")
+
+            return (
+                html.Div(goals_container_children),
+                allocation_summary,
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка изменения приоритета: {e}")
+        raise PreventUpdate

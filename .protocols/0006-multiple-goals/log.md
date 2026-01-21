@@ -4,6 +4,10 @@
 
 ---
 
+## Restore context: protocol-0006#ctx-4
+
+---
+
 ## Restore context: protocol-0006#ctx-3
 
 ---
@@ -196,3 +200,37 @@
 **Файлы изменены:**
 - app/components/goals.py (+380 строк новой логики, -100 строк удалено)
 - app/assets/goals.css (+95 строк новых стилей)
+
+---
+
+## Шаг 5: Goals UI — Callbacks (2026-01-21)
+
+**Действия:**
+- Добавлены dcc.Store компоненты для хранения budget и allocation состояний
+- Создана helper функция `_recalculate_and_render()` (~80 строк) для переиспользования логики пересчета allocation
+- Реализованы 3 callback'а модала бюджета:
+  - `open_budget_modal()` — открывает модал с текущим значением бюджета из Store или БД
+  - `close_budget_modal()` — закрывает модал при клике на Отмена
+  - `save_budget()` — сохраняет бюджет в БД и пересчитывает allocation для всех целей
+- Реализованы 2 Pattern-Matching callback'а для изменения приоритетов:
+  - `move_priority_up()` — повышает приоритет цели (уменьшает priority на 1)
+  - `move_priority_down()` — понижает приоритет цели (увеличивает priority на 1)
+- Обновлен callback `load_goal_data()`:
+  - Добавлены Outputs для budget-store и allocation-store
+  - Инициализирует stores при первой загрузке страницы
+  - Использует `_recalculate_and_render()` для построения UI
+- Добавлен импорт ALL из dash для Pattern-Matching callbacks
+
+**Решения:**
+- Helper функция `_recalculate_and_render()` инкапсулирует логику загрузки целей, вызова AllocationService и построения UI компонентов
+- Все новые callbacks используют guard clauses согласно ADR-003 (проверка `ctx.triggered[0].get('value') is None`)
+- Budget и allocation stores обеспечивают синхронизацию состояния между callback'ами без повторных запросов к БД
+- При изменении бюджета или приоритетов автоматически пересчитывается allocation и обновляется UI
+
+**Верификация:**
+- ✅ black: без изменений
+- ✅ flake8: без ошибок (добавлены 2 noqa: E501 для длинных строк)
+- ✅ pytest: 93/93 тестов прошли
+
+**Файлы изменены:**
+- app/components/goals.py (+275 строк: helper функция, 5 новых callbacks, обновлен load_goal_data, добавлен импорт ALL)
