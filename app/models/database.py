@@ -48,6 +48,10 @@ class User(Base):
         starting_balance: Начальный баланс для расчета кассового календаря.
             Формула: остаток = starting_balance + SUM(доходы) - SUM(расходы).
             Может быть отрицательным (долг), по умолчанию = 0.
+        monthly_savings_budget: Ежемесячный бюджет на накопления.
+            Используется AllocationService для расчета рекомендуемых взносов
+            в накопительные цели по приоритетам. При = 0 UI показывает подсказку
+            настроить бюджет. По умолчанию = 0.
     """
 
     __tablename__ = "users"
@@ -56,6 +60,7 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=False)
     name = Column(String(100), nullable=False)
     starting_balance = Column(Numeric(10, 2), default=0, nullable=False)
+    monthly_savings_budget = Column(Numeric(10, 2), default=0, nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
