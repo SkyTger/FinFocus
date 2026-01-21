@@ -4,6 +4,10 @@
 
 ---
 
+## Restore context: protocol-0006#ctx-5
+
+---
+
 ## Restore context: protocol-0006#ctx-4
 
 ---
@@ -234,3 +238,36 @@
 
 **Файлы изменены:**
 - app/components/goals.py (+275 строк: helper функция, 5 новых callbacks, обновлен load_goal_data, добавлен импорт ALL)
+
+---
+
+## Шаг 6: Dashboard интеграция (2026-01-21)
+
+**Действия:**
+- Обновлена логика get_overview_metrics() в DashboardService для агрегации savings по всем активным целям
+  - Агрегация current_amount и target_amount по всем ACTIVE целям
+  - Расчет savings_progress как (sum_current / sum_target * 100)
+  - Условное именование: "Нет целей" (0 целей), имя цели (1 цель), "N целей" (>1 цели)
+- Обновлен Dashboard UI (app/components/dashboard.py) для корректной обработки "Нет целей" вместо None
+  - Изменена проверка с `if metrics["savings_name"]:` на `if metrics["savings_name"] != "Нет целей":`
+  - Обновлен subtitle с "No active goal" на "Нет активных целей"
+- Обновлен существующий тест test_savings_no_goals (savings_name == "Нет целей")
+- Написаны 2 новых unit-теста в tests/test_dashboard_service.py:
+  - test_savings_multiple_active_goals — агрегация по 3 активным целям (225k / 800k = 28.125%)
+  - test_savings_mixed_statuses — проверка что PAUSED и COMPLETED цели игнорируются
+
+**Решения:**
+- OverviewMetrics TypedDict не требует изменений (savings_name: str | None уже поддерживает строки)
+- Логика агрегации использует sum() generator expressions для эффективности
+- Название "N целей" соответствует множественному числу для русского языка
+- Guard clause для savings_target > 0 предотвращает division by zero
+
+**Верификация:**
+- ✅ black: 3 файла без изменений
+- ✅ flake8: без ошибок
+- ✅ pytest: 95/95 тестов прошли (включая 2 новых теста Dashboard)
+
+**Файлы изменены:**
+- app/services/dashboard_service.py (+18 строк измененной логики в get_overview_metrics)
+- app/components/dashboard.py (+2 строки: изменена проверка savings_name)
+- tests/test_dashboard_service.py (+109 строк: 2 новых теста + обновлен test_savings_no_goals)
