@@ -1,7 +1,7 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 1 завершен: добавлено поле monthly_savings_budget в User, создан модуль app/types/ с TypedDicts, написан скрипт миграции и тесты. Верификация: 78/78 тестов прошли."
-- **Next Action**: "Приступить к выполнению Шага 2: GoalService расширение (см. `02-goal-service.md`)."
+- **Last Action Summary**: "Шаг 2 завершен: расширен GoalService для множественных целей - удалено ограничение D009, добавлены методы приоритетов (get_next_priority, update_priority, move_up/down) и бюджета (get/update_savings_budget). Написаны 8 тестов. Верификация: 86/86 тестов прошли."
+- **Next Action**: "Приступить к выполнению Шага 3: AllocationService (см. `03-allocation-service.md`)."
 - **Git**: "Ветка 0006-multiple-goals, PR #6 (Draft)"
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0006-multiple-goals`
