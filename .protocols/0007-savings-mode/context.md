@@ -1,7 +1,7 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 1 завершен: добавлено поле User.savings_mode, создан миграционный скрипт и 3 unit теста."
-- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-goal-service.md`)."
+- **Last Action Summary**: "Шаг 2 завершен: добавлены методы get/update_savings_mode() в GoalService, константа VALID_SAVINGS_MODES, 6 unit тестов."
+- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-allocation-service.md`)."
 - **Git**: "Ветка 0007-savings-mode, PR #7 в статусе Draft."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/7"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"

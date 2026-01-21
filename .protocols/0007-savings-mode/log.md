@@ -44,3 +44,26 @@
 - String вместо Enum для `savings_mode` — SQLite не поддерживает ALTER TABLE для Enum
 - Валидация допустимых значений будет на уровне сервиса (GoalService.update_savings_mode)
 - Фикстура теста создает схему с monthly_savings_budget, но без savings_mode
+
+---
+
+## Шаг 2: GoalService расширение
+
+**Дата**: 2026-01-21
+
+**Действия**:
+- Добавлена константа `VALID_SAVINGS_MODES = {"free", "medium", "strict"}`
+- Добавлен метод `get_savings_mode(user_id: int) -> str`
+- Добавлен метод `update_savings_mode(user_id: int, mode: str) -> None`
+- Обновлены экспорты в `app/services/__init__.py`
+- Написаны 6 unit тестов в `tests/test_savings_mode.py`
+
+**Изменения файлов**:
+- `app/services/goal_service.py:12-14` — константа VALID_SAVINGS_MODES
+- `app/services/goal_service.py:453-500` — методы get/update_savings_mode с TODO
+- `app/services/__init__.py:25,55` — экспорт VALID_SAVINGS_MODES
+- `tests/test_savings_mode.py` — новый файл (~90 строк)
+
+**Решения**:
+- Методы размещены в GoalService с TODO о переносе в UserService при рефакторинге
+- Паттерн аналогичен существующим get/update_savings_budget
