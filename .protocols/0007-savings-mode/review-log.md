@@ -40,3 +40,30 @@
 
 ---
 
+## Шаг 2-m: Локальная верификация
+
+**Время:** 2026-01-21
+
+**Проверка окружения:**
+- CWD: `/home/skytiger/PycharmProjects/FinFocus`
+- Ветка: `main`
+
+**Действия и результаты:**
+
+1. **black --check** в worktree:
+   - Результат: `All done! 45 files would be left unchanged.`
+   - Статус: ✅ PASSED
+
+2. **flake8** в worktree:
+   - Результат: 0 ошибок
+   - Статус: ✅ PASSED
+
+3. **pytest** в worktree:
+   - Результат: `111 passed in 1.75s`
+   - Новые тесты: 13 (миграция 002 + savings_mode + allocation modes)
+   - Статус: ✅ PASSED
+
+**Результат:** ✅ Все локальные проверки пройдены успешно
+
+---
+
