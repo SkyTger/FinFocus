@@ -1,113 +1,188 @@
-# Solution v1: Goals UI Component с CRUD операциями
+# Solution v1: Множественные цели с приоритетным распределением взносов
 
 ## Обзор решения
-Создать UI компонент `goals.py` по образцу `transactions.py`, использующий существующий GoalService для CRUD операций. Компонент будет отображать карточку активной цели с прогресс-баром, рекомендованным взносом и историей contributions. Модальные формы обеспечат создание цели, добавление взносов и редактирование. Применяется ADR-003 pattern для guard clauses в callbacks.
+
+Решение расширяет существующую систему целей, снимая ограничение D009 и добавляя сервис распределения рекомендуемых взносов. GoalService получает новые методы для работы с множественными целями, а UI переписывается для отображения списка целей с карточками. Новый PriorityAllocationService отвечает за расчет распределения бюджета накоплений между целями по приоритету.
 
 ## Архитектура
 
 ### Компоненты
-1. **goals.py** (~600-800 строк) - UI компонент с layout и callbacks
-2. **goals.css** (~100-150 строк) - стили для прогресс-бара и карточек
-3. **GoalService** - существующий, возможно расширение для истории contributions
-4. **main.py** - обновление роутинга /goals
+
+**1. GoalService (расширение)**
+- Снятие проверки ограничения одной активной цели
+- Новый метод `update_priority()` для изменения приоритета
+- Новый метод `reorder_priorities()` для переупорядочивания
+- Обновление `get_all_by_user()` для возврата сортированного списка
+
+**2. AllocationService (новый)**
+Отдельный сервис для расчета распределения бюджета между целями:
+- Принимает общий бюджет накоплений и список активных целей
+- Распределяет средства по приоритету (жадный алгоритм)
+- Возвращает рекомендуемый взнос для каждой цели
+
+**3. Goals UI (рефакторинг)**
+- Замена одиночной карточки на список карточек
+- Добавление поля приоритета в формы создания/редактирования
+- Новый блок сводной статистики
+- Интеграция с AllocationService для отображения рекомендаций
+
+**4. Dashboard (минорное обновление)**
+- Изменение метода получения savings данных: агрегация по всем активным целям
 
 ### Диаграмма взаимодействия
+
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                         goals.py                                 │
-├─────────────────────────────────────────────────────────────────┤
-│  Layout:                                                        │
-│  ┌─────────────────────────────────────────────────────────────┤
-│  │ create_goals_layout()                                        │
-│  │   ├── Goal Card (active goal or empty state)                │
-│  │   │   ├── Progress Bar                                      │
-│  │   │   ├── Monthly Contribution Recommendation               │
-│  │   │   └── Action Buttons (Edit, Pause, Delete)              │
-│  │   ├── Contributions History Table                           │
-│  │   ├── Create Goal Modal                                     │
-│  │   ├── Add Contribution Modal                                │
-│  │   ├── Edit Goal Modal                                       │
-│  │   └── dcc.Store (goal-id, refresh-trigger)                  │
-│  └─────────────────────────────────────────────────────────────┤
-│  Callbacks:                                                     │
-│  ├── load_goal_data() - Input: url.pathname                    │
-│  ├── toggle_create_goal_modal() - prevent_initial_call=True    │
-│  ├── create_goal() - создание цели                             │
-│  ├── toggle_contribution_modal() - prevent_initial_call=True   │
-│  ├── add_contribution() - внесение взноса                      │
-│  ├── open_edit_modal() - Pattern-Matching с guard clause       │
-│  ├── update_goal() - сохранение изменений                      │
-│  ├── delete_goal() - удаление с подтверждением                 │
-│  └── toggle_goal_status() - ACTIVE ↔ PAUSED                    │
-└─────────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    GoalService (existing)                       │
-├─────────────────────────────────────────────────────────────────┤
-│  ✅ create_goal(user_id, name, target_amount, target_date)     │
-│  ✅ add_contribution(goal_id, amount, date, description)       │
-│  ✅ get_by_id(goal_id)                                          │
-│  ✅ get_all_by_user(user_id, status=None)                      │
-│  ✅ update_goal(goal_id, name, target_amount, target_date, st) │
-│  ✅ delete_goal(goal_id)                                        │
-│  ➕ get_contributions(goal_id, limit=10) - НОВЫЙ МЕТОД         │
-└─────────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      SQLAlchemy Models                          │
-├─────────────────────────────────────────────────────────────────┤
-│  Goal                          GoalContribution                 │
-│  ├── id                        ├── id                          │
-│  ├── name                      ├── goal_id                     │
-│  ├── target_amount             ├── amount                      │
-│  ├── current_amount            ├── contribution_date           │
-│  ├── target_date               ├── description                 │
-│  ├── status                    └── created_at                  │
-│  ├── priority                                                   │
-│  ├── progress_percentage @prop                                  │
-│  ├── is_completed @prop                                         │
-│  └── monthly_contribution @prop                                 │
-└─────────────────────────────────────────────────────────────────┘
++----------------+     +----------------+     +------------------+
+|   Goals UI     |---->|  GoalService   |---->|    Database      |
+| (goals.py)     |     | (goal_service) |     | (Goal, Contrib.) |
++----------------+     +----------------+     +------------------+
+        |                     ^
+        v                     |
++------------------+          |
+| AllocationService|----------+
+| (allocation_svc) |
++------------------+
+
+Flow создания цели:
+1. UI -> GoalService.create_goal() (без проверки лимита)
+2. GoalService -> DB (INSERT Goal с priority)
+3. GoalService -> auto-assign priority (max+1 если не указан)
+
+Flow расчета рекомендаций:
+1. UI загружает страницу
+2. UI -> GoalService.get_all_by_user(status=ACTIVE)
+3. UI -> AllocationService.calculate_allocation(goals, budget)
+4. UI отображает карточки с рекомендуемыми взносами
 ```
 
 ## Файловая структура
-```
-app/
-├── components/
-│   ├── __init__.py           # + export create_goals_layout
-│   ├── goals.py              # НОВЫЙ: ~600-800 строк
-│   └── ...
-├── services/
-│   ├── goal_service.py       # + get_contributions() метод
-│   └── __init__.py           # (без изменений)
-├── assets/
-│   └── goals.css             # НОВЫЙ: ~100-150 строк
-└── main.py                   # обновить роутинг /goals
 
-tests/
-└── test_goal_service.py      # НОВЫЙ: ~100-150 строк
+```
+app/services/allocation_service.py  — НОВЫЙ: расчет распределения бюджета
+app/services/goal_service.py        — ИЗМЕНЕНИЕ: снять D009, добавить методы приоритетов
+app/services/__init__.py            — ИЗМЕНЕНИЕ: экспорт AllocationService
+app/components/goals.py             — ИЗМЕНЕНИЕ: рефакторинг UI для списка целей
+app/components/dashboard.py         — ИЗМЕНЕНИЕ: агрегация по всем целям
+app/assets/goals.css                — ИЗМЕНЕНИЕ: стили для списка карточек
+tests/test_allocation_service.py    — НОВЫЙ: тесты распределения
+tests/test_goal_service.py          — ИЗМЕНЕНИЕ: тесты множественных целей
 ```
 
 ## Ключевые интерфейсы
 
 ```python
-# app/components/goals.py
+# app/services/allocation_service.py
 
-from datetime import date
 from decimal import Decimal
 from typing import TypedDict
 
-import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ctx, no_update
-from dash.exceptions import PreventUpdate
-from loguru import logger
 
-from app.core import get_db_session, ValidationError
-from app.models.database import GoalStatus
-from app.services import GoalService
+class AllocationResult(TypedDict):
+    """Результат распределения для одной цели."""
+    goal_id: int
+    goal_name: str
+    priority: int
+    monthly_contribution_needed: Decimal  # сколько нужно по формуле
+    allocated_amount: Decimal             # сколько выделено из бюджета
+    is_fully_funded: bool                 # покрывает ли allocated нужды
+    shortfall: Decimal                    # дефицит (если allocated < needed)
 
+
+class AllocationSummary(TypedDict):
+    """Сводка распределения бюджета."""
+    total_budget: Decimal
+    total_allocated: Decimal
+    total_shortfall: Decimal
+    results: list[AllocationResult]
+    all_goals_funded: bool
+
+
+class AllocationService:
+    """Сервис распределения бюджета накоплений между целями.
+
+    Использует жадный алгоритм: сначала полностью финансируется
+    цель с приоритетом 1, затем остаток идет на приоритет 2 и т.д.
+    """
+
+    def calculate_allocation(
+        self,
+        goals: list[Goal],
+        monthly_budget: Decimal,
+    ) -> AllocationSummary:
+        """Распределяет бюджет между целями по приоритету.
+
+        Args:
+            goals: Список активных целей (должны быть отсортированы по priority)
+            monthly_budget: Общий месячный бюджет на накопления
+
+        Returns:
+            AllocationSummary: Сводка распределения с детализацией по целям
+        """
+        ...
+
+
+# app/services/goal_service.py (дополнения)
+
+class GoalService:
+    # ... существующие методы ...
+
+    def update_priority(self, goal_id: int, new_priority: int) -> Goal:
+        """Изменяет приоритет цели.
+
+        Автоматически сдвигает приоритеты других целей при конфликте.
+
+        Args:
+            goal_id: ID цели
+            new_priority: Новый приоритет (1 = самый важный)
+
+        Returns:
+            Goal: Обновленная цель
+
+        Raises:
+            ValidationError: Если new_priority < 1 или цель не найдена
+        """
+        ...
+
+    def reorder_priorities(self, user_id: int, goal_ids_in_order: list[int]) -> list[Goal]:
+        """Переупорядочивает приоритеты целей согласно переданному порядку.
+
+        Args:
+            user_id: ID пользователя
+            goal_ids_in_order: Список ID целей в желаемом порядке приоритетов
+                              [0] получает priority=1, [1] получает priority=2, etc.
+
+        Returns:
+            list[Goal]: Обновленные цели
+
+        Raises:
+            ValidationError: Если какой-то goal_id не принадлежит пользователю
+        """
+        ...
+
+    def get_next_priority(self, user_id: int) -> int:
+        """Возвращает следующий доступный приоритет для новой цели.
+
+        Returns:
+            int: max(existing priorities) + 1, или 1 если целей нет
+        """
+        ...
+```
+
+## Модель данных
+
+Модель Goal уже имеет поле priority:
+
+```python
+# app/models/database.py (существующее)
+class Goal(Base):
+    # ... existing fields ...
+    priority = Column(Integer, default=1)  # Уже существует!
+```
+
+TypedDict для UI:
+
+```python
+# app/components/goals.py (расширение GoalDisplayData)
 
 class GoalDisplayData(TypedDict):
     """Данные для отображения цели в UI."""
@@ -120,305 +195,84 @@ class GoalDisplayData(TypedDict):
     progress_percentage: float
     monthly_contribution: Decimal
     days_remaining: int
+    is_completed: bool
+    priority: int                    # ДОБАВИТЬ
+    allocated_amount: Decimal | None  # ДОБАВИТЬ - рекомендуемый взнос из бюджета
 
 
-class ContributionDisplayData(TypedDict):
-    """Данные для отображения взноса в истории."""
-    id: int
-    amount: Decimal
-    contribution_date: str  # форматированная дата
-    description: str | None
-
-
-def create_goals_layout() -> html.Div:
-    """Создает layout страницы накопительных целей.
-
-    Returns:
-        html.Div с полным layout страницы Goals
-    """
-    ...
-
-
-def _build_goal_card(goal_data: GoalDisplayData | None) -> dbc.Card:
-    """Создает карточку активной цели или empty state.
-
-    Args:
-        goal_data: Данные цели или None если нет активной
-
-    Returns:
-        dbc.Card с информацией о цели
-    """
-    ...
-
-
-def _build_progress_bar(progress: float, current: Decimal, target: Decimal) -> html.Div:
-    """Создает прогресс-бар с подписями.
-
-    Args:
-        progress: Процент выполнения (0-100)
-        current: Текущая накопленная сумма
-        target: Целевая сумма
-
-    Returns:
-        html.Div с Bootstrap Progress
-    """
-    ...
-
-
-def _build_contributions_table(contributions: list[ContributionDisplayData]) -> dbc.Table:
-    """Создает таблицу истории взносов.
-
-    Args:
-        contributions: Список взносов для отображения
-
-    Returns:
-        dbc.Table с историей
-    """
-    ...
-
-
-# --- Callbacks ---
-
-@callback(
-    Output("goal-card-container", "children"),
-    Output("contributions-table-container", "children"),
-    Input("url", "pathname"),
-)
-def load_goal_data(pathname: str):
-    """Загружает данные активной цели и историю взносов.
-
-    Args:
-        pathname: Текущий URL
-
-    Returns:
-        Tuple[goal_card, contributions_table]
-    """
-    # Guard: только для /goals
-    if pathname != "/goals":
-        raise PreventUpdate
-    ...
-
-
-@callback(
-    Output("create-goal-modal", "is_open"),
-    [
-        Input("create-goal-btn", "n_clicks"),
-        Input("create-goal-cancel-btn", "n_clicks"),
-    ],
-    State("create-goal-modal", "is_open"),
-    prevent_initial_call=True,
-)
-def toggle_create_goal_modal(create_clicks, cancel_clicks, is_open):
-    """Открывает/закрывает модал создания цели."""
-    ...
-
-
-@callback(
-    [
-        Output("create-goal-modal", "is_open", allow_duplicate=True),
-        Output("goal-card-container", "children", allow_duplicate=True),
-        # ... reset form fields
-        Output("goal-error-alert", "children", allow_duplicate=True),
-        Output("goal-error-alert", "is_open", allow_duplicate=True),
-    ],
-    Input("create-goal-submit-btn", "n_clicks"),
-    [
-        State("create-goal-name-input", "value"),
-        State("create-goal-amount-input", "value"),
-        State("create-goal-date-picker", "date"),
-    ],
-    prevent_initial_call=True,
-)
-def create_goal(n_clicks, name, target_amount, target_date_str):
-    """Создает новую накопительную цель."""
-    ...
-
-
-@callback(
-    Output("add-contribution-modal", "is_open"),
-    [
-        Input("add-contribution-btn", "n_clicks"),
-        Input("add-contribution-cancel-btn", "n_clicks"),
-    ],
-    State("add-contribution-modal", "is_open"),
-    prevent_initial_call=True,
-)
-def toggle_contribution_modal(add_clicks, cancel_clicks, is_open):
-    """Открывает/закрывает модал добавления взноса."""
-    ...
-
-
-@callback(
-    [
-        Output("add-contribution-modal", "is_open", allow_duplicate=True),
-        Output("goal-card-container", "children", allow_duplicate=True),
-        Output("contributions-table-container", "children", allow_duplicate=True),
-        # ... reset form fields
-        Output("goal-error-alert", "children", allow_duplicate=True),
-        Output("goal-error-alert", "is_open", allow_duplicate=True),
-    ],
-    Input("add-contribution-submit-btn", "n_clicks"),
-    [
-        State("current-goal-id", "data"),
-        State("add-contribution-amount-input", "value"),
-        State("add-contribution-date-picker", "date"),
-        State("add-contribution-description-input", "value"),
-    ],
-    prevent_initial_call=True,
-)
-def add_contribution(n_clicks, goal_id, amount, date_str, description):
-    """Добавляет взнос в активную цель."""
-    ...
-
-
-# app/services/goal_service.py - расширение
-
-def get_contributions(
-    self,
-    goal_id: int,
-    limit: int = 10,
-) -> list[GoalContribution]:
-    """Получает список взносов цели отсортированный по дате DESC.
-
-    Args:
-        goal_id: ID цели
-        limit: Максимальное количество записей
-
-    Returns:
-        list[GoalContribution]: Последние взносы
-    """
-    return (
-        self.session.query(GoalContribution)
-        .filter_by(goal_id=goal_id)
-        .order_by(GoalContribution.contribution_date.desc())
-        .limit(limit)
-        .all()
-    )
-```
-
-## Модель данных
-
-### UI State (dcc.Store)
-```python
-# goal-store: хранит ID активной цели для callbacks
-{
-    "goal_id": int | None
-}
-
-# Альтернатива: использовать State напрямую из БД каждый раз
-```
-
-### Форматирование для UI
-```python
-def format_amount(amount: Decimal) -> str:
-    """15000.00 -> '15 000.00 ₽'"""
-    return f"{amount:,.2f} ₽".replace(",", " ")
-
-def format_date(date_obj: date) -> str:
-    """2026-06-15 -> '15.06.2026'"""
-    return date_obj.strftime("%d.%m.%Y")
-
-def format_days_remaining(days: int) -> str:
-    """Форматирует оставшиеся дни с правильным склонением."""
-    if days <= 0:
-        return "Срок истёк"
-    if days == 1:
-        return "1 день"
-    if days < 5:
-        return f"{days} дня"
-    return f"{days} дней"
+class GoalsSummary(TypedDict):
+    """Сводка по всем активным целям."""
+    total_goals_count: int
+    total_target_amount: Decimal
+    total_current_amount: Decimal
+    total_progress_percentage: float
+    monthly_budget: Decimal           # настройка пользователя
+    total_shortfall: Decimal
+    all_goals_on_track: bool
 ```
 
 ## Обработка ошибок
 
-### Стратегия
-1. **ValidationError от GoalService** - показать в Alert с `is_open=True`
-2. **Goal not found** - показать empty state с кнопкой "Создать цель"
-3. **DB errors** - логировать через loguru, показать generic Alert
-4. **Pattern-Matching callback без клика** - `raise PreventUpdate` (ADR-003)
-
-### Guard Clauses Pattern (обязательно)
 ```python
-@callback(...)
-def some_pattern_matching_callback(n_clicks_list):
-    """Callback с Pattern-Matching Input."""
-    triggered_id = ctx.triggered_id
+# Использовать существующий ValidationError
+from app.core import ValidationError
 
-    # Guard #1: проверка triggered_id
-    if not triggered_id:
-        raise PreventUpdate
+# Сценарии ошибок:
+# 1. priority < 1 -> ValidationError("Приоритет должен быть не меньше 1")
+# 2. goal_id не найден -> ValidationError(f"Цель с ID {goal_id} не найдена")
+# 3. monthly_budget < 0 -> ValidationError("Бюджет накоплений не может быть отрицательным")
 
-    # Guard #2: проверка типа (для Pattern-Matching)
-    if not isinstance(triggered_id, dict) or triggered_id.get("type") != "expected-type":
-        raise PreventUpdate
-
-    # Guard #3: проверка реального клика (ADR-003 КРИТИЧНО!)
-    if not ctx.triggered or ctx.triggered[0].get("value") is None:
-        raise PreventUpdate
-
-    # Теперь безопасно извлекать index
-    item_id = triggered_id.get("index")
-    ...
+# UI показывает ошибки через существующий goal-error-alert
 ```
 
 ## План реализации
 
-### Фаза 1: GoalService Extension (~30 мин)
-1. Добавить метод `get_contributions(goal_id, limit)` в `goal_service.py`
-2. Обновить `__init__.py` с экспортом (если нужно)
-3. Написать unit тесты для нового метода
+1. **Фаза 1: AllocationService** (~2ч)
+   - Создать `app/services/allocation_service.py`
+   - Реализовать `calculate_allocation()` с жадным алгоритмом
+   - Написать unit тесты (5-7 тестов)
+   - Обновить `app/services/__init__.py`
 
-### Фаза 2: Goals Layout (~2 часа)
-1. Создать `goals.py` со структурой layout
-2. Реализовать `create_goals_layout()` с:
-   - Goal Card container
-   - Empty state (нет активной цели)
-   - Contributions table container
-   - Create Goal Modal
-   - Add Contribution Modal
-   - Edit Goal Modal
-   - Alert для ошибок
-   - dcc.Store для goal_id
+2. **Фаза 2: GoalService расширение** (~1.5ч)
+   - Удалить проверку D009 из `create_goal()`
+   - Добавить метод `update_priority()`
+   - Добавить метод `reorder_priorities()`
+   - Добавить метод `get_next_priority()`
+   - Написать unit тесты (5-6 тестов)
 
-### Фаза 3: Goals Callbacks (~2 часа)
-1. `load_goal_data()` - загрузка при переходе на /goals
-2. `toggle_create_goal_modal()` + `create_goal()`
-3. `toggle_contribution_modal()` + `add_contribution()`
-4. `toggle_edit_modal()` + `update_goal()`
-5. `delete_goal()` с confirm dialog
+3. **Фаза 3: Goals UI рефакторинг** (~4ч)
+   - Переписать `_build_goal_card()` для работы со списком
+   - Создать `_build_goals_list()` с карточками
+   - Добавить поле приоритета в модалы создания/редактирования
+   - Добавить сводную секцию вверху страницы
+   - Обновить callbacks для работы с множественными целями
+   - Использовать Pattern-Matching IDs для кнопок действий
 
-### Фаза 4: Стили и интеграция (~1 час)
-1. Создать `goals.css` с:
-   - Progress bar styling
-   - Goal card styling
-   - Empty state styling
-2. Обновить `main.py` роутинг
-3. Обновить `components/__init__.py`
+4. **Фаза 4: Dashboard интеграция** (~1ч)
+   - Обновить `DashboardService.get_overview_metrics()` для агрегации
+   - Показывать общий savings прогресс по всем целям
 
-### Фаза 5: Тестирование и QA (~1 час)
-1. Ручное тестирование всех flows
-2. Проверка guard clauses (нет автосрабатываний)
-3. black + flake8
-4. pytest (все 33+ тестов)
+5. **Фаза 5: Стили и polish** (~1ч)
+   - Обновить `goals.css` для списка карточек
+   - Адаптивность для мобильных
+   - Финальное тестирование
 
-**Общая оценка: 6-8 часов**
+**Общая оценка**: 10-12 часов
 
 ## Зависимости
 
-### Существующие (не требуют установки)
-- dash, dash-bootstrap-components, plotly
-- sqlalchemy, loguru
-- pytest (для тестов)
-
-### Новые библиотеки
-- Не требуются
+Новые библиотеки не требуются. Используются существующие:
+- SQLAlchemy 2.0.23 (ORM)
+- Dash 2.17.1 + dbc 1.5.0 (UI)
+- loguru (logging)
+- decimal (точные вычисления)
 
 ## Риски и mitigation
 
-| Риск | Вероятность | Impact | Mitigation |
-|------|-------------|--------|------------|
-| Pattern-Matching callback регрессии | Средняя | Высокий | Строго следовать ADR-003 guard clauses pattern из transactions.py |
-| Сложность UI состояния | Низкая | Средний | Использовать dcc.Store для goal_id, минимизировать state |
-| Конфликт стилей | Низкая | Низкий | Изолировать стили в goals.css с уникальными классами |
-| ValidationError не отображается | Низкая | Средний | Тестировать edge cases: пустые поля, прошедшие даты |
-| monthly_contribution = 0 при дедлайне | Низкая | Низкий | UI отображает "Срок истёк" вместо 0 |
+| Риск | Вероятность | Mitigation |
+|------|-------------|------------|
+| UI становится сложным с множеством карточек | Средняя | Пагинация или collapsible cards, показывать max 5 раскрытых |
+| Pattern-Matching callbacks конфликтуют (как в D011) | Средняя | Использовать простые IDs с goal_id в data attribute, избегать ALL pattern |
+| Производительность при 20+ целях | Низкая | Lazy loading, ограничить запрос 20 целями с пагинацией |
+| Пользователь не понимает систему приоритетов | Средняя | Добавить tooltip с объяснением, показать пример распределения |
+| Конфликт приоритетов при одновременном редактировании | Низкая | reorder_priorities() использует транзакцию, lock на уровне session |

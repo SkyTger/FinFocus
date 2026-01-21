@@ -8,24 +8,24 @@ from app.services.calendar_service import CalendarService
 from app.services.recurring_service import RecurringService
 
 
-class TestDailyBalancesExcludesTemplates:
-    """Тесты: recurring шаблоны не должны влиять на баланс."""
+class TestDailyBalancesIncludesRecurring:
+    """Тесты: виртуальные recurring экземпляры должны влиять на баланс."""
 
-    def test_template_not_counted_in_balance(self, db_session, test_user):
-        """Recurring шаблон не учитывается в расчете баланса."""
+    def test_recurring_instance_counted_in_balance(self, db_session, test_user):
+        """Виртуальный recurring экземпляр учитывается в расчете баланса."""
         # Добавляем обычную транзакцию
         regular_txn = Transaction(
             user_id=test_user.id,
             amount=Decimal("5000.00"),
             transaction_type=TransactionType.INCOME,
-            transaction_date=date(2026, 1, 15),
+            transaction_date=date(2026, 1, 10),
             description="Обычный доход",
             is_recurring=False,
         )
-        # Добавляем recurring шаблон (не должен учитываться)
+        # Добавляем recurring шаблон — виртуальный экземпляр ДОЛЖЕН учитываться
         template = Transaction(
             user_id=test_user.id,
-            amount=Decimal("100000.00"),  # Большая сумма
+            amount=Decimal("100000.00"),
             transaction_type=TransactionType.INCOME,
             transaction_date=date(2026, 1, 15),
             description="Шаблон зарплаты",
@@ -40,27 +40,28 @@ class TestDailyBalancesExcludesTemplates:
             test_user.id, date(2026, 1, 1), date(2026, 1, 31)
         )
 
-        # Баланс = starting_balance + regular_txn = 10000 + 5000 = 15000
-        # Шаблон НЕ должен влиять на баланс
-        assert result[date(2026, 1, 15)] == Decimal("15000.00")
-        assert result[date(2026, 1, 31)] == Decimal("15000.00")
+        # Баланс до 15-го: starting_balance + regular = 10000 + 5000 = 15000
+        assert result[date(2026, 1, 14)] == Decimal("15000.00")
+        # Баланс с 15-го: + recurring instance = 15000 + 100000 = 115000
+        assert result[date(2026, 1, 15)] == Decimal("115000.00")
+        assert result[date(2026, 1, 31)] == Decimal("115000.00")
 
 
-class TestMonthSummaryExcludesTemplates:
-    """Тесты: month_summary не включает recurring шаблоны."""
+class TestMonthSummaryIncludesRecurring:
+    """Тесты: month_summary включает recurring экземпляры."""
 
-    def test_month_summary_excludes_templates(self, db_session, test_user):
-        """get_month_summary не учитывает recurring шаблоны."""
+    def test_month_summary_includes_recurring_instances(self, db_session, test_user):
+        """get_month_summary учитывает виртуальные recurring экземпляры."""
         # Обычная транзакция
         regular_txn = Transaction(
             user_id=test_user.id,
             amount=Decimal("3000.00"),
             transaction_type=TransactionType.INCOME,
-            transaction_date=date(2026, 1, 10),
+            transaction_date=date(2026, 1, 5),
             description="Обычный доход",
             is_recurring=False,
         )
-        # Recurring шаблон
+        # Recurring шаблон — экземпляр на 10-е число ДОЛЖЕН учитываться
         template = Transaction(
             user_id=test_user.id,
             amount=Decimal("50000.00"),
@@ -76,28 +77,28 @@ class TestMonthSummaryExcludesTemplates:
         service = CalendarService(db_session)
         summary = service.get_month_summary(test_user.id, 2026, 1)
 
-        # Только обычная транзакция должна быть учтена
-        assert summary["total_income"] == Decimal("3000.00")
+        # Обычная + recurring экземпляр = 3000 + 50000 = 53000
+        assert summary["total_income"] == Decimal("53000.00")
 
 
-class TestYearSummaryExcludesTemplates:
-    """Тесты: year_summary не включает recurring шаблоны."""
+class TestYearSummaryIncludesRecurring:
+    """Тесты: year_summary включает recurring экземпляры."""
 
-    def test_year_summary_excludes_templates(self, db_session, test_user):
-        """get_year_summary не учитывает recurring шаблоны."""
+    def test_year_summary_includes_recurring_instances(self, db_session, test_user):
+        """get_year_summary учитывает виртуальные recurring экземпляры."""
         # Обычная транзакция
         regular_txn = Transaction(
             user_id=test_user.id,
             amount=Decimal("2000.00"),
             transaction_type=TransactionType.EXPENSE,
-            transaction_date=date(2026, 3, 15),
+            transaction_date=date(2026, 3, 10),
             description="Обычный расход",
             is_recurring=False,
         )
-        # Recurring шаблон
+        # Recurring шаблон c 15 марта — будет 10 экземпляров (март-декабрь)
         template = Transaction(
             user_id=test_user.id,
-            amount=Decimal("99999.00"),
+            amount=Decimal("1000.00"),
             transaction_type=TransactionType.EXPENSE,
             transaction_date=date(2026, 3, 15),
             description="Шаблон расходов",
@@ -110,8 +111,8 @@ class TestYearSummaryExcludesTemplates:
         service = CalendarService(db_session)
         summary = service.get_year_summary(test_user.id, 2026)
 
-        # Только обычная транзакция должна быть учтена
-        assert summary["total_expense"] == Decimal("2000.00")
+        # Обычная (2000) + 10 recurring экземпляров (март-декабрь) по 1000 = 12000
+        assert summary["total_expense"] == Decimal("12000.00")
 
 
 class TestGetAllTransactionsForPeriod:
@@ -268,12 +269,12 @@ class TestGetAllTransactionsForPeriod:
         assert all_txns[0]["amount"] == "1000.00"
 
 
-class TestExceptionsExcludedFromRegularCalculations:
-    """Тесты: exceptions не дублируются в обычных расчетах."""
+class TestExceptionsIncludedInCalculations:
+    """Тесты: exceptions учитываются вместо виртуальных экземпляров."""
 
-    def test_exceptions_excluded_from_balance(self, db_session, test_user):
-        """Exceptions не учитываются дважды в расчете баланса."""
-        # Recurring шаблон
+    def test_exception_replaces_virtual_in_balance(self, db_session, test_user):
+        """Exception заменяет виртуальный экземпляр в расчете баланса."""
+        # Recurring шаблон на 15-е число
         template = Transaction(
             user_id=test_user.id,
             amount=Decimal("5000.00"),
@@ -286,7 +287,7 @@ class TestExceptionsExcludedFromRegularCalculations:
         db_session.add(template)
         db_session.commit()
 
-        # Создаем exception
+        # Создаем exception на февраль с другой суммой
         recurring_service = RecurringService(db_session)
         recurring_service.create_exception(
             template_id=template.id,
@@ -297,12 +298,12 @@ class TestExceptionsExcludedFromRegularCalculations:
 
         service = CalendarService(db_session)
 
-        # calculate_daily_balances должен исключать exceptions
-        # (т.к. they should be handled through recurring service)
+        # calculate_daily_balances должен учитывать exception, не виртуальный
         result = service.calculate_daily_balances(
             test_user.id, date(2026, 2, 1), date(2026, 2, 28)
         )
 
-        # Баланс должен быть только starting_balance (10000),
-        # без учета exception (он должен быть исключен)
-        assert result[date(2026, 2, 15)] == Decimal("10000.00")
+        # Баланс = starting_balance (10000) + январь виртуальный (5000)
+        # + февраль exception (6000) = 21000
+        # Exception заменяет виртуальный в феврале
+        assert result[date(2026, 2, 15)] == Decimal("21000.00")

@@ -123,21 +123,36 @@ class CalendarService:
 
         starting_balance = self._get_starting_balance(user_id)
 
-        # 1. Получить сумму изменений ДО начала периода
+        # 1. Получить сумму изменений ДО начала периода (обычные + recurring)
         balance_before_period = self._calculate_balance_before_date(user_id, start_date)
+        recurring_before_period = self._calculate_recurring_before_date(
+            user_id, start_date
+        )
 
-        # 2. Получить изменения по дням в периоде
+        # 2. Получить изменения по дням в периоде (обычные + recurring)
         daily_changes = self._get_daily_changes(user_id, start_date, end_date)
+        recurring_daily = self._get_recurring_daily_changes(
+            user_id, start_date, end_date
+        )
+
+        # Объединяем изменения
+        all_daily_changes: dict[date, Decimal] = defaultdict(Decimal)
+        for d, change in daily_changes.items():
+            all_daily_changes[d] += change
+        for d, change in recurring_daily.items():
+            all_daily_changes[d] += change
 
         # 3. Кумулятивный расчет балансов
         result: dict[date, Decimal] = {}
-        current_balance = starting_balance + balance_before_period
+        current_balance = (
+            starting_balance + balance_before_period + recurring_before_period
+        )
 
         current_date = start_date
         while current_date <= end_date:
             # Добавить изменение за текущий день (если есть)
-            if current_date in daily_changes:
-                current_balance += daily_changes[current_date]
+            if current_date in all_daily_changes:
+                current_balance += all_daily_changes[current_date]
             result[current_date] = current_balance
             current_date += timedelta(days=1)
 
@@ -245,6 +260,154 @@ class CalendarService:
             row.transaction_date: Decimal(str(row.daily_change))
             for row in daily_changes_query
         }
+
+    def _get_recurring_instances_for_period(
+        self, user_id: int, start_date: date, end_date: date
+    ) -> list[dict]:
+        """Получает все recurring экземпляры для периода с учётом exceptions.
+
+        Возвращает объединённый список:
+        - Виртуальные экземпляры (генерируются из шаблонов)
+        - Заменены на exceptions где есть
+        - Исключены skipped экземпляры
+
+        Args:
+            user_id: ID пользователя
+            start_date: Начало периода
+            end_date: Конец периода
+
+        Returns:
+            Список словарей с полями: date, amount, transaction_type
+        """
+        from app.services.recurring_service import RecurringService
+
+        recurring_service = RecurringService(self.session)
+        instances = recurring_service.get_instances_with_exceptions(
+            user_id, start_date, end_date
+        )
+
+        results = []
+        for instance in instances:
+            if isinstance(instance, dict):  # VirtualTransaction
+                results.append(
+                    {
+                        "date": date.fromisoformat(instance["instance_date"]),
+                        "amount": Decimal(instance["amount"]),
+                        "transaction_type": instance["transaction_type"],
+                    }
+                )
+            else:  # Transaction (exception)
+                # Пропускаем skipped
+                if instance.is_skipped:
+                    continue
+                results.append(
+                    {
+                        "date": instance.transaction_date,
+                        "amount": instance.amount,
+                        "transaction_type": instance.transaction_type.value,
+                    }
+                )
+
+        return results
+
+    def _calculate_recurring_before_date(
+        self, user_id: int, before_date: date
+    ) -> Decimal:
+        """Рассчитывает сумму recurring операций до указанной даты.
+
+        Args:
+            user_id: ID пользователя
+            before_date: Дата, до которой считать (не включительно)
+
+        Returns:
+            Decimal: Сумма изменений (INCOME - EXPENSE) от recurring
+        """
+        from app.services.recurring_service import RecurringService
+
+        # Определяем начало периода для recurring
+        # Берём самую раннюю дату шаблона или год назад (для безопасности)
+        recurring_service = RecurringService(self.session)
+        templates = recurring_service.get_templates_for_user(user_id)
+
+        if not templates:
+            return Decimal("0")
+
+        # Находим самую раннюю дату начала шаблона
+        earliest_template_date = min(t.transaction_date for t in templates)
+
+        # Если before_date раньше самого раннего шаблона — recurring нет
+        if before_date <= earliest_template_date:
+            return Decimal("0")
+
+        # Получаем все recurring экземпляры от начала до before_date-1
+        instances = self._get_recurring_instances_for_period(
+            user_id,
+            earliest_template_date,
+            before_date - timedelta(days=1),
+        )
+
+        total = Decimal("0")
+        for inst in instances:
+            if inst["transaction_type"] == "income":
+                total += inst["amount"]
+            elif inst["transaction_type"] == "expense":
+                total -= inst["amount"]
+
+        return total
+
+    def _get_recurring_daily_changes(
+        self, user_id: int, start_date: date, end_date: date
+    ) -> dict[date, Decimal]:
+        """Получает изменения баланса от recurring операций по дням.
+
+        Args:
+            user_id: ID пользователя
+            start_date: Начало периода
+            end_date: Конец периода
+
+        Returns:
+            dict[date, Decimal]: Словарь {дата: изменение баланса за день}
+        """
+        instances = self._get_recurring_instances_for_period(
+            user_id, start_date, end_date
+        )
+
+        daily_changes: dict[date, Decimal] = defaultdict(Decimal)
+        for inst in instances:
+            if inst["transaction_type"] == "income":
+                daily_changes[inst["date"]] += inst["amount"]
+            elif inst["transaction_type"] == "expense":
+                daily_changes[inst["date"]] -= inst["amount"]
+
+        return dict(daily_changes)
+
+    def _get_recurring_totals_for_period(
+        self, user_id: int, start_date: date, end_date: date
+    ) -> tuple[Decimal, Decimal]:
+        """Получает суммы доходов и расходов от recurring за период.
+
+        Args:
+            user_id: ID пользователя
+            start_date: Начало периода
+            end_date: Конец периода
+
+        Returns:
+            tuple[Decimal, Decimal]: (total_income, total_expense)
+        """
+        instances = self._get_recurring_instances_for_period(
+            user_id, start_date, end_date
+        )
+
+        total_income = Decimal("0")
+        total_expense = Decimal("0")
+
+        for inst in instances:
+            if inst["transaction_type"] == "income":
+                total_income += inst["amount"]
+            elif inst["transaction_type"] == "expense":
+                total_expense += inst["amount"]
+
+        return total_income, total_expense
 
     def get_transactions_by_date(
         self, user_id: int, start_date: date, end_date: date
@@ -361,15 +524,26 @@ class CalendarService:
             .first()
         )
 
+        # Добавляем recurring суммы
+        recurring_income, recurring_expense = self._get_recurring_totals_for_period(
+            user_id, first_day, last_day
+        )
+
+        total_income = Decimal(str(income_expense.total_income)) + recurring_income
+        total_expense = Decimal(str(income_expense.total_expense)) + recurring_expense
+
         # Баланс на начало месяца = баланс на день ДО первого дня
         # (т.е. баланс на конец предыдущего дня)
         starting_balance = self._get_starting_balance(user_id)
         balance_before_month = self._calculate_balance_before_date(user_id, first_day)
-        start_balance = starting_balance + balance_before_month
+        recurring_before_month = self._calculate_recurring_before_date(
+            user_id, first_day
+        )
+        start_balance = starting_balance + balance_before_month + recurring_before_month
 
         return MonthSummary(
-            total_income=Decimal(str(income_expense.total_income)),
-            total_expense=Decimal(str(income_expense.total_expense)),
+            total_income=total_income,
+            total_expense=total_expense,
             start_balance=start_balance,
             end_balance=daily_balances[last_day],
             month=month,
@@ -399,7 +573,10 @@ class CalendarService:
         changes_up_to_date = self._calculate_balance_before_date(
             user_id, target_date + timedelta(days=1)
         )
-        return starting_balance + changes_up_to_date
+        recurring_up_to_date = self._calculate_recurring_before_date(
+            user_id, target_date + timedelta(days=1)
+        )
+        return starting_balance + changes_up_to_date + recurring_up_to_date
 
     def get_year_summary(self, user_id: int, year: int) -> YearSummary:
         """Формирует сводку по году.
@@ -456,17 +633,21 @@ class CalendarService:
             .first()
         )
 
+        # Добавляем recurring суммы
+        recurring_income, recurring_expense = self._get_recurring_totals_for_period(
+            user_id, first_day, last_day
+        )
+
+        total_income = (
+            Decimal(str(result.total_income)) if result.total_income else Decimal("0")
+        ) + recurring_income
+        total_expense = (
+            Decimal(str(result.total_expense)) if result.total_expense else Decimal("0")
+        ) + recurring_expense
+
         return YearSummary(
-            total_income=(
-                Decimal(str(result.total_income))
-                if result.total_income
-                else Decimal("0")
-            ),
-            total_expense=(
-                Decimal(str(result.total_expense))
-                if result.total_expense
-                else Decimal("0")
-            ),
+            total_income=total_income,
+            total_expense=total_expense,
             year=year,
         )
 
