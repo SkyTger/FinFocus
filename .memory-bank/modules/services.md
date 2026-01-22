@@ -416,7 +416,7 @@ with get_db_session() as session:
 **Unit тесты**: 10 тестов в `tests/test_allocation_service.py`
 - Покрытие: все сценарии распределения, режимы free/medium/strict, edge cases
 
-## RedistributionService (Протокол 0008 — ЗАВЕРШЕН)
+## RedistributionService (Протокол 0008 — ЗАВЕРШЕН, PR #8)
 
 **Файл**: `app/services/redistribution_service.py` (~200 строк)
 

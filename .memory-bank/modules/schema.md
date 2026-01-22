@@ -91,6 +91,41 @@ class GoalsSummary(TypedDict):
 
 **Использование**: Формируется в Goals UI для Summary Section
 
+### RedistributionPreview (Протокол 0008)
+Preview перераспределения бюджета при достижении цели.
+
+```python
+class RedistributionPreview(TypedDict):
+    completed_goal_id: int
+    completed_goal_name: str
+    freed_budget: Decimal                  # Освободившийся бюджет
+    old_allocation: AllocationSummary      # Allocation ДО завершения цели
+    new_allocation: AllocationSummary | None  # Allocation ПОСЛЕ (None если нет оставшихся целей)
+    has_remaining_goals: bool              # Есть ли активные цели для перераспределения
+    calculation_time_ms: float             # NFR-2: timing для мониторинга
+```
+
+**Использование**: Возвращается RedistributionService.calculate_redistribution_preview(), используется в Redistribution Modal UI
+
+### RedistributionEvent (Протокол 0008)
+Аудит-лог события перераспределения.
+
+```python
+class RedistributionEvent(TypedDict):
+    event_type: str                        # "redistribution"
+    action: str                            # "confirmed" | "declined"
+    timestamp: str                         # ISO format
+    user_id: int
+    completed_goal_id: int
+    completed_goal_name: str
+    freed_budget: str                      # Decimal as string
+    has_remaining_goals: bool
+    old_total_allocated: str | None        # Decimal as string
+    new_total_allocated: str | None        # Decimal as string
+```
+
+**Использование**: Формируется RedistributionService.log_redistribution_event() для loguru аудита
+
 ## Важное
 
 **JSON-совместимость**:
@@ -100,7 +135,9 @@ class GoalsSummary(TypedDict):
 
 **Где используются**:
 - `app/services/allocation_service.py` — AllocationResult, AllocationSummary
-- `app/components/goals.py` — все 4 TypedDicts
+- `app/services/redistribution_service.py` — RedistributionPreview, RedistributionEvent
+- `app/components/goals.py` — все 6 TypedDicts
+- `app/utils/serializers.py` — serialize/deserialize для RedistributionPreview
 - `tests/` — для типизации тестовых данных
 
 ## Критичные решения
@@ -109,6 +146,10 @@ class GoalsSummary(TypedDict):
 
 **TypedDict > dataclass**: JSON-совместимость критична для dcc.Store в Dash
 
+**Протокол 0008**: Добавлены RedistributionPreview и RedistributionEvent для перераспределения бюджета
+
+**Serialization**: Decimal → str через `app/utils/serializers.py` для JSON-совместимости
+
 ---
 
-Детали: `services.md` (AllocationService), `ui-components.md` (Goals Component)
+Детали: `services.md` (AllocationService, RedistributionService), `ui-components.md` (Goals Component), `utils.md` (Serializers)

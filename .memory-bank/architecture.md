@@ -27,6 +27,7 @@
 - **RecurringService** - генерация виртуальных экземпляров, управление exceptions
 - **DashboardService** - агрегация метрик, cashflow данные (composition)
 - **AllocationService** - жадный алгоритм распределения бюджета между целями
+- **RedistributionService** - перераспределение бюджета при достижении цели (Temporary Status Pattern)
 
 **Паттерн**: Service Layer с изолированной бизнес-логикой, session management через flush()
 
@@ -237,6 +238,12 @@ refresh_transactions_table() - updates table
 - Множители к monthly_contribution
 - User.savings_mode поле
 
+**Протокол 0008**: Перераспределение средств при достижении цели
+- RedistributionService с Temporary Status Pattern
+- RedistributionPreview TypedDict
+- Redistribution Modal UI с confirm/decline callbacks
+- NFR: preview < 100ms, аудит-логирование
+
 ## Диаграмма компонентов
 
 ```
@@ -265,6 +272,7 @@ refresh_transactions_table() - updates table
          │  - RecurringService          │
          │  - DashboardService          │
          │  - AllocationService         │
+         │  - RedistributionService     │
          └──────────────┬───────────────┘
                         │
            ┌────────────┼────────────┬─────────────┐
@@ -293,11 +301,11 @@ refresh_transactions_table() - updates table
 
 **~~Фаза 5~~ Goals UI**: ✅ ЗАВЕРШЕНА (PR #4)
 
-**~~Батч 2~~ Enhanced Planning** (50% завершено):
+**~~Батч 2~~ Enhanced Planning**: ✅ ЗАВЕРШЕН (75% → 100%)
 - ✅ Повторяющиеся операции (PR #5)
 - ✅ Множественные цели с приоритетами (PR #6)
-- 🔄 Три режима накоплений (PR #7 в процессе)
-- ⏳ Перераспределение средств между целями
+- ✅ Три режима накоплений (PR #7)
+- ✅ Перераспределение средств между целями (PR #8)
 
 **Батч 3** (Analytics & UX):
 - Категоризация операций

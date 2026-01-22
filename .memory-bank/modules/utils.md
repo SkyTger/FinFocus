@@ -5,6 +5,7 @@
 
 ## Ключевые файлы
 - `app/utils/formatters.py` - форматирование для отображения (~75 строк)
+- `app/utils/serializers.py` - сериализация TypedDicts для dcc.Store (~65 строк)
 
 ## Форматирование для отображения
 
@@ -67,14 +68,61 @@ parse_date_safe("invalid")     # → None (с логом ошибки)
 
 ## Сериализация для dcc.Store
 
+### RedistributionPreview сериализация (Протокол 0008)
+
+**Файл**: `app/utils/serializers.py`
+
+**Создан в**: Протокол 0008 (Redistribution)
+
+**Причина**: Decimal и вложенные AllocationSummary несовместимы с JSON (dcc.Store)
+
+#### serialize_redistribution_preview(preview: RedistributionPreview) → dict
+Конвертирует RedistributionPreview в JSON-совместимый формат.
+
+```python
+preview = {
+    "completed_goal_id": 1,
+    "freed_budget": Decimal("5000.00"),
+    "old_allocation": {"total_budget": Decimal("15000.00"), ...},
+    ...
+}
+
+serialized = serialize_redistribution_preview(preview)
+# → {"completed_goal_id": 1, "freed_budget": "5000.00", "old_allocation": {"total_budget": "15000.00", ...}, ...}
+```
+
+**Детали**:
+- Рекурсивная конвертация Decimal → str через `_convert_decimal_to_str()`
+- Поддерживает вложенные AllocationSummary
+- None значения сохраняются
+
+#### deserialize_redistribution_preview(serialized: dict) → RedistributionPreview
+Обратная конвертация из JSON.
+
+```python
+preview = deserialize_redistribution_preview(serialized)
+# → {"completed_goal_id": 1, "freed_budget": Decimal("5000.00"), ...}
+```
+
+**Детали**:
+- Рекурсивная конвертация str → Decimal через `_convert_str_to_decimal()`
+- Использует набор `_DECIMAL_KEYS` для идентификации полей с Decimal
+- Сохраняет точность при roundtrip (5000.00 → "5000.00" → 5000.00)
+
+**Helper функции** (внутренние):
+- `_convert_decimal_to_str(obj)` - рекурсивная конвертация Decimal → str
+- `_convert_str_to_decimal(obj, decimal_keys)` - рекурсивная конвертация str → Decimal
+
+### Calendar сериализация (Legacy)
+
 **Примечание**: Для сериализации Decimal в Calendar Component используются отдельные функции:
 
-### serialize_balances(balances: dict[date, Decimal]) → dict[str, str]
+#### serialize_balances(balances: dict[date, Decimal]) → dict[str, str]
 Конвертирует словарь балансов в JSON-совместимый формат.
 
 **Где**: `app/components/calendar.py`
 
-### deserialize_balances(serialized: dict[str, str]) → dict[date, Decimal]
+#### deserialize_balances(serialized: dict[str, str]) → dict[date, Decimal]
 Обратная конвертация из JSON.
 
 **Где**: `app/components/calendar.py`
@@ -105,11 +153,18 @@ parse_date_safe("invalid")     # → None (с логом ошибки)
 - `app/components/transactions.py` - парсинг дат из форм
 - `app/components/goals.py` - парсинг дат из форм
 
+**serialize_redistribution_preview / deserialize_redistribution_preview**:
+- `app/components/goals.py` - redistribution-preview-store (dcc.Store)
+
 ## Критичные решения
 
 **Протокол 0004**: Вынесение общих formatters из transactions.py в отдельный модуль
 
 **Обновление transactions.py**: Импорты изменены с локальных функций на `from app.utils.formatters import ...`
+
+**Протокол 0008**: Добавлен модуль serializers.py для сериализации RedistributionPreview в dcc.Store
+
+**Decimal сериализация**: str (не float) для сохранения точности при roundtrip
 
 ---
 
