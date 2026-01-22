@@ -1,7 +1,7 @@
-- **Current Step**: 4
+- **Current Step**: 5
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 3 завершен: созданы 16 unit тестов для RedistributionService, покрыты все методы и edge cases."
-- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-modal-ui.md`) - создать модальное окно для перераспределения."
+- **Last Action Summary**: "Шаг 4 завершен: создан модал перераспределения с preview таблицей, dcc.Store компонентами и CSS стилями."
+- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-callbacks.md`) - модифицировать add_contribution callback и добавить confirm/decline callbacks."
 - **Git**: "Ветка 0008-redistribution"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
 - **CWD**: "/home/skytiger/PycharmProjects/worktrees/0008-redistribution"

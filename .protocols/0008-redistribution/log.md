@@ -3,6 +3,7 @@
 Этот раздел является **журналом**. Записи только добавляются, старые не изменяются.
 
 **Restore context**: protocol-0008#ctx-2 (2026-01-22)
+**Restore context**: protocol-0008#ctx-3 (2026-01-22)
 
 ---
 
@@ -120,3 +121,38 @@
 
 **Файлы**:
 - `tests/test_redistribution_service.py` — новый файл (~450 строк)
+
+**Коммит**: см. context.md
+
+---
+
+## Шаг 4: Redistribution Modal UI
+
+**Дата**: 2026-01-22
+
+**Действия**:
+- Добавлены dcc.Store компоненты в `create_goals_layout()`:
+  - `redistribution-preview-store` — для хранения preview данных
+  - `redistribution-btn-disabled-store` — для состояния кнопки confirm
+- Создана helper функция `_build_preview_section()` (~100 строк):
+  - Строит таблицу сравнения OLD vs NEW allocation
+  - Цветовая индикация изменений (зеленый для увеличения)
+  - Итоговая строка с Total allocated
+  - Обработка edge cases: no remaining goals, no data
+- Создана helper функция `_build_redistribution_modal()` (~60 строк):
+  - ModalHeader с иконкой трофея и заголовком "Цель достигнута!"
+  - ModalBody с секциями: congratulation, freed budget, preview
+  - ModalFooter с кнопками Confirm (со Spinner) и Decline
+- Добавлен вызов модала в `create_goals_layout()`
+- Добавлены CSS стили в `app/assets/goals.css` (~160 строк):
+  - fadeIn animation для плавного появления модала
+  - Стили для congratulation-section, freed-budget, preview-table
+  - Цветовые классы: change-positive, change-negative
+  - Spinner toggle для кнопки confirm
+  - Responsive стили для мобильных устройств
+
+**Решения**:
+- Использован `centered=True` для модала (вертикальное центрирование)
+- Preview секция рендерится динамически через callback (id контейнеры)
+- Spinner внутри кнопки с toggle через CSS класс `.loading`
+- Таблица сравнения использует Bootstrap table компоненты

@@ -1019,6 +1019,218 @@ def _build_contribution_modal() -> dbc.Modal:
     )
 
 
+def _build_preview_section(preview_data: dict | None) -> html.Div:
+    """Строит секцию сравнения OLD vs NEW allocation.
+
+    Args:
+        preview_data: RedistributionPreview данные или None
+
+    Returns:
+        html.Div: Таблица сравнения или info-сообщение
+    """
+    # Guard: нет данных preview
+    if not preview_data:
+        return html.Div(
+            html.P(
+                "Нет данных для отображения",
+                className="text-muted text-center py-3",
+            )
+        )
+
+    old_allocation = preview_data.get("old_allocation")
+    new_allocation = preview_data.get("new_allocation")
+
+    # Guard: нет оставшихся целей
+    if not new_allocation or not new_allocation.get("results"):
+        return html.Div(
+            [
+                html.I(
+                    className="bi bi-info-circle text-info",
+                    style={"fontSize": "2rem"},
+                ),
+                html.P(
+                    "Нет оставшихся активных целей для перераспределения",
+                    className="text-muted mt-2 mb-0",
+                ),
+            ],
+            className="text-center py-4",
+        )
+
+    # Создаем словарь для быстрого доступа к OLD allocation по goal_id
+    old_results_map = {}
+    if old_allocation and old_allocation.get("results"):
+        old_results_map = {r["goal_id"]: r for r in old_allocation["results"]}
+
+    # Строим строки таблицы
+    table_rows = []
+    for result in new_allocation["results"]:
+        goal_id = result["goal_id"]
+        goal_name = result["goal_name"]
+        new_amount = Decimal(str(result["allocated_amount"]))
+
+        # Получаем OLD amount (0 если цели не было в OLD)
+        old_result = old_results_map.get(goal_id)
+        old_amount = (
+            Decimal(str(old_result["allocated_amount"]))
+            if old_result
+            else Decimal("0")
+        )
+
+        # Вычисляем изменение
+        change = new_amount - old_amount
+
+        # Определяем класс для цвета изменения
+        change_class = ""
+        change_prefix = ""
+        if change > 0:
+            change_class = "change-positive"
+            change_prefix = "+"
+        elif change < 0:
+            change_class = "change-negative"
+
+        # Добавляем строку
+        table_rows.append(
+            html.Tr(
+                [
+                    html.Td(goal_name, className="goal-name-cell"),
+                    html.Td(format_amount(old_amount), className="text-end"),
+                    html.Td(format_amount(new_amount), className="text-end fw-bold"),
+                    html.Td(
+                        f"{change_prefix}{format_amount(change)}",
+                        className=f"text-end {change_class}",
+                    ),
+                ]
+            )
+        )
+
+    # Итоговая строка
+    old_total = Decimal(str(old_allocation["total_allocated"])) if old_allocation else Decimal("0")  # noqa: E501
+    new_total = Decimal(str(new_allocation["total_allocated"]))
+    total_change = new_total - old_total
+
+    total_change_class = "change-positive" if total_change > 0 else ""
+    total_change_prefix = "+" if total_change > 0 else ""
+
+    table_rows.append(
+        html.Tr(
+            [
+                html.Td(html.Strong("Итого"), className="goal-name-cell"),
+                html.Td(format_amount(old_total), className="text-end"),
+                html.Td(format_amount(new_total), className="text-end fw-bold"),
+                html.Td(
+                    f"{total_change_prefix}{format_amount(total_change)}",
+                    className=f"text-end {total_change_class}",
+                ),
+            ],
+            className="table-active",
+        )
+    )
+
+    return html.Div(
+        [
+            html.H6("Изменение распределения бюджета", className="mb-3"),
+            dbc.Table(
+                [
+                    html.Thead(
+                        html.Tr(
+                            [
+                                html.Th("Цель"),
+                                html.Th("Было", className="text-end"),
+                                html.Th("Станет", className="text-end"),
+                                html.Th("Изменение", className="text-end"),
+                            ]
+                        )
+                    ),
+                    html.Tbody(table_rows),
+                ],
+                striped=True,
+                hover=True,
+                responsive=True,
+                className="preview-table mb-0",
+            ),
+        ]
+    )
+
+
+def _build_redistribution_modal() -> dbc.Modal:
+    """Создает модал для перераспределения средств при достижении цели.
+
+    Структура модала:
+    - ModalHeader: "Цель достигнута!"
+    - ModalBody:
+      - Congratulation section (название цели, сумма)
+      - Freed budget display
+      - Preview section (таблица сравнения OLD vs NEW)
+    - ModalFooter:
+      - Button "Перераспределить" (confirm) со Spinner
+      - Button "Закрыть" (decline)
+
+    Returns:
+        dbc.Modal: Модал перераспределения
+    """
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(
+                dbc.ModalTitle(
+                    [
+                        html.I(className="bi bi-trophy-fill text-warning me-2"),
+                        "Цель достигнута!",
+                    ]
+                ),
+                close_button=True,
+            ),
+            dbc.ModalBody(
+                [
+                    # Congratulation section (заполняется через callback)
+                    html.Div(
+                        id="redistribution-congratulation-section",
+                        className="congratulation-section mb-4",
+                    ),
+                    # Freed budget display
+                    html.Div(
+                        id="redistribution-freed-budget",
+                        className="freed-budget mb-4",
+                    ),
+                    # Preview section
+                    html.Div(
+                        id="redistribution-preview-section",
+                        className="preview-section",
+                    ),
+                ]
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "Закрыть",
+                        id="decline-redistribution-btn",
+                        color="secondary",
+                        outline=True,
+                    ),
+                    dbc.Button(
+                        [
+                            dbc.Spinner(
+                                size="sm",
+                                id="confirm-redistribution-spinner",
+                                spinner_class_name="me-2",
+                            ),
+                            html.Span(
+                                "Перераспределить",
+                                id="confirm-redistribution-text",
+                            ),
+                        ],
+                        id="confirm-redistribution-btn",
+                        color="success",
+                    ),
+                ]
+            ),
+        ],
+        id="redistribution-modal",
+        is_open=False,
+        centered=True,
+        className="redistribution-modal",
+    )
+
+
 def _recalculate_and_render(
     session, user_id: int, budget: Decimal, savings_mode: str = "free"
 ):
@@ -1169,6 +1381,7 @@ def create_goals_layout() -> html.Div:
             _build_create_goal_modal(),
             _build_edit_goal_modal(),
             _build_contribution_modal(),
+            _build_redistribution_modal(),
             # Confirm Dialog для удаления
             dcc.ConfirmDialog(
                 id="confirm-delete-goal",
@@ -1183,6 +1396,10 @@ def create_goals_layout() -> html.Div:
             dcc.Store(id="goals-allocation-store", data=None),
             # Store для режима накоплений
             dcc.Store(id="goals-savings-mode-store", data=None),
+            # Store для preview перераспределения
+            dcc.Store(id="redistribution-preview-store", data=None),
+            # Store для состояния кнопки confirm (disabled во время обработки)
+            dcc.Store(id="redistribution-btn-disabled-store", data=False),
         ],
         className="goals-container",
     )
