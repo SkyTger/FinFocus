@@ -1,7 +1,7 @@
-- **Current Step**: 6
+- **Current Step**: 7
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 5 завершен: add_contribution модифицирован с just-completed detection, добавлены confirm_redistribution и decline_redistribution callbacks."
-- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-integration-tests.md`) - создать integration тесты для E2E сценариев перераспределения."
+- **Last Action Summary**: "Шаг 6 завершен: созданы 7 E2E integration тестов для перераспределения, обновлен log_redistribution_event() для поддержки preview."
+- **Next Action**: "Приступить к выполнению Шага 7 (см. `07-finalize.md`) - финализация: проверка качества кода, обновление документации, подготовка PR к merge."
 - **Git**: "Ветка 0008-redistribution"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
 - **CWD**: "/home/skytiger/PycharmProjects/worktrees/0008-redistribution"

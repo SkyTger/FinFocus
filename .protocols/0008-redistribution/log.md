@@ -199,3 +199,46 @@ just_completed = goal.is_completed and not was_completed_before
 
 **Файлы**:
 - `app/components/goals.py` — +150 строк (модификация add_contribution, 2 новых callback)
+
+**Коммит**: `2452b20` - feat(goals): add redistribution callbacks with just-completed detection [protocol-0008/05]
+
+---
+
+## Шаг 6: Integration тесты
+
+**Дата**: 2026-01-22
+
+**Действия**:
+- Создан `tests/test_redistribution_integration.py` (~300 строк, 7 тестов)
+- Созданы fixtures: `user_with_budget`, `setup_goals_for_redistribution`, `single_goal_setup`, `skipped_goal_setup`
+- Обновлен `log_redistribution_event()` для поддержки `preview` параметра
+- Покрыты все E2E сценарии перераспределения
+
+**Тесты по категориям**:
+1. **Goal completion triggers preview** (2 теста):
+   - `test_goal_completion_triggers_redistribution_preview` — проверка генерации preview
+   - `test_just_completed_detection_logic` — паттерн was_completed_before vs is_completed
+
+2. **Repeated contribution** (1 тест):
+   - `test_repeated_contribution_no_redistribution` — повторный взнос не триггерит redistribution
+
+3. **Confirm redistribution** (1 тест):
+   - `test_confirm_redistribution_updates_allocation` — new_allocation отличается от old_allocation
+
+4. **Decline redistribution** (1 тест):
+   - `test_decline_redistribution_keeps_allocation` — событие логируется, цель остается COMPLETED
+
+5. **No remaining goals** (1 тест):
+   - `test_no_remaining_goals_scenario` — has_remaining_goals=False, new_allocation=None
+
+6. **Skipped goal** (1 тест):
+   - `test_skipped_goal_freed_budget_zero` — freed_budget=0 для skipped цели
+
+**Решения**:
+- `log_redistribution_event()` теперь поддерживает два способа вызова: с preview или с развернутыми параметрами
+- Для почти завершенной цели (low monthly_contribution) freed_budget может быть 0 — это ожидаемое поведение
+- Тесты проверяют `was_skipped_in_old_allocation` когда freed_budget=0
+
+**Файлы**:
+- `tests/test_redistribution_integration.py` — новый файл (~300 строк, 7 тестов)
+- `app/services/redistribution_service.py` — обновлен log_redistribution_event() (+30 строк)

@@ -169,54 +169,81 @@ class RedistributionService:
 
     def log_redistribution_event(
         self,
-        user_id: int,
-        completed_goal: Goal,
-        freed_budget: Decimal,
-        remaining_goals_count: int,
-        action: str,
-        new_allocation: AllocationSummary | None,
+        user_id: int | None = None,
+        completed_goal: Goal | None = None,
+        freed_budget: Decimal | None = None,
+        remaining_goals_count: int | None = None,
+        action: str = "",
+        new_allocation: AllocationSummary | None = None,
+        *,
+        preview: RedistributionPreview | None = None,
     ) -> RedistributionEvent:
         """Логирует событие перераспределения для аудита (NFR-4).
 
+        Можно вызывать двумя способами:
+        1. С развернутыми параметрами (user_id, completed_goal, ...)
+        2. С preview объектом (preview=..., action=...)
+
         Args:
-            user_id: ID пользователя.
-            completed_goal: Завершенная цель.
-            freed_budget: Освободившийся бюджет.
-            remaining_goals_count: Количество оставшихся активных целей.
+            user_id: ID пользователя (если без preview).
+            completed_goal: Завершенная цель (если без preview).
+            freed_budget: Освободившийся бюджет (если без preview).
+            remaining_goals_count: Количество оставшихся активных целей (если без preview).
             action: Действие пользователя ("confirmed" | "declined").
             new_allocation: Новое распределение (или None если отклонено).
+            preview: RedistributionPreview объект (альтернатива развернутым параметрам).
 
         Returns:
             RedistributionEvent: Структура события для возможного использования.
         """
+        # Если передан preview, извлекаем данные из него
+        if preview is not None:
+            goal_id = preview["completed_goal_id"]
+            goal_name = preview["completed_goal_name"]
+            freed = preview["freed_budget"]
+            remaining_count = preview["remaining_goals_count"]
+            alloc = preview.get("new_allocation")
+        else:
+            # Используем развернутые параметры
+            if completed_goal is None:
+                raise ValueError("completed_goal required when preview is None")
+            goal_id = completed_goal.id
+            goal_name = completed_goal.name
+            freed = freed_budget or Decimal("0")
+            remaining_count = remaining_goals_count or 0
+            alloc = new_allocation
+
         # Конвертируем AllocationSummary в dict для JSON-совместимости
         allocation_dict: dict | None = None
-        if new_allocation is not None:
+        if alloc is not None:
             allocation_dict = {
-                "total_budget": str(new_allocation["total_budget"]),
-                "total_allocated": str(new_allocation["total_allocated"]),
-                "total_needed": str(new_allocation["total_needed"]),
-                "total_shortfall": str(new_allocation["total_shortfall"]),
-                "all_goals_funded": new_allocation["all_goals_funded"],
-                "results_count": len(new_allocation["results"]),
+                "total_budget": str(alloc["total_budget"]),
+                "total_allocated": str(alloc["total_allocated"]),
+                "total_needed": str(alloc["total_needed"]),
+                "total_shortfall": str(alloc["total_shortfall"]),
+                "all_goals_funded": alloc["all_goals_funded"],
+                "results_count": len(alloc["results"]),
             }
+
+        # user_id: используем переданный или DEFAULT_USER_ID
+        effective_user_id = user_id if user_id is not None else 1
 
         event = RedistributionEvent(
             timestamp=datetime.now().isoformat(),
-            user_id=user_id,
-            completed_goal_id=completed_goal.id,
-            completed_goal_name=completed_goal.name,
-            freed_budget=str(freed_budget),
-            remaining_goals_count=remaining_goals_count,
+            user_id=effective_user_id,
+            completed_goal_id=goal_id,
+            completed_goal_name=goal_name,
+            freed_budget=str(freed),
+            remaining_goals_count=remaining_count,
             action=action,
             new_allocation_summary=allocation_dict,
         )
 
         # Аудит-лог (NFR-4)
         logger.info(
-            f"REDISTRIBUTION_EVENT: user={user_id}, "
-            f"goal_id={completed_goal.id}, goal_name='{completed_goal.name}', "
-            f"freed_budget={freed_budget}, remaining_goals={remaining_goals_count}, "
+            f"REDISTRIBUTION_EVENT: user={effective_user_id}, "
+            f"goal_id={goal_id}, goal_name='{goal_name}', "
+            f"freed_budget={freed}, remaining_goals={remaining_count}, "
             f"action={action}"
         )
 
