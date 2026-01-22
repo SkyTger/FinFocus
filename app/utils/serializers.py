@@ -77,7 +77,9 @@ def serialize_redistribution_preview(preview: RedistributionPreview) -> dict:
     return _convert_decimal_to_str(dict(preview))
 
 
-def deserialize_redistribution_preview(data: dict | None) -> RedistributionPreview | None:
+def deserialize_redistribution_preview(
+    data: dict | None,
+) -> RedistributionPreview | None:
     """Десериализует данные из dcc.Store обратно в RedistributionPreview.
 
     Конвертирует str обратно в Decimal для известных числовых полей.

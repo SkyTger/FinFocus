@@ -5,7 +5,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.models.database import Goal, GoalStatus
+from app.models.database import GoalStatus
 from app.services.allocation_service import AllocationService
 from app.services.goal_service import GoalService
 from app.services.redistribution_service import RedistributionService
@@ -169,7 +169,8 @@ class TestGoalCompletionTriggersPreview:
         # Assert: preview содержит корректные данные
         assert preview["completed_goal_id"] == goal1.id
         assert preview["completed_goal_name"] == "Отпуск"
-        # freed_budget может быть 0 для почти завершенной цели (low monthly_contribution)
+        # freed_budget может быть 0 для почти завершенной цели
+        # (low monthly_contribution)
         # Главное - проверить что значение валидное (>= 0) и корректно определено
         assert preview["freed_budget"] >= Decimal("0")
         # Если цель была почти завершена, monthly_contribution была низкой → skipped
@@ -213,7 +214,7 @@ class TestGoalCompletionTriggersPreview:
 
 
 class TestRepeatedContribution:
-    """Тесты для проверки что повторный взнос в completed цель не триггерит redistribution."""
+    """Тесты: повторный взнос в completed цель не триггерит redistribution."""
 
     def test_repeated_contribution_no_redistribution(
         self, db_session, user_with_budget, setup_goals_for_redistribution
@@ -299,9 +300,10 @@ class TestConfirmRedistribution:
         )
 
         # goal2 должна получить больше в new_allocation
-        assert new_goal2_allocation["allocated_amount"] >= old_goal2_allocation[
-            "allocated_amount"
-        ]
+        assert (
+            new_goal2_allocation["allocated_amount"]
+            >= old_goal2_allocation["allocated_amount"]
+        )
 
         # Шаг 4: логируем confirm событие
         event = redistribution_service.log_redistribution_event(
@@ -322,7 +324,7 @@ class TestDeclineRedistribution:
     def test_decline_redistribution_keeps_allocation(
         self, db_session, user_with_budget, setup_goals_for_redistribution
     ):
-        """E2E: Decline redistribution только логирует событие, allocation меняется естественно.
+        """E2E: Decline redistribution логирует событие, allocation не меняется.
 
         Сценарий:
         1. Достигнуть goal1

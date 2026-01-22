@@ -1077,9 +1077,7 @@ def _build_preview_section(preview_data: dict | None) -> html.Div:
         # Получаем OLD amount (0 если цели не было в OLD)
         old_result = old_results_map.get(goal_id)
         old_amount = (
-            Decimal(str(old_result["allocated_amount"]))
-            if old_result
-            else Decimal("0")
+            Decimal(str(old_result["allocated_amount"])) if old_result else Decimal("0")
         )
 
         # Вычисляем изменение
@@ -1110,7 +1108,11 @@ def _build_preview_section(preview_data: dict | None) -> html.Div:
         )
 
     # Итоговая строка
-    old_total = Decimal(str(old_allocation["total_allocated"])) if old_allocation else Decimal("0")  # noqa: E501
+    old_total = (
+        Decimal(str(old_allocation["total_allocated"]))
+        if old_allocation
+        else Decimal("0")
+    )  # noqa: E501
     new_total = Decimal(str(new_allocation["total_allocated"]))
     total_change = new_total - old_total
 

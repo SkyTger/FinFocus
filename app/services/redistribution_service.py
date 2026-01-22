@@ -98,7 +98,8 @@ class RedistributionService:
 
         # Подсчет оставшихся активных целей (исключая завершенную)
         remaining_goals = [
-            g for g in all_goals
+            g
+            for g in all_goals
             if g.id != completed_goal.id and g.status == GoalStatus.ACTIVE
         ]
         remaining_goals_count = len(remaining_goals)
@@ -188,7 +189,8 @@ class RedistributionService:
             user_id: ID пользователя (если без preview).
             completed_goal: Завершенная цель (если без preview).
             freed_budget: Освободившийся бюджет (если без preview).
-            remaining_goals_count: Количество оставшихся активных целей (если без preview).
+            remaining_goals_count: Количество оставшихся активных целей
+                (если без preview).
             action: Действие пользователя ("confirmed" | "declined").
             new_allocation: Новое распределение (или None если отклонено).
             preview: RedistributionPreview объект (альтернатива развернутым параметрам).

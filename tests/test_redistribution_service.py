@@ -599,7 +599,9 @@ class TestTimingNFR2:
         service = RedistributionService(allocation_service=mock_allocation_service)
 
         # Мокаем time.perf_counter для симуляции медленного расчета
-        with patch("app.services.redistribution_service.time.perf_counter") as mock_time:
+        with patch(
+            "app.services.redistribution_service.time.perf_counter"
+        ) as mock_time:
             # Первый вызов возвращает 0, второй - 0.1 (100ms > 50ms threshold)
             mock_time.side_effect = [0.0, 0.1]
 

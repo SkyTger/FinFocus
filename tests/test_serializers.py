@@ -1,8 +1,6 @@
 """Тесты для сериализаторов RedistributionPreview."""
 from decimal import Decimal
 
-import pytest
-
 from app.schema.goals import AllocationResult, AllocationSummary, RedistributionPreview
 from app.utils.serializers import (
     deserialize_redistribution_preview,
@@ -84,7 +82,10 @@ class TestSerializeRedistributionPreviewBasic:
         assert result["new_allocation"]["total_shortfall"] == "2000.00"
 
         # Проверяем Decimal внутри results списка
-        assert result["new_allocation"]["results"][0]["monthly_contribution_needed"] == "10000.00"
+        assert (
+            result["new_allocation"]["results"][0]["monthly_contribution_needed"]
+            == "10000.00"
+        )
         assert result["new_allocation"]["results"][0]["allocated_amount"] == "8000.00"
         assert result["new_allocation"]["results"][0]["shortfall"] == "2000.00"
 
@@ -162,7 +163,9 @@ class TestDeserializeRedistributionPreview:
         assert isinstance(result["new_allocation"]["total_budget"], Decimal)
 
         # Проверяем Decimal внутри results списка
-        assert result["new_allocation"]["results"][0]["monthly_contribution_needed"] == Decimal("10000.00")
+        assert result["new_allocation"]["results"][0][
+            "monthly_contribution_needed"
+        ] == Decimal("10000.00")
         assert isinstance(
             result["new_allocation"]["results"][0]["allocated_amount"], Decimal
         )
@@ -225,8 +228,14 @@ class TestRoundtripSerialization:
         assert restored["calculation_time_ms"] == original["calculation_time_ms"]
 
         # Проверяем вложенные данные
-        assert restored["new_allocation"]["total_budget"] == original["new_allocation"]["total_budget"]
-        assert restored["new_allocation"]["total_allocated"] == original["new_allocation"]["total_allocated"]
+        assert (
+            restored["new_allocation"]["total_budget"]
+            == original["new_allocation"]["total_budget"]
+        )
+        assert (
+            restored["new_allocation"]["total_allocated"]
+            == original["new_allocation"]["total_allocated"]
+        )
 
         # Проверяем results
         assert len(restored["new_allocation"]["results"]) == 2
