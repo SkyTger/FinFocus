@@ -5,6 +5,7 @@
 **Restore context**: protocol-0008#ctx-2 (2026-01-22)
 **Restore context**: protocol-0008#ctx-3 (2026-01-22)
 **Restore context**: protocol-0008#ctx-4 (2026-01-22)
+**Restore context**: protocol-0008#ctx-5 (2026-01-22)
 
 ---
 
@@ -242,3 +243,48 @@ just_completed = goal.is_completed and not was_completed_before
 **Файлы**:
 - `tests/test_redistribution_integration.py` — новый файл (~300 строк, 7 тестов)
 - `app/services/redistribution_service.py` — обновлен log_redistribution_event() (+30 строк)
+
+**Коммит**: `f6dff73` - test(redistribution): add E2E integration tests [protocol-0008/06]
+
+---
+
+## Шаг 7: Финализация
+
+**Дата**: 2026-01-22
+
+**Действия**:
+- Запущен black — переформатировано 6 файлов
+- Запущен flake8 — найдено и исправлено 6 проблем (E501, F401)
+- Запущен pytest — все 141 тест прошли успешно
+- Обновлен Memory Bank (services.md) — добавлено описание RedistributionService
+- Обновлен ROADMAP.md — отмечена фича "Перераспределение средств" как завершенная
+- PR #8 переведен в статус "Ready for Review"
+
+**Исправления black/flake8**:
+- `app/services/redistribution_service.py` — перенос длинной строки docstring
+- `app/components/goals.py` — переформатирование
+- `app/utils/serializers.py` — переформатирование
+- `tests/test_redistribution_integration.py` — удален неиспользуемый импорт Goal, исправлены длинные строки
+- `tests/test_redistribution_service.py` — переформатирование
+- `tests/test_serializers.py` — удален неиспользуемый импорт pytest
+
+**Результаты верификации**:
+- Black: 6 файлов переформатировано
+- Flake8: 0 ошибок после исправлений
+- Pytest: 141 passed in 2.19s
+
+**Файлы**:
+- `.memory-bank/modules/services.md` — +60 строк (RedistributionService)
+- `ROADMAP.md` — обновлен прогресс батча 2
+
+**Коммит**: `c35bb54` - chore: final QA fixes and docs update [protocol-0008/07]
+
+---
+
+## Статус протокола: ✅ ЗАВЕРШЕН
+
+**Дата завершения**: 2026-01-22
+**PR**: https://github.com/SkyTger/FinFocus/pull/8 (Ready for Review)
+**Всего коммитов**: 8 (00-07)
+**Всего тестов**: 23 новых (16 unit + 7 integration)
+**Общее количество тестов проекта**: 141

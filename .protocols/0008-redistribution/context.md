@@ -1,7 +1,7 @@
 - **Current Step**: 7
-- **Status**: In Progress
-- **Last Action Summary**: "Шаг 6 завершен: созданы 7 E2E integration тестов для перераспределения, обновлен log_redistribution_event() для поддержки preview."
-- **Next Action**: "Приступить к выполнению Шага 7 (см. `07-finalize.md`) - финализация: проверка качества кода, обновление документации, подготовка PR к merge."
+- **Status**: Completed
+- **Last Action Summary**: "Финализация завершена: полная верификация пройдена (black, flake8, pytest 141 tests), документация обновлена, PR #8 переведен в Ready."
+- **Next Action**: "Протокол завершен. Ожидается code review и merge через /protocol-review-merge."
 - **Git**: "Ветка 0008-redistribution"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
 - **CWD**: "/home/skytiger/PycharmProjects/worktrees/0008-redistribution"
