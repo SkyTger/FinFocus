@@ -1,7 +1,7 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 1 завершен: добавлены RedistributionPreview и RedistributionEvent TypedDicts, созданы функции сериализации, написаны 7 unit тестов."
-- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-redistribution-service.md`) - создать RedistributionService с Temporary Status Pattern."
+- **Last Action Summary**: "Шаг 2 завершен: создан RedistributionService с Temporary Status Pattern, timing logs (NFR-2) и аудит-логированием (NFR-4)."
+- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-service-tests.md`) - написать unit тесты для RedistributionService."
 - **Git**: "Ветка 0008-redistribution"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
 - **CWD**: "/home/skytiger/PycharmProjects/worktrees/0008-redistribution"

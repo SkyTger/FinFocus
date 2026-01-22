@@ -30,6 +30,10 @@ from .recurring_service import (
     RecurringService,
     VirtualTransaction,
 )
+from .redistribution_service import (
+    NFR2_WARNING_THRESHOLD_MS,
+    RedistributionService,
+)
 from .transaction_service import TransactionService
 
 __all__ = [
@@ -61,6 +65,9 @@ __all__ = [
     "MAX_INSTANCES_PER_CALL",
     "MAX_FORECAST_DAYS",
     "VALID_RECURRING_PERIODS",
+    # Redistribution
+    "RedistributionService",
+    "NFR2_WARNING_THRESHOLD_MS",
     # Core
     "ValidationError",
 ]

@@ -51,3 +51,29 @@
 - `app/schema/goals.py` — +58 строк (2 TypedDicts)
 - `app/utils/serializers.py` — +65 строк (2 функции + 2 helper)
 - `tests/test_serializers.py` — +195 строк (7 тестов)
+
+**Коммит**: `91bdcf2` - feat(schema): add redistribution TypedDicts and serializers [protocol-0008/01]
+
+---
+
+## Шаг 2: RedistributionService
+
+**Дата**: 2026-01-22
+
+**Действия**:
+- Создан `app/services/redistribution_service.py` (~200 строк)
+- Реализован класс `RedistributionService` с DI pattern (AllocationService передается через конструктор)
+- Реализован метод `calculate_redistribution_preview()` с "Temporary Status Pattern"
+- Реализован метод `_get_freed_budget_from_allocation()` для определения освободившегося бюджета
+- Реализован метод `log_redistribution_event()` для аудит-логирования (NFR-4)
+- Обновлены экспорты в `app/services/__init__.py`
+
+**Решения**:
+- **Temporary Status Pattern**: используется try/finally для гарантированного восстановления goal.status после расчета OLD allocation
+- **Timing logs** (NFR-2): используется time.perf_counter() с WARNING при превышении 50ms
+- **DI pattern**: AllocationService передается через конструктор для улучшения тестируемости
+- **Аудит-лог** (NFR-4): структурированное логирование через loguru.info() с ключевыми полями события
+
+**Файлы**:
+- `app/services/redistribution_service.py` — новый файл (~200 строк)
+- `app/services/__init__.py` — обновлены экспорты
