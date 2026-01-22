@@ -77,3 +77,46 @@
 **Файлы**:
 - `app/services/redistribution_service.py` — новый файл (~200 строк)
 - `app/services/__init__.py` — обновлены экспорты
+
+**Коммит**: `1a0ac19` - feat(services): add RedistributionService with Temporary Status Pattern [protocol-0008/02]
+
+---
+
+## Шаг 3: Unit тесты RedistributionService
+
+**Дата**: 2026-01-22
+
+**Действия**:
+- Создан `tests/test_redistribution_service.py` (~450 строк, 16 тестов)
+- Созданы fixtures: `test_user_with_budget`, `sample_goals`, `all_completed_goals`
+- Покрыты все методы RedistributionService
+
+**Тесты по категориям**:
+1. **calculate_redistribution_preview()** (5 тестов):
+   - `test_preview_basic_calculation` — базовый сценарий с 3 целями
+   - `test_preview_no_remaining_goals` — все цели completed
+   - `test_preview_single_remaining_goal` — одна оставшаяся цель
+   - `test_preview_freed_budget_calculation` — проверка freed_budget
+   - `test_preview_includes_timing` — calculation_time_ms > 0
+
+2. **Temporary Status Pattern** (3 теста):
+   - `test_temporary_status_restored_on_success` — статус сохраняется
+   - `test_temporary_status_restored_on_exception` — статус восстанавливается при exception
+   - `test_active_goal_processed_correctly` — edge case с ACTIVE целью
+
+3. **_get_freed_budget_from_allocation()** (3 теста):
+   - `test_freed_budget_normal_goal` — обычная цель
+   - `test_freed_budget_skipped_goal` — пропущенная цель
+   - `test_freed_budget_goal_not_found` — цель не найдена (edge case)
+
+4. **log_redistribution_event()** (3 теста):
+   - `test_log_event_confirmed` — action="confirmed"
+   - `test_log_event_declined` — action="declined"
+   - `test_log_event_structure` — все поля RedistributionEvent
+
+5. **Timing NFR-2** (2 теста):
+   - `test_timing_under_threshold` — DEBUG при < 50ms
+   - `test_timing_over_threshold_logs_warning` — WARNING при > 50ms (mock)
+
+**Файлы**:
+- `tests/test_redistribution_service.py` — новый файл (~450 строк)
