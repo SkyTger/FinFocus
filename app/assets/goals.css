@@ -378,3 +378,178 @@
         font-size: 0.75rem;
     }
 }
+
+/* === REDISTRIBUTION MODAL === */
+.redistribution-modal .modal-content {
+    animation: fadeIn 0.2s ease-in-out;
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.redistribution-modal .modal-header {
+    background: linear-gradient(135deg, #198754 0%, #157347 100%);
+    color: white;
+    border-bottom: none;
+    padding: 1.25rem 1.5rem;
+}
+
+.redistribution-modal .modal-header .modal-title {
+    font-weight: 600;
+}
+
+.redistribution-modal .modal-header .btn-close {
+    filter: invert(1);
+    opacity: 0.8;
+}
+
+.redistribution-modal .modal-header .btn-close:hover {
+    opacity: 1;
+}
+
+.redistribution-modal .modal-body {
+    padding: 1.5rem;
+}
+
+.redistribution-modal .modal-footer {
+    border-top: 1px solid #e9ecef;
+    padding: 1rem 1.5rem;
+}
+
+/* Congratulation Section */
+.redistribution-modal .congratulation-section {
+    text-align: center;
+    padding: 1rem;
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+    border-radius: 8px;
+    border: 1px solid #c3e6cb;
+}
+
+.redistribution-modal .congratulation-section h5 {
+    color: #155724;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.redistribution-modal .congratulation-section .goal-amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #198754;
+}
+
+/* Freed Budget Section */
+.redistribution-modal .freed-budget {
+    text-align: center;
+    padding: 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.redistribution-modal .freed-budget-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+}
+
+.redistribution-modal .freed-budget-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0d6efd;
+}
+
+/* Preview Section */
+.redistribution-modal .preview-section {
+    padding: 0;
+}
+
+.redistribution-modal .preview-section h6 {
+    color: #495057;
+    font-weight: 600;
+}
+
+.redistribution-modal .preview-table {
+    margin-bottom: 0;
+}
+
+.redistribution-modal .preview-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.875rem;
+    padding: 0.75rem;
+}
+
+.redistribution-modal .preview-table td {
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+.redistribution-modal .preview-table .goal-name-cell {
+    font-weight: 500;
+}
+
+.redistribution-modal .preview-table .change-positive {
+    color: var(--bs-success);
+    font-weight: 600;
+}
+
+.redistribution-modal .preview-table .change-negative {
+    color: var(--bs-danger);
+    font-weight: 600;
+}
+
+/* Confirm Button Spinner */
+.redistribution-modal #confirm-redistribution-btn .spinner-border {
+    display: none;
+}
+
+.redistribution-modal #confirm-redistribution-btn.loading .spinner-border {
+    display: inline-block;
+}
+
+.redistribution-modal #confirm-redistribution-btn.loading #confirm-redistribution-text {
+    opacity: 0.7;
+}
+
+/* === RESPONSIVE REDISTRIBUTION MODAL === */
+@media (max-width: 576px) {
+    .redistribution-modal .modal-header {
+        padding: 1rem;
+    }
+
+    .redistribution-modal .modal-body {
+        padding: 1rem;
+    }
+
+    .redistribution-modal .congratulation-section {
+        padding: 0.75rem;
+    }
+
+    .redistribution-modal .congratulation-section .goal-amount {
+        font-size: 1.25rem;
+    }
+
+    .redistribution-modal .freed-budget {
+        padding: 0.75rem;
+    }
+
+    .redistribution-modal .freed-budget-value {
+        font-size: 1.1rem;
+    }
+
+    .redistribution-modal .preview-table th,
+    .redistribution-modal .preview-table td {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+    }
+}

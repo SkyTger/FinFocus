@@ -4,6 +4,8 @@ from app.schema.goals import (
     AllocationSummary,
     GoalDisplayData,
     GoalsSummary,
+    RedistributionEvent,
+    RedistributionPreview,
 )
 
 __all__ = [
@@ -11,4 +13,6 @@ __all__ = [
     "AllocationSummary",
     "GoalDisplayData",
     "GoalsSummary",
+    "RedistributionEvent",
+    "RedistributionPreview",
 ]

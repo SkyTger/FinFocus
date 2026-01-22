@@ -87,9 +87,14 @@ MVP разрабатывается по принципу **dual-track agile** с
   - [x] Dashboard интеграция (агрегация savings по всем целям)
   - [x] Unit и integration тесты (98 tests)
 - [ ] Три режима накоплений (свободный/средний/строгий)
-- [ ] Перераспределение средств между целями
+- [x] ✅ Перераспределение средств между целями (2026/01/22, PR #8)
+  - [x] RedistributionService с Temporary Status Pattern
+  - [x] TypedDicts и Serializers для preview/event
+  - [x] Redistribution Modal UI с анимациями
+  - [x] Just-completed detection в callbacks
+  - [x] Unit и integration тесты (23 тестов)
 
-**Прогресс**: 50% (2/4 фичи завершены)
+**Прогресс**: 75% (3/4 фичи завершены)
 
 ### [Батч 3: Analytics & UX](./batch-3-analytics.md)
 **Сроки**: Недели 12-15  

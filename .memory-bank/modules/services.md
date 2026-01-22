@@ -416,6 +416,67 @@ with get_db_session() as session:
 **Unit тесты**: 10 тестов в `tests/test_allocation_service.py`
 - Покрытие: все сценарии распределения, режимы free/medium/strict, edge cases
 
+## RedistributionService (Протокол 0008 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/redistribution_service.py` (~200 строк)
+
+**Инициализация**: `RedistributionService(session, allocation_service)` - DI pattern
+
+**Методы**:
+- `calculate_redistribution_preview(completed_goal, monthly_budget, savings_mode)` → `RedistributionPreview`
+  - Рассчитывает OLD и NEW allocation при достижении цели
+  - Использует "Temporary Status Pattern" для временного изменения статуса цели
+  - Определяет freed_budget через _get_freed_budget_from_allocation()
+  - Возвращает полный preview с has_remaining_goals, timing информацией
+- `log_redistribution_event(...)` → `RedistributionEvent`
+  - Аудит-логирование события (NFR-4)
+  - Поддерживает два способа вызова: с preview или с развернутыми параметрами
+  - action: "confirmed" | "declined"
+
+**Temporary Status Pattern**:
+```python
+original_status = completed_goal.status
+try:
+    completed_goal.status = GoalStatus.ACTIVE  # Временно восстанавливаем
+    old_allocation = allocation_service.calculate_allocation(...)
+finally:
+    completed_goal.status = original_status  # Гарантированно восстанавливаем
+```
+
+**TypedDicts**: `RedistributionPreview`, `RedistributionEvent` (см. [schema.md])
+
+**Пример использования**:
+```python
+from app.services import RedistributionService, AllocationService
+
+with get_db_session() as session:
+    allocation_service = AllocationService(session)
+    service = RedistributionService(session, allocation_service)
+
+    # Расчет preview при достижении цели
+    preview = service.calculate_redistribution_preview(
+        completed_goal=goal,
+        monthly_budget=Decimal("15000"),
+        savings_mode="free"
+    )
+
+    # Логирование события
+    service.log_redistribution_event(
+        preview=preview,
+        action="confirmed",
+        new_allocation=preview["new_allocation"]
+    )
+```
+
+**NFR (Non-Functional Requirements)**:
+- NFR-1: Preview за < 100ms (timing logs)
+- NFR-2: WARNING при > 50ms через loguru
+- NFR-4: Аудит-логирование событий
+
+**Unit тесты**: 16 тестов в `tests/test_redistribution_service.py`
+**Integration тесты**: 7 тестов в `tests/test_redistribution_integration.py`
+- Покрытие: preview calculation, temporary status pattern, freed budget, logging, E2E scenarios
+
 ## Критичные решения
 
 **D010**: Session management через flush() вместо commit() для гибкости caller
@@ -429,6 +490,8 @@ with get_db_session() as session:
 **Протокол 0006**: Удалено ограничение D009 (одна активная цель), добавлены приоритеты и AllocationService
 
 **Протокол 0007**: Добавлены режимы накоплений (free/medium/strict) с множителями
+
+**Протокол 0008**: RedistributionService для перераспределения бюджета при достижении цели
 
 ---
 
