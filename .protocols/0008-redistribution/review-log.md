@@ -143,3 +143,31 @@ python -m pytest -v --tb=short
 **Статус**: ✅ ПРОЙДЕН
 
 ---
+
+## Шаг 4-m: Финальное слияние (Merge)
+
+**Дата**: 2026-01-22
+
+**Проверка окружения**:
+- CWD: `/home/skytiger/PycharmProjects/FinFocus`
+- Ветка: `main`
+
+**Действия**:
+1. Получено разрешение пользователя на слияние
+2. Выполнен `git checkout main` — уже на main
+3. Выполнен `git pull origin main` — локальные review коммиты опережали origin
+4. Выполнен `git push origin main` — синхронизация review коммитов
+5. Выполнен `git merge --no-ff 0008-redistribution`
+6. Выполнен `git push origin main`
+
+**Результат merge**:
+```
+Merge made by the 'ort' strategy.
+24 files changed, 3567 insertions(+), 19 deletions(-)
+```
+
+**Merge commit**: `a1e99a7`
+
+**Статус**: ✅ MERGE УСПЕШЕН
+
+---
