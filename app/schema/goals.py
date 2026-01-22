@@ -115,3 +115,60 @@ class GoalsSummary(TypedDict):
     total_shortfall: Decimal
     all_goals_on_track: bool
     budget_not_set: bool
+
+
+class RedistributionPreview(TypedDict):
+    """Preview данные для модала перераспределения.
+
+    Используется для отображения влияния достижения цели на остальные цели.
+    Содержит сравнение старого и нового распределения бюджета.
+
+    Attributes:
+        completed_goal_id: ID завершенной цели.
+        completed_goal_name: Название завершенной цели.
+        freed_budget: Освободившийся бюджет (ежемесячный взнос завершенной цели).
+        was_skipped_in_old_allocation: Была ли цель пропущена в старом распределении
+            (например, priority был низкий и бюджета не хватило).
+        has_remaining_goals: Есть ли оставшиеся активные цели для перераспределения.
+        remaining_goals_count: Количество оставшихся активных целей.
+        new_allocation: Новое распределение после завершения цели (или None).
+        old_allocation: Старое распределение до завершения цели (или None).
+        calculation_time_ms: Время расчета в миллисекундах (NFR-2 verification).
+    """
+
+    completed_goal_id: int
+    completed_goal_name: str
+    freed_budget: Decimal
+    was_skipped_in_old_allocation: bool
+    has_remaining_goals: bool
+    remaining_goals_count: int
+    new_allocation: AllocationSummary | None
+    old_allocation: AllocationSummary | None
+    calculation_time_ms: float
+
+
+class RedistributionEvent(TypedDict):
+    """Структура события перераспределения для аудита (NFR-4).
+
+    Логируется при подтверждении или отклонении перераспределения
+    для последующего анализа поведения пользователей.
+
+    Attributes:
+        timestamp: ISO-формат времени события.
+        user_id: ID пользователя.
+        completed_goal_id: ID завершенной цели.
+        completed_goal_name: Название завершенной цели.
+        freed_budget: Освободившийся бюджет (str для JSON-совместимости).
+        remaining_goals_count: Количество оставшихся активных целей.
+        action: Действие пользователя ("confirmed" | "declined").
+        new_allocation_summary: Сводка нового распределения (dict для JSON).
+    """
+
+    timestamp: str
+    user_id: int
+    completed_goal_id: int
+    completed_goal_name: str
+    freed_budget: str  # str для JSON
+    remaining_goals_count: int
+    action: str  # "confirmed" | "declined"
+    new_allocation_summary: dict | None

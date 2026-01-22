@@ -1,7 +1,8 @@
-- **Current Step**: 0
-- **Status**: Not Started
-- **Last Action Summary**: "План сгенерирован и ожидает утверждения."
-- **Next Action**: "Приступить к выполнению Шага 0 (см. `00-setup.md`)."
-- **Git**: "Ветка 0008-redistribution создана, но пока пуста."
+- **Current Step**: 2
+- **Status**: In Progress
+- **Last Action Summary**: "Шаг 1 завершен: добавлены RedistributionPreview и RedistributionEvent TypedDicts, созданы функции сериализации, написаны 7 unit тестов."
+- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-redistribution-service.md`) - создать RedistributionService с Temporary Status Pattern."
+- **Git**: "Ветка 0008-redistribution"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
 - **CWD**: "/home/skytiger/PycharmProjects/worktrees/0008-redistribution"
+- **PR URL**: "https://github.com/SkyTger/FinFocus/pull/8"
