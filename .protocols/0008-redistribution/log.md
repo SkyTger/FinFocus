@@ -4,6 +4,7 @@
 
 **Restore context**: protocol-0008#ctx-2 (2026-01-22)
 **Restore context**: protocol-0008#ctx-3 (2026-01-22)
+**Restore context**: protocol-0008#ctx-4 (2026-01-22)
 
 ---
 
@@ -156,3 +157,45 @@
 - Preview секция рендерится динамически через callback (id контейнеры)
 - Spinner внутри кнопки с toggle через CSS класс `.loading`
 - Таблица сравнения использует Bootstrap table компоненты
+
+**Файлы**:
+- `app/components/goals.py` — +165 строк (2 helper функции, 2 dcc.Store, 1 вызов модала)
+- `app/assets/goals.css` — +160 строк (стили модала redistribution)
+
+**Коммит**: `0e05c7c` - feat(goals): add redistribution modal UI [protocol-0008/04]
+
+---
+
+## Шаг 5: Goals Callbacks
+
+**Дата**: 2026-01-22
+
+**Действия**:
+- Модифицирован `add_contribution()` callback с just-completed detection
+- Добавлены 3 новых Output для redistribution (modal, preview-store, btn-disabled-store)
+- Создан `confirm_redistribution()` callback с debounce и timing logs
+- Создан `decline_redistribution()` callback с логированием события
+
+**Just-completed detection логика**:
+```python
+# ДО взноса
+goal_before = goal_service.get_by_id(goal_id)
+was_completed_before = goal_before.is_completed
+
+# Добавить взнос
+goal = goal_service.add_contribution(...)
+
+# ПОСЛЕ взноса
+just_completed = goal.is_completed and not was_completed_before
+```
+
+**Решения**:
+- `add_contribution()` теперь возвращает 12 outputs (9 базовых + 3 redistribution)
+- Guard clauses в confirm/decline callbacks согласно ADR-003
+- Debounce через `btn_disabled` State и проверку в guard clause
+- Timing logs через `time.perf_counter()` для NFR-1 verification
+- При `just_completed=True` вызывается RedistributionService.calculate_redistribution_preview()
+- Логирование события через `log_redistribution_event()` с action="confirmed"/"declined"
+
+**Файлы**:
+- `app/components/goals.py` — +150 строк (модификация add_contribution, 2 новых callback)

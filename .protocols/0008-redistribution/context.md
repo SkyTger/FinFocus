@@ -1,7 +1,7 @@
-- **Current Step**: 5
+- **Current Step**: 6
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 4 завершен: создан модал перераспределения с preview таблицей, dcc.Store компонентами и CSS стилями."
-- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-callbacks.md`) - модифицировать add_contribution callback и добавить confirm/decline callbacks."
+- **Last Action Summary**: "Шаг 5 завершен: add_contribution модифицирован с just-completed detection, добавлены confirm_redistribution и decline_redistribution callbacks."
+- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-integration-tests.md`) - создать integration тесты для E2E сценариев перераспределения."
 - **Git**: "Ветка 0008-redistribution"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
 - **CWD**: "/home/skytiger/PycharmProjects/worktrees/0008-redistribution"

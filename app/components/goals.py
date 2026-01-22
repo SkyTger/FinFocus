@@ -1,5 +1,6 @@
 """UI компонент для управления накопительными целями."""
 
+import time
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import TypedDict
@@ -14,6 +15,7 @@ from app.models.database import GoalStatus
 from app.services import (
     GoalService,
     AllocationService,
+    RedistributionService,
     AllocationResult,
     AllocationSummary,
     GoalDisplayData,
@@ -25,7 +27,11 @@ from app.utils.formatters import (
     format_days_remaining,
     parse_date_safe,
 )
-from app.utils.serializers import serialize_allocation_summary
+from app.utils.serializers import (
+    serialize_allocation_summary,
+    serialize_redistribution_preview,
+    deserialize_redistribution_preview,
+)
 
 
 # Константы
@@ -1746,6 +1752,10 @@ def toggle_contribution_modal(add_clicks_list, cancel_clicks, is_open):
         Output("contribution-description-input", "value"),
         Output("goal-error-alert", "children", allow_duplicate=True),
         Output("goal-error-alert", "is_open", allow_duplicate=True),
+        # Redistribution outputs (protocol-0008)
+        Output("redistribution-modal", "is_open"),
+        Output("redistribution-preview-store", "data"),
+        Output("redistribution-btn-disabled-store", "data"),
     ],
     Input("contribution-submit-btn", "n_clicks"),
     [
@@ -1761,13 +1771,16 @@ def toggle_contribution_modal(add_clicks_list, cancel_clicks, is_open):
 def add_contribution(
     n_clicks, goal_id, amount, date_str, description, budget, savings_mode
 ):
-    """Добавляет взнос в цель."""
+    """Добавляет взнос в цель.
+
+    При достижении цели (just-completed) открывает модал перераспределения.
+    """
     if not n_clicks or not goal_id:
         raise PreventUpdate
 
     if not amount or amount <= 0:
         return (
-            True,
+            True,  # contribution-modal stays open
             no_update,
             no_update,
             no_update,
@@ -1776,14 +1789,28 @@ def add_contribution(
             no_update,
             "Укажите положительную сумму",
             True,
+            # Redistribution outputs - no changes
+            no_update,
+            no_update,
+            no_update,
         )
 
     contribution_date = parse_date_safe(date_str)
 
+    start_time = time.perf_counter()
+
     try:
         with get_db_session() as session:
-            service = GoalService(session)
-            goal = service.add_contribution(
+            goal_service = GoalService(session)
+
+            # Just-completed detection: проверяем состояние ДО взноса
+            goal_before = goal_service.get_by_id(goal_id)
+            if not goal_before:
+                raise ValueError(f"Цель {goal_id} не найдена")
+            was_completed_before = goal_before.is_completed
+
+            # Добавляем взнос
+            goal = goal_service.add_contribution(
                 goal_id=goal_id,
                 amount=Decimal(str(amount)),
                 contribution_date=contribution_date,
@@ -1791,19 +1818,26 @@ def add_contribution(
             )
             session.commit()
 
-            logger.info(f"Добавлен взнос {amount} в цель {goal_id}")
+            # Just-completed detection: проверяем состояние ПОСЛЕ взноса
+            just_completed = goal.is_completed and not was_completed_before
+
+            logger.info(
+                f"Добавлен взнос {amount} в цель {goal_id}"
+                f"{' (цель достигнута!)' if just_completed else ''}"
+            )
 
             # Пересчитываем allocation и строим UI
             budget_decimal = _safe_budget_decimal(budget)
+            mode = savings_mode or "free"
             goals_container_children, allocation_summary, _ = _recalculate_and_render(
                 session,
                 DEFAULT_USER_ID,
                 budget_decimal,
-                savings_mode=savings_mode or "free",
+                savings_mode=mode,
             )
 
             # Получаем обновленную историю взносов
-            contributions = service.get_contributions(goal.id, limit=10)
+            contributions = goal_service.get_contributions(goal.id, limit=10)
             contrib_data = [
                 ContributionDisplayData(
                     id=c.id,
@@ -1814,13 +1848,12 @@ def add_contribution(
                 for c in contributions
             ]
 
-            return (
-                False,  # close modal
+            # Базовые outputs
+            base_outputs = (
+                False,  # close contribution modal
                 html.Div(goals_container_children),
                 _build_contributions_table(contrib_data),
-                serialize_allocation_summary(
-                    allocation_summary
-                ),  # сериализуем для Store
+                serialize_allocation_summary(allocation_summary),
                 None,  # clear amount
                 date.today().isoformat(),  # reset date
                 "",  # clear description
@@ -1828,10 +1861,48 @@ def add_contribution(
                 False,
             )
 
+            # Redistribution outputs
+            if just_completed:
+                # Вычисляем preview перераспределения
+                allocation_service = AllocationService(session)
+                redistribution_service = RedistributionService(
+                    session, allocation_service
+                )
+
+                all_goals = goal_service.get_all_by_user(DEFAULT_USER_ID)
+                preview = redistribution_service.calculate_redistribution_preview(
+                    completed_goal=goal,
+                    all_goals=all_goals,
+                    monthly_budget=budget_decimal,
+                    savings_mode=mode,
+                )
+
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+                logger.info(
+                    f"add_contribution with redistribution preview: {elapsed_ms:.2f}ms"
+                )
+
+                redistribution_outputs = (
+                    True,  # open redistribution modal
+                    serialize_redistribution_preview(preview),
+                    False,  # btn not disabled
+                )
+            else:
+                elapsed_ms = (time.perf_counter() - start_time) * 1000
+                logger.debug(f"add_contribution: {elapsed_ms:.2f}ms")
+
+                redistribution_outputs = (
+                    False,  # redistribution modal stays closed
+                    None,  # no preview data
+                    False,  # btn not disabled
+                )
+
+            return base_outputs + redistribution_outputs
+
     except Exception as e:
         logger.warning(f"Ошибка добавления взноса: {e}")
         return (
-            True,
+            True,  # contribution modal stays open
             no_update,
             no_update,
             no_update,
@@ -1840,6 +1911,10 @@ def add_contribution(
             no_update,
             str(e),
             True,
+            # Redistribution outputs - no changes
+            no_update,
+            no_update,
+            no_update,
         )
 
 
@@ -2414,3 +2489,134 @@ def move_priority_down(n_clicks_list, budget, savings_mode):
     except Exception as e:
         logger.error(f"Ошибка изменения приоритета: {e}")
         raise PreventUpdate
+
+
+# =============================================================================
+# Redistribution Callbacks (protocol-0008)
+# =============================================================================
+
+
+@callback(
+    [
+        Output("redistribution-modal", "is_open", allow_duplicate=True),
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
+        Output("confirm-redistribution-btn", "disabled"),
+        Output("confirm-redistribution-spinner", "style"),
+        Output("confirm-redistribution-text", "children"),
+    ],
+    Input("confirm-redistribution-btn", "n_clicks"),
+    [
+        State("redistribution-preview-store", "data"),
+        State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
+        State("redistribution-btn-disabled-store", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def confirm_redistribution(n_clicks, preview_data, budget, savings_mode, btn_disabled):
+    """Подтверждает перераспределение средств после достижения цели.
+
+    Логирует событие и пересчитывает allocation для обновления UI.
+    """
+    # Guard clauses
+    if not n_clicks:
+        raise PreventUpdate
+    if btn_disabled:
+        raise PreventUpdate  # Debounce protection
+
+    start_time = time.perf_counter()
+
+    # Deserialize preview
+    preview = deserialize_redistribution_preview(preview_data)
+    if not preview:
+        logger.warning("confirm_redistribution: empty preview data")
+        raise PreventUpdate
+
+    try:
+        with get_db_session() as session:
+            allocation_service = AllocationService(session)
+            redistribution_service = RedistributionService(session, allocation_service)
+
+            # Логируем событие подтверждения
+            redistribution_service.log_redistribution_event(
+                preview=preview,
+                action="confirmed",
+            )
+
+            # Пересчитываем allocation и строим UI
+            budget_decimal = _safe_budget_decimal(budget)
+            mode = savings_mode or "free"
+            goals_container_children, allocation_summary, _ = _recalculate_and_render(
+                session,
+                DEFAULT_USER_ID,
+                budget_decimal,
+                savings_mode=mode,
+            )
+
+            elapsed_ms = (time.perf_counter() - start_time) * 1000
+            logger.info(f"confirm_redistribution: {elapsed_ms:.2f}ms")
+
+            return (
+                False,  # close modal
+                html.Div(goals_container_children),
+                serialize_allocation_summary(allocation_summary),
+                True,  # keep btn disabled (prevent double-click)
+                {"display": "none"},  # hide spinner
+                "Перераспределить",  # reset button text
+            )
+
+    except Exception as e:
+        logger.error(f"Ошибка подтверждения перераспределения: {e}")
+        return (
+            True,  # keep modal open
+            no_update,
+            no_update,
+            False,  # re-enable button
+            {"display": "none"},  # hide spinner
+            "Перераспределить",
+        )
+
+
+@callback(
+    Output("redistribution-modal", "is_open", allow_duplicate=True),
+    Input("decline-redistribution-btn", "n_clicks"),
+    State("redistribution-preview-store", "data"),
+    prevent_initial_call=True,
+)
+def decline_redistribution(n_clicks, preview_data):
+    """Отклоняет перераспределение средств.
+
+    Логирует событие отклонения и закрывает модал.
+    """
+    # Guard clause
+    if not n_clicks:
+        raise PreventUpdate
+
+    # Deserialize preview для логирования
+    preview = deserialize_redistribution_preview(preview_data)
+
+    if preview:
+        try:
+            with get_db_session() as session:
+                allocation_service = AllocationService(session)
+                redistribution_service = RedistributionService(
+                    session, allocation_service
+                )
+
+                # Логируем событие отклонения
+                redistribution_service.log_redistribution_event(
+                    preview=preview,
+                    action="declined",
+                )
+
+                logger.info(
+                    f"Перераспределение отклонено для цели "
+                    f"{preview.get('completed_goal_name', 'unknown')}"
+                )
+
+        except Exception as e:
+            logger.warning(f"Ошибка логирования отклонения: {e}")
+            # Не блокируем закрытие модала при ошибке логирования
+
+    return False  # close modal
