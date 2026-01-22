@@ -83,3 +83,63 @@ python -m pytest -v --tb=short
 **Статус**: ✅ ПРОЙДЕН
 
 ---
+
+## Шаг 3-m: Ревью кода
+
+**Дата**: 2026-01-22
+
+**Проверка окружения**:
+- CWD: `/home/skytiger/PycharmProjects/FinFocus`
+- Ветка: `main`
+
+### Статистика изменений
+
+```
+24 files changed, 3567 insertions(+), 19 deletions(-)
+```
+
+**Ключевые файлы:**
+- `app/services/redistribution_service.py` — 252 строки (новый сервис)
+- `app/components/goals.py` — +453 строки (модал + callbacks)
+- `app/schema/goals.py` — +57 строк (2 TypedDicts)
+- `app/utils/serializers.py` — +96 строк (serialize/deserialize)
+- `app/assets/goals.css` — +175 строк (стили модала)
+- `tests/test_redistribution_service.py` — 616 строк (16 unit тестов)
+- `tests/test_redistribution_integration.py` — 464 строки (7 E2E тестов)
+- `tests/test_serializers.py` — 270 строк (7 тестов сериализации)
+
+### Сверка план vs факт
+
+| Компонент | План | Факт | Статус |
+|-----------|------|------|--------|
+| TypedDicts | RedistributionPreview, RedistributionEvent | ✅ Реализовано | OK |
+| Serializers | serialize/deserialize для Decimal | ✅ С helper функциями | OK |
+| RedistributionService | Temporary Status Pattern, DI | ✅ Реализовано | OK |
+| Unit тесты | Все сценарии сервиса | 16 тестов | OK |
+| Modal UI | Preview table, animations | ✅ Реализовано | OK |
+| Callbacks | just-completed, confirm/decline | 3 callbacks | OK |
+| Integration тесты | E2E flow | 7 тестов | OK |
+| Финализация | black, flake8, pytest | 141 passed | OK |
+
+### Качество кода
+
+1. **Type annotations**: Присутствуют везде (Python 3.12 style)
+2. **Docstrings**: На русском языке, полные описания
+3. **Guard clauses**: В начале всех callbacks согласно ADR-003
+4. **Session management**: flush() в сервисах, commit() в caller
+5. **Logging**: Структурированное через loguru (NFR-4)
+6. **Timing**: time.perf_counter() для NFR-2 verification
+
+### Архитектурные паттерны
+
+- **Temporary Status Pattern**: try/finally для гарантированного восстановления статуса
+- **DI Pattern**: AllocationService передается через конструктор
+- **Serialization**: Decimal → str для JSON-совместимости с dcc.Store
+
+### Замечания
+
+Критических замечаний нет. Код соответствует стандартам проекта и плану протокола.
+
+**Статус**: ✅ ПРОЙДЕН
+
+---
