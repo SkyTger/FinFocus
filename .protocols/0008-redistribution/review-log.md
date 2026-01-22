@@ -171,3 +171,27 @@ Merge made by the 'ort' strategy.
 **Статус**: ✅ MERGE УСПЕШЕН
 
 ---
+
+## Шаг 5-m: Обновление Memory Bank
+
+**Дата**: 2026-01-22
+
+**Проверка окружения**:
+- CWD: `/home/skytiger/PycharmProjects/FinFocus`
+- Ветка: `main`
+
+**Действия**:
+1. Вызван субагент memory-bank-keeper для обновления Memory Bank
+2. Обновлены файлы:
+   - `.memory-bank/index.md` — статус Epic-02 → 75%, добавлен Redistribution Algorithm
+   - `.memory-bank/modules/services.md` — подтверждена актуальность RedistributionService
+   - `.memory-bank/architecture.md` — добавлен RedistributionService, обновлен Батч 2 → 100%
+   - `.memory-bank/modules/schema.md` — добавлены RedistributionPreview, RedistributionEvent
+   - `.memory-bank/modules/utils.md` — добавлен serializers.py
+3. Закоммичены изменения
+
+**Коммит**: `85b401d`
+
+**Статус**: ✅ MEMORY BANK ОБНОВЛЕН
+
+---
