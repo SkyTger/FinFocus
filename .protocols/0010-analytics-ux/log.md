@@ -14,6 +14,37 @@
 
 ---
 
+## [2026-01-23] Шаг 2: TransactionService extensions
+
+**Действия:**
+- Добавлена константа `MAX_BULK_UPDATE_SIZE = 100` (NFR2: <500ms)
+- Добавлен метод `bulk_update_category()`:
+  - Массовое обновление категории для списка транзакций
+  - Валидация ownership (user_id), size limit, category existence
+  - Исключение recurring шаблонов (is_recurring=True)
+  - Bulk UPDATE WHERE id IN (...) AND user_id = :user_id
+- Добавлен метод `export_to_csv()`:
+  - Генерация CSV с UTF-8 BOM для Excel совместимости
+  - Фильтры: start_date, end_date, category_id, uncategorized_only
+  - Формат: Дата,Тип,Сумма,Описание,Категория
+- Добавлены импорты: csv, io, Category
+- Обновлены экспорты в `app/services/__init__.py`
+- Написано 12 unit тестов:
+  - TestBulkUpdateCategory: 7 тестов (success, ownership, foreign, limit, invalid category, recurring, empty)
+  - TestExportToCsv: 5 тестов (BOM, filters, uncategorized, format, empty)
+
+**Результат:**
+- 12 новых тестов, все проходят
+- Всего тестов в проекте: 241 (было 229)
+- Black + Flake8: OK
+
+**Решения:**
+- Используется `synchronize_session=False` для bulk update (performance)
+- CSV CRLF окончания строк (стандарт RFC 4180)
+- Валидация ownership через сравнение affected vs requested count
+
+---
+
 ## [2026-01-23] Шаг 1: TypedDicts и AnalyticsService
 
 **Действия:**

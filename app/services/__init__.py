@@ -37,7 +37,7 @@ from .redistribution_service import (
     NFR2_WARNING_THRESHOLD_MS,
     RedistributionService,
 )
-from .transaction_service import TransactionService
+from .transaction_service import MAX_BULK_UPDATE_SIZE, TransactionService
 
 __all__ = [
     # Allocation
@@ -67,6 +67,7 @@ __all__ = [
     "VALID_SAVINGS_MODES",
     # Transactions
     "TransactionService",
+    "MAX_BULK_UPDATE_SIZE",
     # Recurring
     "RecurringService",
     "VirtualTransaction",

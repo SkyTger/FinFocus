@@ -1,7 +1,7 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 1 завершен: AnalyticsService создан с 4 методами, 16 unit тестов."
-- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-analytics-ui.md`)."
-- **Git**: "Ветка 0010-analytics-ux, ожидается commit [protocol-0010/01]."
+- **Last Action Summary**: "Шаг 2 завершен: bulk_update_category и export_to_csv добавлены, 12 unit тестов."
+- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-category-frequent.md`)."
+- **Git**: "Ветка 0010-analytics-ux, ожидается commit [protocol-0010/02]."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0010-analytics-ux`

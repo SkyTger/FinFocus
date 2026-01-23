@@ -1,5 +1,7 @@
 """Сервис для управления финансовыми операциями."""
 
+import csv
+import io
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -7,7 +9,10 @@ from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.core import ValidationError
-from app.models.database import Transaction, TransactionType
+from app.models.database import Category, Transaction, TransactionType
+
+# NFR2: <500ms для bulk update операций
+MAX_BULK_UPDATE_SIZE: int = 100
 
 
 class TransactionService:
@@ -275,3 +280,144 @@ class TransactionService:
         logger.info(f"Удалена транзакция {transaction_id}")
 
         return True
+
+    def bulk_update_category(
+        self,
+        user_id: int,
+        transaction_ids: list[int],
+        category_id: int | None,
+    ) -> int:
+        """Массовое обновление категории для списка транзакций.
+
+        Args:
+            user_id: ID пользователя (для валидации ownership).
+            transaction_ids: Список ID транзакций (max 100).
+            category_id: ID новой категории (или None для сброса).
+
+        Returns:
+            Количество обновленных записей.
+
+        Raises:
+            ValidationError:
+                - Если len(transaction_ids) > MAX_BULK_UPDATE_SIZE
+                - Если не все транзакции принадлежат пользователю
+                - Если category_id не существует (при category_id != None)
+        """
+        # 1. Валидация размера
+        if len(transaction_ids) > MAX_BULK_UPDATE_SIZE:
+            raise ValidationError(
+                f"Максимум {MAX_BULK_UPDATE_SIZE} операций за раз",
+                field="transaction_ids",
+            )
+
+        if not transaction_ids:
+            return 0
+
+        # 2. Валидация category_id (если указан)
+        if category_id is not None:
+            category = self.session.query(Category).filter_by(id=category_id).first()
+            if not category:
+                raise ValidationError(
+                    f"Категория с ID {category_id} не найдена",
+                    field="category_id",
+                )
+
+        # 3. Bulk UPDATE с проверкой ownership
+        affected = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.id.in_(transaction_ids),
+                Transaction.user_id == user_id,
+                Transaction.is_recurring == False,  # noqa: E712
+            )
+            .update({"category_id": category_id}, synchronize_session=False)
+        )
+
+        # 4. Проверка что все транзакции обновлены
+        if affected != len(transaction_ids):
+            raise ValidationError(
+                f"Не все операции принадлежат пользователю или являются шаблонами "
+                f"(запрошено: {len(transaction_ids)}, обновлено: {affected})",
+                field="transaction_ids",
+            )
+
+        self.session.flush()
+
+        logger.info(
+            f"Bulk update category для user {user_id}: "
+            f"{affected} транзакций -> category_id={category_id}"
+        )
+
+        return affected
+
+    def export_to_csv(
+        self,
+        user_id: int,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        category_id: int | None = None,
+        uncategorized_only: bool = False,
+    ) -> bytes:
+        """Экспортирует транзакции в CSV файл.
+
+        Args:
+            user_id: ID пользователя.
+            start_date: Фильтр начала периода.
+            end_date: Фильтр конца периода.
+            category_id: Фильтр по категории.
+            uncategorized_only: Только без категории.
+
+        Returns:
+            CSV как bytes с UTF-8 BOM для Excel.
+            Формат: Дата,Тип,Сумма,Описание,Категория
+        """
+        # 1. Построение запроса
+        query = (
+            self.session.query(Transaction, Category)
+            .outerjoin(Category, Transaction.category_id == Category.id)
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.is_recurring == False,  # noqa: E712
+            )
+        )
+
+        if start_date:
+            query = query.filter(Transaction.transaction_date >= start_date)
+        if end_date:
+            query = query.filter(Transaction.transaction_date <= end_date)
+        if category_id:
+            query = query.filter(Transaction.category_id == category_id)
+        if uncategorized_only:
+            query = query.filter(Transaction.category_id.is_(None))
+
+        query = query.order_by(Transaction.transaction_date.desc())
+
+        # 2. Генерация CSV
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Header
+        writer.writerow(["Дата", "Тип", "Сумма", "Описание", "Категория"])
+
+        # Data
+        type_labels = {
+            TransactionType.INCOME: "Доход",
+            TransactionType.EXPENSE: "Расход",
+            TransactionType.TRANSFER: "Перевод",
+            TransactionType.ADJUSTMENT: "Корректировка",
+        }
+
+        for tx, category in query.all():
+            writer.writerow(
+                [
+                    tx.transaction_date.strftime("%Y-%m-%d"),
+                    type_labels.get(tx.transaction_type, str(tx.transaction_type)),
+                    str(tx.amount),
+                    tx.description or "",
+                    category.name if category else "Без категории",
+                ]
+            )
+
+        # 3. UTF-8 BOM + encode
+        csv_content = output.getvalue()
+        return b"\xef\xbb\xbf" + csv_content.encode("utf-8")
