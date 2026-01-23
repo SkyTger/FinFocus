@@ -107,7 +107,13 @@ def _build_chips_cell(
                 dcc.Dropdown(
                     id={"type": "chip-dropdown", "tx_id": tx.id},
                     options=[
-                        {"label": f"{ICON_TO_EMOJI.get(cat.get('icon', ''), '📁')} {cat['label']}", "value": cat["value"]}
+                        {
+                            "label": (
+                                f"{ICON_TO_EMOJI.get(cat.get('icon', ''), '📁')} "
+                                f"{cat['label']}"
+                            ),
+                            "value": cat["value"],
+                        }
                         for cat in all_categories
                         if cat.get("type", category_type) == category_type
                     ],
@@ -136,7 +142,10 @@ def _build_chips_cell(
 
     # Overflow dropdown для остальных категорий
     overflow_options = [
-        {"label": f"{ICON_TO_EMOJI.get(cat.get('icon', ''), '📁')} {cat['label']}", "value": cat["value"]}
+        {
+            "label": f"{ICON_TO_EMOJI.get(cat.get('icon', ''), '📁')} {cat['label']}",
+            "value": cat["value"],
+        }
         for cat in all_categories
         if cat.get("type", category_type) == category_type
     ]
@@ -420,7 +429,9 @@ def load_frequent_categories(pathname: str, cached_data: dict | None) -> dict:
     with get_db_session() as session:
         service = CategoryService(session)
         return {
-            "expense": service.get_frequent_for_type(user_id=1, category_type="expense"),
+            "expense": service.get_frequent_for_type(
+                user_id=1, category_type="expense"
+            ),
             "income": service.get_frequent_for_type(user_id=1, category_type="income"),
         }
 
@@ -980,7 +991,9 @@ def bulk_assign_category(
                 "affected_count": affected,
             }
 
-            logger.info(f"Bulk update: {affected} транзакций получили категорию {category_id}")
+            logger.info(
+                f"Bulk update: {affected} транзакций получили категорию {category_id}"
+            )
 
             return (
                 _build_transactions_table(
@@ -995,3 +1008,40 @@ def bulk_assign_category(
             )
     except ValidationError as e:
         return no_update, no_update, no_update, str(e), True
+
+
+# ==================== EXPORT CALLBACK ====================
+
+
+@callback(
+    Output("export-download", "data"),
+    Input("export-btn", "n_clicks"),
+    State("filter-no-category", "value"),
+    prevent_initial_call=True,
+)
+def export_transactions(n_clicks: int | None, filter_uncategorized: bool) -> dict:
+    """Экспортирует транзакции в CSV файл.
+
+    Args:
+        n_clicks: Количество кликов на кнопку экспорта
+        filter_uncategorized: Экспортировать только без категории
+
+    Returns:
+        dict: Данные для dcc.Download (filename + content)
+    """
+    from datetime import date
+
+    if not n_clicks:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = TransactionService(session)
+        csv_bytes = service.export_to_csv(
+            user_id=1,
+            uncategorized_only=filter_uncategorized,
+        )
+
+        filename = f"finfocus_transactions_{date.today().isoformat()}.csv"
+        logger.info(f"Экспорт транзакций в {filename}")
+
+        return dcc.send_bytes(csv_bytes, filename)

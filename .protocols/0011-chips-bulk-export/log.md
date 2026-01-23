@@ -53,7 +53,7 @@
 - chip_dropdown_assign_category callback (~55 строк):
   - Аналогичная структура с guard clauses
 
-### Step 4 — Bulk Callbacks (commit: pending)
+### Step 4 — Bulk Callbacks (commit: b89c954)
 - Добавлен import no_update, ValidationError
 - update_selection_state callback:
   - Обработка Select All и individual checkboxes
@@ -68,6 +68,16 @@
   - Валидация inputs (selection, category)
   - try/except ValidationError → error alert
   - Emit trigger, clear selection, return table
+
+### Step 5 — Export + Tests (commit: pending)
+- export_transactions callback добавлен:
+  - Filename: finfocus_transactions_{YYYY-MM-DD}.csv
+  - Учитывает filter-no-category
+- tests/test_transactions_callbacks.py создан:
+  - 13 тестов для _pluralize_operations helper
+  - Все склонения проверены (1,2,5,11,21,100,101,111)
+- Black + Flake8: 0 ошибок
+- Pytest: 13 passed
 
 <!--
 Формат записи:
