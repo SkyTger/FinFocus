@@ -23,8 +23,10 @@
 - PR готов к code review и merge
 
 **Git:**
-- Коммит: d1df99c [protocol-0010/08]
-- PR: https://github.com/SkyTger/FinFocus/pull/10
+- Коммиты:
+  - d1df99c: chore: final QA fixes and Memory Bank update [protocol-0010/08]
+  - 23f3895: docs(protocol): finalize protocol 0010 [protocol-0010/08]
+- PR: https://github.com/SkyTger/FinFocus/pull/10 (Ready for Review)
 
 ---
 
