@@ -28,7 +28,7 @@
 - Helper _build_bulk_panel() — sticky panel с dropdown и кнопкой
 - Bulk panel добавлен в layout (hidden по умолчанию)
 
-### Step 2 — Table + Chips (commit: pending)
+### Step 2 — Table + Chips (commit: ef16193)
 - Helper _build_chips_cell() добавлен (~70 строк):
   - Guard для TRANSFER/ADJUSTMENT — возвращает "—"
   - Chips из frequent_categories[:5] с Pattern-Matching IDs
@@ -38,6 +38,20 @@
   - Колонка checkbox в header (select-all-checkbox)
   - Checkbox в каждой строке {"type": "tx-checkbox", "index": tx.id}
   - colSpan обновлен 6→7 для пустой таблицы
+
+### Step 3 — Chips Callbacks (commit: pending)
+- load_frequent_categories callback добавлен:
+  - Кеширование при pathname=/transactions и пустом кеше
+  - CategoryService.get_frequent_for_type() для expense/income
+- load_transactions обновлен:
+  - Добавлен Input frequent-categories.data
+  - Загрузка all_categories и передача в _build_transactions_table()
+- chip_assign_category callback (~55 строк):
+  - 3-уровневые guard clauses по ADR-003
+  - TransactionService.update_transaction()
+  - Emit trigger + return updated table
+- chip_dropdown_assign_category callback (~55 строк):
+  - Аналогичная структура с guard clauses
 
 <!--
 Формат записи:

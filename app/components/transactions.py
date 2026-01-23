@@ -394,10 +394,44 @@ def create_transactions_layout():
 
 
 @callback(
-    Output("transactions-table", "children"),
-    [Input("url", "pathname"), Input("filter-no-category", "value")],
+    Output("frequent-categories", "data"),
+    Input("url", "pathname"),
+    State("frequent-categories", "data"),
 )
-def load_transactions(pathname, filter_no_category):
+def load_frequent_categories(pathname: str, cached_data: dict | None) -> dict:
+    """Загружает частые категории в кеш при первом посещении страницы.
+
+    Args:
+        pathname: Текущий URL
+        cached_data: Текущий кеш категорий
+
+    Returns:
+        dict: Кеш категорий {"expense": [...], "income": [...]}
+    """
+    if pathname != "/transactions":
+        raise PreventUpdate
+
+    # Используем кеш если уже загружен
+    if cached_data:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = CategoryService(session)
+        return {
+            "expense": service.get_frequent_for_type(user_id=1, category_type="expense"),
+            "income": service.get_frequent_for_type(user_id=1, category_type="income"),
+        }
+
+
+@callback(
+    Output("transactions-table", "children"),
+    [
+        Input("url", "pathname"),
+        Input("filter-no-category", "value"),
+        Input("frequent-categories", "data"),
+    ],
+)
+def load_transactions(pathname, filter_no_category, frequent_categories):
     """Загружает список операций из БД с фильтрацией."""
     if pathname != "/transactions":
         raise PreventUpdate
@@ -410,8 +444,16 @@ def load_transactions(pathname, filter_no_category):
         if filter_no_category:
             transactions = [tx for tx in transactions if tx.category_id is None]
 
+        # Загружаем все категории для dropdown
+        category_service = CategoryService(session)
+        all_categories = category_service.get_for_dropdown()
+
         logger.debug(f"Загружено {len(transactions)} транзакций")
-        return _build_transactions_table(transactions)
+        return _build_transactions_table(
+            transactions,
+            frequent_categories=frequent_categories or {},
+            all_categories=all_categories,
+        )
 
 
 @callback(
@@ -630,3 +672,139 @@ def refresh_table_after_crud(trigger, pathname):
 
         logger.debug(f"Таблица транзакций обновлена после CRUD из {source}")
         return _build_transactions_table(transactions)
+
+
+@callback(
+    [
+        Output("transactions-table", "children", allow_duplicate=True),
+        Output("global-transaction-trigger", "data", allow_duplicate=True),
+    ],
+    Input({"type": "chip-btn", "tx_id": ALL, "cat_id": ALL}, "n_clicks"),
+    State("filter-no-category", "value"),
+    State("frequent-categories", "data"),
+    prevent_initial_call=True,
+)
+def chip_assign_category(n_clicks_list, filter_no_category, frequent_categories):
+    """Присваивает категорию по клику на chip.
+
+    Использует 3-уровневые guard clauses согласно ADR-003.
+    """
+    from datetime import datetime
+
+    # Guard #1: triggered_id existence and type
+    triggered_id = ctx.triggered_id
+    if not triggered_id or not isinstance(triggered_id, dict):
+        raise PreventUpdate
+
+    # Guard #2: Correct component type
+    if triggered_id.get("type") != "chip-btn":
+        raise PreventUpdate
+
+    # Guard #3: Real click (not auto-trigger on DOM update) - ADR-003
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    tx_id = triggered_id.get("tx_id")
+    cat_id = triggered_id.get("cat_id")
+
+    if not tx_id or not cat_id:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = TransactionService(session)
+        service.update_transaction(transaction_id=tx_id, category_id=cat_id)
+        session.commit()
+
+        # Reload transactions with filter applied
+        transactions = service.get_all_by_user(user_id=1)
+        if filter_no_category:
+            transactions = [tx for tx in transactions if tx.category_id is None]
+
+        # Загружаем категории для таблицы
+        category_service = CategoryService(session)
+        all_categories = category_service.get_for_dropdown()
+
+        trigger_data = {
+            "action": "update",
+            "timestamp": datetime.now().isoformat(),
+            "source": "transactions",
+            "transaction_id": tx_id,
+        }
+
+        logger.info(f"Категория {cat_id} присвоена транзакции {tx_id} через chip")
+        return (
+            _build_transactions_table(
+                transactions,
+                frequent_categories=frequent_categories or {},
+                all_categories=all_categories,
+            ),
+            trigger_data,
+        )
+
+
+@callback(
+    [
+        Output("transactions-table", "children", allow_duplicate=True),
+        Output("global-transaction-trigger", "data", allow_duplicate=True),
+    ],
+    Input({"type": "chip-dropdown", "tx_id": ALL}, "value"),
+    State("filter-no-category", "value"),
+    State("frequent-categories", "data"),
+    prevent_initial_call=True,
+)
+def chip_dropdown_assign_category(values, filter_no_category, frequent_categories):
+    """Присваивает категорию из overflow dropdown.
+
+    Использует 3-уровневые guard clauses согласно ADR-003.
+    """
+    from datetime import datetime
+
+    # Guard #1: triggered_id existence and type
+    triggered_id = ctx.triggered_id
+    if not triggered_id or not isinstance(triggered_id, dict):
+        raise PreventUpdate
+
+    # Guard #2: Correct component type
+    if triggered_id.get("type") != "chip-dropdown":
+        raise PreventUpdate
+
+    # Guard #3: Real selection (not auto-trigger on DOM update) - ADR-003
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    tx_id = triggered_id.get("tx_id")
+    cat_id = ctx.triggered[0].get("value")
+
+    if not tx_id or not cat_id:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = TransactionService(session)
+        service.update_transaction(transaction_id=tx_id, category_id=cat_id)
+        session.commit()
+
+        # Reload transactions with filter applied
+        transactions = service.get_all_by_user(user_id=1)
+        if filter_no_category:
+            transactions = [tx for tx in transactions if tx.category_id is None]
+
+        # Загружаем категории для таблицы
+        category_service = CategoryService(session)
+        all_categories = category_service.get_for_dropdown()
+
+        trigger_data = {
+            "action": "update",
+            "timestamp": datetime.now().isoformat(),
+            "source": "transactions",
+            "transaction_id": tx_id,
+        }
+
+        logger.info(f"Категория {cat_id} присвоена транзакции {tx_id} через dropdown")
+        return (
+            _build_transactions_table(
+                transactions,
+                frequent_categories=frequent_categories or {},
+                all_categories=all_categories,
+            ),
+            trigger_data,
+        )
