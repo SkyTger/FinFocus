@@ -1,11 +1,105 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Epic-02-EnhancedPlanning - В ПРОЦЕССЕ
+## 📊 Общий статус проекта: Epic-03-Analytics - В ПРОЦЕССЕ
 
-**Последнее обновление**: 2026/01/21
-**Текущий этап**: Батч 2 (Enhanced Planning) — Multiple Goals завершены
-**Прогресс Epic-02**: 50% (2/4 фичи)
+**Последнее обновление**: 2026/01/23
+**Текущий этап**: Батч 3.1 (Категоризация + Сверка) — ЗАВЕРШЕН
+**Прогресс Epic-03**: 50% (1/2 батча)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 10: Категоризация + Сверка (2026-01-23) - ЗАВЕРШЕН
+
+**Дата**: 2026/01/23
+**Протокол**: 0009-categories-reconciliation
+**PR**: https://github.com/SkyTger/FinFocus/pull/9
+**Статус**: ✅ Полностью завершен (Ready for Review)
+
+### 🎯 Цель батча:
+Добавить категоризацию операций с "ленивым" подходом (категория опциональна) и механизм сверки баланса для синхронизации модели с реальностью.
+
+### ✅ Выполненные задачи:
+
+1. **Модель данных** (Шаг 1)
+   - TransactionType.ADJUSTMENT — новый тип для корректировок
+   - Модель Category (name, icon, type, is_system, sort_order)
+   - Transaction.category_id (nullable FK)
+   - 16 предзаполненных категорий через seed
+
+2. **TypedDicts** (Шаг 2)
+   - CategoryOption для UI dropdown
+   - ReconciliationPreview для модала сверки
+
+3. **CategoryService** (Шаг 3)
+   - get_all(), get_by_id(), get_by_type()
+   - get_for_dropdown() — для UI
+   - seed_default_categories() — идемпотентный seed
+
+4. **ReconciliationService** (Шаг 4)
+   - get_expected_balance() — расчетный баланс на дату
+   - calculate_preview() — preview для модала
+   - create_adjustment() — создание ADJUSTMENT транзакции
+
+5. **CalendarService расширен** (Шаг 5)
+   - ADJUSTMENT обрабатывается в calculate_daily_balances()
+   - Добавлены category_id и category_name в TransactionInfo
+
+6. **TransactionService обновлен** (Шаг 6)
+   - Заменен category (str) на category_id (int)
+   - Валидация: ADJUSTMENT не может быть recurring
+
+7. **RecurringService обновлен** (Шаг 7)
+   - Виртуальные экземпляры наследуют category_id из шаблона
+   - Exceptions могут переопределять категорию
+
+8. **DashboardService обновлен** (Шаг 8)
+   - category_name и category_icon в RecentTransaction
+   - Фильтрация recurring шаблонов
+
+9. **UI Transactions** (Шаг 9)
+   - Dropdown категорий в формах create/edit
+   - Колонка "Категория" в таблице
+   - Фильтр "Без категории"
+
+10. **UI Calendar** (Шаг 10)
+    - Кнопка "Сверка" в header
+    - Модал сверки с preview разницы
+    - Создание ADJUSTMENT и обновление календаря
+
+11. **Финализация** (Шаг 11)
+    - Black: 5 файлов переформатировано
+    - Flake8: 2 проблемы исправлены
+    - Pytest: 213 тестов passed
+
+### 📊 Результат:
+- ✅ 213 unit и integration тестов
+- ✅ 16 предустановленных категорий (seed idempotent)
+- ✅ PR #9 Ready for Review
+- ✅ Протокол 0009 завершен (11 шагов)
+
+### 💡 Ключевые уроки:
+
+1. **Ленивая категоризация** — category_id nullable снижает барьер входа
+2. **ADJUSTMENT type** — семантически чище чем флаг is_adjustment
+3. **Seed idempotency** — критично проверять перед merge
+4. **Модал сверки** — быстрый UX через preview с цветовой индикацией
+
+### 🔧 Технические детали:
+
+**Новые файлы:**
+- `app/services/category_service.py` — CategoryService
+- `app/services/reconciliation_service.py` — ReconciliationService
+- `app/schema/categories.py` — TypedDicts
+- `scripts/seed_categories.py` — seed скрипт
+- `tests/test_category_*.py` — тесты категорий
+- `tests/test_reconciliation_service.py` — тесты сверки
+
+**Модифицированные файлы:**
+- `app/models/database.py` — Category, ADJUSTMENT, category_id
+- `app/services/*.py` — все сервисы обновлены
+- `app/components/transactions.py` — dropdown и фильтр
+- `app/components/calendar.py` — модал сверки
 
 ---
 
