@@ -3,6 +3,9 @@
 
 Модалы создания/редактирования вынесены в transaction_modals.py
 для глобальной доступности на всех страницах.
+
+TODO: Заменить hardcoded user_id=1 на auth context после реализации
+      системы аутентификации (Batch 4+). Текущий MVP работает в single-user mode.
 """
 import dash_bootstrap_components as dbc
 from dash import dcc, html, callback, Input, Output, State, ALL, ctx, no_update
