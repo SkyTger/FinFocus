@@ -7,6 +7,10 @@ from app.schema.goals import (
     RedistributionEvent,
     RedistributionPreview,
 )
+from app.schema.categories import (
+    CategoryOption,
+    ReconciliationPreview,
+)
 
 __all__ = [
     "AllocationResult",
@@ -15,4 +19,6 @@ __all__ = [
     "GoalsSummary",
     "RedistributionEvent",
     "RedistributionPreview",
+    "CategoryOption",
+    "ReconciliationPreview",
 ]

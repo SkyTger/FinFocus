@@ -26,6 +26,7 @@
 
 ## Шаг 1: Модель данных (2026-01-23) ✅
 
+- **Commit**: 2c8a03a
 - **Действия**:
   1. Добавлен TransactionType.ADJUSTMENT в enum
   2. Создана модель Category с полями (name, icon, type, is_system, sort_order)
@@ -38,5 +39,16 @@
 
 - **Тесты**: 156 passed (включая 9 новых)
 - **Quality**: black ✅, flake8 ✅
+
+---
+
+## Шаг 2: TypedDicts (2026-01-23) ✅
+
+- **Действия**:
+  1. Создан app/schema/categories.py с CategoryOption и ReconciliationPreview
+  2. Обновлен app/schema/__init__.py — добавлен экспорт новых типов
+
+- **Тесты**: 156 passed
+- **Quality**: flake8 ✅
 
 ---

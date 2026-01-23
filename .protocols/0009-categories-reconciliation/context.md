@@ -1,7 +1,7 @@
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 1 завершен: модель Category создана, TransactionType.ADJUSTMENT добавлен, Transaction.category_id заменил старое поле."
-- **Next Action**: "Приступить к выполнению Шага 2 (см. `02-category-service.md`)."
+- **Last Action Summary**: "Шаг 2 завершен: созданы TypedDicts CategoryOption и ReconciliationPreview."
+- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-category-service.md`)."
 - **Git**: "Ветка 0009-categories-reconciliation, commit pending."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/9"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
