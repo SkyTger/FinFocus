@@ -1,11 +1,55 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Epic-03-Analytics - В ПРОЦЕССЕ
+## 📊 Общий статус проекта: Epic-03-Analytics — ✅ ЗАВЕРШЕН
 
 **Последнее обновление**: 2026/01/23
-**Текущий этап**: Global Transaction Modals — ЗАВЕРШЕН
-**Прогресс Epic-03**: 50% (1/2 батча)
+**Текущий этап**: Батч 3.2 Analytics & UX — MERGED
+**Прогресс Epic-03**: 100% (2/2 батча)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 3.2: Analytics & UX Improvements (2026-01-23) — MERGED
+
+**Дата**: 2026/01/23
+**Протокол**: 0010-analytics-ux
+**PR**: https://github.com/SkyTger/FinFocus/pull/10
+**Merge commit**: ed0fc44
+
+### 🎯 Цель:
+Улучшение UX категоризации (chips, bulk actions) и страница аналитики с визуализацией расходов.
+
+### ✅ Основные достижения:
+
+1. **AnalyticsService** (~290 строк)
+   - get_expenses_by_category() — SQL GROUP BY агрегация
+   - get_monthly_trends() — тренды за N месяцев
+   - Группировка мелких категорий (<3%) в "Прочее"
+
+2. **TransactionService расширен**
+   - bulk_update_category() — массовое назначение категории (max 100)
+   - export_to_csv() — CSV с UTF-8 BOM для Excel
+
+3. **CategoryService расширен**
+   - get_frequent_for_type() — частые категории пользователя для chips
+
+4. **Chips UI для быстрой категоризации**
+   - Pattern-Matching callbacks для кликов
+   - 5 частых категорий + кнопка "..." для полного списка
+
+5. **Bulk Actions Panel**
+   - Multi-select с лимитом 100 транзакций
+   - Sticky bottom panel со счетчиком
+
+6. **Страница /analytics**
+   - Donut chart структуры расходов
+   - Bar chart динамики (stacked/grouped toggle)
+   - Фильтры периода (месяц/квартал/год)
+
+### 📊 Результат:
+- ✅ 246 unit тестов (было 213)
+- ✅ Black + Flake8 OK
+- ✅ Memory Bank обновлен
 
 ---
 
