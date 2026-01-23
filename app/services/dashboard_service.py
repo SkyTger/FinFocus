@@ -55,7 +55,7 @@ class RecentTransaction(TypedDict):
 
     id: int
     description: str | None
-    category: str | None
+    category_id: int | None
     date: str
     amount: Decimal
     transaction_type: str
@@ -357,7 +357,7 @@ class DashboardService:
             RecentTransaction(
                 id=t.id,
                 description=t.description,
-                category=t.category,
+                category_id=t.category_id,
                 date=t.transaction_date.isoformat(),
                 amount=t.amount,
                 transaction_type=t.transaction_type.value,

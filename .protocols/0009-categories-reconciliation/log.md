@@ -4,7 +4,39 @@
 
 ---
 
-## Шаг 0: Подготовка (pending)
+**Restore context**: protocol-0009#ctx-1 (2026-01-23)
 
-- Дата: 2026-01-23
-- Статус: В процессе создания артефактов протокола
+---
+
+## Шаг 0: Подготовка (2026-01-23) ✅
+
+- **Commit**: 276741a
+- **Действия**:
+  1. Проверено состояние Git — main синхронизирован с origin
+  2. Закоммичены подготовительные файлы (.design/, .reports/epics/epic-03-analytics/)
+  3. Создан worktree в ../worktrees/0009-categories-reconciliation
+  4. Создана папка .protocols/0009-categories-reconciliation/
+  5. Созданы все файлы протокола (plan.md, context.md, log.md, 00-11 шагов)
+  6. Сделан первый коммит с артефактами
+  7. Создан Draft PR #9
+
+- **PR**: https://github.com/SkyTger/FinFocus/pull/9
+
+---
+
+## Шаг 1: Модель данных (2026-01-23) ✅
+
+- **Действия**:
+  1. Добавлен TransactionType.ADJUSTMENT в enum
+  2. Создана модель Category с полями (name, icon, type, is_system, sort_order)
+  3. Transaction: заменено category (String) на category_id (FK) + relationship
+  4. DashboardService: обновлен RecentTransaction TypedDict (category → category_id)
+  5. Создан scripts/seed_categories.py (16 предустановленных категорий)
+  6. Создан tests/test_category_model.py (9 тестов)
+  7. Добавлен TODO для Alembic миграций
+  8. Пересоздана БД с новой схемой
+
+- **Тесты**: 156 passed (включая 9 новых)
+- **Quality**: black ✅, flake8 ✅
+
+---
