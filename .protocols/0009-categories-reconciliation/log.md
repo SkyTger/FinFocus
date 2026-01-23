@@ -4,6 +4,10 @@
 
 ---
 
+**Restore context**: protocol-0009#ctx-2 (2026-01-23)
+
+---
+
 **Restore context**: protocol-0009#ctx-1 (2026-01-23)
 
 ---
@@ -84,5 +88,32 @@
 
 - **Тесты**: 182 passed (включая 11 новых)
 - **Quality**: flake8 ✅
+
+---
+
+## Шаг 5: CalendarService (2026-01-23) ✅
+
+- **Действия**:
+  1. Расширен TransactionInfo TypedDict:
+     - Добавлены поля category_id и category_name
+     - Обновлен комментарий transaction_type (включает "adjustment")
+  2. Обновлен _get_daily_changes() для ADJUSTMENT:
+     - Добавлен ADJUSTMENT в CASE statement (прямое изменение баланса)
+     - Добавлен ADJUSTMENT в фильтр типов
+  3. Обновлен _calculate_balance_before_date() для ADJUSTMENT:
+     - Аналогичные изменения CASE и фильтра
+  4. Проверен get_month_summary() и get_year_summary():
+     - ADJUSTMENT автоматически исключается (фильтр только INCOME/EXPENSE)
+  5. Обновлен get_transactions_by_date():
+     - Добавлены category_id и category_name в TransactionInfo
+  6. Обновлен get_all_transactions_for_period():
+     - Добавлены category fields для обычных транзакций и exceptions
+     - Для виртуальных recurring используется .get() (будет заполнено в Шаге 7)
+  7. Написаны unit тесты (10 новых):
+     - TestCalendarServiceAdjustment: 5 тестов
+     - TestCalendarServiceCategoryFields: 5 тестов
+
+- **Тесты**: Базовая проверка синтаксиса пройдена
+- **Quality**: Синтаксис ✅
 
 ---
