@@ -39,7 +39,7 @@ def seed_database():
         print(f"✅ Создан пользователь: {user.name} (ID: {user.id})")
         print(f"   Начальный баланс: {user.starting_balance} руб.")
 
-        # Создание тестовых транзакций
+        # Создание тестовых транзакций (category_id=None — без категории)
         transactions = [
             # Доходы
             Transaction(
@@ -48,7 +48,6 @@ def seed_database():
                 transaction_type=TransactionType.INCOME,
                 transaction_date=date.today() - timedelta(days=30),
                 description="Зарплата за прошлый месяц",
-                category="Зарплата",
             ),
             Transaction(
                 user_id=user.id,
@@ -56,7 +55,6 @@ def seed_database():
                 transaction_type=TransactionType.INCOME,
                 transaction_date=date.today() - timedelta(days=5),
                 description="Зарплата текущего месяца",
-                category="Зарплата",
             ),
             # Расходы
             Transaction(
@@ -65,7 +63,6 @@ def seed_database():
                 transaction_type=TransactionType.EXPENSE,
                 transaction_date=date.today() - timedelta(days=28),
                 description="Аренда квартиры",
-                category="Жилье",
             ),
             Transaction(
                 user_id=user.id,
@@ -73,7 +70,6 @@ def seed_database():
                 transaction_type=TransactionType.EXPENSE,
                 transaction_date=date.today() - timedelta(days=20),
                 description="Продукты питания",
-                category="Продукты",
             ),
             Transaction(
                 user_id=user.id,
@@ -81,7 +77,6 @@ def seed_database():
                 transaction_type=TransactionType.EXPENSE,
                 transaction_date=date.today() - timedelta(days=10),
                 description="Коммунальные платежи",
-                category="ЖКХ",
             ),
         ]
 
