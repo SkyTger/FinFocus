@@ -319,11 +319,14 @@ refresh_transactions_table() - updates table
   - CategoryService, ReconciliationService
   - Сверка баланса через модал
 - ✅ UX улучшения + Аналитика (PR #10)
-  - Chips UI для быстрой категоризации
-  - Bulk actions (multi-select, max 100)
-  - CSV экспорт с UTF-8 BOM
   - AnalyticsService (donut/bar charts)
   - Страница /analytics с графиками
+- ✅ Восстановление UI компонентов (протокол 0011, PR #11)
+  - Chips UI для быстрой категоризации (восстановлен после merge)
+  - Bulk actions (multi-select, max 100 транзакций)
+  - CSV экспорт с UTF-8 BOM для Excel
+  - 13 новых тестов для _pluralize_operations
+  - Pattern-Matching callbacks с 3-уровневыми guard clauses (ADR-003)
 
 **Батч 4** (Advanced Features):
 - Финансовая подушка безопасности

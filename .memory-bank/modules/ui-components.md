@@ -51,9 +51,22 @@ dbc.NavLink("Transactions", href="/transactions", active="exact")
 ## Transactions Component (КРИТИЧНО)
 
 **Layout**:
-- Create button → Modal с формой создания
-- Transactions table с Edit/Delete кнопками
-- Edit modal с формой редактирования
+- Header с кнопками "Добавить операцию" и "Экспорт CSV"
+- Transactions table с:
+  - Multi-select checkboxes (select-all в header)
+  - Quick chips для категоризации некатегоризированных операций
+  - Edit/Delete кнопки для каждой операции
+- Bulk Actions Panel (sticky bottom):
+  - Счетчик выбранных операций с склонением
+  - Dropdown категорий для массового назначения
+  - Кнопка "Применить категорию"
+- Модалы:
+  - Create modal с формой создания
+  - Edit modal с формой редактирования
+- dcc.Store:
+  - selected-transactions - список ID выбранных операций
+  - frequent-categories - кеш частых категорий
+- dcc.Download для CSV экспорта
 
 **Callbacks** (Pattern-Matching):
 - `toggle_create_modal()` - открытие/закрытие модала создания
@@ -62,6 +75,20 @@ dbc.NavLink("Transactions", href="/transactions", active="exact")
 - `update_transaction()` - обновление операции
 - `delete_transaction()` - удаление операции (pattern-matching)
 - `refresh_transactions_table()` - обновление таблицы после изменений
+
+**Категоризация Callbacks** (Протокол 0011):
+- `load_frequent_categories()` - кеширование частых категорий через CategoryService.get_frequent_for_type()
+- `chip_assign_category()` - быстрое назначение через chip (Pattern-Matching с guard clauses)
+- `chip_dropdown_assign_category()` - назначение через overflow dropdown
+
+**Bulk Actions Callbacks** (Протокол 0011):
+- `update_selection_state()` - обработка Select All и individual checkboxes
+- `clear_selection_on_filter_change()` - сброс selection при смене фильтра (WYSIWYG)
+- `toggle_bulk_panel()` - показ/скрытие panel с prevent_initial_call=True
+- `bulk_assign_category()` - массовое назначение категории (max 100, ValidationError handling)
+
+**Export Callback** (Протокол 0011):
+- `export_transactions()` - CSV экспорт с UTF-8 BOM, учет filter-no-category
 
 **Pattern-Matching Callbacks** (КРИТИЧНО):
 ```python
@@ -75,6 +102,73 @@ if ctx.triggered[0].get('value') is None:
 # Используем triggered_id напрямую
 transaction_id = ctx.triggered_id["index"]
 ```
+
+**Quick Chips UI** (Протокол 0011):
+```python
+# Pattern-Matching ID для chip кнопок
+{"type": "category-chip", "tx_id": transaction_id, "cat_id": category_id}
+
+# Helper функция
+def _build_chips_cell(tx, frequent_categories, all_categories):
+    # Guard: TRANSFER/ADJUSTMENT → "—"
+    if tx.type in [TransactionType.TRANSFER, TransactionType.ADJUSTMENT]:
+        return "—"
+
+    # Chips из frequent_categories[:5]
+    chips = [dbc.Badge(cat.name, ...) for cat in frequent_categories[:5]]
+
+    # Overflow dropdown с полным списком
+    overflow = dcc.Dropdown(options=all_categories, ...)
+```
+
+**Ключевые особенности**:
+- Chips показываются ТОЛЬКО для транзакций без категории
+- TRANSFER и ADJUSTMENT типы не могут иметь категорию (guard clause)
+- Chips загружаются из CategoryService.get_frequent_for_type() (кеш в Store)
+- Max 5 chips + overflow dropdown "..." с полным списком
+- 3-уровневые guard clauses в callbacks (ADR-003)
+
+**Bulk Actions Panel** (Протокол 0011):
+```python
+# Helper для склонения
+def _pluralize_operations(count: int) -> str:
+    """Склонение слова 'операция' по падежам."""
+    if count % 10 == 1 and count % 100 != 11:
+        return f"{count} операция"
+    elif count % 10 in [2, 3, 4] and count % 100 not in [12, 13, 14]:
+        return f"{count} операции"
+    else:
+        return f"{count} операций"
+
+# Bulk panel visibility
+def toggle_bulk_panel(selection):
+    if not selection or len(selection) == 0:
+        return {"display": "none"}, ""
+
+    counter = _pluralize_operations(len(selection))
+    return {"display": "block"}, f"Выбрано {counter}"
+```
+
+**Ключевые особенности**:
+- Multi-select с checkboxes в таблице (select-all в header)
+- Sticky bottom panel появляется только при выборе
+- Max 100 транзакций (лимит в TransactionService.bulk_update_category)
+- Сброс selection при смене фильтров (WYSIWYG behavior)
+- ValidationError handling с alert notification
+
+**CSV Export** (Протокол 0011):
+```python
+# Filename pattern
+filename = f"finfocus_transactions_{datetime.now().strftime('%Y-%m-%d')}.csv"
+
+# UTF-8 BOM для Excel совместимости
+content = TransactionService.export_to_csv(session, user_id, include_uncategorized)
+```
+
+**Ключевые особенности**:
+- Учитывает filter-no-category
+- UTF-8 BOM для корректного отображения кириллицы в Excel
+- Timestamp в имени файла
 
 **Form Validation**:
 - amount > 0 (frontend: type="number", min=0)
@@ -102,7 +196,16 @@ fig.update_layout(template="plotly_white", showlegend=True)
 - `transaction-table` - таблица операций
 - `create-modal` - модал создания
 - `edit-modal` - модал редактирования
+- `export-download` - dcc.Download для CSV экспорта
+- `selected-transactions` - dcc.Store для списка ID выбранных операций
+- `frequent-categories` - dcc.Store для кеша частых категорий
+- `select-all-checkbox` - checkbox в header таблицы
+- `bulk-actions-panel` - sticky panel для bulk операций
+- `bulk-category-dropdown` - dropdown категорий для bulk назначения
 - `{"type": "edit-btn", "index": transaction_id}` - pattern-matching ID
+- `{"type": "tx-checkbox", "index": transaction_id}` - checkbox для multi-select
+- `{"type": "category-chip", "tx_id": tx_id, "cat_id": cat_id}` - chip кнопка категории
+- `{"type": "chip-dropdown", "index": transaction_id}` - overflow dropdown категорий
 
 ## Критичные проблемы и решения
 

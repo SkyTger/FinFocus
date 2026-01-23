@@ -5,9 +5,9 @@
 
 **Уникальная ценность**: Кассовое планирование с прогнозом остатков по дням + автоматическое распределение бюджета между множественными накопительными целями с приоритетами.
 
-**Статус**: Epic-03-Analytics завершен ✅ (Батч 3.1 + 3.2 merged)
+**Статус**: Epic-03-Analytics завершен ✅ (Батч 3.1 + 3.2 merged, протокол 0011 восстановил UI компоненты)
 
-**Последнее обновление**: 2026-01-23 (после merge протокола 0010)
+**Последнее обновление**: 2026-01-24 (после merge протокола 0011)
 
 ## Быстрые ссылки на разделы
 
@@ -17,6 +17,10 @@
 
 ### Стандарты разработки (КРИТИЧНО)
 - [code-style.md] - Python docstrings на русском, type annotations, batch workflow, git conventions
+
+### Функциональность и протоколы
+- [features.md] - Обзор реализованных функций (кассовый календарь, CRUD, цели, аналитика)
+- [protocols.md] - История протоколов разработки (0002-0011) с деталями реализации
 
 ### Модули системы (краткие описания)
 - [modules/database.md] - SQLAlchemy ORM: User, Transaction, Goal, GoalContribution
@@ -78,10 +82,14 @@
   - Bulk actions для массового назначения категорий
   - CSV экспорт с UTF-8 BOM
   - Страница /analytics с donut и bar charts
+- ✅ Восстановление UI компонентов (протокол 0011, PR #11)
+  - Chips UI восстановлен после merge conflict
+  - Bulk selection с multi-select checkboxes
+  - CSV export с UTF-8 BOM для Excel
+  - 13 новых тестов для _pluralize_operations helper
 
 **Ближайшие задачи**:
-1. Code review и merge PR #10
-2. Начать Epic-04: Advanced Features (импорт, подушка безопасности)
+1. Начать Epic-04: Advanced Features (импорт, подушка безопасности)
 
 ## Критичные детали
 
@@ -154,6 +162,8 @@ memory-bank/
 ├── architecture.md       # Архитектура системы (КРИТИЧНО)
 ├── tech-stack.md         # Технологический стек (КРИТИЧНО)
 ├── code-style.md         # Стандарты кода (КРИТИЧНО)
+├── features.md           # Обзор функциональности (NEW)
+├── protocols.md          # История протоколов 0002-0011 (NEW)
 ├── testing.md            # Стратегия тестирования
 ├── deployment.md         # Запуск и деплоймент
 └── modules/              # Модули системы (краткие)
@@ -161,13 +171,13 @@ memory-bank/
     ├── services.md       # Бизнес-логика
     ├── ui-components.md  # UI компоненты
     ├── routing.md        # Система роутинга
-    ├── schema.md         # TypedDicts (NEW)
-    └── utils.md          # Утилиты (NEW)
+    ├── schema.md         # TypedDicts
+    └── utils.md          # Утилиты
 ```
 
 ---
 
-**Версия Memory Bank**: 3.0
+**Версия Memory Bank**: 3.1
 **Дата создания**: 2026-01-17
-**Последнее обновление**: 2026-01-23 (после протокола 0009 merge)
+**Последнее обновление**: 2026-01-24 (после протокола 0011 merge)
 **GitHub**: https://github.com/SkyTger/FinFocus
