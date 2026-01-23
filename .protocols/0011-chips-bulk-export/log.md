@@ -19,7 +19,7 @@
 - Артефакты протокола созданы из шаблонов
 - Plan включает замечания из critique-v2
 
-### Step 1 — Layout + Helpers (commit: pending)
+### Step 1 — Layout + Helpers (commit: 1b2e3f5)
 - Добавлен import dcc для Store/Download компонентов
 - dcc.Store: selected-transactions, frequent-categories
 - dcc.Download: export-download для CSV экспорта
@@ -27,6 +27,17 @@
 - Helper _pluralize_operations() — склонение "операция/операции/операций"
 - Helper _build_bulk_panel() — sticky panel с dropdown и кнопкой
 - Bulk panel добавлен в layout (hidden по умолчанию)
+
+### Step 2 — Table + Chips (commit: pending)
+- Helper _build_chips_cell() добавлен (~70 строк):
+  - Guard для TRANSFER/ADJUSTMENT — возвращает "—"
+  - Chips из frequent_categories[:5] с Pattern-Matching IDs
+  - Overflow dropdown для полного списка категорий
+- _build_transactions_table() расширен:
+  - Параметры frequent_categories, all_categories (с defaults)
+  - Колонка checkbox в header (select-all-checkbox)
+  - Checkbox в каждой строке {"type": "tx-checkbox", "index": tx.id}
+  - colSpan обновлен 6→7 для пустой таблицы
 
 <!--
 Формат записи:

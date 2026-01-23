@@ -75,24 +75,118 @@ def _build_bulk_panel() -> html.Div:
     )
 
 
-def _build_transactions_table(transactions: list) -> list:
-    """Формирует HTML таблицу транзакций.
+def _build_chips_cell(
+    tx,
+    frequent_categories: dict,
+    all_categories: list,
+) -> html.Div:
+    """Строит ячейку с chips для быстрой категоризации.
+
+    Args:
+        tx: Объект Transaction
+        frequent_categories: Кеш частых категорий {"expense": [...], "income": [...]}
+        all_categories: Полный список категорий для dropdown
+
+    Returns:
+        html.Div: Ячейка с chips или "—" для TRANSFER/ADJUSTMENT
+    """
+    # Guard: TRANSFER и ADJUSTMENT не категоризируются
+    if tx.transaction_type in (TransactionType.TRANSFER, TransactionType.ADJUSTMENT):
+        return html.Span("—", className="text-muted")
+
+    # Определяем тип категорий
+    category_type = tx.transaction_type.name.lower()
+    chips_data = frequent_categories.get(category_type, [])[:5]
+
+    # Если нет частых категорий — показываем только dropdown
+    if not chips_data:
+        return html.Div(
+            [
+                dcc.Dropdown(
+                    id={"type": "chip-dropdown", "tx_id": tx.id},
+                    options=[
+                        {"label": f"{ICON_TO_EMOJI.get(cat.get('icon', ''), '📁')} {cat['label']}", "value": cat["value"]}
+                        for cat in all_categories
+                        if cat.get("type", category_type) == category_type
+                    ],
+                    placeholder="Выбрать...",
+                    className="tx-chip-dropdown",
+                    style={"width": "150px"},
+                ),
+            ],
+            className="tx-chips-cell",
+        )
+
+    # Строим chips
+    chips = []
+    for cat in chips_data:
+        chip = dbc.Button(
+            [
+                html.I(className=f"{cat.get('icon', 'bi-tag')} me-1"),
+                cat["label"],
+            ],
+            id={"type": "chip-btn", "tx_id": tx.id, "cat_id": cat["value"]},
+            color="light",
+            size="sm",
+            className="tx-chip me-1 mb-1",
+        )
+        chips.append(chip)
+
+    # Overflow dropdown для остальных категорий
+    overflow_options = [
+        {"label": f"{ICON_TO_EMOJI.get(cat.get('icon', ''), '📁')} {cat['label']}", "value": cat["value"]}
+        for cat in all_categories
+        if cat.get("type", category_type) == category_type
+    ]
+
+    overflow_dropdown = dcc.Dropdown(
+        id={"type": "chip-dropdown", "tx_id": tx.id},
+        options=overflow_options,
+        placeholder="...",
+        className="tx-chip-dropdown-overflow",
+        style={"width": "80px", "display": "inline-block"},
+    )
+
+    return html.Div(
+        [*chips, overflow_dropdown],
+        className="tx-chips-cell d-flex flex-wrap align-items-center",
+    )
+
+
+def _build_transactions_table(
+    transactions: list,
+    frequent_categories: dict | None = None,
+    all_categories: list | None = None,
+) -> list:
+    """Формирует HTML таблицу транзакций с checkboxes и chips.
 
     Args:
         transactions: Список объектов Transaction
+        frequent_categories: Кеш частых категорий для chips
+        all_categories: Полный список категорий для dropdown
 
     Returns:
         list: [thead, tbody] для dbc.Table
     """
-    # Заголовок таблицы
+    # Defaults для обратной совместимости
+    if frequent_categories is None:
+        frequent_categories = {}
+    if all_categories is None:
+        all_categories = []
+
+    # Заголовок таблицы с checkbox "Select All"
     table_header = html.Thead(
         [
             html.Tr(
                 [
+                    html.Th(
+                        dbc.Checkbox(id="select-all-checkbox", value=False),
+                        style={"width": "40px"},
+                    ),
                     html.Th("Дата"),
                     html.Th("Тип"),
                     html.Th("Сумма", className="text-end"),
-                    html.Th("Категория"),
+                    html.Th("Категория", style={"minWidth": "200px"}),
                     html.Th("Описание"),
                     html.Th("Действия", className="text-end"),
                 ]
@@ -110,7 +204,7 @@ def _build_transactions_table(transactions: list) -> list:
                         [
                             html.Td(
                                 "Нет операций",
-                                colSpan=6,
+                                colSpan=7,
                                 className="text-center text-muted",
                             )
                         ]
@@ -140,18 +234,25 @@ def _build_transactions_table(transactions: list) -> list:
                 title="Повторяющаяся операция",
             )
 
-        # Категория с иконкой
-        category_cell = []
+        # Категория: с иконкой или chips для некатегоризированных
         if tx.category_rel:
             category_cell = [
                 html.I(className=f"{tx.category_rel.icon} me-1"),
                 tx.category_rel.name,
             ]
         else:
-            category_cell = [html.Span("—", className="text-muted")]
+            # Chips для быстрой категоризации
+            category_cell = _build_chips_cell(tx, frequent_categories, all_categories)
 
         row = html.Tr(
             [
+                # Checkbox для выбора
+                html.Td(
+                    dbc.Checkbox(
+                        id={"type": "tx-checkbox", "index": tx.id},
+                        value=False,
+                    ),
+                ),
                 html.Td([recurring_icon, format_date(tx.transaction_date)]),
                 html.Td(type_badge),
                 html.Td(
