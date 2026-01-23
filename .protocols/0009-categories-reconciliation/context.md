@@ -1,7 +1,7 @@
-- **Current Step**: 3
+- **Current Step**: 4
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 2 завершен: созданы TypedDicts CategoryOption и ReconciliationPreview."
-- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-category-service.md`)."
+- **Last Action Summary**: "Шаг 3 завершен: CategoryService создан с 6 методами, 15 тестов."
+- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-reconciliation-service.md`)."
 - **Git**: "Ветка 0009-categories-reconciliation, commit pending."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/9"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"

@@ -44,11 +44,29 @@
 
 ## Шаг 2: TypedDicts (2026-01-23) ✅
 
+- **Commit**: 12ea550
 - **Действия**:
   1. Создан app/schema/categories.py с CategoryOption и ReconciliationPreview
   2. Обновлен app/schema/__init__.py — добавлен экспорт новых типов
 
 - **Тесты**: 156 passed
+- **Quality**: flake8 ✅
+
+---
+
+## Шаг 3: CategoryService (2026-01-23) ✅
+
+- **Действия**:
+  1. Создан app/services/category_service.py с методами:
+     - get_all(), get_by_id(), get_by_type()
+     - get_for_dropdown() — для UI dropdown
+     - get_system_category() — для сверки
+     - seed_default_categories() — идемпотентный seed
+  2. Обновлен app/services/__init__.py — добавлен экспорт
+  3. Упрощен scripts/seed_categories.py — использует CategoryService
+  4. Создан tests/test_category_service.py (15 тестов)
+
+- **Тесты**: 171 passed (включая 15 новых)
 - **Quality**: flake8 ✅
 
 ---

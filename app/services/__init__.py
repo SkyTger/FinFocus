@@ -9,6 +9,7 @@ from app.schema.goals import (
 )
 
 from .allocation_service import AllocationService
+from .category_service import CategoryService
 from .calendar_service import (
     CalendarService,
     MonthSummary,
@@ -41,6 +42,8 @@ __all__ = [
     "AllocationService",
     "AllocationResult",
     "AllocationSummary",
+    # Category
+    "CategoryService",
     # Calendar
     "CalendarService",
     "MonthSummary",
