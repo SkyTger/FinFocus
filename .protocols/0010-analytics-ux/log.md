@@ -4,6 +4,17 @@
 
 ---
 
+## Restore context: protocol-0010#ctx-3
+
+**Дата:** 2026-01-23
+**Статус на момент восстановления:** Шаг 2 закоммичен, протокол не обновлен
+**Последний коммит:** 6e43384 (protocol-0010/02)
+**Незакоммиченные изменения:** Нет
+**Диагноз:** Сбой после коммита (Сценарий C)
+**Коррекция:** Обновлен context.md для шага 3, готов к работе
+
+---
+
 ## Restore context: protocol-0010#ctx-2
 
 **Дата:** 2026-01-23
@@ -11,6 +22,37 @@
 **Последний коммит:** c4117ae (protocol-0010/00)
 **Незакоммиченные изменения:** context.md (обновлен после шага 0, не требует коммита)
 **Диагноз:** Чистое состояние (Сценарий A)
+
+---
+
+## [2026-01-23] Шаг 3: CategoryService extension
+
+**Действия:**
+- Добавлена константа `MIN_TRANSACTIONS_FOR_FREQUENCY = 3`
+- Добавлен импорт `func` из sqlalchemy и `Transaction` из моделей
+- Добавлен метод `get_frequent_for_type()`:
+  - Возвращает часто используемые категории пользователя
+  - SQL агрегация: COUNT transactions GROUP BY category_id ORDER BY count DESC
+  - Fallback на sort_order если < 3 транзакций с категориями (cold start)
+  - Параметры: user_id, category_type, limit (default 6)
+  - Возвращает list[CategoryOption] для использования в chips UI
+- Обновлен экспорт в `app/services/__init__.py`
+- Написано 5 unit тестов:
+  - test_get_frequent_returns_top_by_usage — сортировка по частоте
+  - test_get_frequent_fallback_to_sort_order — fallback при < 3 транзакциях
+  - test_get_frequent_filters_by_type — фильтрация income/expense
+  - test_get_frequent_respects_limit — работа параметра limit
+  - test_get_frequent_empty_for_new_user — поведение для нового пользователя
+
+**Результат:**
+- 5 новых тестов, всего 20 тестов CategoryService (было 15)
+- Всего тестов в проекте: 246 (было 241)
+- Black + Flake8: OK
+
+**Решения:**
+- MIN_TRANSACTIONS_FOR_FREQUENCY = 3 — порог для определения "cold start"
+- Fallback по sort_order обеспечивает разумные defaults для новых пользователей
+- JOIN Transaction + Category для подсчёта частоты (эффективнее чем subquery)
 
 ---
 

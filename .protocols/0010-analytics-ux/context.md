@@ -1,7 +1,7 @@
-- **Current Step**: 3
-- **Status**: In Progress
-- **Last Action Summary**: "Шаг 2 завершен: bulk_update_category и export_to_csv добавлены, 12 unit тестов."
-- **Next Action**: "Приступить к выполнению Шага 3 (см. `03-category-frequent.md`)."
-- **Git**: "Ветка 0010-analytics-ux, ожидается commit [protocol-0010/02]."
+- **Current Step**: 4
+- **Status**: Ready to Start
+- **Last Action Summary**: "Шаг 3 завершен: get_frequent_for_type() добавлен в CategoryService, 5 unit тестов."
+- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-chips-ui.md`)."
+- **Git**: "Ветка 0010-analytics-ux, ожидается commit [protocol-0010/03]."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0010-analytics-ux`
