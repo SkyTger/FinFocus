@@ -170,3 +170,22 @@
 - **Quality**: Синтаксис ✅
 
 ---
+
+## Шаг 8: DashboardService (2026-01-23) ✅
+
+- **Действия**:
+  1. Обновлен RecentTransaction TypedDict:
+     - Заменен category_id на category_name: str | None
+     - Добавлено поле category_icon: str | None
+  2. Обновлен get_recent_transactions():
+     - Добавлена фильтрация recurring шаблонов
+     - Используется relationship для category_name и category_icon
+  3. Проверено: ADJUSTMENT не влияет на period_income/period_expense (CalendarService уже исключает)
+  4. Создано 5 unit тестов:
+     - TestDashboardServiceCategoryFields: 3 теста
+     - TestDashboardServiceAdjustmentExclusion: 2 теста
+
+- **Тесты**: 5/5 passed ✅
+- **Quality**: Синтаксис ✅
+
+---

@@ -386,3 +386,138 @@ class TestGetRecentTransactions:
         result = service.get_recent_transactions(test_user.id, limit=5)
 
         assert result == []
+
+
+class TestDashboardServiceCategoryFields:
+    """Тесты category fields в RecentTransaction."""
+
+    def test_recent_transaction_includes_category(self, db_session, test_user):
+        """RecentTransaction включает category_name и category_icon."""
+        from app.models.database import Category
+
+        # Создаем категорию
+        category = Category(name="Еда", icon="bi-cart", type="expense")
+        db_session.add(category)
+        db_session.flush()
+
+        # Создаем транзакцию с категорией
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("500.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date.today(),
+            category_id=category.id,
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        recent = service.get_recent_transactions(test_user.id, limit=5)
+
+        assert len(recent) == 1
+        assert recent[0]["category_name"] == "Еда"
+        assert recent[0]["category_icon"] == "bi-cart"
+
+    def test_recent_transaction_without_category(self, db_session, test_user):
+        """RecentTransaction корректно обрабатывает отсутствие категории."""
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("500.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date.today(),
+            category_id=None,
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        recent = service.get_recent_transactions(test_user.id, limit=5)
+
+        assert len(recent) == 1
+        assert recent[0]["category_name"] is None
+        assert recent[0]["category_icon"] is None
+
+    def test_excludes_recurring_templates(self, db_session, test_user):
+        """Recurring шаблоны не попадают в recent transactions."""
+        # Создаем обычную транзакцию
+        regular = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("100.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date.today(),
+            description="Обычная",
+            is_recurring=False,
+        )
+        # Создаем recurring шаблон
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date.today(),
+            description="Шаблон зарплаты",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add_all([regular, template])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        recent = service.get_recent_transactions(test_user.id, limit=10)
+
+        # Должна быть только обычная транзакция
+        assert len(recent) == 1
+        assert recent[0]["description"] == "Обычная"
+
+
+class TestDashboardServiceAdjustmentExclusion:
+    """Тесты исключения ADJUSTMENT из period_income/period_expense."""
+
+    def test_adjustment_not_in_period_income(self, db_session, test_user):
+        """ADJUSTMENT не учитывается в period_income."""
+        # Создаем реальный доход
+        income = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("1000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date.today(),
+        )
+        # Создаем положительную корректировку
+        adjustment = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("500.00"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date.today(),
+        )
+        db_session.add_all([income, adjustment])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        metrics = service.get_overview_metrics(test_user.id, period="month")
+
+        # ADJUSTMENT не должен увеличивать period_income
+        assert metrics["period_income"] == Decimal("1000.00")
+
+    def test_adjustment_not_in_period_expense(self, db_session, test_user):
+        """ADJUSTMENT не учитывается в period_expense."""
+        # Создаем реальный расход
+        expense = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("300.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date.today(),
+        )
+        # Создаем отрицательную корректировку
+        adjustment = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("-200.00"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date.today(),
+        )
+        db_session.add_all([expense, adjustment])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        metrics = service.get_overview_metrics(test_user.id, period="month")
+
+        # ADJUSTMENT не должен влиять на period_expense
+        assert metrics["period_expense"] == Decimal("300.00")

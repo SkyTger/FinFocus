@@ -51,11 +51,12 @@ class CashflowDataPoint(TypedDict):
 
 
 class RecentTransaction(TypedDict):
-    """Данные транзакции для списка."""
+    """Данные транзакции для списка на дашборде."""
 
     id: int
     description: str | None
-    category_id: int | None
+    category_name: str | None  # Название категории (из relationship)
+    category_icon: str | None  # Иконка категории для UI
     date: str
     amount: Decimal
     transaction_type: str
@@ -334,20 +335,24 @@ class DashboardService:
         user_id: int,
         limit: int = 5,
     ) -> list[RecentTransaction]:
-        """Получает последние транзакции.
+        """Получает последние транзакции с информацией о категории.
 
         Args:
             user_id: ID пользователя
             limit: Максимальное количество (по умолчанию 5)
 
         Returns:
-            list[RecentTransaction]: последние транзакции
+            list[RecentTransaction]: последние транзакции с category_name и category_icon
 
-        Sorting: transaction_date DESC, id DESC (для стабильности)
+        Note:
+            - Исключает recurring шаблоны (is_recurring=True без parent)
+            - Сортировка: transaction_date DESC, id DESC (для стабильности)
         """
         transactions = (
             self.session.query(Transaction)
             .filter(Transaction.user_id == user_id)
+            .filter(Transaction.is_recurring == False)  # noqa: E712
+            .filter(Transaction.recurring_parent_id == None)  # noqa: E711
             .order_by(desc(Transaction.transaction_date), desc(Transaction.id))
             .limit(limit)
             .all()
@@ -357,7 +362,8 @@ class DashboardService:
             RecentTransaction(
                 id=t.id,
                 description=t.description,
-                category_id=t.category_id,
+                category_name=t.category_rel.name if t.category_rel else None,
+                category_icon=t.category_rel.icon if t.category_rel else None,
                 date=t.transaction_date.isoformat(),
                 amount=t.amount,
                 transaction_type=t.transaction_type.value,

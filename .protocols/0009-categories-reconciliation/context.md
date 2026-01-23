@@ -1,7 +1,7 @@
-- **Current Step**: 8
+- **Current Step**: 9
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 7 завершен: VirtualTransaction обновлен (category_id, category_name), create_exception с наследованием, 4 теста."
-- **Next Action**: "Приступить к выполнению Шага 8 (см. `08-dashboard-service.md`)."
+- **Last Action Summary**: "Шаг 8 завершен: RecentTransaction обновлен (category_name, category_icon), get_recent_transactions с фильтрацией recurring, 5 тестов."
+- **Next Action**: "Приступить к выполнению Шага 9 (см. `09-ui-transactions.md`)."
 - **Git**: "Ветка 0009-categories-reconciliation, commit pending."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/9"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
