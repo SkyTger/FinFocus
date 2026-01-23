@@ -34,13 +34,15 @@ class TransactionInfo(TypedDict):
 
     id: int | None  # ID транзакции (None для виртуальных recurring)
     template_id: int | None  # ID шаблона для recurring (None для обычных)
-    transaction_type: str  # "income" | "expense" | "transfer"
+    transaction_type: str  # "income" | "expense" | "transfer" | "adjustment"
     amount: str  # Decimal в строковом формате
     description: str | None  # Описание
     date: str  # ISO format (YYYY-MM-DD)
     is_virtual: bool  # True для виртуальных recurring instances
     is_recurring: bool  # True для recurring (виртуальных и exceptions)
     is_exception: bool  # True для exceptions (материализованных recurring)
+    category_id: int | None  # ID категории (None = без категории)
+    category_name: str | None  # Название категории для UI
 
 
 class YearSummary(TypedDict):
@@ -168,12 +170,14 @@ class CalendarService:
     ) -> Decimal:
         """Рассчитывает сумму всех изменений баланса до указанной даты.
 
+        ADJUSTMENT учитывается как прямое изменение баланса.
+
         Args:
             user_id: ID пользователя
             before_date: Дата, до которой считать (не включительно)
 
         Returns:
-            Decimal: Сумма изменений (INCOME - EXPENSE)
+            Decimal: Сумма изменений (INCOME + ADJUSTMENT - EXPENSE)
         """
         result = (
             self.session.query(
@@ -182,6 +186,11 @@ class CalendarService:
                         case(
                             (
                                 Transaction.transaction_type == TransactionType.INCOME,
+                                Transaction.amount,
+                            ),
+                            (
+                                Transaction.transaction_type
+                                == TransactionType.ADJUSTMENT,
                                 Transaction.amount,
                             ),
                             (
@@ -198,7 +207,11 @@ class CalendarService:
                 Transaction.user_id == user_id,
                 Transaction.transaction_date < before_date,
                 Transaction.transaction_type.in_(
-                    [TransactionType.INCOME, TransactionType.EXPENSE]
+                    [
+                        TransactionType.INCOME,
+                        TransactionType.EXPENSE,
+                        TransactionType.ADJUSTMENT,
+                    ]
                 ),
                 # Исключаем recurring шаблоны (учитываются отдельно)
                 Transaction.is_recurring == False,  # noqa: E712
@@ -214,6 +227,10 @@ class CalendarService:
         self, user_id: int, start_date: date, end_date: date
     ) -> dict[date, Decimal]:
         """Получает изменения баланса по дням в периоде.
+
+        ADJUSTMENT обрабатывается как прямое изменение баланса:
+        - положительный amount увеличивает баланс
+        - отрицательный amount уменьшает баланс
 
         Args:
             user_id: ID пользователя
@@ -233,6 +250,10 @@ class CalendarService:
                             Transaction.amount,
                         ),
                         (
+                            Transaction.transaction_type == TransactionType.ADJUSTMENT,
+                            Transaction.amount,
+                        ),
+                        (
                             Transaction.transaction_type == TransactionType.EXPENSE,
                             -Transaction.amount,
                         ),
@@ -245,7 +266,11 @@ class CalendarService:
                 Transaction.transaction_date >= start_date,
                 Transaction.transaction_date <= end_date,
                 Transaction.transaction_type.in_(
-                    [TransactionType.INCOME, TransactionType.EXPENSE]
+                    [
+                        TransactionType.INCOME,
+                        TransactionType.EXPENSE,
+                        TransactionType.ADJUSTMENT,
+                    ]
                 ),
                 # Исключаем recurring шаблоны (учитываются отдельно)
                 Transaction.is_recurring == False,  # noqa: E712
@@ -418,7 +443,7 @@ class CalendarService:
         использования после закрытия сессии БД.
 
         В отличие от calculate_daily_balances, этот метод включает ВСЕ типы
-        транзакций (включая TRANSFER) для отображения в UI.
+        транзакций (включая TRANSFER и ADJUSTMENT) для отображения в UI.
 
         Args:
             user_id: ID пользователя
@@ -457,6 +482,8 @@ class CalendarService:
                 "is_virtual": False,
                 "is_recurring": is_exception,
                 "is_exception": is_exception,
+                "category_id": txn.category_id,
+                "category_name": txn.category_rel.name if txn.category_rel else None,
             }
             result[txn.transaction_date].append(txn_info)
 
@@ -704,6 +731,8 @@ class CalendarService:
                     is_virtual=False,
                     is_recurring=False,
                     is_exception=False,
+                    category_id=txn.category_id,
+                    category_name=txn.category_rel.name if txn.category_rel else None,
                 )
             )
 
@@ -728,6 +757,9 @@ class CalendarService:
                             is_virtual=True,
                             is_recurring=True,
                             is_exception=False,
+                            # Category fields добавляются в Шаге 7 (RecurringService)
+                            category_id=instance.get("category_id"),
+                            category_name=instance.get("category_name"),
                         )
                     )
                 else:  # Transaction (exception)
@@ -742,6 +774,12 @@ class CalendarService:
                             is_virtual=False,
                             is_recurring=True,
                             is_exception=True,
+                            category_id=instance.category_id,
+                            category_name=(
+                                instance.category_rel.name
+                                if instance.category_rel
+                                else None
+                            ),
                         )
                     )
 

@@ -9,6 +9,7 @@ from app.schema.goals import (
 )
 
 from .allocation_service import AllocationService
+from .category_service import CategoryService
 from .calendar_service import (
     CalendarService,
     MonthSummary,
@@ -30,6 +31,7 @@ from .recurring_service import (
     RecurringService,
     VirtualTransaction,
 )
+from .reconciliation_service import ReconciliationService
 from .redistribution_service import (
     NFR2_WARNING_THRESHOLD_MS,
     RedistributionService,
@@ -41,6 +43,8 @@ __all__ = [
     "AllocationService",
     "AllocationResult",
     "AllocationSummary",
+    # Category
+    "CategoryService",
     # Calendar
     "CalendarService",
     "MonthSummary",
@@ -65,6 +69,8 @@ __all__ = [
     "MAX_INSTANCES_PER_CALL",
     "MAX_FORECAST_DAYS",
     "VALID_RECURRING_PERIODS",
+    # Reconciliation
+    "ReconciliationService",
     # Redistribution
     "RedistributionService",
     "NFR2_WARNING_THRESHOLD_MS",

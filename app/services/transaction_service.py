@@ -28,7 +28,7 @@ class TransactionService:
         transaction_type: TransactionType,
         transaction_date: date,
         description: str | None = None,
-        category: str | None = None,
+        category_id: int | None = None,
         is_recurring: bool = False,
         recurring_period: str | None = None,
         recurring_end_date: date | None = None,
@@ -38,10 +38,10 @@ class TransactionService:
         Args:
             user_id: ID пользователя
             amount: Сумма операции
-            transaction_type: Тип операции (INCOME/EXPENSE/TRANSFER)
+            transaction_type: Тип операции (INCOME/EXPENSE/TRANSFER/ADJUSTMENT)
             transaction_date: Дата операции
             description: Описание операции (опционально)
-            category: Категория операции (опционально)
+            category_id: ID категории (опционально, nullable)
             is_recurring: Флаг повторяющейся операции
             recurring_period: Период повторения (weekly/biweekly/monthly/quarterly)
             recurring_end_date: Дата окончания серии (опционально)
@@ -55,6 +55,7 @@ class TransactionService:
                 - transaction_date > 1 год в будущем
                 - recurring без периода
                 - недопустимый период
+                - ADJUSTMENT с is_recurring=True
         """
         # Валидация: amount > 0
         if amount <= 0:
@@ -66,6 +67,13 @@ class TransactionService:
             raise ValidationError(
                 "Дата операции не может быть более чем на 1 год в будущем",
                 field="transaction_date",
+            )
+
+        # Валидация: ADJUSTMENT не может быть recurring
+        if is_recurring and transaction_type == TransactionType.ADJUSTMENT:
+            raise ValidationError(
+                "Корректировки не могут быть повторяющимися операциями",
+                field="is_recurring",
             )
 
         # Валидация recurring полей
@@ -92,7 +100,7 @@ class TransactionService:
             transaction_type=transaction_type,
             transaction_date=transaction_date,
             description=description,
-            category=category,
+            category_id=category_id,
             is_recurring=is_recurring,
             recurring_period=recurring_period if is_recurring else None,
             recurring_end_date=recurring_end_date if is_recurring else None,
@@ -160,7 +168,10 @@ class TransactionService:
         transaction_type: TransactionType | None = None,
         transaction_date: date | None = None,
         description: str | None = None,
-        category: str | None = None,
+        category_id: int | None = None,
+        is_recurring: bool | None = None,
+        recurring_period: str | None = None,
+        recurring_end_date: date | None = None,
     ) -> Transaction:
         """Обновляет существующую транзакцию.
 
@@ -170,17 +181,38 @@ class TransactionService:
             transaction_type: Новый тип (опционально)
             transaction_date: Новая дата (опционально)
             description: Новое описание (опционально)
-            category: Новая категория (опционально)
+            category_id: Новый ID категории (опционально)
+            is_recurring: Флаг recurring (опционально)
+            recurring_period: Период повторения (опционально)
+            recurring_end_date: Дата окончания серии (опционально)
 
         Returns:
             Transaction: Обновленная транзакция
 
         Raises:
-            ValidationError: Если транзакция не найдена или amount <= 0
+            ValidationError: Если транзакция не найдена, amount <= 0,
+                или ADJUSTMENT с is_recurring=True
         """
         transaction = self.session.get(Transaction, transaction_id)
         if not transaction:
             raise ValidationError(f"Транзакция с ID {transaction_id} не найдена")
+
+        # Определяем итоговые значения для валидации
+        new_type = (
+            transaction_type
+            if transaction_type is not None
+            else transaction.transaction_type
+        )
+        new_is_recurring = (
+            is_recurring if is_recurring is not None else transaction.is_recurring
+        )
+
+        # Валидация: ADJUSTMENT не может быть recurring
+        if new_is_recurring and new_type == TransactionType.ADJUSTMENT:
+            raise ValidationError(
+                "Корректировки не могут быть повторяющимися операциями",
+                field="is_recurring",
+            )
 
         # Обновление полей (только если переданы новые значения)
         if amount is not None:
@@ -205,8 +237,17 @@ class TransactionService:
         if description is not None:
             transaction.description = description
 
-        if category is not None:
-            transaction.category = category
+        if category_id is not None:
+            transaction.category_id = category_id
+
+        if is_recurring is not None:
+            transaction.is_recurring = is_recurring
+
+        if recurring_period is not None:
+            transaction.recurring_period = recurring_period
+
+        if recurring_end_date is not None:
+            transaction.recurring_end_date = recurring_end_date
 
         # updated_at обновится автоматически через onupdate
         self.session.flush()

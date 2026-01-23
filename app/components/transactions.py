@@ -12,7 +12,7 @@ from loguru import logger
 
 from app.core import get_db_session, ValidationError
 from app.models.database import TransactionType
-from app.services import TransactionService, RecurringService
+from app.services import TransactionService, RecurringService, CategoryService
 from app.utils.formatters import format_amount, format_date, parse_date_safe
 
 
@@ -33,6 +33,7 @@ def _build_transactions_table(transactions: list) -> list:
                     html.Th("Дата"),
                     html.Th("Тип"),
                     html.Th("Сумма", className="text-end"),
+                    html.Th("Категория"),
                     html.Th("Описание"),
                     html.Th("Действия", className="text-end"),
                 ]
@@ -50,7 +51,7 @@ def _build_transactions_table(transactions: list) -> list:
                         [
                             html.Td(
                                 "Нет операций",
-                                colSpan=5,
+                                colSpan=6,
                                 className="text-center text-muted",
                             )
                         ]
@@ -80,6 +81,16 @@ def _build_transactions_table(transactions: list) -> list:
                 title="Повторяющаяся операция",
             )
 
+        # Категория с иконкой
+        category_cell = []
+        if tx.category_rel:
+            category_cell = [
+                html.I(className=f"{tx.category_rel.icon} me-1"),
+                tx.category_rel.name,
+            ]
+        else:
+            category_cell = [html.Span("—", className="text-muted")]
+
         row = html.Tr(
             [
                 html.Td([recurring_icon, format_date(tx.transaction_date)]),
@@ -87,6 +98,7 @@ def _build_transactions_table(transactions: list) -> list:
                 html.Td(
                     f"{amount_prefix}{format_amount(tx.amount)}", className=amount_class
                 ),
+                html.Td(category_cell),
                 html.Td(tx.description or "-", className="text-muted"),
                 html.Td(
                     [
@@ -159,6 +171,20 @@ def create_transactions_layout():
                 color="danger",
                 dismissable=True,
                 duration=5000,  # Автозакрытие через 5 сек
+                className="mb-3",
+            ),
+            # Панель фильтров
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        dbc.Checkbox(
+                            id="filter-no-category",
+                            label="Показать только без категории",
+                            value=False,
+                        ),
+                    ],
+                    className="py-2",
+                ),
                 className="mb-3",
             ),
             # Таблица операций
@@ -235,6 +261,28 @@ def create_transactions_layout():
                                                 ],
                                                 value="EXPENSE",
                                                 required=True,
+                                            )
+                                        ],
+                                        width=9,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
+                            # Категория (опционально)
+                            dbc.Row(
+                                [
+                                    dbc.Label(
+                                        "Категория",
+                                        html_for="create-category-dropdown",
+                                        width=3,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            dcc.Dropdown(
+                                                id="create-category-dropdown",
+                                                placeholder="Выберите категорию",
+                                                clearable=True,
+                                                options=[],
                                             )
                                         ],
                                         width=9,
@@ -431,6 +479,28 @@ def create_transactions_layout():
                                 ],
                                 className="mb-3",
                             ),
+                            # Категория
+                            dbc.Row(
+                                [
+                                    dbc.Label(
+                                        "Категория",
+                                        html_for="edit-category-dropdown",
+                                        width=3,
+                                    ),
+                                    dbc.Col(
+                                        [
+                                            dcc.Dropdown(
+                                                id="edit-category-dropdown",
+                                                placeholder="Выберите категорию",
+                                                clearable=True,
+                                                options=[],
+                                            )
+                                        ],
+                                        width=9,
+                                    ),
+                                ],
+                                className="mb-3",
+                            ),
                             # Дата
                             dbc.Row(
                                 [
@@ -559,15 +629,23 @@ def create_transactions_layout():
 # ==================== CALLBACKS ====================
 
 
-@callback(Output("transactions-table", "children"), Input("url", "pathname"))
-def load_transactions(pathname):
-    """Загружает список операций из БД."""
+@callback(
+    Output("transactions-table", "children"),
+    [Input("url", "pathname"), Input("filter-no-category", "value")],
+)
+def load_transactions(pathname, filter_no_category):
+    """Загружает список операций из БД с фильтрацией."""
     if pathname != "/transactions":
         raise PreventUpdate
 
     with get_db_session() as session:
         service = TransactionService(session)
         transactions = service.get_all_by_user(user_id=1)
+
+        # Фильтр по отсутствию категории
+        if filter_no_category:
+            transactions = [tx for tx in transactions if tx.category_id is None]
+
         logger.debug(f"Загружено {len(transactions)} транзакций")
         return _build_transactions_table(transactions)
 
@@ -609,11 +687,34 @@ def toggle_recurring_section(is_recurring: bool):
 
 
 @callback(
+    Output("create-category-dropdown", "options"),
+    Input("create-type-select", "value"),
+    prevent_initial_call=True,
+)
+def update_create_category_options(transaction_type: str | None):
+    """Обновить список категорий при смене типа транзакции."""
+    if not transaction_type:
+        return []
+
+    with get_db_session() as session:
+        service = CategoryService(session)
+        # Мапим transaction_type на category_type
+        category_type = "income" if transaction_type == "INCOME" else "expense"
+        options = service.get_for_dropdown(category_type=category_type)
+
+        return [
+            {"label": f"{opt['icon']} {opt['label']}", "value": opt["value"]}
+            for opt in options
+        ]
+
+
+@callback(
     [
         Output("create-modal", "is_open", allow_duplicate=True),
         Output("transactions-table", "children", allow_duplicate=True),
         Output("create-amount-input", "value"),
         Output("create-type-select", "value"),
+        Output("create-category-dropdown", "value"),
         Output("create-date-picker", "date"),
         Output("create-description-input", "value"),
         Output("create-is-recurring", "value"),
@@ -626,6 +727,7 @@ def toggle_recurring_section(is_recurring: bool):
     [
         State("create-amount-input", "value"),
         State("create-type-select", "value"),
+        State("create-category-dropdown", "value"),
         State("create-date-picker", "date"),
         State("create-description-input", "value"),
         State("create-is-recurring", "value"),
@@ -638,6 +740,7 @@ def create_transaction(
     n_clicks,
     amount,
     transaction_type,
+    category_id,
     date_str,
     description,
     is_recurring,
@@ -653,6 +756,7 @@ def create_transaction(
     if not transaction_date:
         return (
             True,  # Модал остаётся открытым
+            no_update,
             no_update,
             no_update,
             no_update,
@@ -679,6 +783,7 @@ def create_transaction(
                 transaction_type=TransactionType[transaction_type],
                 transaction_date=transaction_date,
                 description=description if description else None,
+                category_id=category_id,
                 is_recurring=is_recurring or False,
                 recurring_period=recurring_period if is_recurring else None,
                 recurring_end_date=parsed_end_date,
@@ -694,6 +799,7 @@ def create_transaction(
                 _build_transactions_table(transactions),  # table
                 None,  # amount
                 "EXPENSE",  # type
+                None,  # category_id
                 date.today().isoformat(),  # date
                 "",  # description
                 False,  # is_recurring
@@ -714,6 +820,7 @@ def create_transaction(
             no_update,
             no_update,
             no_update,
+            no_update,
             str(e),  # Текст ошибки
             True,  # Показать Alert
         )
@@ -725,6 +832,8 @@ def create_transaction(
         Output("edit-transaction-id", "data"),
         Output("edit-amount-input", "value"),
         Output("edit-type-select", "value"),
+        Output("edit-category-dropdown", "value"),
+        Output("edit-category-dropdown", "options"),
         Output("edit-date-picker", "date"),
         Output("edit-description-input", "value"),
         Output("recurring-edit-scope-modal", "is_open"),
@@ -751,7 +860,7 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
 
     # Если нажата кнопка отмены
     if triggered_id == "edit-cancel-btn":
-        return False, None, None, None, None, None, False, None
+        return False, None, None, None, None, [], None, None, False, None
 
     # Если нажата кнопка редактирования
     if not isinstance(triggered_id, dict) or triggered_id.get("type") != "edit-btn":
@@ -786,15 +895,31 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
                 "instance_date": tx.transaction_date.isoformat(),
                 "is_template": tx.is_recurring,
             }
-            return False, None, None, None, None, None, True, context
+            return False, None, None, None, None, [], None, None, True, context
 
         # Обычная транзакция — открываем edit modal напрямую
         logger.debug(f"Открыт модал редактирования для транзакции {transaction_id}")
+
+        # Загружаем категории для типа транзакции
+        category_service = CategoryService(session)
+        category_type = (
+            "income" if tx.transaction_type == TransactionType.INCOME else "expense"
+        )
+        category_options = category_service.get_for_dropdown(
+            category_type=category_type
+        )
+        dropdown_options = [
+            {"label": f"{opt['icon']} {opt['label']}", "value": opt["value"]}
+            for opt in category_options
+        ]
+
         return (
             True,
             transaction_id,
             float(tx.amount),
             tx.transaction_type.name,
+            tx.category_id,
+            dropdown_options,
             tx.transaction_date.isoformat(),
             tx.description or "",
             False,
@@ -814,13 +939,20 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
         State("edit-transaction-id", "data"),
         State("edit-amount-input", "value"),
         State("edit-type-select", "value"),
+        State("edit-category-dropdown", "value"),
         State("edit-date-picker", "date"),
         State("edit-description-input", "value"),
     ],
     prevent_initial_call=True,
 )
 def update_transaction(
-    n_clicks, transaction_id, amount, transaction_type, date_str, description
+    n_clicks,
+    transaction_id,
+    amount,
+    transaction_type,
+    category_id,
+    date_str,
+    description,
 ):
     """Обновляет транзакцию через TransactionService."""
     if not n_clicks or not transaction_id:
@@ -840,6 +972,7 @@ def update_transaction(
                 transaction_type=TransactionType[transaction_type],
                 transaction_date=transaction_date,
                 description=description if description else None,
+                category_id=category_id,
             )
             transactions = service.get_all_by_user(user_id=1)
             logger.info(f"Обновлена транзакция {transaction_id}")

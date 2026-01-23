@@ -1,7 +1,10 @@
 """
 Модели базы данных для FinFocus.
-Основные сущности: Пользователи, Операции, Цели накопления.
+Основные сущности: Пользователи, Операции, Цели накопления, Категории.
 """
+# TODO: При переходе в production использовать Alembic миграции
+# вместо drop + create_all для изменения схемы БД.
+# Текущий подход (пересоздание БД) допустим только для MVP/dev.
 from datetime import date
 from decimal import Decimal
 from enum import Enum as PyEnum
@@ -31,6 +34,7 @@ class TransactionType(PyEnum):
     INCOME = "income"  # Доход
     EXPENSE = "expense"  # Расход
     TRANSFER = "transfer"  # Перевод
+    ADJUSTMENT = "adjustment"  # Корректировка сверки
 
 
 class GoalStatus(PyEnum):
@@ -39,6 +43,36 @@ class GoalStatus(PyEnum):
     ACTIVE = "active"  # Активная
     COMPLETED = "completed"  # Достигнута
     PAUSED = "paused"  # Приостановлена
+
+
+class Category(Base):
+    """Модель категории операций.
+
+    Справочник с предзаполненными категориями расходов и доходов.
+    Категории делятся на системные (is_system=True) и пользовательские.
+
+    Attributes:
+        name: Название категории (уникальное).
+        icon: Bootstrap icon класс (bi-cart, bi-house, etc.).
+        type: Тип категории - "income", "expense" или "both".
+        is_system: True для системных категорий (Коррекция).
+        sort_order: Порядок сортировки в UI.
+    """
+
+    __tablename__ = "categories"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(50), nullable=False)
+    icon = Column(String(30), default="bi-tag")
+    type = Column(String(10), nullable=False)  # "income" | "expense" | "both"
+    is_system = Column(Boolean, default=False)
+    sort_order = Column(Integer, default=0)
+
+    # Relationships
+    transactions = relationship("Transaction", back_populates="category_rel")
+
+    def __repr__(self) -> str:
+        return f"<Category(id={self.id}, name='{self.name}', type='{self.type}')>"
 
 
 class User(Base):
@@ -106,7 +140,7 @@ class Transaction(Base):
     transaction_type = Column(Enum(TransactionType), nullable=False)
     transaction_date = Column(Date, nullable=False)  # Дата операции
     description = Column(String(500))
-    category = Column(String(100))  # Категория (на будущее)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
 
     # Повторяющиеся операции (Recurring)
     is_recurring = Column(Boolean, default=False)
@@ -126,6 +160,7 @@ class Transaction(Base):
 
     # Связи
     user = relationship("User", back_populates="transactions")
+    category_rel = relationship("Category", back_populates="transactions")
     recurring_parent = relationship(
         "Transaction",
         remote_side="Transaction.id",

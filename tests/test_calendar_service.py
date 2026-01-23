@@ -483,3 +483,224 @@ class TestGetYearSummary:
 
         assert result["total_income"] == Decimal("0")
         assert result["total_expense"] == Decimal("0")
+
+
+class TestCalendarServiceAdjustment:
+    """Тесты обработки ADJUSTMENT в CalendarService."""
+
+    def test_adjustment_positive_increases_balance(self, db_session, test_user):
+        """Положительный ADJUSTMENT увеличивает баланс."""
+        adjustment = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("500.00"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date(2026, 1, 15),
+        )
+        db_session.add(adjustment)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        balance = service.get_balance_on_date(test_user.id, date(2026, 1, 15))
+
+        # starting_balance (10000) + adjustment (500) = 10500
+        assert balance == Decimal("10500.00")
+
+    def test_adjustment_negative_decreases_balance(self, db_session, test_user):
+        """Отрицательный ADJUSTMENT уменьшает баланс."""
+        # Сначала доход
+        income = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("1000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 10),
+        )
+        # Затем отрицательная корректировка
+        adjustment = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("-300.00"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date(2026, 1, 15),
+        )
+        db_session.add_all([income, adjustment])
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        balance = service.get_balance_on_date(test_user.id, date(2026, 1, 15))
+
+        # starting_balance (10000) + income (1000) + adjustment (-300) = 10700
+        assert balance == Decimal("10700.00")
+
+    def test_adjustment_not_in_month_summary_totals(self, db_session, test_user):
+        """ADJUSTMENT не учитывается в total_income/total_expense."""
+        income = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("1000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 10),
+        )
+        adjustment = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("500.00"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date(2026, 1, 15),
+        )
+        db_session.add_all([income, adjustment])
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        summary = service.get_month_summary(test_user.id, 2026, 1)
+
+        # ADJUSTMENT не должен увеличивать total_income
+        assert summary["total_income"] == Decimal("1000.00")
+        assert summary["total_expense"] == Decimal("0")
+
+    def test_adjustment_affects_daily_balance(self, db_session, test_user):
+        """ADJUSTMENT влияет на ежедневный баланс в calculate_daily_balances."""
+        adjustment = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("200.00"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date(2026, 1, 2),
+        )
+        db_session.add(adjustment)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        result = service.calculate_daily_balances(
+            test_user.id, date(2026, 1, 1), date(2026, 1, 3)
+        )
+
+        assert result[date(2026, 1, 1)] == Decimal("10000.00")
+        assert result[date(2026, 1, 2)] == Decimal("10200.00")  # +200 adjustment
+        assert result[date(2026, 1, 3)] == Decimal("10200.00")
+
+    def test_adjustment_not_in_year_summary_totals(self, db_session, test_user):
+        """ADJUSTMENT не учитывается в total_income/total_expense годовой сводки."""
+        income = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 3, 15),
+        )
+        adjustment = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("1000.00"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date(2026, 6, 15),
+        )
+        db_session.add_all([income, adjustment])
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        result = service.get_year_summary(test_user.id, 2026)
+
+        # ADJUSTMENT не должен увеличивать total_income
+        assert result["total_income"] == Decimal("5000.00")
+        assert result["total_expense"] == Decimal("0")
+
+
+class TestCalendarServiceCategoryFields:
+    """Тесты category fields в TransactionInfo."""
+
+    def test_transaction_info_includes_category(self, db_session, test_user):
+        """TransactionInfo включает category_id и category_name."""
+        from app.models.database import Category
+
+        category = Category(name="Еда", type="expense", icon="bi-cart")
+        db_session.add(category)
+        db_session.flush()
+
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("100.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 15),
+            category_id=category.id,
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        result = service.get_transactions_by_date(
+            test_user.id, date(2026, 1, 15), date(2026, 1, 15)
+        )
+
+        assert date(2026, 1, 15) in result
+        tx_info = result[date(2026, 1, 15)][0]
+        assert tx_info["category_id"] == category.id
+        assert tx_info["category_name"] == "Еда"
+
+    def test_transaction_info_without_category(self, db_session, test_user):
+        """TransactionInfo корректно обрабатывает отсутствие категории."""
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("100.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 15),
+            category_id=None,
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        result = service.get_transactions_by_date(
+            test_user.id, date(2026, 1, 15), date(2026, 1, 15)
+        )
+
+        tx_info = result[date(2026, 1, 15)][0]
+        assert tx_info["category_id"] is None
+        assert tx_info["category_name"] is None
+
+    def test_get_all_transactions_includes_category(self, db_session, test_user):
+        """get_all_transactions_for_period включает category fields."""
+        from app.models.database import Category
+
+        category = Category(name="Транспорт", type="expense", icon="bi-car-front")
+        db_session.add(category)
+        db_session.flush()
+
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("250.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 20),
+            category_id=category.id,
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        result = service.get_all_transactions_for_period(
+            test_user.id,
+            date(2026, 1, 20),
+            date(2026, 1, 20),
+            include_recurring=False,
+        )
+
+        assert date(2026, 1, 20) in result
+        tx_info = result[date(2026, 1, 20)][0]
+        assert tx_info["category_id"] == category.id
+        assert tx_info["category_name"] == "Транспорт"
+
+    def test_adjustment_in_transactions_by_date(self, db_session, test_user):
+        """ADJUSTMENT транзакции отображаются в get_transactions_by_date."""
+        adjustment = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("100.00"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date(2026, 1, 15),
+            description="Сверка баланса",
+        )
+        db_session.add(adjustment)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        result = service.get_transactions_by_date(
+            test_user.id, date(2026, 1, 15), date(2026, 1, 15)
+        )
+
+        assert date(2026, 1, 15) in result
+        tx_info = result[date(2026, 1, 15)][0]
+        assert tx_info["transaction_type"] == "adjustment"
+        assert tx_info["amount"] == "100.00"
+        assert tx_info["description"] == "Сверка баланса"

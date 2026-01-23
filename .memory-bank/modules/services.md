@@ -477,6 +477,107 @@ with get_db_session() as session:
 **Integration тесты**: 7 тестов в `tests/test_redistribution_integration.py`
 - Покрытие: preview calculation, temporary status pattern, freed budget, logging, E2E scenarios
 
+## CategoryService (Протокол 0009 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/category_service.py` (~120 строк)
+
+**Инициализация**: `CategoryService(session)` - принимает SQLAlchemy session
+
+**Методы**:
+- `get_all(type_filter=None)` → `list[Category]`
+  - Все категории, опционально фильтр по type ("income"/"expense"/"both")
+  - Сортировка: type ASC, sort_order ASC
+- `get_by_id(category_id)` → `Category | None`
+  - Получить категорию по ID
+- `get_by_type(category_type)` → `list[Category]`
+  - Категории конкретного типа (включает "both")
+- `get_for_dropdown(category_type)` → `list[CategoryOption]`
+  - Для UI dropdown: возвращает CategoryOption TypedDict
+- `get_system_category(name)` → `Category | None`
+  - Получить системную категорию по имени (например "Коррекция")
+- `seed_default_categories()` → `int`
+  - Идемпотентный seed 16 предустановленных категорий
+  - Возвращает количество добавленных
+
+**TypedDict**:
+```python
+class CategoryOption(TypedDict):
+    value: int        # category.id
+    label: str        # category.name
+    icon: str         # category.icon
+```
+
+**Пример использования**:
+```python
+from app.services import CategoryService
+
+with get_db_session() as session:
+    service = CategoryService(session)
+
+    # Для dropdown в форме создания expense
+    options = service.get_for_dropdown("expense")
+    # [{"value": 1, "label": "Еда и продукты", "icon": "bi-cart"}, ...]
+
+    # Seed категорий (idempotent)
+    added = service.seed_default_categories()
+```
+
+**Unit тесты**: 15 тестов в `tests/test_category_service.py`
+
+## ReconciliationService (Протокол 0009 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/reconciliation_service.py` (~100 строк)
+
+**Инициализация**: `ReconciliationService(session)` - принимает SQLAlchemy session
+
+**Методы**:
+- `get_expected_balance(user_id, target_date)` → `Decimal`
+  - Расчетный баланс на указанную дату
+  - Использует CalendarService.get_balance_on_date()
+- `calculate_preview(user_id, target_date, actual_balance)` → `ReconciliationPreview`
+  - Preview для модала сверки
+  - Вычисляет разницу и explanation текст
+- `create_adjustment(user_id, target_date, actual_balance, category_id=None)` → `Transaction | None`
+  - Создает ADJUSTMENT транзакцию
+  - Возвращает None если разница = 0
+  - По умолчанию использует системную категорию "Коррекция"
+
+**TypedDict**:
+```python
+class ReconciliationPreview(TypedDict):
+    expected_balance: str      # Decimal as string
+    actual_balance: str        # Decimal as string
+    difference: str            # Decimal as string (actual - expected)
+    explanation: str           # Текст для UI
+    target_date: str           # ISO date
+```
+
+**Пример использования**:
+```python
+from app.services import ReconciliationService
+
+with get_db_session() as session:
+    service = ReconciliationService(session)
+
+    # Preview для модала
+    preview = service.calculate_preview(
+        user_id=1,
+        target_date=date.today(),
+        actual_balance=Decimal("14200")
+    )
+    # {"difference": "-800.00", "explanation": "Фактический баланс меньше...", ...}
+
+    # Создание корректировки
+    adjustment = service.create_adjustment(
+        user_id=1,
+        target_date=date.today(),
+        actual_balance=Decimal("14200")
+    )
+    session.commit()
+```
+
+**Unit тесты**: 11 тестов в `tests/test_reconciliation_service.py`
+
 ## Критичные решения
 
 **D010**: Session management через flush() вместо commit() для гибкости caller
@@ -492,6 +593,8 @@ with get_db_session() as session:
 **Протокол 0007**: Добавлены режимы накоплений (free/medium/strict) с множителями
 
 **Протокол 0008**: RedistributionService для перераспределения бюджета при достижении цели
+
+**Протокол 0009**: CategoryService и ReconciliationService для категоризации и сверки баланса
 
 ---
 

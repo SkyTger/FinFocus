@@ -2680,20 +2680,19 @@ def decline_redistribution(n_clicks, preview_data):
 
     if preview:
         try:
-            with get_db_session() as session:
-                allocation_service = AllocationService()
-                redistribution_service = RedistributionService(allocation_service)
+            allocation_service = AllocationService()
+            redistribution_service = RedistributionService(allocation_service)
 
-                # Логируем событие отклонения
-                redistribution_service.log_redistribution_event(
-                    preview=preview,
-                    action="declined",
-                )
+            # Логируем событие отклонения
+            redistribution_service.log_redistribution_event(
+                preview=preview,
+                action="declined",
+            )
 
-                logger.info(
-                    f"Перераспределение отклонено для цели "
-                    f"{preview.get('completed_goal_name', 'unknown')}"
-                )
+            logger.info(
+                f"Перераспределение отклонено для цели "
+                f"{preview.get('completed_goal_name', 'unknown')}"
+            )
 
         except Exception as e:
             logger.warning(f"Ошибка логирования отклонения: {e}")
