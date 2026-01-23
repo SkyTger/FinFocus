@@ -5,7 +5,7 @@
 для глобальной доступности на всех страницах.
 """
 import dash_bootstrap_components as dbc
-from dash import html, callback, Input, Output, State, ALL, ctx
+from dash import dcc, html, callback, Input, Output, State, ALL, ctx
 from dash.exceptions import PreventUpdate
 
 from loguru import logger
@@ -14,6 +14,65 @@ from app.core import get_db_session
 from app.models.database import TransactionType
 from app.services import TransactionService, CategoryService
 from app.utils.formatters import format_amount, format_date, ICON_TO_EMOJI
+
+
+def _pluralize_operations(count: int) -> str:
+    """Склонение слова 'операция' для счётчика выбранных.
+
+    Args:
+        count: Количество выбранных операций
+
+    Returns:
+        str: "N операция/операции/операций выбрана/выбраны/выбрано"
+    """
+    if count % 10 == 1 and count % 100 != 11:
+        return f"{count} операция выбрана"
+    elif count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return f"{count} операции выбраны"
+    else:
+        return f"{count} операций выбрано"
+
+
+def _build_bulk_panel() -> html.Div:
+    """Строит sticky Bulk Actions Panel (скрыт по умолчанию).
+
+    Returns:
+        html.Div: Панель массовых операций с dropdown и кнопкой применения
+    """
+    return html.Div(
+        [
+            html.Div(
+                [
+                    # Счётчик выбранных операций
+                    html.Span(
+                        id="bulk-selected-count",
+                        className="me-3 fw-bold",
+                    ),
+                    # Dropdown выбора категории
+                    dcc.Dropdown(
+                        id="bulk-category-dropdown",
+                        placeholder="Выберите категорию...",
+                        className="me-3",
+                        style={"width": "250px", "display": "inline-block"},
+                    ),
+                    # Кнопка применения
+                    dbc.Button(
+                        [
+                            html.I(className="bi bi-check2-all me-2"),
+                            "Применить",
+                        ],
+                        id="bulk-apply-btn",
+                        color="success",
+                        size="sm",
+                    ),
+                ],
+                className="d-flex align-items-center justify-content-center",
+            ),
+        ],
+        id="bulk-actions-panel",
+        className="tx-bulk-panel",
+        style={"display": "none"},
+    )
 
 
 def _build_transactions_table(transactions: list) -> list:
@@ -141,6 +200,11 @@ def create_transactions_layout():
     """
     return html.Div(
         [
+            # Stores для состояния выбора и кеша категорий
+            dcc.Store(id="selected-transactions", data=[]),
+            dcc.Store(id="frequent-categories", data={}),
+            # Компонент для скачивания файлов
+            dcc.Download(id="export-download"),
             # Заголовок с описанием
             html.Div(
                 [
@@ -154,14 +218,29 @@ def create_transactions_layout():
                         ],
                         className="flex-grow-1",
                     ),
-                    dbc.Button(
+                    html.Div(
                         [
-                            html.I(className="bi bi-plus-circle me-2"),
-                            "Добавить операцию",
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-download me-2"),
+                                    "Экспорт CSV",
+                                ],
+                                id="export-btn",
+                                color="secondary",
+                                outline=True,
+                                className="d-flex align-items-center me-2",
+                            ),
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-plus-circle me-2"),
+                                    "Добавить операцию",
+                                ],
+                                id="add-transaction-btn",
+                                color="success",
+                                className="d-flex align-items-center",
+                            ),
                         ],
-                        id="add-transaction-btn",
-                        color="success",
-                        className="d-flex align-items-center",
+                        className="d-flex",
                     ),
                 ],
                 className="d-flex justify-content-between align-items-center mb-4",
@@ -204,6 +283,8 @@ def create_transactions_layout():
                 className="shadow-sm",
             ),
             # Модалы теперь в глобальном layout (main.py -> transaction_modals.py)
+            # Bulk Actions Panel (sticky bottom, скрыт по умолчанию)
+            _build_bulk_panel(),
         ]
     )
 

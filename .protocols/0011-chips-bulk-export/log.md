@@ -6,16 +6,27 @@
 
 ## Restore Context Log
 
+- Restore context: protocol-0011#ctx-1 (2026-01-23)
+
 <!-- Записи вида: Restore context: protocol-0011#ctx-N -->
 
 ---
 
 ## Step Log
 
-### Step 0 — Setup (commit: pending)
+### Step 0 — Setup (commit: 045b8fb)
 - Создан worktree и ветка 0011-chips-bulk-export
 - Артефакты протокола созданы из шаблонов
 - Plan включает замечания из critique-v2
+
+### Step 1 — Layout + Helpers (commit: pending)
+- Добавлен import dcc для Store/Download компонентов
+- dcc.Store: selected-transactions, frequent-categories
+- dcc.Download: export-download для CSV экспорта
+- Кнопка "Экспорт CSV" в header рядом с "Добавить операцию"
+- Helper _pluralize_operations() — склонение "операция/операции/операций"
+- Helper _build_bulk_panel() — sticky panel с dropdown и кнопкой
+- Bulk panel добавлен в layout (hidden по умолчанию)
 
 <!--
 Формат записи:
