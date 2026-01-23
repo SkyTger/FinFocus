@@ -746,3 +746,141 @@ class TestGetInstancesWithExceptions:
         assert "2026-01-15" in dates
         assert "2026-02-15" not in dates
         assert "2026-03-15" in dates
+
+
+class TestRecurringServiceCategoryInheritance:
+    """Тесты наследования category_id в recurring операциях."""
+
+    def test_virtual_instance_inherits_category(self, db_session, test_user):
+        """Виртуальный экземпляр наследует category_id из шаблона."""
+        from app.models.database import Category
+
+        # Создаем категорию
+        category = Category(name="Зарплата", icon="bi-briefcase", type="income")
+        db_session.add(category)
+        db_session.flush()
+
+        # Создаем шаблон с категорией
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("50000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+            category_id=category.id,
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template, start_date=date(2026, 1, 1), end_date=date(2026, 3, 31)
+        )
+
+        assert len(instances) >= 1
+        for instance in instances:
+            assert instance["category_id"] == category.id
+            assert instance["category_name"] == "Зарплата"
+
+    def test_virtual_instance_handles_no_category(self, db_session, test_user):
+        """Виртуальный экземпляр корректно обрабатывает отсутствие категории."""
+        # Создаем шаблон БЕЗ категории
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("1000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 10),
+            description="Разные расходы",
+            is_recurring=True,
+            recurring_period="monthly",
+            category_id=None,
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template, start_date=date(2026, 1, 1), end_date=date(2026, 2, 28)
+        )
+
+        assert len(instances) >= 1
+        for instance in instances:
+            assert instance["category_id"] is None
+            assert instance["category_name"] is None
+
+    def test_exception_inherits_category_by_default(self, db_session, test_user):
+        """Exception наследует category_id из шаблона по умолчанию."""
+        from app.models.database import Category
+
+        # Создаем категорию
+        category = Category(name="Аренда", icon="bi-house", type="expense")
+        db_session.add(category)
+        db_session.flush()
+
+        # Создаем шаблон с категорией
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("30000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 1),
+            description="Аренда квартиры",
+            is_recurring=True,
+            recurring_period="monthly",
+            category_id=category.id,
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+
+        # Создаем exception БЕЗ указания category_id
+        exception = service.create_exception(
+            template_id=template.id,
+            original_date=date(2026, 2, 1),
+            new_amount=Decimal("32000.00"),  # Изменили только сумму
+        )
+        db_session.commit()
+
+        # category_id должен быть унаследован из шаблона
+        assert exception.category_id == category.id
+
+    def test_exception_can_override_category(self, db_session, test_user):
+        """Exception может иметь свою категорию, отличную от шаблона."""
+        from app.models.database import Category
+
+        # Создаем две категории
+        cat_salary = Category(name="Зарплата", icon="bi-briefcase", type="income")
+        cat_bonus = Category(name="Премия", icon="bi-gift", type="income")
+        db_session.add_all([cat_salary, cat_bonus])
+        db_session.flush()
+
+        # Создаем шаблон с категорией "Зарплата"
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("50000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Зарплата",
+            is_recurring=True,
+            recurring_period="monthly",
+            category_id=cat_salary.id,
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+
+        # Создаем exception с ДРУГОЙ категорией "Премия"
+        exception = service.create_exception(
+            template_id=template.id,
+            original_date=date(2026, 2, 15),
+            new_description="Зарплата + премия",
+            category_id=cat_bonus.id,  # Явно указываем другую категорию
+        )
+        db_session.commit()
+
+        # category_id должен быть переопределен
+        assert exception.category_id == cat_bonus.id
+        assert exception.category_id != template.category_id

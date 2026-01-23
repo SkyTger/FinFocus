@@ -4,6 +4,10 @@
 
 ---
 
+**Restore context**: protocol-0009#ctx-3 (2026-01-23)
+
+---
+
 **Restore context**: protocol-0009#ctx-2 (2026-01-23)
 
 ---
@@ -139,6 +143,30 @@
      - TestTransactionServiceDelete: 2 теста
 
 - **Тесты**: Базовая проверка синтаксиса пройдена
+- **Quality**: Синтаксис ✅
+
+---
+
+## Шаг 7: RecurringService (2026-01-23) ✅
+
+- **Действия**:
+  1. Обновлен VirtualTransaction TypedDict:
+     - Добавлены поля category_id: int | None
+     - Добавлено поле category_name: str | None (для UI)
+  2. Обновлен generate_instances():
+     - Копирует category_id из шаблона в виртуальные экземпляры
+     - Копирует category_name через relationship template.category_rel
+  3. Обновлен create_exception():
+     - Добавлен параметр category_id: int | None = None
+     - Если category_id не указан — наследуется из шаблона
+     - Обновление существующего exception также поддерживает category_id
+  4. Создано 4 unit теста в TestRecurringServiceCategoryInheritance:
+     - test_virtual_instance_inherits_category
+     - test_virtual_instance_handles_no_category
+     - test_exception_inherits_category_by_default
+     - test_exception_can_override_category
+
+- **Тесты**: 4/4 passed ✅
 - **Quality**: Синтаксис ✅
 
 ---

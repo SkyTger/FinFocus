@@ -50,6 +50,8 @@ class VirtualTransaction(TypedDict):
     transaction_type: str  # "income" | "expense" | "transfer"
     description: str | None
     is_virtual: bool  # Всегда True для виртуальных
+    category_id: int | None  # ID категории (наследуется из шаблона)
+    category_name: str | None  # Название категории для UI
 
 
 class RecurringService:
@@ -275,6 +277,10 @@ class RecurringService:
                     transaction_type=template.transaction_type.value,
                     description=template.description,
                     is_virtual=True,
+                    category_id=template.category_id,
+                    category_name=(
+                        template.category_rel.name if template.category_rel else None
+                    ),
                 )
             )
 
@@ -324,6 +330,7 @@ class RecurringService:
         new_amount: Decimal | None = None,
         new_date: date | None = None,
         new_description: str | None = None,
+        category_id: int | None = None,
     ) -> Transaction:
         """Создает exception для конкретного экземпляра recurring операции.
 
@@ -333,6 +340,7 @@ class RecurringService:
             new_amount: Новая сумма (если None — берем из шаблона).
             new_date: Новая дата (если None — используем original_date).
             new_description: Новое описание (если None — берем из шаблона).
+            category_id: ID категории (если None — наследуем из шаблона).
 
         Returns:
             Созданный exception (Transaction).
@@ -383,11 +391,18 @@ class RecurringService:
                 existing.transaction_date = new_date
             if new_description is not None:
                 existing.description = new_description
+            if category_id is not None:
+                existing.category_id = category_id
             existing.is_skipped = False  # Снимаем пропуск если был
             self.session.flush()
             return existing
 
         # Создаем новый exception
+        # category_id: если не указан явно — наследуем из шаблона
+        effective_category_id = (
+            category_id if category_id is not None else template.category_id
+        )
+
         exception = Transaction(
             user_id=template.user_id,
             amount=new_amount if new_amount is not None else template.amount,
@@ -396,6 +411,7 @@ class RecurringService:
             description=(
                 new_description if new_description is not None else template.description
             ),
+            category_id=effective_category_id,
             is_recurring=False,
             recurring_parent_id=template_id,
             original_date=original_date,
