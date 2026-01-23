@@ -1,0 +1,111 @@
+# Review and Merge Plan for Protocol 0010
+
+## Review/Merge Workflow (Инструкция по выполнению):
+
+Папка проекта (project root): `/home/skytiger/PycharmProjects/FinFocus`
+Папка worktree (worktree root): `/home/skytiger/PycharmProjects/worktrees/0010-analytics-ux`
+Папка протокола: `/home/skytiger/PycharmProjects/worktrees/0010-analytics-ux/.protocols/0010-analytics-ux`
+
+**Твоя задача — выполнять шаги из `Detailed Plan` ниже, строго следуя этому рабочему циклу.**
+
+### A. Перед началом нового шага
+1.  **Проверка окружения:** Выполни и залогируй результат команд `pwd` (должен быть корень проекта) и `git branch --show-current`.
+2.  **Чтение инструкций:** Внимательно прочитай описание текущего шага в этом плане.
+3.  Сообщи пользователю, какой шаг ты начинаешь.
+
+### B. Во время выполнения шага
+1.  Выполняй подзадачи. Используй пути `../worktrees/0010-analytics-ux/` для доступа к коду (папка ворктрее).
+2.  Следуй `Review/Merge Principles`.
+
+### C. Сразу после завершения шага
+1.  **Добавь запись в `review-log.md`**: Детально опиши, что сделано, результаты проверок, ID коммита (если был).
+2.  **Закоммить изменения** в `review-log.md` и `review-plan.md` в ветку `main`.
+3.  **Повторная проверка окружения:** Снова выполни и залогируй `pwd` и `git branch --show-current`, чтобы убедиться, что ты остался в правильном контексте.
+4.  Отчитайся пользователю о завершении шага.
+
+---
+## Review/Merge Principles (MUST follow):
+
+- **Методичность:** Строго следуй плану. Никаких пропусков шагов без команды пользователя.
+- **Контроль окружения:** Постоянно проверяй свой CWD и текущую ветку Git.
+- **Отчетность:** Все действия подробно фиксируй в `review-log.md`.
+
+---
+## Protocol Summary (из plan.md и log.md):
+
+**Название:** 0010 — Analytics & UX Improvements (Батч 3.2)
+**PR:** #10
+**Ветка:** 0010-analytics-ux
+
+**Что реализовано:**
+1. **AnalyticsService** — агрегация расходов по категориям, monthly trends, uncategorized count
+2. **TransactionService extensions** — bulk_update_category(), export_to_csv()
+3. **CategoryService extension** — get_frequent_for_type() для chips
+4. **Transactions UI — Chips** — быстрые кнопки категорий для некатегоризированных операций
+5. **Transactions UI — Bulk Actions** — multi-select и массовое присвоение категорий
+6. **Transactions UI — CSV Export** — кнопка экспорта и dcc.Download
+7. **Analytics Page** — /analytics с donut chart и bar chart
+
+**Тесты:** 246 (было 213, +33 новых тестов)
+**Финальный статус:** PR #10 в статусе Ready for Review
+
+---
+## Detailed Plan:
+
+### Шаг 1-m. Проверка CI/CD
+1.  Выполни `gh pr checks 10`.
+2.  Если есть проваленные проверки (`failure`), останови ревью и сообщи об этом как о блокирующей проблеме.
+
+### Шаг 2-m. Локальная верификация
+1.  **Работая из корня проекта (папка project root)**, запусти все локальные проверки для кода в worktree:
+    - `black --check ../worktrees/0010-analytics-ux/app/`
+    - `flake8 ../worktrees/0010-analytics-ux/app/`
+    - `cd ../worktrees/0010-analytics-ux && pytest -v && cd -`
+2.  Если найдены проблемы, согласуй с пользователем их исправление. Исправления делай в **ветке фичи**, создавая коммиты с тегом `[protocol-0010/2-m-fix]`.
+
+### Шаг 3-m. Ревью кода
+1.  **Сверь план с фактом:** Сравни `plan.md` и `log.md` с фактическими изменениями в коде.
+2.  Выполни `git diff origin/main...0010-analytics-ux` и проанализируй все изменения.
+3.  Проверь соответствие реализации плану, стандартам кодирования и общим принципам.
+4.  Если есть замечания, обсуди их с пользователем.
+
+### Шаг 4-m. Финальное слияние (Merge)
+1. Работаешь из папки project root, проверь.
+2.  **Получи явное разрешение от пользователя на слияние.**
+3.  **Выполни строгую последовательность команд из корня проекта:**
+
+      ```bash
+      # 1. Убедись, что ты на main
+      git checkout main
+
+      # 2. Обнови main
+      git pull origin main
+
+      # 3. Выполни слияние без fast-forward
+      git merge --no-ff 0010-analytics-ux
+
+      # 4. Отправь изменения на сервер
+      git push origin main
+      ```
+
+4.  Если возникнут конфликты, остановись и попроси согласования у пользователя для того чтобы исправить все конфликты и провести успешный merge. При исправлении конфликтов ориентируйся на последние закрытые протоколы из папки `.protocols/`. После решения конфликтов обязательно выполни проверки качества:  `typecheck`, `lint`, `build`, `test`. Все проверки должны проходить, все недоработки должны быть исправлены.
+
+### Шаг 5-m. Обновление Memory Bank
+1.  После успешного слияния, обнови документацию проекта.
+2.  Вызови команду `/mb-update` с путями к артефактам протокола:
+    ```
+    /mb-update .protocols/0010-analytics-ux/plan.md .protocols/0010-analytics-ux/log.md
+    ```
+3.  Дождись завершения работы субагента memory-bank-keeper.
+4.  Закоммить изменения в `.memory-bank/` в ветку `main`:
+    ```bash
+    git add .memory-bank/ && git commit -m "docs(memory-bank): update after protocol 0010 [protocol-0010/5-m]"
+    git push origin main
+    ```
+
+### Шаг 6-m. Очистка
+1. Работаешь из папки project root, проверь.
+2. После успешного слияния, удали ветку на сервере: `git push origin --delete 0010-analytics-ux`.
+3.  Удали локальную ветку: `git branch -d 0010-analytics-ux`.
+4.  Удали worktree: `git worktree remove ../worktrees/0010-analytics-ux`.
+5.  Сообщи пользователю о полном завершении работы.
