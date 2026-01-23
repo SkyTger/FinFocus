@@ -1025,6 +1025,84 @@ def _build_contribution_modal() -> dbc.Modal:
     )
 
 
+# === REDISTRIBUTION MODAL HELPER FUNCTIONS ===
+
+
+def _build_congratulation_section(preview: dict) -> html.Div:
+    """Строит секцию поздравления с достижением цели.
+
+    Структура:
+    - Иконка трофея (bi-trophy-fill)
+    - "Поздравляем!" (h5)
+    - "Цель '{completed_goal_name}' достигнута!" (p)
+
+    Args:
+        preview: Десериализованный RedistributionPreview
+
+    Returns:
+        html.Div с congratulation контентом
+    """
+    goal_name = preview.get("completed_goal_name", "Цель")
+
+    return html.Div(
+        [
+            html.I(
+                className="bi bi-trophy-fill text-warning",
+                style={"fontSize": "2.5rem"},
+            ),
+            html.H5("Поздравляем!", className="mt-2 mb-1"),
+            html.P(
+                f"Цель «{goal_name}» достигнута!",
+                className="text-muted mb-0",
+            ),
+        ],
+        className="congratulation-section text-center py-3",
+    )
+
+
+def _build_freed_budget_section(preview: dict) -> html.Div:
+    """Строит секцию отображения освободившегося бюджета.
+
+    Структура:
+    - Label: "Освободился бюджет:" (p.freed-budget-label)
+    - Value: format_amount(freed_budget) + "/мес" (span.freed-budget-value)
+    - Если was_skipped_in_old_allocation=True:
+      - Alert info: "Эта цель ранее не получала финансирования"
+
+    Args:
+        preview: Десериализованный RedistributionPreview
+
+    Returns:
+        html.Div с freed-budget контентом
+    """
+    freed_budget = preview.get("freed_budget", Decimal("0"))
+    was_skipped = preview.get("was_skipped_in_old_allocation", False)
+
+    children = [
+        html.P("Освободился бюджет:", className="freed-budget-label mb-1"),
+        html.Span(
+            f"{format_amount(freed_budget)}/мес",
+            className="freed-budget-value",
+        ),
+    ]
+
+    # Если цель была пропущена в старом распределении - показываем info alert
+    if was_skipped:
+        children.append(
+            dbc.Alert(
+                [
+                    html.I(className="bi bi-info-circle me-2"),
+                    "Эта цель ранее не получала финансирования "
+                    "из-за более приоритетных целей",
+                ],
+                color="info",
+                className="mt-2 mb-0",
+            )
+        )
+
+    return html.Div(children, className="freed-budget text-center py-2")
+
+
 def _build_preview_section(preview_data: dict | None) -> html.Div:
     """Строит секцию сравнения OLD vs NEW allocation.
 
@@ -1067,9 +1145,13 @@ def _build_preview_section(preview_data: dict | None) -> html.Div:
     if old_allocation and old_allocation.get("results"):
         old_results_map = {r["goal_id"]: r for r in old_allocation["results"]}
 
-    # Строим строки таблицы
+    # Строим строки таблицы (только для активных целей без skipped_reason)
     table_rows = []
     for result in new_allocation["results"]:
+        # Пропускаем цели с skipped_reason (completed, paused, zero_contribution)
+        if result.get("skipped_reason") is not None:
+            continue
+
         goal_id = result["goal_id"]
         goal_name = result["goal_name"]
         new_amount = Decimal(str(result["allocated_amount"]))
@@ -1866,10 +1948,8 @@ def add_contribution(
             # Redistribution outputs
             if just_completed:
                 # Вычисляем preview перераспределения
-                allocation_service = AllocationService(session)
-                redistribution_service = RedistributionService(
-                    session, allocation_service
-                )
+                allocation_service = AllocationService()
+                redistribution_service = RedistributionService(allocation_service)
 
                 all_goals = goal_service.get_all_by_user(DEFAULT_USER_ID)
                 preview = redistribution_service.calculate_redistribution_preview(
@@ -2537,8 +2617,8 @@ def confirm_redistribution(n_clicks, preview_data, budget, savings_mode, btn_dis
 
     try:
         with get_db_session() as session:
-            allocation_service = AllocationService(session)
-            redistribution_service = RedistributionService(session, allocation_service)
+            allocation_service = AllocationService()
+            redistribution_service = RedistributionService(allocation_service)
 
             # Логируем событие подтверждения
             redistribution_service.log_redistribution_event(
@@ -2601,10 +2681,8 @@ def decline_redistribution(n_clicks, preview_data):
     if preview:
         try:
             with get_db_session() as session:
-                allocation_service = AllocationService(session)
-                redistribution_service = RedistributionService(
-                    session, allocation_service
-                )
+                allocation_service = AllocationService()
+                redistribution_service = RedistributionService(allocation_service)
 
                 # Логируем событие отклонения
                 redistribution_service.log_redistribution_event(
@@ -2622,3 +2700,59 @@ def decline_redistribution(n_clicks, preview_data):
             # Не блокируем закрытие модала при ошибке логирования
 
     return False  # close modal
+
+
+# === REDISTRIBUTION MODAL CONTENT CALLBACK ===
+
+
+@callback(
+    [
+        Output("redistribution-congratulation-section", "children"),
+        Output("redistribution-freed-budget", "children"),
+        Output("redistribution-preview-section", "children"),
+    ],
+    Input("redistribution-preview-store", "data"),
+    prevent_initial_call=True,
+)
+def populate_redistribution_modal(
+    preview_data: dict | None,
+) -> tuple[html.Div, html.Div, html.Div]:
+    """Заполняет содержимое модала перераспределения.
+
+    Callback срабатывает при изменении данных в redistribution-preview-store.
+    Десериализует данные и вызывает helper функции для построения UI секций.
+
+    Args:
+        preview_data: JSON данные из dcc.Store или None
+
+    Returns:
+        Tuple из трех html.Div для секций модала
+
+    Raises:
+        PreventUpdate: При отсутствии реального триггера или None данных
+    """
+    # Guard clause (ADR-003 compliance)
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    # Null data check
+    if preview_data is None:
+        return (html.Div(), html.Div(), html.Div())
+
+    # Deserialize with error handling
+    try:
+        preview = deserialize_redistribution_preview(preview_data)
+    except Exception as e:
+        logger.warning(f"populate_redistribution_modal: deserialize error: {e}")
+        return (
+            html.Div("Ошибка загрузки данных", className="text-muted"),
+            html.Div(),
+            html.Div(),
+        )
+
+    # Build all three sections
+    congratulation = _build_congratulation_section(preview)
+    freed_budget = _build_freed_budget_section(preview)
+    preview_section = _build_preview_section(preview)
+
+    return (congratulation, freed_budget, preview_section)
