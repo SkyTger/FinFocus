@@ -189,3 +189,30 @@
 - **Quality**: Синтаксис ✅
 
 ---
+
+## Шаг 9: UI Transactions (2026-01-23) ✅
+
+- **Действия**:
+  1. Добавлен dropdown категорий в форму создания:
+     - dcc.Dropdown id="create-category-dropdown"
+     - Callback update_create_category_options для фильтрации по типу
+  2. Обновлен callback create_transaction:
+     - Добавлен State и Output для category_id
+     - Передается category_id в service.create_transaction()
+  3. Добавлен dropdown категорий в форму редактирования:
+     - dcc.Dropdown id="edit-category-dropdown"
+  4. Обновлен callback open_edit_modal:
+     - Добавлены Output для category value и options
+     - Загружаются категории для типа транзакции
+  5. Обновлен callback update_transaction:
+     - Добавлен State и параметр category_id
+  6. Добавлена колонка "Категория" в таблицу:
+     - Заголовок + ячейки с иконкой и названием
+  7. Добавлен фильтр "Без категории":
+     - dbc.Checkbox id="filter-no-category"
+     - Обновлен callback load_transactions для фильтрации
+
+- **Тесты**: Базовая проверка синтаксиса пройдена
+- **Quality**: Синтаксис ✅
+
+---

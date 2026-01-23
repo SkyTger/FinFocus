@@ -1,7 +1,7 @@
-- **Current Step**: 9
+- **Current Step**: 10
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 8 завершен: RecentTransaction обновлен (category_name, category_icon), get_recent_transactions с фильтрацией recurring, 5 тестов."
-- **Next Action**: "Приступить к выполнению Шага 9 (см. `09-ui-transactions.md`)."
+- **Last Action Summary**: "Шаг 9 завершен: dropdown категорий в формах, колонка в таблице, фильтр 'Без категории'."
+- **Next Action**: "Приступить к выполнению Шага 10 (см. `10-ui-calendar.md`)."
 - **Git**: "Ветка 0009-categories-reconciliation, commit pending."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/9"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"
