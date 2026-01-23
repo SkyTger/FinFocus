@@ -156,7 +156,9 @@ def _build_donut_chart(data: list) -> go.Figure:
                 marker=dict(colors=colors),
                 textinfo="percent",
                 textposition="outside",
-                hovertemplate="<b>%{label}</b><br>%{value:,.0f} ₽<br>%{percent}<extra></extra>",
+                hovertemplate=(
+                    "<b>%{label}</b><br>%{value:,.0f} ₽<br>%{percent}<extra></extra>"
+                ),
             )
         ]
     )
