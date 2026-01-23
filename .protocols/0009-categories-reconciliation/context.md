@@ -1,7 +1,7 @@
-- **Current Step**: 10
+- **Current Step**: 11
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 9 завершен: dropdown категорий в формах, колонка в таблице, фильтр 'Без категории'."
-- **Next Action**: "Приступить к выполнению Шага 10 (см. `10-ui-calendar.md`)."
+- **Last Action Summary**: "Шаг 10 завершен: модал сверки в календаре, callbacks для preview и применения корректировки."
+- **Next Action**: "Приступить к выполнению Шага 11 (см. `11-finalize.md`)."
 - **Git**: "Ветка 0009-categories-reconciliation, commit pending."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/9"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"

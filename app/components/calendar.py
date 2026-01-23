@@ -1,18 +1,20 @@
 """UI компонент кассового календаря."""
 
 import calendar
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ALL, ctx
+from dash import html, dcc, callback, Input, Output, State, ALL, ctx, no_update
 from dash.exceptions import PreventUpdate
 from dateutil.relativedelta import relativedelta
 from loguru import logger
 
 from app.core.database import get_db_session
+from app.core.exceptions import ValidationError
 from app.services.calendar_service import CalendarService, TransactionInfo
+from app.services.reconciliation_service import ReconciliationService
 
 
 # ==================== КОНСТАНТЫ ====================
@@ -174,8 +176,20 @@ def build_calendar_header(month: int, year: int) -> html.Div:
                         ),
                         width="auto",
                     ),
+                    # Кнопка сверки
+                    dbc.Col(
+                        dbc.Button(
+                            [html.I(className="bi bi-calculator me-1"), "Сверка"],
+                            id="open-reconciliation-btn",
+                            color="outline-secondary",
+                            size="sm",
+                            n_clicks=0,
+                        ),
+                        width="auto",
+                        className="ms-auto",
+                    ),
                 ],
-                className="align-items-center justify-content-center mb-4",
+                className="align-items-center mb-4",
             ),
         ],
         className="calendar-header",
@@ -204,6 +218,8 @@ def create_calendar_layout() -> html.Div:
                     "balances": {},
                 },
             ),
+            # Триггер обновления календаря после сверки
+            dcc.Store(id="calendar-refresh-trigger", data=None),
             # Заголовок с навигацией (с начальными кнопками)
             html.Div(
                 id="calendar-header",
@@ -220,6 +236,8 @@ def create_calendar_layout() -> html.Div:
                 id="calendar-grid",
                 children=html.Div("Загрузка календаря...", className="text-muted"),
             ),
+            # Модал сверки баланса
+            create_reconciliation_modal(),
         ],
         className="calendar-container",
     )
@@ -474,6 +492,89 @@ def build_day_cell(
         id={"type": "calendar-day", "date": day_date.isoformat()},
         n_clicks=0,
         className=" ".join(css_classes),
+    )
+
+
+# ==================== МОДАЛ СВЕРКИ ====================
+
+
+def create_reconciliation_modal() -> dbc.Modal:
+    """Создает модал сверки баланса.
+
+    Returns:
+        dbc.Modal: Модал с формой сверки
+    """
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Сверка баланса")),
+            dbc.ModalBody(
+                [
+                    # Выбор даты
+                    html.Div(
+                        [
+                            dbc.Label("Дата сверки"),
+                            dcc.DatePickerSingle(
+                                id="reconciliation-date",
+                                date=date.today().isoformat(),
+                                display_format="DD.MM.YYYY",
+                                first_day_of_week=1,
+                                className="d-block",
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    # Расчетный баланс (readonly)
+                    html.Div(
+                        [
+                            dbc.Label("Расчетный баланс"),
+                            dbc.Input(
+                                id="reconciliation-expected",
+                                type="text",
+                                disabled=True,
+                                className="text-end",
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    # Фактический баланс (ввод)
+                    html.Div(
+                        [
+                            dbc.Label("Фактический баланс"),
+                            dbc.Input(
+                                id="reconciliation-actual",
+                                type="number",
+                                step="0.01",
+                                placeholder="Введите фактический баланс",
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    # Preview разницы
+                    html.Div(id="reconciliation-preview", className="mt-3"),
+                    # Сообщение об ошибке/успехе
+                    html.Div(id="reconciliation-message", className="mt-2"),
+                ]
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "Отмена",
+                        id="cancel-reconciliation-btn",
+                        color="secondary",
+                        n_clicks=0,
+                    ),
+                    dbc.Button(
+                        "Применить",
+                        id="apply-reconciliation-btn",
+                        color="primary",
+                        n_clicks=0,
+                    ),
+                ]
+            ),
+        ],
+        id="reconciliation-modal",
+        is_open=False,
+        centered=True,
     )
 
 
@@ -756,4 +857,300 @@ def refresh_calendar_after_transaction(
 
     except Exception as e:
         logger.error(f"Ошибка обновления календаря: {e}")
+        raise PreventUpdate
+
+
+# ==================== CALLBACKS СВЕРКИ ====================
+
+
+@callback(
+    [
+        Output("reconciliation-modal", "is_open"),
+        Output("reconciliation-expected", "value"),
+        Output("reconciliation-actual", "value"),
+        Output("reconciliation-preview", "children"),
+        Output("reconciliation-message", "children"),
+    ],
+    [
+        Input("open-reconciliation-btn", "n_clicks"),
+        Input("cancel-reconciliation-btn", "n_clicks"),
+        Input("reconciliation-date", "date"),
+    ],
+    [State("reconciliation-modal", "is_open")],
+    prevent_initial_call=True,
+)
+def toggle_reconciliation_modal(
+    open_clicks: int | None,
+    cancel_clicks: int | None,
+    selected_date: str | None,
+    is_open: bool,
+):
+    """Открывает/закрывает модал сверки и загружает расчетный баланс.
+
+    Args:
+        open_clicks: Клики на кнопку открытия
+        cancel_clicks: Клики на кнопку отмены
+        selected_date: Выбранная дата
+        is_open: Текущее состояние модала
+
+    Returns:
+        tuple: (is_open, expected_balance, actual_value, preview, message)
+    """
+    # Guard: проверка реального клика
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+
+    # Закрытие по кнопке "Отмена"
+    if triggered_id == "cancel-reconciliation-btn":
+        return False, "", None, "", ""
+
+    # Открытие модала или изменение даты
+    if triggered_id == "open-reconciliation-btn" or triggered_id == "reconciliation-date":
+        target_date = (
+            date.fromisoformat(selected_date) if selected_date else date.today()
+        )
+
+        try:
+            with get_db_session() as session:
+                service = ReconciliationService(session)
+                expected = service.get_expected_balance(
+                    user_id=DEFAULT_USER_ID, target_date=target_date
+                )
+
+            # При открытии — очищаем поля, при смене даты — оставляем модал открытым
+            should_open = True if triggered_id == "open-reconciliation-btn" else is_open
+            return should_open, f"{expected:,.2f} ₽", None, "", ""
+
+        except Exception as e:
+            logger.error(f"Ошибка получения баланса для сверки: {e}")
+            return True, "Ошибка", None, "", dbc.Alert(str(e), color="danger")
+
+    return is_open, "", None, "", ""
+
+
+@callback(
+    Output("reconciliation-preview", "children", allow_duplicate=True),
+    [Input("reconciliation-actual", "value")],
+    [State("reconciliation-date", "date")],
+    prevent_initial_call=True,
+)
+def update_reconciliation_preview(
+    actual_value: float | None,
+    selected_date: str | None,
+):
+    """Обновляет preview разницы при вводе фактического баланса.
+
+    Args:
+        actual_value: Введенный фактический баланс
+        selected_date: Выбранная дата сверки
+
+    Returns:
+        Preview с разницей и пояснением
+    """
+    if actual_value is None or selected_date is None:
+        return ""
+
+    try:
+        target_date = date.fromisoformat(selected_date)
+        actual_balance = Decimal(str(actual_value))
+
+        with get_db_session() as session:
+            service = ReconciliationService(session)
+            preview = service.calculate_preview(
+                user_id=DEFAULT_USER_ID,
+                target_date=target_date,
+                actual_balance=actual_balance,
+            )
+
+        # Стилизация в зависимости от разницы
+        diff = Decimal(preview["difference"])
+        if diff == Decimal("0"):
+            color = "success"
+            icon = "bi-check-circle"
+            text_class = "text-success"
+        elif diff > Decimal("0"):
+            color = "info"
+            icon = "bi-plus-circle"
+            text_class = "text-primary"
+        else:
+            color = "warning"
+            icon = "bi-dash-circle"
+            text_class = "text-danger"
+
+        return dbc.Alert(
+            [
+                html.I(className=f"bi {icon} me-2"),
+                html.Strong(f"Разница: {diff:+,.2f} ₽", className=text_class),
+                html.Br(),
+                html.Small(preview["explanation"]),
+            ],
+            color=color,
+            className="mb-0",
+        )
+
+    except Exception as e:
+        logger.error(f"Ошибка расчета preview сверки: {e}")
+        return dbc.Alert(f"Ошибка расчета: {e}", color="danger")
+
+
+@callback(
+    [
+        Output("reconciliation-message", "children", allow_duplicate=True),
+        Output("reconciliation-modal", "is_open", allow_duplicate=True),
+        Output("calendar-refresh-trigger", "data"),
+    ],
+    [Input("apply-reconciliation-btn", "n_clicks")],
+    [
+        State("reconciliation-date", "date"),
+        State("reconciliation-actual", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def apply_reconciliation(
+    n_clicks: int | None,
+    selected_date: str | None,
+    actual_value: float | None,
+):
+    """Применяет сверку и создает корректировку.
+
+    Args:
+        n_clicks: Клики на кнопку применения
+        selected_date: Выбранная дата
+        actual_value: Введенный фактический баланс
+
+    Returns:
+        tuple: (message, is_open, refresh_trigger)
+    """
+    # Guard: проверка реального клика
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    if actual_value is None:
+        return (
+            dbc.Alert("Введите фактический баланс", color="warning"),
+            True,
+            no_update,
+        )
+
+    try:
+        target_date = date.fromisoformat(selected_date)
+        actual_balance = Decimal(str(actual_value))
+
+        with get_db_session() as session:
+            service = ReconciliationService(session)
+            adjustment = service.create_adjustment(
+                user_id=DEFAULT_USER_ID,
+                target_date=target_date,
+                actual_balance=actual_balance,
+            )
+            session.commit()
+
+            if adjustment is None:
+                return (
+                    dbc.Alert(
+                        "Баланс совпадает, корректировка не нужна", color="info"
+                    ),
+                    False,
+                    no_update,
+                )
+
+            logger.info(
+                f"Создана корректировка: {adjustment.amount:+,.2f} ₽ "
+                f"на {target_date}"
+            )
+            return (
+                dbc.Alert(
+                    f"Корректировка на {adjustment.amount:+,.2f} ₽ создана",
+                    color="success",
+                ),
+                False,  # Закрыть модал
+                {"timestamp": datetime.now().isoformat()},  # Триггер обновления
+            )
+
+    except ValidationError as e:
+        return dbc.Alert(str(e), color="danger"), True, no_update
+    except Exception as e:
+        logger.error(f"Ошибка создания корректировки: {e}")
+        return dbc.Alert(f"Ошибка: {e}", color="danger"), True, no_update
+
+
+@callback(
+    [
+        Output("calendar-grid", "children", allow_duplicate=True),
+        Output("calendar-stats", "children", allow_duplicate=True),
+        Output("calendar-state", "data", allow_duplicate=True),
+    ],
+    [Input("calendar-refresh-trigger", "data")],
+    [State("calendar-state", "data")],
+    prevent_initial_call=True,
+)
+def refresh_calendar_after_reconciliation(
+    trigger: dict | None,
+    state: dict,
+):
+    """Обновляет календарь после применения сверки.
+
+    Args:
+        trigger: Данные триггера с timestamp
+        state: Текущее состояние календаря
+
+    Returns:
+        tuple: (grid, stats, updated_state)
+    """
+    if not trigger:
+        raise PreventUpdate
+
+    # Получаем текущий месяц из state
+    today = date.today()
+    current_month = state.get("current_month", today.month)
+    current_year = state.get("current_year", today.year)
+
+    try:
+        # Вычисляем диапазон дат для месяца
+        start_date = date(current_year, current_month, 1)
+        if current_month == 12:
+            end_date = date(current_year, 12, 31)
+        else:
+            end_date = date(current_year, current_month + 1, 1) - timedelta(days=1)
+
+        with get_db_session() as session:
+            service = CalendarService(session)
+
+            balances = service.calculate_daily_balances(
+                user_id=DEFAULT_USER_ID,
+                start_date=start_date,
+                end_date=end_date,
+            )
+            transactions_by_date = service.get_all_transactions_for_period(
+                user_id=DEFAULT_USER_ID,
+                start_date=start_date,
+                end_date=end_date,
+                include_recurring=True,
+            )
+            summary = service.get_month_summary(
+                user_id=DEFAULT_USER_ID,
+                year=current_year,
+                month=current_month,
+            )
+
+        # Строим обновленные компоненты
+        grid = build_calendar_grid(
+            current_month, current_year, balances, transactions_by_date
+        )
+        stats = build_stats_cards(summary)
+
+        # Обновляем state
+        new_state = {
+            "current_month": current_month,
+            "current_year": current_year,
+            "balances": serialize_balances(balances),
+        }
+
+        logger.debug("Календарь обновлен после сверки")
+        return grid, stats, new_state
+
+    except Exception as e:
+        logger.error(f"Ошибка обновления календаря после сверки: {e}")
         raise PreventUpdate

@@ -4,6 +4,39 @@
 
 ---
 
+**Restore context**: protocol-0009#ctx-4 (2026-01-23)
+
+---
+
+## Шаг 10: UI Calendar — Модал сверки (2026-01-23) ✅
+
+- **Действия**:
+  1. Добавлены импорты: datetime, no_update, ValidationError, ReconciliationService
+  2. Добавлена кнопка "Сверка" в header календаря (build_calendar_header)
+  3. Создана функция create_reconciliation_modal():
+     - DatePickerSingle для выбора даты
+     - Input для расчетного баланса (disabled)
+     - Input для фактического баланса
+     - Preview разницы и сообщения
+  4. Добавлен dcc.Store "calendar-refresh-trigger" для обновления после сверки
+  5. Создан callback toggle_reconciliation_modal():
+     - Открытие/закрытие модала
+     - Загрузка expected balance при открытии и смене даты
+  6. Создан callback update_reconciliation_preview():
+     - Расчет и отображение разницы при вводе фактического баланса
+     - Цветовая индикация (success/info/warning)
+  7. Создан callback apply_reconciliation():
+     - Создание ADJUSTMENT через ReconciliationService
+     - Валидация ввода, обработка ошибок
+     - Триггер обновления календаря
+  8. Создан callback refresh_calendar_after_reconciliation():
+     - Обновление сетки и статистики после сверки
+
+- **Тесты**: 41 passed (reconciliation + calendar services)
+- **Quality**: Синтаксис ✅
+
+---
+
 **Restore context**: protocol-0009#ctx-3 (2026-01-23)
 
 ---
