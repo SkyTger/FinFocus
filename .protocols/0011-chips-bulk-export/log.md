@@ -39,7 +39,7 @@
   - Checkbox в каждой строке {"type": "tx-checkbox", "index": tx.id}
   - colSpan обновлен 6→7 для пустой таблицы
 
-### Step 3 — Chips Callbacks (commit: pending)
+### Step 3 — Chips Callbacks (commit: 1931a48)
 - load_frequent_categories callback добавлен:
   - Кеширование при pathname=/transactions и пустом кеше
   - CategoryService.get_frequent_for_type() для expense/income
@@ -52,6 +52,22 @@
   - Emit trigger + return updated table
 - chip_dropdown_assign_category callback (~55 строк):
   - Аналогичная структура с guard clauses
+
+### Step 4 — Bulk Callbacks (commit: pending)
+- Добавлен import no_update, ValidationError
+- update_selection_state callback:
+  - Обработка Select All и individual checkboxes
+  - Return list[int] в selected-transactions Store
+- clear_selection_on_filter_change callback:
+  - Сброс selection И select-all-checkbox при filter change
+  - Критично для WYSIWYG (critique v2)
+- toggle_bulk_panel callback:
+  - prevent_initial_call=True (critique v2)
+  - Показ/скрытие panel + counter через _pluralize_operations
+- bulk_assign_category callback:
+  - Валидация inputs (selection, category)
+  - try/except ValidationError → error alert
+  - Emit trigger, clear selection, return table
 
 <!--
 Формат записи:

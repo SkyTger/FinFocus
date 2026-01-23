@@ -5,8 +5,10 @@
 для глобальной доступности на всех страницах.
 """
 import dash_bootstrap_components as dbc
-from dash import dcc, html, callback, Input, Output, State, ALL, ctx
+from dash import dcc, html, callback, Input, Output, State, ALL, ctx, no_update
 from dash.exceptions import PreventUpdate
+
+from app.core.exceptions import ValidationError
 
 from loguru import logger
 
@@ -808,3 +810,188 @@ def chip_dropdown_assign_category(values, filter_no_category, frequent_categorie
             ),
             trigger_data,
         )
+
+
+# ==================== BULK SELECTION CALLBACKS ====================
+
+
+@callback(
+    Output("selected-transactions", "data"),
+    [
+        Input({"type": "tx-checkbox", "index": ALL}, "value"),
+        Input("select-all-checkbox", "value"),
+    ],
+    State({"type": "tx-checkbox", "index": ALL}, "id"),
+    prevent_initial_call=True,
+)
+def update_selection_state(
+    checkbox_values: list,
+    select_all: bool | None,
+    checkbox_ids: list[dict],
+) -> list[int]:
+    """Обновляет список выбранных транзакций.
+
+    Args:
+        checkbox_values: Значения индивидуальных checkboxes
+        select_all: Значение "Select All" checkbox
+        checkbox_ids: IDs всех checkboxes (для извлечения tx_id)
+
+    Returns:
+        list[int]: Список ID выбранных транзакций
+    """
+    # Определяем что вызвало callback
+    triggered = ctx.triggered_id
+
+    # Select All toggled
+    if triggered == "select-all-checkbox":
+        if select_all:
+            # Выбрать все видимые транзакции
+            return [cid["index"] for cid in checkbox_ids]
+        else:
+            return []
+
+    # Individual checkbox toggled
+    selected = []
+    for cid, value in zip(checkbox_ids, checkbox_values):
+        if value:
+            selected.append(cid["index"])
+    return selected
+
+
+@callback(
+    [
+        Output("selected-transactions", "data", allow_duplicate=True),
+        Output("select-all-checkbox", "value"),
+    ],
+    Input("filter-no-category", "value"),
+    prevent_initial_call=True,
+)
+def clear_selection_on_filter_change(filter_value: bool) -> tuple[list, bool]:
+    """Сбрасывает выбор при изменении фильтра.
+
+    Критично для WYSIWYG — выбранные элементы должны быть видны.
+
+    Args:
+        filter_value: Новое значение фильтра (не используется)
+
+    Returns:
+        tuple: ([], False) — пустой selection и unchecked Select All
+    """
+    return [], False
+
+
+@callback(
+    [
+        Output("bulk-actions-panel", "style"),
+        Output("bulk-selected-count", "children"),
+    ],
+    Input("selected-transactions", "data"),
+    prevent_initial_call=True,
+)
+def toggle_bulk_panel(selected: list[int] | None) -> tuple[dict, str]:
+    """Показывает/скрывает Bulk Panel.
+
+    Panel скрывается при пустом selection.
+
+    Args:
+        selected: Список ID выбранных транзакций
+
+    Returns:
+        tuple: (style dict, counter text)
+    """
+    if not selected or len(selected) == 0:
+        return {"display": "none"}, ""
+
+    count_text = _pluralize_operations(len(selected))
+    return {"display": "block"}, count_text
+
+
+@callback(
+    [
+        Output("transactions-table", "children", allow_duplicate=True),
+        Output("selected-transactions", "data", allow_duplicate=True),
+        Output("global-transaction-trigger", "data", allow_duplicate=True),
+        Output("transaction-error-alert", "children", allow_duplicate=True),
+        Output("transaction-error-alert", "is_open", allow_duplicate=True),
+    ],
+    Input("bulk-apply-btn", "n_clicks"),
+    [
+        State("bulk-category-dropdown", "value"),
+        State("selected-transactions", "data"),
+        State("filter-no-category", "value"),
+        State("frequent-categories", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def bulk_assign_category(
+    n_clicks: int | None,
+    category_id: int | None,
+    selected_ids: list[int],
+    filter_no_category: bool,
+    frequent_categories: dict,
+) -> tuple:
+    """Массовое присвоение категории выбранным транзакциям.
+
+    Args:
+        n_clicks: Количество кликов на кнопку
+        category_id: ID выбранной категории
+        selected_ids: Список ID выбранных транзакций
+        filter_no_category: Текущее значение фильтра
+        frequent_categories: Кеш частых категорий
+
+    Returns:
+        tuple: (table, selection, trigger, error_msg, error_open)
+    """
+    from datetime import datetime
+
+    if not n_clicks:
+        raise PreventUpdate
+
+    # Валидация inputs
+    if not selected_ids:
+        return no_update, no_update, no_update, "Выберите хотя бы одну операцию", True
+
+    if category_id is None:
+        return no_update, no_update, no_update, "Выберите категорию", True
+
+    try:
+        with get_db_session() as session:
+            service = TransactionService(session)
+            affected = service.bulk_update_category(
+                user_id=1,
+                transaction_ids=selected_ids,
+                category_id=category_id,
+            )
+            session.commit()
+
+            # Reload transactions
+            transactions = service.get_all_by_user(user_id=1)
+            if filter_no_category:
+                transactions = [tx for tx in transactions if tx.category_id is None]
+
+            # Загружаем категории
+            category_service = CategoryService(session)
+            all_categories = category_service.get_for_dropdown()
+
+            trigger_data = {
+                "action": "bulk_update",
+                "timestamp": datetime.now().isoformat(),
+                "source": "transactions",
+                "affected_count": affected,
+            }
+
+            logger.info(f"Bulk update: {affected} транзакций получили категорию {category_id}")
+
+            return (
+                _build_transactions_table(
+                    transactions,
+                    frequent_categories=frequent_categories or {},
+                    all_categories=all_categories,
+                ),
+                [],  # Clear selection
+                trigger_data,
+                "",
+                False,
+            )
+    except ValidationError as e:
+        return no_update, no_update, no_update, str(e), True
