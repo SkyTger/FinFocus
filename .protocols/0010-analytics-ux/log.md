@@ -4,6 +4,69 @@
 
 ---
 
+## Restore context: protocol-0010#ctx-5
+
+**Дата:** 2026-01-23
+**Статус на момент восстановления:** Шаг 5 частично выполнен (bulk actions UI)
+**Последний коммит:** feat(ui): add category chips for quick categorization [protocol-0010/04]
+**Незакоммиченные изменения:**
+- M app/components/transactions.py (344 строки изменений)
+- M app/assets/transactions.css (35 строк изменений)
+**Диагноз:** Прерывание в середине шага (Сценарий B)
+**Анализ выполненной работы:**
+- ✅ Добавлен dcc.Store("selected-transaction-ids")
+- ✅ Модифицирована _build_transactions_table() для поддержки selected_ids и checkboxes
+- ✅ Добавлен checkbox "Выбрать все" в header таблицы
+- ✅ Добавлены checkboxes в каждой строке таблицы (Pattern-Matching ID)
+- ✅ Добавлен Bulk Actions Panel (hidden by default)
+- ✅ Добавлен callback toggle_checkbox() для individual checkboxes
+- ✅ Добавлен callback render_bulk_panel() для отображения/скрытия панели
+- ✅ Добавлен callback apply_bulk_category() для применения категории
+- ✅ Добавлен callback clear_selection() для очистки выбора
+- ❌ НЕ добавлен callback toggle_select_all() для "Выбрать все" checkbox
+- ✅ CSS стили добавлены в transactions.css
+**Недостающий элемент:** Callback для select-all-checkbox (sub-task 5)
+**Состояние:** Готов продолжить с подзадачи 5 (toggle_select_all callback)
+
+---
+
+## [2026-01-23] Шаг 5: Transactions UI — Bulk Actions
+
+**Действия:**
+- Добавлен dcc.Store("selected-transaction-ids") для хранения выбранных транзакций
+- Модифицирована `_build_transactions_table()` — добавлен параметр selected_ids, checkboxes в каждой строке
+- Добавлен checkbox "Выбрать все" в header таблицы
+- Добавлен Bulk Actions Panel (sticky bottom):
+  - Counter badge с количеством выбранных
+  - Warning при > 100 выбранных
+  - Dropdown для выбора категории
+  - Кнопка "Применить" (disabled если > 100)
+  - Кнопка "Снять выбор"
+- Добавлены callbacks:
+  - `toggle_checkbox()` — Pattern-Matching для individual checkboxes
+  - `toggle_select_all()` — выбор всех (max 100) через State checkbox IDs
+  - `render_bulk_panel()` — отображение/скрытие панели, загрузка категорий
+  - `apply_bulk_category()` — применение категории через bulk_update_category()
+  - `clear_selection()` — очистка выбора
+- Обновлен callback `load_transactions()` — добавлен Output для сброса selection
+- Исправлено: `prevent_initial_call="initial_duplicate"` для allow_duplicate с initial call
+- Добавлены CSS стили в `app/assets/transactions.css`:
+  - `.tx-bulk-panel` — sticky bottom panel
+  - `.tx-checkbox`, `.tx-select-all` — стили checkboxes
+  - `.tx-bulk-panel .text-warning` — стиль warning
+  - `.tx-bulk-panel .Select` — inline dropdown
+
+**Результат:**
+- 246 тестов passed (без изменений)
+- Black + Flake8: OK
+- Bulk actions работают с max 100 транзакциями
+
+**Решения:**
+- Используется State({"type": "tx-checkbox", "index": ALL}, "id") вместо отдельного Store для данных таблицы
+- prevent_initial_call="initial_duplicate" для совместимости allow_duplicate с initial call
+
+---
+
 ## Restore context: protocol-0010#ctx-4
 
 **Дата:** 2026-01-23

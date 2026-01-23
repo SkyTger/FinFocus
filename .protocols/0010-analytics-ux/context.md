@@ -1,7 +1,7 @@
-- **Current Step**: 5
+- **Current Step**: 6
 - **Status**: Ready to Start
-- **Last Action Summary**: "Шаг 4 завершен: chips UI добавлен, callbacks apply_chip_category и open_edit_from_chip_more, CSS стили."
-- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-ui-bulk.md`)."
-- **Git**: "Ветка 0010-analytics-ux, ожидается commit [protocol-0010/04]."
+- **Last Action Summary**: "Шаг 5 завершен: bulk actions UI добавлен, checkboxes, bulk panel, callbacks toggle_checkbox/toggle_select_all/render_bulk_panel/apply_bulk_category/clear_selection."
+- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-ui-export.md`)."
+- **Git**: "Ветка 0010-analytics-ux, ожидается commit [protocol-0010/05]."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0010-analytics-ux`
