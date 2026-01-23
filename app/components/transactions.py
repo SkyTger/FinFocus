@@ -3,10 +3,15 @@
 
 Модалы создания/редактирования вынесены в transaction_modals.py
 для глобальной доступности на всех страницах.
+
+TODO: Заменить hardcoded user_id=1 на auth context после реализации
+      системы аутентификации (Batch 4+). Текущий MVP работает в single-user mode.
 """
 import dash_bootstrap_components as dbc
-from dash import html, callback, Input, Output, State, ALL, ctx
+from dash import dcc, html, callback, Input, Output, State, ALL, ctx, no_update
 from dash.exceptions import PreventUpdate
+
+from app.core.exceptions import ValidationError
 
 from loguru import logger
 
@@ -16,24 +21,186 @@ from app.services import TransactionService, CategoryService
 from app.utils.formatters import format_amount, format_date, ICON_TO_EMOJI
 
 
-def _build_transactions_table(transactions: list) -> list:
-    """Формирует HTML таблицу транзакций.
+def _pluralize_operations(count: int) -> str:
+    """Склонение слова 'операция' для счётчика выбранных.
+
+    Args:
+        count: Количество выбранных операций
+
+    Returns:
+        str: "N операция/операции/операций выбрана/выбраны/выбрано"
+    """
+    if count % 10 == 1 and count % 100 != 11:
+        return f"{count} операция выбрана"
+    elif count % 10 in (2, 3, 4) and count % 100 not in (12, 13, 14):
+        return f"{count} операции выбраны"
+    else:
+        return f"{count} операций выбрано"
+
+
+def _build_bulk_panel() -> html.Div:
+    """Строит sticky Bulk Actions Panel (скрыт по умолчанию).
+
+    Returns:
+        html.Div: Панель массовых операций с dropdown и кнопкой применения
+    """
+    return html.Div(
+        [
+            html.Div(
+                [
+                    # Счётчик выбранных операций
+                    html.Span(
+                        id="bulk-selected-count",
+                        className="me-3 fw-bold",
+                    ),
+                    # Dropdown выбора категории
+                    dcc.Dropdown(
+                        id="bulk-category-dropdown",
+                        placeholder="Выберите категорию...",
+                        className="me-3",
+                        style={"width": "250px", "display": "inline-block"},
+                    ),
+                    # Кнопка применения
+                    dbc.Button(
+                        [
+                            html.I(className="bi bi-check2-all me-2"),
+                            "Применить",
+                        ],
+                        id="bulk-apply-btn",
+                        color="success",
+                        size="sm",
+                    ),
+                ],
+                className="d-flex align-items-center justify-content-center",
+            ),
+        ],
+        id="bulk-actions-panel",
+        className="tx-bulk-panel",
+        style={"display": "none"},
+    )
+
+
+def _build_chips_cell(
+    tx,
+    frequent_categories: dict,
+    all_categories: list,
+) -> html.Div:
+    """Строит ячейку с chips для быстрой категоризации.
+
+    Args:
+        tx: Объект Transaction
+        frequent_categories: Кеш частых категорий {"expense": [...], "income": [...]}
+        all_categories: Полный список категорий для dropdown
+
+    Returns:
+        html.Div: Ячейка с chips или "—" для TRANSFER/ADJUSTMENT
+    """
+    # Guard: TRANSFER и ADJUSTMENT не категоризируются
+    if tx.transaction_type in (TransactionType.TRANSFER, TransactionType.ADJUSTMENT):
+        return html.Span("—", className="text-muted")
+
+    # Определяем тип категорий
+    category_type = tx.transaction_type.name.lower()
+    chips_data = frequent_categories.get(category_type, [])[:5]
+
+    # Если нет частых категорий — показываем только dropdown
+    if not chips_data:
+        return html.Div(
+            [
+                dcc.Dropdown(
+                    id={"type": "chip-dropdown", "tx_id": tx.id},
+                    options=[
+                        {
+                            "label": (
+                                f"{ICON_TO_EMOJI.get(cat.get('icon', ''), '📁')} "
+                                f"{cat['label']}"
+                            ),
+                            "value": cat["value"],
+                        }
+                        for cat in all_categories
+                        if cat.get("type", category_type) == category_type
+                    ],
+                    placeholder="Выбрать...",
+                    className="tx-chip-dropdown",
+                    style={"width": "150px"},
+                ),
+            ],
+            className="tx-chips-cell",
+        )
+
+    # Строим chips
+    chips = []
+    for cat in chips_data:
+        chip = dbc.Button(
+            [
+                html.I(className=f"{cat.get('icon', 'bi-tag')} me-1"),
+                cat["label"],
+            ],
+            id={"type": "chip-btn", "tx_id": tx.id, "cat_id": cat["value"]},
+            color="light",
+            size="sm",
+            className="tx-chip me-1 mb-1",
+        )
+        chips.append(chip)
+
+    # Overflow dropdown для остальных категорий
+    overflow_options = [
+        {
+            "label": f"{ICON_TO_EMOJI.get(cat.get('icon', ''), '📁')} {cat['label']}",
+            "value": cat["value"],
+        }
+        for cat in all_categories
+        if cat.get("type", category_type) == category_type
+    ]
+
+    overflow_dropdown = dcc.Dropdown(
+        id={"type": "chip-dropdown", "tx_id": tx.id},
+        options=overflow_options,
+        placeholder="...",
+        className="tx-chip-dropdown-overflow",
+        style={"width": "80px", "display": "inline-block"},
+    )
+
+    return html.Div(
+        [*chips, overflow_dropdown],
+        className="tx-chips-cell d-flex flex-wrap align-items-center",
+    )
+
+
+def _build_transactions_table(
+    transactions: list,
+    frequent_categories: dict | None = None,
+    all_categories: list | None = None,
+) -> list:
+    """Формирует HTML таблицу транзакций с checkboxes и chips.
 
     Args:
         transactions: Список объектов Transaction
+        frequent_categories: Кеш частых категорий для chips
+        all_categories: Полный список категорий для dropdown
 
     Returns:
         list: [thead, tbody] для dbc.Table
     """
-    # Заголовок таблицы
+    # Defaults для обратной совместимости
+    if frequent_categories is None:
+        frequent_categories = {}
+    if all_categories is None:
+        all_categories = []
+
+    # Заголовок таблицы с checkbox "Select All"
     table_header = html.Thead(
         [
             html.Tr(
                 [
+                    html.Th(
+                        dbc.Checkbox(id="select-all-checkbox", value=False),
+                        style={"width": "40px"},
+                    ),
                     html.Th("Дата"),
                     html.Th("Тип"),
                     html.Th("Сумма", className="text-end"),
-                    html.Th("Категория"),
+                    html.Th("Категория", style={"minWidth": "200px"}),
                     html.Th("Описание"),
                     html.Th("Действия", className="text-end"),
                 ]
@@ -51,7 +218,7 @@ def _build_transactions_table(transactions: list) -> list:
                         [
                             html.Td(
                                 "Нет операций",
-                                colSpan=6,
+                                colSpan=7,
                                 className="text-center text-muted",
                             )
                         ]
@@ -81,18 +248,25 @@ def _build_transactions_table(transactions: list) -> list:
                 title="Повторяющаяся операция",
             )
 
-        # Категория с иконкой
-        category_cell = []
+        # Категория: с иконкой или chips для некатегоризированных
         if tx.category_rel:
             category_cell = [
                 html.I(className=f"{tx.category_rel.icon} me-1"),
                 tx.category_rel.name,
             ]
         else:
-            category_cell = [html.Span("—", className="text-muted")]
+            # Chips для быстрой категоризации
+            category_cell = _build_chips_cell(tx, frequent_categories, all_categories)
 
         row = html.Tr(
             [
+                # Checkbox для выбора
+                html.Td(
+                    dbc.Checkbox(
+                        id={"type": "tx-checkbox", "index": tx.id},
+                        value=False,
+                    ),
+                ),
                 html.Td([recurring_icon, format_date(tx.transaction_date)]),
                 html.Td(type_badge),
                 html.Td(
@@ -141,6 +315,11 @@ def create_transactions_layout():
     """
     return html.Div(
         [
+            # Stores для состояния выбора и кеша категорий
+            dcc.Store(id="selected-transactions", data=[]),
+            dcc.Store(id="frequent-categories", data={}),
+            # Компонент для скачивания файлов
+            dcc.Download(id="export-download"),
             # Заголовок с описанием
             html.Div(
                 [
@@ -154,14 +333,29 @@ def create_transactions_layout():
                         ],
                         className="flex-grow-1",
                     ),
-                    dbc.Button(
+                    html.Div(
                         [
-                            html.I(className="bi bi-plus-circle me-2"),
-                            "Добавить операцию",
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-download me-2"),
+                                    "Экспорт CSV",
+                                ],
+                                id="export-btn",
+                                color="secondary",
+                                outline=True,
+                                className="d-flex align-items-center me-2",
+                            ),
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-plus-circle me-2"),
+                                    "Добавить операцию",
+                                ],
+                                id="add-transaction-btn",
+                                color="success",
+                                className="d-flex align-items-center",
+                            ),
                         ],
-                        id="add-transaction-btn",
-                        color="success",
-                        className="d-flex align-items-center",
+                        className="d-flex",
                     ),
                 ],
                 className="d-flex justify-content-between align-items-center mb-4",
@@ -204,6 +398,8 @@ def create_transactions_layout():
                 className="shadow-sm",
             ),
             # Модалы теперь в глобальном layout (main.py -> transaction_modals.py)
+            # Bulk Actions Panel (sticky bottom, скрыт по умолчанию)
+            _build_bulk_panel(),
         ]
     )
 
@@ -212,10 +408,46 @@ def create_transactions_layout():
 
 
 @callback(
-    Output("transactions-table", "children"),
-    [Input("url", "pathname"), Input("filter-no-category", "value")],
+    Output("frequent-categories", "data"),
+    Input("url", "pathname"),
+    State("frequent-categories", "data"),
 )
-def load_transactions(pathname, filter_no_category):
+def load_frequent_categories(pathname: str, cached_data: dict | None) -> dict:
+    """Загружает частые категории в кеш при первом посещении страницы.
+
+    Args:
+        pathname: Текущий URL
+        cached_data: Текущий кеш категорий
+
+    Returns:
+        dict: Кеш категорий {"expense": [...], "income": [...]}
+    """
+    if pathname != "/transactions":
+        raise PreventUpdate
+
+    # Используем кеш если уже загружен
+    if cached_data:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = CategoryService(session)
+        return {
+            "expense": service.get_frequent_for_type(
+                user_id=1, category_type="expense"
+            ),
+            "income": service.get_frequent_for_type(user_id=1, category_type="income"),
+        }
+
+
+@callback(
+    Output("transactions-table", "children"),
+    [
+        Input("url", "pathname"),
+        Input("filter-no-category", "value"),
+        Input("frequent-categories", "data"),
+    ],
+)
+def load_transactions(pathname, filter_no_category, frequent_categories):
     """Загружает список операций из БД с фильтрацией."""
     if pathname != "/transactions":
         raise PreventUpdate
@@ -228,8 +460,16 @@ def load_transactions(pathname, filter_no_category):
         if filter_no_category:
             transactions = [tx for tx in transactions if tx.category_id is None]
 
+        # Загружаем все категории для dropdown
+        category_service = CategoryService(session)
+        all_categories = category_service.get_for_dropdown()
+
         logger.debug(f"Загружено {len(transactions)} транзакций")
-        return _build_transactions_table(transactions)
+        return _build_transactions_table(
+            transactions,
+            frequent_categories=frequent_categories or {},
+            all_categories=all_categories,
+        )
 
 
 @callback(
@@ -448,3 +688,363 @@ def refresh_table_after_crud(trigger, pathname):
 
         logger.debug(f"Таблица транзакций обновлена после CRUD из {source}")
         return _build_transactions_table(transactions)
+
+
+@callback(
+    [
+        Output("transactions-table", "children", allow_duplicate=True),
+        Output("global-transaction-trigger", "data", allow_duplicate=True),
+    ],
+    Input({"type": "chip-btn", "tx_id": ALL, "cat_id": ALL}, "n_clicks"),
+    State("filter-no-category", "value"),
+    State("frequent-categories", "data"),
+    prevent_initial_call=True,
+)
+def chip_assign_category(n_clicks_list, filter_no_category, frequent_categories):
+    """Присваивает категорию по клику на chip.
+
+    Использует 3-уровневые guard clauses согласно ADR-003.
+    """
+    from datetime import datetime
+
+    # Guard #1: triggered_id existence and type
+    triggered_id = ctx.triggered_id
+    if not triggered_id or not isinstance(triggered_id, dict):
+        raise PreventUpdate
+
+    # Guard #2: Correct component type
+    if triggered_id.get("type") != "chip-btn":
+        raise PreventUpdate
+
+    # Guard #3: Real click (not auto-trigger on DOM update) - ADR-003
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    tx_id = triggered_id.get("tx_id")
+    cat_id = triggered_id.get("cat_id")
+
+    if not tx_id or not cat_id:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = TransactionService(session)
+        service.update_transaction(transaction_id=tx_id, category_id=cat_id)
+        session.commit()
+
+        # Reload transactions with filter applied
+        transactions = service.get_all_by_user(user_id=1)
+        if filter_no_category:
+            transactions = [tx for tx in transactions if tx.category_id is None]
+
+        # Загружаем категории для таблицы
+        category_service = CategoryService(session)
+        all_categories = category_service.get_for_dropdown()
+
+        trigger_data = {
+            "action": "update",
+            "timestamp": datetime.now().isoformat(),
+            "source": "transactions",
+            "transaction_id": tx_id,
+        }
+
+        logger.info(f"Категория {cat_id} присвоена транзакции {tx_id} через chip")
+        return (
+            _build_transactions_table(
+                transactions,
+                frequent_categories=frequent_categories or {},
+                all_categories=all_categories,
+            ),
+            trigger_data,
+        )
+
+
+@callback(
+    [
+        Output("transactions-table", "children", allow_duplicate=True),
+        Output("global-transaction-trigger", "data", allow_duplicate=True),
+    ],
+    Input({"type": "chip-dropdown", "tx_id": ALL}, "value"),
+    State("filter-no-category", "value"),
+    State("frequent-categories", "data"),
+    prevent_initial_call=True,
+)
+def chip_dropdown_assign_category(values, filter_no_category, frequent_categories):
+    """Присваивает категорию из overflow dropdown.
+
+    Использует 3-уровневые guard clauses согласно ADR-003.
+    """
+    from datetime import datetime
+
+    # Guard #1: triggered_id existence and type
+    triggered_id = ctx.triggered_id
+    if not triggered_id or not isinstance(triggered_id, dict):
+        raise PreventUpdate
+
+    # Guard #2: Correct component type
+    if triggered_id.get("type") != "chip-dropdown":
+        raise PreventUpdate
+
+    # Guard #3: Real selection (not auto-trigger on DOM update) - ADR-003
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    tx_id = triggered_id.get("tx_id")
+    cat_id = ctx.triggered[0].get("value")
+
+    if not tx_id or not cat_id:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = TransactionService(session)
+        service.update_transaction(transaction_id=tx_id, category_id=cat_id)
+        session.commit()
+
+        # Reload transactions with filter applied
+        transactions = service.get_all_by_user(user_id=1)
+        if filter_no_category:
+            transactions = [tx for tx in transactions if tx.category_id is None]
+
+        # Загружаем категории для таблицы
+        category_service = CategoryService(session)
+        all_categories = category_service.get_for_dropdown()
+
+        trigger_data = {
+            "action": "update",
+            "timestamp": datetime.now().isoformat(),
+            "source": "transactions",
+            "transaction_id": tx_id,
+        }
+
+        logger.info(f"Категория {cat_id} присвоена транзакции {tx_id} через dropdown")
+        return (
+            _build_transactions_table(
+                transactions,
+                frequent_categories=frequent_categories or {},
+                all_categories=all_categories,
+            ),
+            trigger_data,
+        )
+
+
+# ==================== BULK SELECTION CALLBACKS ====================
+
+
+@callback(
+    Output("selected-transactions", "data"),
+    [
+        Input({"type": "tx-checkbox", "index": ALL}, "value"),
+        Input("select-all-checkbox", "value"),
+    ],
+    State({"type": "tx-checkbox", "index": ALL}, "id"),
+    prevent_initial_call=True,
+)
+def update_selection_state(
+    checkbox_values: list,
+    select_all: bool | None,
+    checkbox_ids: list[dict],
+) -> list[int]:
+    """Обновляет список выбранных транзакций.
+
+    Args:
+        checkbox_values: Значения индивидуальных checkboxes
+        select_all: Значение "Select All" checkbox
+        checkbox_ids: IDs всех checkboxes (для извлечения tx_id)
+
+    Returns:
+        list[int]: Список ID выбранных транзакций
+    """
+    # Определяем что вызвало callback
+    triggered = ctx.triggered_id
+
+    # Select All toggled
+    if triggered == "select-all-checkbox":
+        if select_all:
+            # Выбрать все видимые транзакции
+            return [cid["index"] for cid in checkbox_ids]
+        else:
+            return []
+
+    # Individual checkbox toggled
+    selected = []
+    for cid, value in zip(checkbox_ids, checkbox_values):
+        if value:
+            selected.append(cid["index"])
+    return selected
+
+
+@callback(
+    [
+        Output("selected-transactions", "data", allow_duplicate=True),
+        Output("select-all-checkbox", "value"),
+    ],
+    Input("filter-no-category", "value"),
+    prevent_initial_call=True,
+)
+def clear_selection_on_filter_change(filter_value: bool) -> tuple[list, bool]:
+    """Сбрасывает выбор при изменении фильтра.
+
+    Критично для WYSIWYG — выбранные элементы должны быть видны.
+
+    Args:
+        filter_value: Новое значение фильтра (не используется)
+
+    Returns:
+        tuple: ([], False) — пустой selection и unchecked Select All
+    """
+    return [], False
+
+
+@callback(
+    [
+        Output("bulk-actions-panel", "style"),
+        Output("bulk-selected-count", "children"),
+    ],
+    Input("selected-transactions", "data"),
+    prevent_initial_call=True,
+)
+def toggle_bulk_panel(selected: list[int] | None) -> tuple[dict, str]:
+    """Показывает/скрывает Bulk Panel.
+
+    Panel скрывается при пустом selection.
+
+    Args:
+        selected: Список ID выбранных транзакций
+
+    Returns:
+        tuple: (style dict, counter text)
+    """
+    if not selected or len(selected) == 0:
+        return {"display": "none"}, ""
+
+    count_text = _pluralize_operations(len(selected))
+    return {"display": "block"}, count_text
+
+
+@callback(
+    [
+        Output("transactions-table", "children", allow_duplicate=True),
+        Output("selected-transactions", "data", allow_duplicate=True),
+        Output("global-transaction-trigger", "data", allow_duplicate=True),
+        Output("transaction-error-alert", "children", allow_duplicate=True),
+        Output("transaction-error-alert", "is_open", allow_duplicate=True),
+    ],
+    Input("bulk-apply-btn", "n_clicks"),
+    [
+        State("bulk-category-dropdown", "value"),
+        State("selected-transactions", "data"),
+        State("filter-no-category", "value"),
+        State("frequent-categories", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def bulk_assign_category(
+    n_clicks: int | None,
+    category_id: int | None,
+    selected_ids: list[int],
+    filter_no_category: bool,
+    frequent_categories: dict,
+) -> tuple:
+    """Массовое присвоение категории выбранным транзакциям.
+
+    Args:
+        n_clicks: Количество кликов на кнопку
+        category_id: ID выбранной категории
+        selected_ids: Список ID выбранных транзакций
+        filter_no_category: Текущее значение фильтра
+        frequent_categories: Кеш частых категорий
+
+    Returns:
+        tuple: (table, selection, trigger, error_msg, error_open)
+    """
+    from datetime import datetime
+
+    if not n_clicks:
+        raise PreventUpdate
+
+    # Валидация inputs
+    if not selected_ids:
+        return no_update, no_update, no_update, "Выберите хотя бы одну операцию", True
+
+    if category_id is None:
+        return no_update, no_update, no_update, "Выберите категорию", True
+
+    try:
+        with get_db_session() as session:
+            service = TransactionService(session)
+            affected = service.bulk_update_category(
+                user_id=1,
+                transaction_ids=selected_ids,
+                category_id=category_id,
+            )
+            session.commit()
+
+            # Reload transactions
+            transactions = service.get_all_by_user(user_id=1)
+            if filter_no_category:
+                transactions = [tx for tx in transactions if tx.category_id is None]
+
+            # Загружаем категории
+            category_service = CategoryService(session)
+            all_categories = category_service.get_for_dropdown()
+
+            trigger_data = {
+                "action": "bulk_update",
+                "timestamp": datetime.now().isoformat(),
+                "source": "transactions",
+                "affected_count": affected,
+            }
+
+            logger.info(
+                f"Bulk update: {affected} транзакций получили категорию {category_id}"
+            )
+
+            return (
+                _build_transactions_table(
+                    transactions,
+                    frequent_categories=frequent_categories or {},
+                    all_categories=all_categories,
+                ),
+                [],  # Clear selection
+                trigger_data,
+                "",
+                False,
+            )
+    except ValidationError as e:
+        return no_update, no_update, no_update, str(e), True
+
+
+# ==================== EXPORT CALLBACK ====================
+
+
+@callback(
+    Output("export-download", "data"),
+    Input("export-btn", "n_clicks"),
+    State("filter-no-category", "value"),
+    prevent_initial_call=True,
+)
+def export_transactions(n_clicks: int | None, filter_uncategorized: bool) -> dict:
+    """Экспортирует транзакции в CSV файл.
+
+    Args:
+        n_clicks: Количество кликов на кнопку экспорта
+        filter_uncategorized: Экспортировать только без категории
+
+    Returns:
+        dict: Данные для dcc.Download (filename + content)
+    """
+    from datetime import date
+
+    if not n_clicks:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = TransactionService(session)
+        csv_bytes = service.export_to_csv(
+            user_id=1,
+            uncategorized_only=filter_uncategorized,
+        )
+
+        filename = f"finfocus_transactions_{date.today().isoformat()}.csv"
+        logger.info(f"Экспорт транзакций в {filename}")
+
+        return dcc.send_bytes(csv_bytes, filename)
