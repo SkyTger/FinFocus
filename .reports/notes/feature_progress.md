@@ -3,9 +3,79 @@
 ## 📊 Общий статус проекта: Epic-03-Analytics - В ПРОЦЕССЕ
 
 **Последнее обновление**: 2026/01/23
-**Текущий этап**: Батч 3.1 (Категоризация + Сверка) — ЗАВЕРШЕН
+**Текущий этап**: Global Transaction Modals — ЗАВЕРШЕН
 **Прогресс Epic-03**: 50% (1/2 батча)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Global Transaction Modals (2026-01-23) - ЗАВЕРШЕН
+
+**Дата**: 2026/01/23
+**Тип**: Рефакторинг UX
+**Статус**: ✅ Полностью завершен
+
+### 🎯 Цель:
+Вынести модалы создания/редактирования транзакций из transactions.py в глобальный layout для доступности CRUD операций на всех страницах (Dashboard, Calendar, Transactions).
+
+### ✅ Выполненные задачи:
+
+1. **transaction_modals.py создан** (~600 строк)
+   - create-modal, edit-modal, recurring-scope-modal
+   - dcc.Store: modal-source, global-transaction-trigger, edit-transaction-id, recurring-edit-context
+   - Submit callbacks: create_transaction, update_transaction, skip_recurring_instance
+   - Category dropdown callbacks с ICON_TO_EMOJI
+
+2. **main.py обновлен**
+   - Добавлен create_transaction_modals() в layout
+   - Глобальный transaction-error-alert
+
+3. **transactions.py упрощен**
+   - Удалены UI модалов (перенесены в transaction_modals.py)
+   - Добавлен Output modal-source в toggle_create_modal, open_edit_modal
+   - Добавлен refresh_table_after_crud() — слушает global-transaction-trigger
+
+4. **calendar.py обновлен**
+   - open_create_modal_from_calendar() добавляет modal-source="calendar"
+   - refresh_calendar_after_transaction() слушает global-transaction-trigger
+
+5. **dashboard.py обновлен**
+   - Добавлен refresh_dashboard_after_crud() — слушает global-transaction-trigger
+
+6. **utils/formatters.py расширен**
+   - ICON_TO_EMOJI dict вынесен для переиспользования
+
+7. **Исправлены баги** (2026/01/23)
+   - Duplicate Output: allow_duplicate=True в update_edit_category_options
+   - Cancel button: глобальные close_create_modal(), close_edit_modal() в transaction_modals.py
+   - Calendar modal auto-open: Guard #4 в open_create_modal_from_calendar (проверка all clicks None)
+
+### 📊 Результат:
+- ✅ 213 unit и integration тестов проходят
+- ✅ Black + Flake8 без ошибок
+- ✅ CRUD операции доступны с любой страницы
+- ✅ Refresh Trigger Pattern обеспечивает синхронизацию
+- ✅ Cancel button работает глобально
+- ✅ Modal не открывается автоматически на календаре
+
+### 💡 Ключевые паттерны:
+
+1. **Refresh Trigger Pattern** — global-transaction-trigger Store emit/listen для обновления страниц
+2. **modal-source Store** — отслеживание источника открытия модала
+3. **Selective Refresh** — страницы обновляются только если source != own page
+
+### 🔧 Технические детали:
+
+**Новые файлы:**
+- `app/components/transaction_modals.py`
+
+**Модифицированные файлы:**
+- `app/main.py` — +global modals, +error alert
+- `app/components/transactions.py` — -modals, +refresh callback
+- `app/components/calendar.py` — +modal-source, +trigger listener
+- `app/components/dashboard.py` — +refresh callback
+- `app/utils/formatters.py` — +ICON_TO_EMOJI
+- `app/components/__init__.py` — +export
 
 ---
 

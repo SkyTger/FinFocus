@@ -1,19 +1,19 @@
 """
 Компонент управления финансовыми операциями (транзакциями).
-"""
-from datetime import date
-from decimal import Decimal
 
+Модалы создания/редактирования вынесены в transaction_modals.py
+для глобальной доступности на всех страницах.
+"""
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ALL, ctx, no_update
+from dash import html, callback, Input, Output, State, ALL, ctx
 from dash.exceptions import PreventUpdate
 
 from loguru import logger
 
-from app.core import get_db_session, ValidationError
+from app.core import get_db_session
 from app.models.database import TransactionType
-from app.services import TransactionService, RecurringService, CategoryService
-from app.utils.formatters import format_amount, format_date, parse_date_safe
+from app.services import TransactionService, CategoryService
+from app.utils.formatters import format_amount, format_date, ICON_TO_EMOJI
 
 
 def _build_transactions_table(transactions: list) -> list:
@@ -134,6 +134,8 @@ def _build_transactions_table(transactions: list) -> list:
 def create_transactions_layout():
     """Создает layout страницы управления операциями.
 
+    Модалы создания/редактирования находятся в глобальном layout (main.py).
+
     Returns:
         dash component: Layout страницы Transactions
     """
@@ -164,15 +166,7 @@ def create_transactions_layout():
                 ],
                 className="d-flex justify-content-between align-items-center mb-4",
             ),
-            # Alert для ошибок валидации
-            dbc.Alert(
-                id="transaction-error-alert",
-                is_open=False,
-                color="danger",
-                dismissable=True,
-                duration=5000,  # Автозакрытие через 5 сек
-                className="mb-3",
-            ),
+            # Alert для ошибок валидации находится в main.py (глобальный)
             # Панель фильтров
             dbc.Card(
                 dbc.CardBody(
@@ -209,419 +203,7 @@ def create_transactions_layout():
                 ],
                 className="shadow-sm",
             ),
-            # Модальное окно создания
-            dbc.Modal(
-                [
-                    dbc.ModalHeader(dbc.ModalTitle("Добавить операцию")),
-                    dbc.ModalBody(
-                        [
-                            # Сумма
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Сумма", html_for="create-amount-input", width=3
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dbc.Input(
-                                                id="create-amount-input",
-                                                type="number",
-                                                step=0.01,
-                                                min=0.01,
-                                                placeholder="Введите сумму",
-                                                required=True,
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Тип операции
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Тип операции",
-                                        html_for="create-type-select",
-                                        width=3,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dbc.Select(
-                                                id="create-type-select",
-                                                options=[
-                                                    {
-                                                        "label": "Доход",
-                                                        "value": "INCOME",
-                                                    },
-                                                    {
-                                                        "label": "Расход",
-                                                        "value": "EXPENSE",
-                                                    },
-                                                ],
-                                                value="EXPENSE",
-                                                required=True,
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Категория (опционально)
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Категория",
-                                        html_for="create-category-dropdown",
-                                        width=3,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dcc.Dropdown(
-                                                id="create-category-dropdown",
-                                                placeholder="Выберите категорию",
-                                                clearable=True,
-                                                options=[],
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Дата
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Дата", html_for="create-date-picker", width=3
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dcc.DatePickerSingle(
-                                                id="create-date-picker",
-                                                date=date.today(),
-                                                display_format="DD.MM.YYYY",
-                                                first_day_of_week=1,
-                                                className="w-100",
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Описание
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Описание",
-                                        html_for="create-description-input",
-                                        width=3,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dbc.Textarea(
-                                                id="create-description-input",
-                                                placeholder="Описание (опционально)",
-                                                rows=3,
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Чекбокс "Повторяющаяся операция"
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        [
-                                            dbc.Checkbox(
-                                                id="create-is-recurring",
-                                                label="Повторяющаяся операция",
-                                                value=False,
-                                            ),
-                                        ],
-                                        width=12,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Секция recurring (скрыта по умолчанию)
-                            html.Div(
-                                id="create-recurring-section",
-                                style={"display": "none"},
-                                children=[
-                                    # Период повторения
-                                    dbc.Row(
-                                        [
-                                            dbc.Col(
-                                                [
-                                                    dbc.Label("Период повторения"),
-                                                    dbc.Select(
-                                                        id="create-recurring-period",
-                                                        options=[
-                                                            {
-                                                                "label": "Еженедельно",
-                                                                "value": "weekly",
-                                                            },
-                                                            {
-                                                                "label": "Раз в 2 недели",  # noqa: E501
-                                                                "value": "biweekly",
-                                                            },
-                                                            {
-                                                                "label": "Ежемесячно",
-                                                                "value": "monthly",
-                                                            },
-                                                            {
-                                                                "label": "Ежеквартально",  # noqa: E501
-                                                                "value": "quarterly",
-                                                            },
-                                                        ],
-                                                        value="monthly",
-                                                    ),
-                                                ],
-                                                width=6,
-                                            ),
-                                            dbc.Col(
-                                                [
-                                                    dbc.Label(
-                                                        "Дата окончания (опционально)"
-                                                    ),
-                                                    dbc.Input(
-                                                        id="create-recurring-end-date",
-                                                        type="date",
-                                                        placeholder="Бессрочно",
-                                                    ),
-                                                ],
-                                                width=6,
-                                            ),
-                                        ],
-                                        className="mb-3",
-                                    ),
-                                ],
-                            ),
-                        ]
-                    ),
-                    dbc.ModalFooter(
-                        [
-                            dbc.Button(
-                                "Отмена",
-                                id="create-cancel-btn",
-                                color="secondary",
-                                className="me-2",
-                            ),
-                            dbc.Button(
-                                "Создать", id="create-submit-btn", color="success"
-                            ),
-                        ]
-                    ),
-                ],
-                id="create-modal",
-                is_open=False,
-                centered=True,
-            ),
-            # Модальное окно редактирования
-            dbc.Modal(
-                [
-                    dbc.ModalHeader(dbc.ModalTitle("Редактировать операцию")),
-                    dbc.ModalBody(
-                        [
-                            # Сумма
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Сумма", html_for="edit-amount-input", width=3
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dbc.Input(
-                                                id="edit-amount-input",
-                                                type="number",
-                                                step=0.01,
-                                                min=0.01,
-                                                required=True,
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Тип операции
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Тип операции",
-                                        html_for="edit-type-select",
-                                        width=3,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dbc.Select(
-                                                id="edit-type-select",
-                                                options=[
-                                                    {
-                                                        "label": "Доход",
-                                                        "value": "INCOME",
-                                                    },
-                                                    {
-                                                        "label": "Расход",
-                                                        "value": "EXPENSE",
-                                                    },
-                                                ],
-                                                required=True,
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Категория
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Категория",
-                                        html_for="edit-category-dropdown",
-                                        width=3,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dcc.Dropdown(
-                                                id="edit-category-dropdown",
-                                                placeholder="Выберите категорию",
-                                                clearable=True,
-                                                options=[],
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Дата
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Дата", html_for="edit-date-picker", width=3
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dcc.DatePickerSingle(
-                                                id="edit-date-picker",
-                                                display_format="DD.MM.YYYY",
-                                                first_day_of_week=1,
-                                                className="w-100",
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                            # Описание
-                            dbc.Row(
-                                [
-                                    dbc.Label(
-                                        "Описание",
-                                        html_for="edit-description-input",
-                                        width=3,
-                                    ),
-                                    dbc.Col(
-                                        [
-                                            dbc.Textarea(
-                                                id="edit-description-input", rows=3
-                                            )
-                                        ],
-                                        width=9,
-                                    ),
-                                ],
-                                className="mb-3",
-                            ),
-                        ]
-                    ),
-                    dbc.ModalFooter(
-                        [
-                            dbc.Button(
-                                "Отмена",
-                                id="edit-cancel-btn",
-                                color="secondary",
-                                className="me-2",
-                            ),
-                            dbc.Button(
-                                "Пропустить",
-                                id="edit-skip-instance",
-                                color="warning",
-                                outline=True,
-                                className="me-2",
-                                style={"display": "none"},
-                            ),
-                            dbc.Button(
-                                "Сохранить", id="edit-submit-btn", color="success"
-                            ),
-                        ]
-                    ),
-                ],
-                id="edit-modal",
-                is_open=False,
-                centered=True,
-            ),
-            # Store для хранения ID редактируемой транзакции
-            dcc.Store(id="edit-transaction-id"),
-            # Модальное окно выбора scope редактирования recurring
-            dbc.Modal(
-                [
-                    dbc.ModalHeader(dbc.ModalTitle("Изменить повторяющуюся операцию")),
-                    dbc.ModalBody(
-                        [
-                            html.P("Выберите, что вы хотите изменить:"),
-                            dbc.RadioItems(
-                                id="recurring-edit-scope",
-                                options=[
-                                    {
-                                        "label": "Только этот экземпляр",
-                                        "value": "instance",
-                                    },
-                                    {
-                                        "label": "Всю серию (все экземпляры)",
-                                        "value": "all",
-                                    },
-                                ],
-                                value="instance",
-                                className="mb-3",
-                            ),
-                            html.P(
-                                "Примечание: изменение серии повлияет на все "
-                                "будущие экземпляры.",
-                                className="text-muted small",
-                            ),
-                        ]
-                    ),
-                    dbc.ModalFooter(
-                        [
-                            dbc.Button(
-                                "Отмена",
-                                id="recurring-edit-cancel",
-                                color="secondary",
-                                outline=True,
-                                className="me-2",
-                            ),
-                            dbc.Button(
-                                "Продолжить",
-                                id="recurring-edit-continue",
-                                color="primary",
-                            ),
-                        ]
-                    ),
-                ],
-                id="recurring-edit-scope-modal",
-                is_open=False,
-                centered=True,
-            ),
-            # Store для контекста редактирования recurring
-            dcc.Store(id="recurring-edit-context", data=None),
+            # Модалы теперь в глобальном layout (main.py -> transaction_modals.py)
         ]
     )
 
@@ -651,184 +233,27 @@ def load_transactions(pathname, filter_no_category):
 
 
 @callback(
-    Output("create-modal", "is_open"),
-    [Input("add-transaction-btn", "n_clicks"), Input("create-cancel-btn", "n_clicks")],
-    [State("create-modal", "is_open")],
-    prevent_initial_call=True,
-)
-def toggle_create_modal(add_clicks, cancel_clicks, is_open):
-    """Открывает/закрывает модальное окно создания."""
-    triggered_id = ctx.triggered_id
-
-    if not triggered_id:
-        raise PreventUpdate
-
-    # Открыть модал при клике на "Добавить"
-    if triggered_id == "add-transaction-btn":
-        return True
-
-    # Закрыть модал при клике на "Отмена"
-    if triggered_id == "create-cancel-btn":
-        return False
-
-    raise PreventUpdate
-
-
-@callback(
-    Output("create-recurring-section", "style"),
-    Input("create-is-recurring", "value"),
-    prevent_initial_call=True,
-)
-def toggle_recurring_section(is_recurring: bool):
-    """Показывает/скрывает секцию настроек recurring."""
-    if is_recurring:
-        return {"display": "block"}
-    return {"display": "none"}
-
-
-@callback(
-    Output("create-category-dropdown", "options"),
-    Input("create-type-select", "value"),
-    prevent_initial_call=True,
-)
-def update_create_category_options(transaction_type: str | None):
-    """Обновить список категорий при смене типа транзакции."""
-    if not transaction_type:
-        return []
-
-    with get_db_session() as session:
-        service = CategoryService(session)
-        # Мапим transaction_type на category_type
-        category_type = "income" if transaction_type == "INCOME" else "expense"
-        options = service.get_for_dropdown(category_type=category_type)
-
-        return [
-            {"label": f"{opt['icon']} {opt['label']}", "value": opt["value"]}
-            for opt in options
-        ]
-
-
-@callback(
     [
-        Output("create-modal", "is_open", allow_duplicate=True),
-        Output("transactions-table", "children", allow_duplicate=True),
-        Output("create-amount-input", "value"),
-        Output("create-type-select", "value"),
-        Output("create-category-dropdown", "value"),
-        Output("create-date-picker", "date"),
-        Output("create-description-input", "value"),
-        Output("create-is-recurring", "value"),
-        Output("create-recurring-period", "value"),
-        Output("create-recurring-end-date", "value"),
-        Output("transaction-error-alert", "children", allow_duplicate=True),
-        Output("transaction-error-alert", "is_open", allow_duplicate=True),
+        Output("create-modal", "is_open"),
+        Output("modal-source", "data"),
     ],
-    Input("create-submit-btn", "n_clicks"),
-    [
-        State("create-amount-input", "value"),
-        State("create-type-select", "value"),
-        State("create-category-dropdown", "value"),
-        State("create-date-picker", "date"),
-        State("create-description-input", "value"),
-        State("create-is-recurring", "value"),
-        State("create-recurring-period", "value"),
-        State("create-recurring-end-date", "value"),
-    ],
+    Input("add-transaction-btn", "n_clicks"),
     prevent_initial_call=True,
 )
-def create_transaction(
-    n_clicks,
-    amount,
-    transaction_type,
-    category_id,
-    date_str,
-    description,
-    is_recurring,
-    recurring_period,
-    recurring_end_date,
-):
-    """Создает новую транзакцию или шаблон recurring через TransactionService."""
-    if not n_clicks or not amount:
+def open_create_modal_from_transactions(n_clicks):
+    """Открывает модальное окно создания со страницы транзакций."""
+    # Строгая проверка: только реальный клик
+    if not n_clicks or n_clicks == 0:
         raise PreventUpdate
-
-    # Безопасный парсинг даты
-    transaction_date = parse_date_safe(date_str)
-    if not transaction_date:
-        return (
-            True,  # Модал остаётся открытым
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            "Неверный формат даты",
-            True,  # Показать Alert
-        )
-
-    # Парсинг даты окончания recurring (если указана)
-    parsed_end_date = None
-    if is_recurring and recurring_end_date:
-        parsed_end_date = parse_date_safe(recurring_end_date)
-
-    try:
-        with get_db_session() as session:
-            service = TransactionService(session)
-            service.create_transaction(
-                user_id=1,
-                amount=Decimal(str(amount)),
-                transaction_type=TransactionType[transaction_type],
-                transaction_date=transaction_date,
-                description=description if description else None,
-                category_id=category_id,
-                is_recurring=is_recurring or False,
-                recurring_period=recurring_period if is_recurring else None,
-                recurring_end_date=parsed_end_date,
-            )
-            transactions = service.get_all_by_user(user_id=1)
-            log_msg = f"Создана транзакция: {transaction_type} {amount}"
-            if is_recurring:
-                log_msg += f" (recurring: {recurring_period})"
-            logger.info(log_msg)
-            # Успех: закрываем модал, очищаем форму, скрываем Alert
-            return (
-                False,  # is_open
-                _build_transactions_table(transactions),  # table
-                None,  # amount
-                "EXPENSE",  # type
-                None,  # category_id
-                date.today().isoformat(),  # date
-                "",  # description
-                False,  # is_recurring
-                "monthly",  # recurring_period
-                None,  # recurring_end_date
-                "",  # alert text
-                False,  # alert is_open
-            )
-    except ValidationError as e:
-        logger.warning(f"Ошибка валидации при создании: {e}")
-        return (
-            True,  # Модал остаётся открытым
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            no_update,
-            str(e),  # Текст ошибки
-            True,  # Показать Alert
-        )
+    if not ctx.triggered_id or ctx.triggered_id != "add-transaction-btn":
+        raise PreventUpdate
+    return True, "transactions"
 
 
 @callback(
     [
         Output("edit-modal", "is_open"),
+        Output("modal-source", "data", allow_duplicate=True),
         Output("edit-transaction-id", "data"),
         Output("edit-amount-input", "value"),
         Output("edit-type-select", "value"),
@@ -839,14 +264,10 @@ def create_transaction(
         Output("recurring-edit-scope-modal", "is_open"),
         Output("recurring-edit-context", "data"),
     ],
-    [
-        Input({"type": "edit-btn", "index": ALL}, "n_clicks"),
-        Input("edit-cancel-btn", "n_clicks"),
-    ],
-    [State("edit-modal", "is_open")],
+    Input({"type": "edit-btn", "index": ALL}, "n_clicks"),
     prevent_initial_call=True,
 )
-def open_edit_modal(edit_clicks_list, cancel_click, is_open):
+def open_edit_modal(edit_clicks_list):
     """Открывает модал редактирования с данными транзакции.
 
     Для recurring операций показывает диалог выбора scope.
@@ -857,10 +278,6 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
     # Если ничего не нажато (initial render)
     if not triggered_id:
         raise PreventUpdate
-
-    # Если нажата кнопка отмены
-    if triggered_id == "edit-cancel-btn":
-        return False, None, None, None, None, [], None, None, False, None
 
     # Если нажата кнопка редактирования
     if not isinstance(triggered_id, dict) or triggered_id.get("type") != "edit-btn":
@@ -895,7 +312,19 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
                 "instance_date": tx.transaction_date.isoformat(),
                 "is_template": tx.is_recurring,
             }
-            return False, None, None, None, None, [], None, None, True, context
+            return (
+                False,
+                "transactions",
+                None,
+                None,
+                None,
+                None,
+                [],
+                None,
+                None,
+                True,
+                context,
+            )
 
         # Обычная транзакция — открываем edit modal напрямую
         logger.debug(f"Открыт модал редактирования для транзакции {transaction_id}")
@@ -909,12 +338,16 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
             category_type=category_type
         )
         dropdown_options = [
-            {"label": f"{opt['icon']} {opt['label']}", "value": opt["value"]}
+            {
+                "label": f"{ICON_TO_EMOJI.get(opt['icon'], '📁')} {opt['label']}",
+                "value": opt["value"],
+            }
             for opt in category_options
         ]
 
         return (
             True,
+            "transactions",
             transaction_id,
             float(tx.amount),
             tx.transaction_type.name,
@@ -929,61 +362,9 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
 
 @callback(
     [
-        Output("edit-modal", "is_open", allow_duplicate=True),
         Output("transactions-table", "children", allow_duplicate=True),
-        Output("transaction-error-alert", "children", allow_duplicate=True),
-        Output("transaction-error-alert", "is_open", allow_duplicate=True),
+        Output("global-transaction-trigger", "data", allow_duplicate=True),
     ],
-    Input("edit-submit-btn", "n_clicks"),
-    [
-        State("edit-transaction-id", "data"),
-        State("edit-amount-input", "value"),
-        State("edit-type-select", "value"),
-        State("edit-category-dropdown", "value"),
-        State("edit-date-picker", "date"),
-        State("edit-description-input", "value"),
-    ],
-    prevent_initial_call=True,
-)
-def update_transaction(
-    n_clicks,
-    transaction_id,
-    amount,
-    transaction_type,
-    category_id,
-    date_str,
-    description,
-):
-    """Обновляет транзакцию через TransactionService."""
-    if not n_clicks or not transaction_id:
-        raise PreventUpdate
-
-    # Безопасный парсинг даты
-    transaction_date = parse_date_safe(date_str)
-    if not transaction_date:
-        return True, no_update, "Неверный формат даты", True
-
-    try:
-        with get_db_session() as session:
-            service = TransactionService(session)
-            service.update_transaction(
-                transaction_id=transaction_id,
-                amount=Decimal(str(amount)),
-                transaction_type=TransactionType[transaction_type],
-                transaction_date=transaction_date,
-                description=description if description else None,
-                category_id=category_id,
-            )
-            transactions = service.get_all_by_user(user_id=1)
-            logger.info(f"Обновлена транзакция {transaction_id}")
-            return False, _build_transactions_table(transactions), "", False
-    except ValidationError as e:
-        logger.warning(f"Ошибка валидации при обновлении: {e}")
-        return True, no_update, str(e), True
-
-
-@callback(
-    Output("transactions-table", "children", allow_duplicate=True),
     [Input({"type": "delete-btn", "index": ALL}, "n_clicks")],
     prevent_initial_call=True,
 )
@@ -1014,135 +395,56 @@ def delete_transaction(n_clicks_list):
 
         transactions = service.get_all_by_user(user_id=1)
         logger.info(f"Удалена транзакция {transaction_id}")
-        return _build_transactions_table(transactions)
 
+        # Emit trigger для обновления других страниц
+        from datetime import datetime
 
-# ==================== RECURRING EDIT CALLBACKS ====================
+        trigger_data = {
+            "action": "delete",
+            "timestamp": datetime.now().isoformat(),
+            "source": "transactions",
+            "transaction_id": transaction_id,
+        }
 
-
-@callback(
-    Output("recurring-edit-scope-modal", "is_open", allow_duplicate=True),
-    Input("recurring-edit-cancel", "n_clicks"),
-    prevent_initial_call=True,
-)
-def cancel_recurring_edit_scope(n_clicks):
-    """Закрывает модал выбора scope редактирования."""
-    if not n_clicks:
-        raise PreventUpdate
-    return False
+        return _build_transactions_table(transactions), trigger_data
 
 
 @callback(
-    [
-        Output("edit-modal", "is_open", allow_duplicate=True),
-        Output("edit-transaction-id", "data", allow_duplicate=True),
-        Output("edit-amount-input", "value", allow_duplicate=True),
-        Output("edit-type-select", "value", allow_duplicate=True),
-        Output("edit-date-picker", "date", allow_duplicate=True),
-        Output("edit-description-input", "value", allow_duplicate=True),
-        Output("recurring-edit-scope-modal", "is_open", allow_duplicate=True),
-        Output("edit-skip-instance", "style"),
-        Output("recurring-edit-context", "data", allow_duplicate=True),
-    ],
-    Input("recurring-edit-continue", "n_clicks"),
-    [
-        State("recurring-edit-scope", "value"),
-        State("recurring-edit-context", "data"),
-    ],
+    Output("transactions-table", "children", allow_duplicate=True),
+    Input("global-transaction-trigger", "data"),
+    State("url", "pathname"),
     prevent_initial_call=True,
 )
-def process_recurring_edit_scope(n_clicks, scope, context):
-    """Обрабатывает выбор scope редактирования recurring операции.
+def refresh_table_after_crud(trigger, pathname):
+    """Обновляет таблицу после CRUD операции из другой страницы.
+
+    Срабатывает когда:
+    - Транзакция создана/обновлена из календаря
+    - И пользователь на странице /transactions
 
     Args:
-        n_clicks: Количество кликов на кнопку "Продолжить"
-        scope: Выбранный scope ("instance" или "all")
-        context: Контекст редактирования (transaction_id, template_id, etc.)
+        trigger: Данные триггера с action, timestamp, source
+        pathname: Текущий URL
 
     Returns:
-        Tuple с данными для открытия edit modal
+        Обновленная таблица транзакций
     """
-    if not n_clicks or not context:
+    if not trigger:
         raise PreventUpdate
 
-    transaction_id = context.get("transaction_id")
-    template_id = context.get("template_id")
-    instance_date = context.get("instance_date")
+    # Обновляем только если мы на странице транзакций
+    if pathname != "/transactions":
+        raise PreventUpdate
+
+    # Не обновляем если источник — сама страница transactions
+    # (уже обновлено через прямой Output)
+    source = trigger.get("source")
+    if source == "transactions":
+        raise PreventUpdate
 
     with get_db_session() as session:
         service = TransactionService(session)
+        transactions = service.get_all_by_user(user_id=1)
 
-        if scope == "all":
-            # Редактируем шаблон (всю серию)
-            tx = service.get_by_id(template_id)
-            logger.debug(f"Редактирование шаблона recurring {template_id}")
-            skip_button_style = {"display": "none"}
-            updated_context = None  # Не нужен контекст для шаблона
-        else:
-            # scope == "instance" — редактируем конкретный экземпляр
-            tx = service.get_by_id(transaction_id)
-            logger.debug(f"Редактирование экземпляра recurring {transaction_id}")
-            skip_button_style = {"display": "inline-block"}
-            # Сохраняем контекст для кнопки "Пропустить"
-            updated_context = {
-                "template_id": template_id,
-                "instance_date": instance_date,
-                "scope": scope,
-            }
-
-        if not tx:
-            raise PreventUpdate
-
-        return (
-            True,  # Открыть edit modal
-            tx.id,
-            float(tx.amount),
-            tx.transaction_type.name,
-            tx.transaction_date.isoformat(),
-            tx.description or "",
-            False,  # Закрыть scope modal
-            skip_button_style,
-            updated_context,
-        )
-
-
-@callback(
-    [
-        Output("edit-modal", "is_open", allow_duplicate=True),
-        Output("transactions-table", "children", allow_duplicate=True),
-    ],
-    Input("edit-skip-instance", "n_clicks"),
-    State("recurring-edit-context", "data"),
-    prevent_initial_call=True,
-)
-def skip_recurring_instance(n_clicks, context):
-    """Пропускает экземпляр recurring операции.
-
-    Создает exception с is_skipped=True для указанной даты.
-    """
-    if not n_clicks or not context:
-        raise PreventUpdate
-
-    template_id = context.get("template_id")
-    instance_date_str = context.get("instance_date")
-
-    if not template_id or not instance_date_str:
-        raise PreventUpdate
-
-    instance_date = date.fromisoformat(instance_date_str)
-
-    with get_db_session() as session:
-        recurring_service = RecurringService(session)
-        transaction_service = TransactionService(session)
-
-        # Пропускаем экземпляр через RecurringService
-        recurring_service.skip_instance(template_id, instance_date)
-        session.commit()
-
-        logger.info(
-            f"Пропущен экземпляр recurring {template_id} на дату {instance_date}"
-        )
-
-        # Обновляем таблицу транзакций
-        transactions = transaction_service.get_all_by_user(user_id=1)
-        return False, _build_transactions_table(transactions)
+        logger.debug(f"Таблица транзакций обновлена после CRUD из {source}")
+        return _build_transactions_table(transactions)

@@ -684,3 +684,79 @@ def update_period_state(period_value: str):
         raise PreventUpdate
 
     return {"period": period_value}
+
+
+@callback(
+    [
+        Output("dashboard-overview-cards", "children", allow_duplicate=True),
+        Output("dashboard-cashflow-chart", "children", allow_duplicate=True),
+        Output("dashboard-statistics-card", "children", allow_duplicate=True),
+        Output("dashboard-recent-transactions", "children", allow_duplicate=True),
+    ],
+    Input("global-transaction-trigger", "data"),
+    [State("dashboard-period", "data"), State("url", "pathname")],
+    prevent_initial_call=True,
+)
+def refresh_dashboard_after_crud(
+    trigger: dict | None,
+    period_state: dict | None,
+    pathname: str,
+):
+    """Обновляет дашборд после CRUD операции с транзакцией.
+
+    Слушает global-transaction-trigger из transaction_modals.py.
+
+    Args:
+        trigger: Данные триггера {action, timestamp, source, transaction_id}
+        period_state: Текущий период
+        pathname: Текущий URL
+
+    Returns:
+        Tuple из 4 элементов UI: cards, chart, stats, transactions
+    """
+    # Guard #1: проверяем наличие триггера
+    if not trigger:
+        raise PreventUpdate
+
+    # Guard #2: обновляем только если мы на странице dashboard
+    if pathname not in ["/", "/dashboard"]:
+        raise PreventUpdate
+
+    # Определяем период
+    if period_state:
+        period = period_state.get("period", "month")
+    else:
+        period = "month"
+
+    try:
+        with get_db_session() as session:
+            service = DashboardService(session)
+
+            # Загружаем все данные
+            metrics = service.get_overview_metrics(
+                user_id=DEFAULT_USER_ID,
+                period=period,
+            )
+            cashflow_data = service.get_cashflow_data(
+                user_id=DEFAULT_USER_ID,
+                period=period,
+            )
+            recent_transactions = service.get_recent_transactions(
+                user_id=DEFAULT_USER_ID,
+                limit=5,
+            )
+
+        # Строим UI компоненты
+        cards = build_overview_cards(metrics, period)
+        chart = build_cashflow_chart(cashflow_data, period)
+        stats = build_statistics_card(metrics, period)
+        transactions = build_recent_transactions_card(recent_transactions, period)
+
+        source = trigger.get("source", "unknown")
+        action = trigger.get("action", "unknown")
+        logger.debug(f"Dashboard обновлен после {action} из {source}")
+        return cards, chart, stats, transactions
+
+    except Exception as e:
+        logger.error(f"Ошибка обновления дашборда после CRUD: {e}")
+        raise PreventUpdate

@@ -6,6 +6,28 @@ from decimal import Decimal
 from loguru import logger
 
 
+# Маппинг Bootstrap Icons на эмодзи для dropdown категорий
+# Используется в transaction_modals.py и других компонентах
+ICON_TO_EMOJI: dict[str, str] = {
+    "bi-arrow-repeat": "🔄",
+    "bi-cart": "🛒",
+    "bi-car-front": "🚗",
+    "bi-house": "🏠",
+    "bi-phone": "📱",
+    "bi-heart-pulse": "💊",
+    "bi-bag": "👜",
+    "bi-controller": "🎮",
+    "bi-book": "📚",
+    "bi-gift": "🎁",
+    "bi-three-dots": "⋯",
+    "bi-cash": "💵",
+    "bi-briefcase": "💼",
+    "bi-graph-up": "📈",
+    "bi-piggy-bank": "🐷",
+    "bi-tag": "🏷️",
+}
+
+
 def format_amount(amount: Decimal) -> str:
     """Форматирует сумму для отображения.
 

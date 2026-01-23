@@ -718,6 +718,7 @@ def load_and_navigate_calendar(
     [
         Output("create-modal", "is_open", allow_duplicate=True),
         Output("create-date-picker", "date", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
     ],
     Input({"type": "calendar-day", "date": ALL}, "n_clicks"),
     prevent_initial_call=True,
@@ -729,7 +730,7 @@ def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
         n_clicks_list: Список кликов по ячейкам дней
 
     Returns:
-        tuple: (is_open, selected_date)
+        tuple: (is_open, selected_date, modal_source)
     """
     triggered_id = ctx.triggered_id
 
@@ -745,13 +746,29 @@ def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
     if not ctx.triggered or ctx.triggered[0].get("value") is None:
         raise PreventUpdate
 
+    # Guard #4: находим индекс нажатой кнопки и проверяем её n_clicks
+    # При первичном рендере или автовызове n_clicks будет None или 0
+    clicked_idx = None
+    for idx, item in enumerate(ctx.inputs_list[0]):
+        if item.get("id") == triggered_id:
+            clicked_idx = idx
+            break
+
+    if clicked_idx is None:
+        raise PreventUpdate
+
+    # Проверяем что это реальный клик (not None and not 0)
+    n_clicks = n_clicks_list[clicked_idx]
+    if n_clicks is None or n_clicks == 0:
+        raise PreventUpdate
+
     # Извлекаем дату
     selected_date = triggered_id.get("date")
     if not selected_date:
         raise PreventUpdate
 
     logger.debug(f"Открыт модал создания из календаря: {selected_date}")
-    return True, selected_date
+    return True, selected_date, "calendar"
 
 
 @callback(
@@ -760,49 +777,33 @@ def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
         Output("calendar-stats", "children", allow_duplicate=True),
         Output("calendar-state", "data", allow_duplicate=True),
     ],
-    [
-        Input("create-submit-btn", "n_clicks"),
-        Input("edit-submit-btn", "n_clicks"),
-        Input({"type": "delete-btn", "index": ALL}, "n_clicks"),
-    ],
-    [State("calendar-state", "data")],
+    [Input("global-transaction-trigger", "data")],
+    [State("calendar-state", "data"), State("url", "pathname")],
     prevent_initial_call=True,
 )
 def refresh_calendar_after_transaction(
-    create_clicks: int | None,
-    edit_clicks: int | None,
-    delete_clicks_list: list[int | None],
+    trigger: dict | None,
     state: dict,
+    pathname: str,
 ):
-    """Обновляет календарь после создания/изменения/удаления операции.
+    """Обновляет календарь после CRUD операции с транзакцией.
+
+    Слушает global-transaction-trigger из transaction_modals.py.
 
     Args:
-        create_clicks: Клики на кнопку создания
-        edit_clicks: Клики на кнопку редактирования
-        delete_clicks_list: Список кликов на кнопки удаления
+        trigger: Данные триггера {action, timestamp, source, transaction_id}
         state: Текущее состояние календаря
+        pathname: Текущий URL
 
     Returns:
         tuple: (grid, stats, updated_state)
     """
-    triggered_id = ctx.triggered_id
-
-    # Guard #1
-    if not triggered_id:
+    # Guard #1: проверяем наличие триггера
+    if not trigger:
         raise PreventUpdate
 
-    # Guard #2: проверка реального действия
-    if not ctx.triggered or ctx.triggered[0].get("value") is None:
-        raise PreventUpdate
-
-    # Проверяем что это действительно CRUD операция
-    is_create = triggered_id == "create-submit-btn" and create_clicks
-    is_edit = triggered_id == "edit-submit-btn" and edit_clicks
-    is_delete = (
-        isinstance(triggered_id, dict) and triggered_id.get("type") == "delete-btn"
-    )
-
-    if not (is_create or is_edit or is_delete):
+    # Guard #2: обновляем только если мы на странице календаря
+    if pathname != "/calendar":
         raise PreventUpdate
 
     # Получаем текущий месяц из state
@@ -852,7 +853,9 @@ def refresh_calendar_after_transaction(
             "balances": serialize_balances(balances),
         }
 
-        logger.debug(f"Календарь обновлен после CRUD операции: {triggered_id}")
+        source = trigger.get("source", "unknown")
+        action = trigger.get("action", "unknown")
+        logger.debug(f"Календарь обновлен после {action} из {source}")
         return grid, stats, new_state
 
     except Exception as e:
@@ -896,20 +899,26 @@ def toggle_reconciliation_modal(
     Returns:
         tuple: (is_open, expected_balance, actual_value, preview, message)
     """
-    # Guard: проверка реального клика
-    if ctx.triggered[0].get("value") is None:
-        raise PreventUpdate
-
     triggered_id = ctx.triggered_id
 
-    # Закрытие по кнопке "Отмена"
+    # Закрытие по кнопке "Отмена" — требуем реальный клик
     if triggered_id == "cancel-reconciliation-btn":
+        if cancel_clicks is None or cancel_clicks == 0:
+            raise PreventUpdate
         return False, "", None, "", ""
 
-    # Открытие модала или изменение даты
-    if (
-        triggered_id == "open-reconciliation-btn"
-        or triggered_id == "reconciliation-date"
+    # Открытие модала по кнопке — требуем реальный клик
+    if triggered_id == "open-reconciliation-btn":
+        if open_clicks is None or open_clicks == 0:
+            raise PreventUpdate
+
+    # Изменение даты — только если модал УЖЕ открыт
+    if triggered_id == "reconciliation-date" and not is_open:
+        raise PreventUpdate
+
+    # Открытие модала или изменение даты при открытом модале
+    if triggered_id == "open-reconciliation-btn" or (
+        triggered_id == "reconciliation-date" and is_open
     ):
         target_date = (
             date.fromisoformat(selected_date) if selected_date else date.today()

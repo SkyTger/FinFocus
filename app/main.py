@@ -14,6 +14,7 @@ from app.components.transactions import (
 )  # Сначала transactions
 from app.components.calendar import create_calendar_layout  # Потом calendar
 from app.components.goals import create_goals_layout  # Потом goals
+from app.components.transaction_modals import create_transaction_modals
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -53,6 +54,15 @@ app.layout = dbc.Container(
                     [
                         # Заголовок страницы
                         html.Div(id="page-header", className="mb-4"),
+                        # Глобальный Alert для ошибок транзакций
+                        dbc.Alert(
+                            id="transaction-error-alert",
+                            is_open=False,
+                            color="danger",
+                            dismissable=True,
+                            duration=5000,
+                            className="mb-3",
+                        ),
                         # Контент страницы
                         html.Div(id="page-content"),
                     ],
@@ -62,6 +72,8 @@ app.layout = dbc.Container(
             ],
             className="g-0",
         ),  # Убираем отступы между колонками
+        # Глобальные модалы транзакций (доступны на всех страницах)
+        create_transaction_modals(),
     ],
     fluid=True,
     className="p-0",
