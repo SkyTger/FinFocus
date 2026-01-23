@@ -1,7 +1,7 @@
-- **Current Step**: 6
+- **Current Step**: 7
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 5 завершен: CalendarService обновлен для ADJUSTMENT и category fields, 10 тестов."
-- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-transaction-service.md`)."
+- **Last Action Summary**: "Шаг 6 завершен: TransactionService обновлен (category_id, ADJUSTMENT валидация), 14 тестов."
+- **Next Action**: "Приступить к выполнению Шага 7 (см. `07-recurring-service.md`)."
 - **Git**: "Ветка 0009-categories-reconciliation, commit pending."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/9"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"

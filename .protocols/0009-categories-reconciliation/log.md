@@ -78,6 +78,7 @@
 
 ## Шаг 4: ReconciliationService (2026-01-23) ✅
 
+- **Commit**: 4ca7e03
 - **Действия**:
   1. Создан app/services/reconciliation_service.py с методами:
      - get_expected_balance() — получение расчетного баланса
@@ -93,6 +94,7 @@
 
 ## Шаг 5: CalendarService (2026-01-23) ✅
 
+- **Commit**: 5fed701
 - **Действия**:
   1. Расширен TransactionInfo TypedDict:
      - Добавлены поля category_id и category_name
@@ -112,6 +114,29 @@
   7. Написаны unit тесты (10 новых):
      - TestCalendarServiceAdjustment: 5 тестов
      - TestCalendarServiceCategoryFields: 5 тестов
+
+- **Тесты**: Базовая проверка синтаксиса пройдена
+- **Quality**: Синтаксис ✅
+
+---
+
+## Шаг 6: TransactionService (2026-01-23) ✅
+
+- **Действия**:
+  1. Обновлен create_transaction():
+     - Заменен параметр category (str) на category_id (int)
+     - Добавлена валидация: ADJUSTMENT + is_recurring = ValidationError
+     - Обновлен docstring с новым типом операции
+  2. Обновлен update_transaction():
+     - Заменен параметр category на category_id
+     - Добавлены параметры is_recurring, recurring_period, recurring_end_date
+     - Добавлена валидация ADJUSTMENT + recurring при обновлении
+  3. Создан tests/test_transaction_service.py (14 тестов):
+     - TestTransactionServiceCreate: 2 теста
+     - TestTransactionServiceCategoryId: 3 теста
+     - TestTransactionServiceAdjustmentValidation: 4 теста
+     - TestTransactionServiceUpdate: 2 теста
+     - TestTransactionServiceDelete: 2 теста
 
 - **Тесты**: Базовая проверка синтаксиса пройдена
 - **Quality**: Синтаксис ✅
