@@ -56,6 +56,7 @@
 
 ## Шаг 3: CategoryService (2026-01-23) ✅
 
+- **Commit**: 79b0604
 - **Действия**:
   1. Создан app/services/category_service.py с методами:
      - get_all(), get_by_id(), get_by_type()
@@ -67,6 +68,21 @@
   4. Создан tests/test_category_service.py (15 тестов)
 
 - **Тесты**: 171 passed (включая 15 новых)
+- **Quality**: flake8 ✅
+
+---
+
+## Шаг 4: ReconciliationService (2026-01-23) ✅
+
+- **Действия**:
+  1. Создан app/services/reconciliation_service.py с методами:
+     - get_expected_balance() — получение расчетного баланса
+     - calculate_preview() — предпросмотр для UI модала
+     - create_adjustment() — создание корректировки (ADJUSTMENT)
+  2. Обновлен app/services/__init__.py — добавлен экспорт
+  3. Создан tests/test_reconciliation_service.py (11 тестов)
+
+- **Тесты**: 182 passed (включая 11 новых)
 - **Quality**: flake8 ✅
 
 ---

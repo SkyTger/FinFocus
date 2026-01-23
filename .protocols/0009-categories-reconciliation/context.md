@@ -1,7 +1,7 @@
-- **Current Step**: 4
+- **Current Step**: 5
 - **Status**: In Progress
-- **Last Action Summary**: "Шаг 3 завершен: CategoryService создан с 6 методами, 15 тестов."
-- **Next Action**: "Приступить к выполнению Шага 4 (см. `04-reconciliation-service.md`)."
+- **Last Action Summary**: "Шаг 4 завершен: ReconciliationService создан с 3 методами, 11 тестов."
+- **Next Action**: "Приступить к выполнению Шага 5 (см. `05-calendar-service.md`)."
 - **Git**: "Ветка 0009-categories-reconciliation, commit pending."
 - **PR**: "https://github.com/SkyTger/FinFocus/pull/9"
 - **PROJECT_ROOT**: "/home/skytiger/PycharmProjects/FinFocus"

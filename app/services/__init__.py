@@ -31,6 +31,7 @@ from .recurring_service import (
     RecurringService,
     VirtualTransaction,
 )
+from .reconciliation_service import ReconciliationService
 from .redistribution_service import (
     NFR2_WARNING_THRESHOLD_MS,
     RedistributionService,
@@ -68,6 +69,8 @@ __all__ = [
     "MAX_INSTANCES_PER_CALL",
     "MAX_FORECAST_DAYS",
     "VALID_RECURRING_PERIODS",
+    # Reconciliation
+    "ReconciliationService",
     # Redistribution
     "RedistributionService",
     "NFR2_WARNING_THRESHOLD_MS",
