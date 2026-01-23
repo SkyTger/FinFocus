@@ -342,7 +342,8 @@ class DashboardService:
             limit: Максимальное количество (по умолчанию 5)
 
         Returns:
-            list[RecentTransaction]: последние транзакции с category_name и category_icon
+            list[RecentTransaction]: последние транзакции
+                с category_name и category_icon
 
         Note:
             - Исключает recurring шаблоны (is_recurring=True без parent)

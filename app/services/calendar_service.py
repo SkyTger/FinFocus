@@ -189,7 +189,8 @@ class CalendarService:
                                 Transaction.amount,
                             ),
                             (
-                                Transaction.transaction_type == TransactionType.ADJUSTMENT,
+                                Transaction.transaction_type
+                                == TransactionType.ADJUSTMENT,
                                 Transaction.amount,
                             ),
                             (

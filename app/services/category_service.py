@@ -216,9 +216,7 @@ class CategoryService:
         Returns:
             Системная категория или None.
         """
-        return (
-            self.session.query(Category).filter_by(name=name, is_system=True).first()
-        )
+        return self.session.query(Category).filter_by(name=name, is_system=True).first()
 
     def seed_default_categories(self) -> int:
         """Заполнить таблицу предустановленными категориями.

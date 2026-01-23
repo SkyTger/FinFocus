@@ -199,12 +199,12 @@ class TransactionService:
 
         # Определяем итоговые значения для валидации
         new_type = (
-            transaction_type if transaction_type is not None
+            transaction_type
+            if transaction_type is not None
             else transaction.transaction_type
         )
         new_is_recurring = (
-            is_recurring if is_recurring is not None
-            else transaction.is_recurring
+            is_recurring if is_recurring is not None else transaction.is_recurring
         )
 
         # Валидация: ADJUSTMENT не может быть recurring

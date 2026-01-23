@@ -905,7 +905,9 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
         category_type = (
             "income" if tx.transaction_type == TransactionType.INCOME else "expense"
         )
-        category_options = category_service.get_for_dropdown(category_type=category_type)
+        category_options = category_service.get_for_dropdown(
+            category_type=category_type
+        )
         dropdown_options = [
             {"label": f"{opt['icon']} {opt['label']}", "value": opt["value"]}
             for opt in category_options
@@ -944,7 +946,13 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
     prevent_initial_call=True,
 )
 def update_transaction(
-    n_clicks, transaction_id, amount, transaction_type, category_id, date_str, description
+    n_clicks,
+    transaction_id,
+    amount,
+    transaction_type,
+    category_id,
+    date_str,
+    description,
 ):
     """Обновляет транзакцию через TransactionService."""
     if not n_clicks or not transaction_id:

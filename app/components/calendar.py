@@ -907,7 +907,10 @@ def toggle_reconciliation_modal(
         return False, "", None, "", ""
 
     # Открытие модала или изменение даты
-    if triggered_id == "open-reconciliation-btn" or triggered_id == "reconciliation-date":
+    if (
+        triggered_id == "open-reconciliation-btn"
+        or triggered_id == "reconciliation-date"
+    ):
         target_date = (
             date.fromisoformat(selected_date) if selected_date else date.today()
         )
@@ -1049,9 +1052,7 @@ def apply_reconciliation(
 
             if adjustment is None:
                 return (
-                    dbc.Alert(
-                        "Баланс совпадает, корректировка не нужна", color="info"
-                    ),
+                    dbc.Alert("Баланс совпадает, корректировка не нужна", color="info"),
                     False,
                     no_update,
                 )
