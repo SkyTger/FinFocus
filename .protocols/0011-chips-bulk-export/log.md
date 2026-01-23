@@ -69,7 +69,7 @@
   - try/except ValidationError → error alert
   - Emit trigger, clear selection, return table
 
-### Step 5 — Export + Tests (commit: pending)
+### Step 5 — Export + Tests (commit: 240ca5e)
 - export_transactions callback добавлен:
   - Filename: finfocus_transactions_{YYYY-MM-DD}.csv
   - Учитывает filter-no-category
@@ -78,6 +78,12 @@
   - Все склонения проверены (1,2,5,11,21,100,101,111)
 - Black + Flake8: 0 ошибок
 - Pytest: 13 passed
+
+### Step 6 — Финализация (commit: pending)
+- Black: 65 файлов OK
+- Flake8: 0 ошибок
+- Pytest: 259 passed
+- PR #11 → Ready for Review
 
 <!--
 Формат записи:
