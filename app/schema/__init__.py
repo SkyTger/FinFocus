@@ -1,4 +1,8 @@
 """Централизованные типы данных для FinFocus."""
+from app.schema.analytics import (
+    CategorySummary,
+    MonthlyTrend,
+)
 from app.schema.goals import (
     AllocationResult,
     AllocationSummary,
@@ -13,12 +17,17 @@ from app.schema.categories import (
 )
 
 __all__ = [
+    # Analytics
+    "CategorySummary",
+    "MonthlyTrend",
+    # Goals
     "AllocationResult",
     "AllocationSummary",
     "GoalDisplayData",
     "GoalsSummary",
     "RedistributionEvent",
     "RedistributionPreview",
+    # Categories
     "CategoryOption",
     "ReconciliationPreview",
 ]

@@ -28,6 +28,9 @@
 - **DashboardService** - агрегация метрик, cashflow данные (composition)
 - **AllocationService** - жадный алгоритм распределения бюджета между целями
 - **RedistributionService** - перераспределение бюджета при достижении цели (Temporary Status Pattern)
+- **CategoryService** - справочник категорий, seed, get_frequent_for_type
+- **ReconciliationService** - сверка баланса, создание ADJUSTMENT транзакций
+- **AnalyticsService** - агрегация расходов по категориям, monthly trends, donut/bar charts
 
 **Паттерн**: Service Layer с изолированной бизнес-логикой, session management через flush()
 
@@ -273,6 +276,9 @@ refresh_transactions_table() - updates table
          │  - DashboardService          │
          │  - AllocationService         │
          │  - RedistributionService     │
+         │  - CategoryService           │
+         │  - ReconciliationService     │
+         │  - AnalyticsService          │
          └──────────────┬───────────────┘
                         │
            ┌────────────┼────────────┬─────────────┐
@@ -307,11 +313,22 @@ refresh_transactions_table() - updates table
 - ✅ Три режима накоплений (PR #7)
 - ✅ Перераспределение средств между целями (PR #8)
 
-**Батч 3** (Analytics & UX):
-- Категоризация операций
-- Аналитические графики (trends, структура)
-- Улучшенная навигация и фильтры
-- Export/Import данных
+**~~Батч 3~~ Analytics & UX**: ✅ ЗАВЕРШЕН (100%)
+- ✅ Категоризация операций (PR #9)
+  - Category модель, TransactionType.ADJUSTMENT
+  - CategoryService, ReconciliationService
+  - Сверка баланса через модал
+- ✅ UX улучшения + Аналитика (PR #10)
+  - Chips UI для быстрой категоризации
+  - Bulk actions (multi-select, max 100)
+  - CSV экспорт с UTF-8 BOM
+  - AnalyticsService (donut/bar charts)
+  - Страница /analytics с графиками
+
+**Батч 4** (Advanced Features):
+- Финансовая подушка безопасности
+- Импорт операций из банков
+- Уведомления и напоминания
 
 ---
 

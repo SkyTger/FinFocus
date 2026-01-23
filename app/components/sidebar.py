@@ -60,6 +60,7 @@ def create_sidebar():
         },
         {"label": "Календарь", "icon": "bi-calendar3", "href": "/calendar"},
         {"label": "Операции", "icon": "bi-list-ul", "href": "/transactions"},
+        {"label": "Аналитика", "icon": "bi-bar-chart", "href": "/analytics"},
         {"label": "Цели", "icon": "bi-target", "href": "/goals"},
     ]
 

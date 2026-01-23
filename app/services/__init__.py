@@ -9,7 +9,8 @@ from app.schema.goals import (
 )
 
 from .allocation_service import AllocationService
-from .category_service import CategoryService
+from .analytics_service import AnalyticsService, MIN_PERCENTAGE_THRESHOLD
+from .category_service import CategoryService, MIN_TRANSACTIONS_FOR_FREQUENCY
 from .calendar_service import (
     CalendarService,
     MonthSummary,
@@ -36,15 +37,19 @@ from .redistribution_service import (
     NFR2_WARNING_THRESHOLD_MS,
     RedistributionService,
 )
-from .transaction_service import TransactionService
+from .transaction_service import MAX_BULK_UPDATE_SIZE, TransactionService
 
 __all__ = [
     # Allocation
     "AllocationService",
     "AllocationResult",
     "AllocationSummary",
+    # Analytics
+    "AnalyticsService",
+    "MIN_PERCENTAGE_THRESHOLD",
     # Category
     "CategoryService",
+    "MIN_TRANSACTIONS_FOR_FREQUENCY",
     # Calendar
     "CalendarService",
     "MonthSummary",
@@ -63,6 +68,7 @@ __all__ = [
     "VALID_SAVINGS_MODES",
     # Transactions
     "TransactionService",
+    "MAX_BULK_UPDATE_SIZE",
     # Recurring
     "RecurringService",
     "VirtualTransaction",

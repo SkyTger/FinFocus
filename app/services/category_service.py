@@ -4,10 +4,15 @@
 а также seed предустановленных категорий.
 """
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.models.database import Category
+from app.models.database import Category, Transaction
 from app.schema.categories import CategoryOption
+
+
+# Константы
+MIN_TRANSACTIONS_FOR_FREQUENCY: int = 3  # Fallback если < 3 транзакций с категориями
 
 
 # Предустановленные категории для seed
@@ -237,3 +242,79 @@ class CategoryService:
 
         self.session.flush()
         return added_count
+
+    def get_frequent_for_type(
+        self,
+        user_id: int,
+        category_type: str,
+        limit: int = 6,
+    ) -> list[CategoryOption]:
+        """Получить часто используемые категории пользователя.
+
+        Сортировка по частоте использования (COUNT transactions WHERE user_id=X).
+
+        Args:
+            user_id: ID пользователя.
+            category_type: Тип категории для фильтрации ("income" | "expense").
+            limit: Максимальное количество (default 6 для chips).
+
+        Returns:
+            Список CategoryOption отсортированный по частоте DESC.
+
+        Fallback:
+            Если у пользователя < MIN_TRANSACTIONS_FOR_FREQUENCY транзакций
+            с категориями данного типа, возвращает top-N по sort_order.
+        """
+        # 1. Подсчет транзакций с категориями данного типа у пользователя
+        user_tx_count = (
+            self.session.query(func.count(Transaction.id))
+            .join(Category, Transaction.category_id == Category.id)
+            .filter(
+                Transaction.user_id == user_id,
+                Category.type == category_type,
+            )
+            .scalar()
+        ) or 0
+
+        # 2. Fallback если мало данных
+        if user_tx_count < MIN_TRANSACTIONS_FOR_FREQUENCY:
+            categories = (
+                self.session.query(Category)
+                .filter(Category.type == category_type)
+                .order_by(Category.sort_order)
+                .limit(limit)
+                .all()
+            )
+            return [
+                CategoryOption(
+                    label=cat.name,
+                    value=cat.id,
+                    icon=cat.icon,
+                )
+                for cat in categories
+            ]
+
+        # 3. Основной запрос: категории отсортированные по частоте
+        frequency_query = (
+            self.session.query(
+                Category,
+                func.count(Transaction.id).label("tx_count"),
+            )
+            .join(Transaction, Transaction.category_id == Category.id)
+            .filter(
+                Transaction.user_id == user_id,
+                Category.type == category_type,
+            )
+            .group_by(Category.id)
+            .order_by(func.count(Transaction.id).desc())
+            .limit(limit)
+        )
+
+        return [
+            CategoryOption(
+                label=cat.name,
+                value=cat.id,
+                icon=cat.icon,
+            )
+            for cat, _ in frequency_query.all()
+        ]

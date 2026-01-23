@@ -13,11 +13,19 @@
 **Инициализация**: `TransactionService(session)` - принимает SQLAlchemy session
 
 **CRUD методы**:
-- `create_transaction(user_id, amount, transaction_type, transaction_date, description, category)` - создание
+- `create_transaction(user_id, amount, transaction_type, transaction_date, description, category_id)` - создание
 - `get_by_id(transaction_id)` - получение по ID
 - `get_all_by_user(user_id, transaction_type, start_date, end_date)` - список с фильтрацией
 - `update_transaction(transaction_id, **kwargs)` - обновление
 - `delete_transaction(transaction_id)` - удаление
+
+**Bulk операции** (Протокол 0010):
+- `bulk_update_category(transaction_ids, category_id, user_id)` → `int`
+  - Массовое назначение категории (max 100 транзакций)
+  - Валидация ownership, исключает recurring шаблоны
+- `export_to_csv(user_id, start_date, end_date, category_id, uncategorized_only)` → `bytes`
+  - CSV экспорт с UTF-8 BOM для Excel
+  - Формат: Дата, Тип, Сумма, Описание, Категория
 
 **Валидация**:
 - amount > 0 (положительная сумма)
@@ -498,6 +506,10 @@ with get_db_session() as session:
 - `seed_default_categories()` → `int`
   - Идемпотентный seed 16 предустановленных категорий
   - Возвращает количество добавленных
+- `get_frequent_for_type(user_id, category_type, limit=6)` → `list[CategoryOption]` (Протокол 0010)
+  - Часто используемые категории пользователя для chips UI
+  - SQL агрегация COUNT transactions по category_id
+  - Fallback на sort_order при cold start (< 3 транзакций)
 
 **TypedDict**:
 ```python
@@ -522,7 +534,7 @@ with get_db_session() as session:
     added = service.seed_default_categories()
 ```
 
-**Unit тесты**: 15 тестов в `tests/test_category_service.py`
+**Unit тесты**: 20 тестов в `tests/test_category_service.py` (включая 5 для get_frequent_for_type)
 
 ## ReconciliationService (Протокол 0009 — ЗАВЕРШЕН)
 
@@ -595,6 +607,73 @@ with get_db_session() as session:
 **Протокол 0008**: RedistributionService для перераспределения бюджета при достижении цели
 
 **Протокол 0009**: CategoryService и ReconciliationService для категоризации и сверки баланса
+
+**Протокол 0010**: AnalyticsService для аналитики расходов + bulk_update_category/export_to_csv в TransactionService
+
+## AnalyticsService (Протокол 0010 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/analytics_service.py` (~290 строк)
+
+**Инициализация**: `AnalyticsService(session)` - принимает SQLAlchemy session
+
+**Константы**:
+```python
+MIN_PERCENTAGE_THRESHOLD = 3.0  # Порог для группировки в "Прочее"
+MONTH_LABELS_RU = {1: "Янв", 2: "Фев", ...}  # Русские названия месяцев
+```
+
+**Методы**:
+- `get_expenses_by_category(user_id, start_date, end_date, group_small=True)` → `list[CategorySummary]`
+  - SQL GROUP BY агрегация с LEFT JOIN на Category
+  - Исключает шаблоны recurring (is_recurring=True)
+  - При group_small=True категории < 3% объединяются в "Прочее"
+- `get_monthly_trends(user_id, months=6, reference_date=None)` → `list[MonthlyTrend]`
+  - Тренды расходов за N месяцев для bar chart
+  - Каждый месяц содержит агрегацию по категориям
+- `get_uncategorized_count(user_id)` → `int`
+  - Количество транзакций без категории
+
+**TypedDicts** (app/schema/analytics.py):
+```python
+class CategorySummary(TypedDict):
+    category_id: int | None
+    category_name: str
+    category_icon: str | None
+    total: Decimal
+    percentage: float
+    count: int
+
+class MonthlyTrend(TypedDict):
+    month: str           # "2026-01"
+    month_label: str     # "Янв"
+    categories: list[CategorySummary]
+    total: Decimal
+```
+
+**Пример использования**:
+```python
+from app.services import AnalyticsService
+
+with get_db_session() as session:
+    service = AnalyticsService(session)
+
+    # Структура расходов за январь
+    expenses = service.get_expenses_by_category(
+        user_id=1,
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 1, 31)
+    )
+    # [{"category_name": "Еда", "total": Decimal("18000"), "percentage": 40.0}, ...]
+
+    # Динамика за 6 месяцев
+    trends = service.get_monthly_trends(user_id=1, months=6)
+
+    # Количество некатегоризированных
+    count = service.get_uncategorized_count(user_id=1)
+```
+
+**Unit тесты**: 16 тестов в `tests/test_analytics_service.py`
+- Покрытие: агрегация, группировка мелких категорий, uncategorized, monthly trends
 
 ---
 

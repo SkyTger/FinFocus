@@ -15,6 +15,7 @@ from app.components.transactions import (
 from app.components.calendar import create_calendar_layout  # Потом calendar
 from app.components.goals import create_goals_layout  # Потом goals
 from app.components.transaction_modals import create_transaction_modals
+from app.components.analytics import create_analytics_layout  # Аналитика
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -109,6 +110,12 @@ def display_page(pathname):
         # Страница операций
         return create_transactions_layout(), create_page_header(
             "Операции", "Управление доходами и расходами"
+        )
+
+    elif pathname == "/analytics":
+        # Страница аналитики
+        return create_analytics_layout(), create_page_header(
+            "Аналитика", "Анализ расходов по категориям"
         )
 
     else:
