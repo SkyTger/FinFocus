@@ -22,3 +22,9 @@
 - Тесты: 13 новых для _pluralize_operations (все edge cases)
 - **Результат**: Ready for merge
 
+## Step 3-m fix — TODO for user_id (2026-01-23)
+- Добавлен TODO комментарий в docstring transactions.py
+- "Заменить hardcoded user_id=1 на auth context после Batch 4+"
+- Commit: 69b7b8c в ветке 0011-chips-bulk-export
+- Все 4 замечания critique-v2 теперь учтены
+
