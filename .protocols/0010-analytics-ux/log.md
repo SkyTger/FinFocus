@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-01-23] Шаг 6: Transactions UI — CSV Export
+
+**Действия:**
+- Добавлена кнопка "Экспорт" рядом с "Добавить операцию"
+  - Иконка bi-download, color="outline-secondary"
+  - Обернуты в html.Div с className="d-flex"
+- Добавлен dcc.Download(id="csv-download") компонент
+- Добавлен callback `trigger_export()`:
+  - Input: export-csv-btn n_clicks
+  - State: filter-no-category (учёт фильтра "Без категории")
+  - Вызывает TransactionService().export_to_csv()
+  - Filename: transactions_YYYY-MM-DD.csv
+  - Return: dcc.send_bytes(csv_bytes, filename)
+- Обновлён импорт: datetime добавлен рядом с date
+
+**Результат:**
+- 246 тестов passed (без изменений)
+- Black + Flake8: OK
+- CSV экспорт с UTF-8 BOM для Excel
+
+**Решения:**
+- Упрощённый callback без фильтров дат (на странице их нет)
+- Только filter-no-category учитывается через uncategorized_only
+
+---
+
 ## Restore context: protocol-0010#ctx-5
 
 **Дата:** 2026-01-23

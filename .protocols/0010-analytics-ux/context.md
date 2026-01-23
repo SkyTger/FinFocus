@@ -1,7 +1,7 @@
-- **Current Step**: 6
+- **Current Step**: 7
 - **Status**: Ready to Start
-- **Last Action Summary**: "Шаг 5 завершен: bulk actions UI добавлен, checkboxes, bulk panel, callbacks toggle_checkbox/toggle_select_all/render_bulk_panel/apply_bulk_category/clear_selection."
-- **Next Action**: "Приступить к выполнению Шага 6 (см. `06-ui-export.md`)."
-- **Git**: "Ветка 0010-analytics-ux, ожидается commit [protocol-0010/05]."
+- **Last Action Summary**: "Шаг 6 завершен: CSV export UI — кнопка 'Экспорт', dcc.Download, callback trigger_export с учётом фильтра."
+- **Next Action**: "Приступить к выполнению Шага 7 (см. `07-analytics-page.md`)."
+- **Git**: "Ветка 0010-analytics-ux, ожидается commit [protocol-0010/06]."
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0010-analytics-ux`

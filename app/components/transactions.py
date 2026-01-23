@@ -1,7 +1,7 @@
 """
 Компонент управления финансовыми операциями (транзакциями).
 """
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 
 import dash_bootstrap_components as dbc
@@ -235,14 +235,27 @@ def create_transactions_layout():
                         ],
                         className="flex-grow-1",
                     ),
-                    dbc.Button(
+                    html.Div(
                         [
-                            html.I(className="bi bi-plus-circle me-2"),
-                            "Добавить операцию",
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-plus-circle me-2"),
+                                    "Добавить операцию",
+                                ],
+                                id="add-transaction-btn",
+                                color="success",
+                                className="d-flex align-items-center me-2",
+                            ),
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-download me-1"),
+                                    "Экспорт",
+                                ],
+                                id="export-csv-btn",
+                                color="outline-secondary",
+                            ),
                         ],
-                        id="add-transaction-btn",
-                        color="success",
-                        className="d-flex align-items-center",
+                        className="d-flex",
                     ),
                 ],
                 className="d-flex justify-content-between align-items-center mb-4",
@@ -759,6 +772,8 @@ def create_transactions_layout():
             dcc.Store(id="frequent-categories-store", data=[]),
             # Store для выбранных транзакций (bulk actions)
             dcc.Store(id="selected-transaction-ids", data=[]),
+            # Download компонент для CSV экспорта
+            dcc.Download(id="csv-download"),
         ]
     )
 
@@ -1540,3 +1555,30 @@ def skip_recurring_instance(n_clicks, context):
         # Обновляем таблицу транзакций
         transactions = transaction_service.get_all_by_user(user_id=1)
         return False, _build_transactions_table(transactions)
+
+
+@callback(
+    Output("csv-download", "data"),
+    Input("export-csv-btn", "n_clicks"),
+    State("filter-no-category", "value"),
+    prevent_initial_call=True,
+)
+def trigger_export(n_clicks, filter_no_category):
+    """Генерация и скачивание CSV файла транзакций.
+
+    Экспортирует все транзакции пользователя с учётом фильтра "Без категории".
+    Файл формируется в UTF-8 с BOM для корректного открытия в Excel.
+    """
+    if not n_clicks:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        csv_bytes = TransactionService(session).export_to_csv(
+            user_id=1,
+            uncategorized_only=bool(filter_no_category),
+        )
+
+    # Генерируем имя файла с текущей датой
+    filename = f"transactions_{datetime.now().strftime('%Y-%m-%d')}.csv"
+
+    return dcc.send_bytes(csv_bytes, filename)
