@@ -9,6 +9,7 @@ from app.schema.goals import (
 )
 
 from .allocation_service import AllocationService
+from .analytics_service import AnalyticsService, MIN_PERCENTAGE_THRESHOLD
 from .category_service import CategoryService
 from .calendar_service import (
     CalendarService,
@@ -43,6 +44,9 @@ __all__ = [
     "AllocationService",
     "AllocationResult",
     "AllocationSummary",
+    # Analytics
+    "AnalyticsService",
+    "MIN_PERCENTAGE_THRESHOLD",
     # Category
     "CategoryService",
     # Calendar
