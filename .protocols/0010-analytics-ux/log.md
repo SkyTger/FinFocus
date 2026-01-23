@@ -4,6 +4,37 @@
 
 ---
 
+## [2026-01-23] Шаг 7: Analytics Page
+
+**Действия:**
+- Создан `app/components/analytics.py` (~350 строк):
+  - `create_analytics_layout()` — layout страницы
+  - `_build_donut_chart()` — Plotly donut chart структуры расходов
+  - `_build_bar_chart()` — Plotly bar chart динамики по месяцам
+  - `_build_summary_cards()` — 4 карточки с метриками
+  - Callbacks: update_period_store, update_bar_mode_store, load_analytics_data
+  - Цветовая палитра CATEGORY_COLORS (10 цветов)
+- Обновлён `app/components/__init__.py` — экспорт create_analytics_layout
+- Обновлён `app/components/sidebar.py` — добавлен nav item "Аналитика" (bi-bar-chart)
+- Обновлён `app/main.py` — роутинг /analytics
+- Создан `app/assets/analytics.css` (~50 строк):
+  - Namespace `.analytics-page`
+  - Стили для карточек, графиков
+  - Responsive для mobile
+
+**Результат:**
+- 246 тестов passed (без изменений)
+- Black + Flake8: OK
+- Страница /analytics доступна в навигации
+
+**Решения:**
+- Период влияет на date range для donut chart (month/quarter/year)
+- Bar chart всегда показывает 6 или 12 месяцев в зависимости от периода
+- "Прочее" и "Без категории" отображаются серым цветом (#9E9E9E)
+- global-transaction-trigger для автообновления после CRUD
+
+---
+
 ## [2026-01-23] Шаг 6: Transactions UI — CSV Export
 
 **Действия:**

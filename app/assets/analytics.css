@@ -1,0 +1,49 @@
+/* === Analytics Page Namespace === */
+.analytics-page {
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.analytics-page .card {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.analytics-page .card-header {
+    background-color: #f8f9fa;
+    font-weight: 600;
+}
+
+/* Summary cards */
+.analytics-page .card-body h4 {
+    font-weight: 700;
+    color: #2E7D32;
+}
+
+.analytics-page .card-body h6 {
+    font-size: 0.85rem;
+}
+
+/* Charts container */
+.analytics-page .donut-container,
+.analytics-page .bar-container {
+    min-height: 350px;
+}
+
+/* Period switcher */
+.analytics-page .form-check-inline {
+    margin-right: 1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .analytics-page .row {
+        flex-direction: column;
+    }
+
+    .analytics-page .col-md-3,
+    .analytics-page .col-md-5,
+    .analytics-page .col-md-7 {
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+}
