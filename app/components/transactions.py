@@ -16,15 +16,64 @@ from app.services import TransactionService, RecurringService, CategoryService
 from app.utils.formatters import format_amount, format_date, parse_date_safe
 
 
-def _build_transactions_table(transactions: list) -> list:
+def _build_chips_row(tx_id: int, frequent_categories: list) -> html.Div:
+    """Построение row с chips для быстрого присвоения категории.
+
+    Args:
+        tx_id: ID транзакции
+        frequent_categories: Список CategoryOption (label, value, icon)
+
+    Returns:
+        html.Div с chips кнопками
+    """
+    chips = []
+
+    for cat in frequent_categories[:5]:  # Max 5 chips
+        # Формируем короткое имя (max 10 символов)
+        short_name = cat["label"][:10]
+        icon = cat.get("icon") or ""
+
+        chips.append(
+            dbc.Button(
+                [
+                    html.I(className=f"{icon} me-1") if icon else None,
+                    short_name,
+                ],
+                id={"type": "tx-chip-btn", "index": tx_id, "category": cat["value"]},
+                size="sm",
+                color="outline-secondary",
+                className="tx-chip-btn me-1 mb-1",
+            )
+        )
+
+    # Кнопка "..." для открытия edit modal
+    chips.append(
+        dbc.Button(
+            "...",
+            id={"type": "tx-chip-more", "index": tx_id},
+            size="sm",
+            color="outline-secondary",
+            className="tx-chip-more",
+        )
+    )
+
+    return html.Div(chips, className="tx-chips")
+
+
+def _build_transactions_table(
+    transactions: list, frequent_categories: list | None = None
+) -> list:
     """Формирует HTML таблицу транзакций.
 
     Args:
         transactions: Список объектов Transaction
+        frequent_categories: Список CategoryOption для chips UI (опционально)
 
     Returns:
         list: [thead, tbody] для dbc.Table
     """
+    if frequent_categories is None:
+        frequent_categories = []
     # Заголовок таблицы
     table_header = html.Thead(
         [
@@ -81,15 +130,25 @@ def _build_transactions_table(transactions: list) -> list:
                 title="Повторяющаяся операция",
             )
 
-        # Категория с иконкой
-        category_cell = []
+        # Категория с иконкой или chips
         if tx.category_rel:
-            category_cell = [
-                html.I(className=f"{tx.category_rel.icon} me-1"),
-                tx.category_rel.name,
-            ]
+            # Есть категория — показываем как обычно
+            category_cell = html.Td(
+                [
+                    html.I(className=f"{tx.category_rel.icon} me-1"),
+                    tx.category_rel.name,
+                ]
+            )
+        elif not tx.is_recurring and frequent_categories:
+            # Нет категории + не recurring шаблон + есть frequent_categories
+            # → показываем chips для быстрого присвоения
+            category_cell = html.Td(
+                _build_chips_row(tx.id, frequent_categories),
+                className="tx-chips-cell",
+            )
         else:
-            category_cell = [html.Span("—", className="text-muted")]
+            # Нет категории, нет chips (recurring шаблон или пустой список)
+            category_cell = html.Td(html.Span("—", className="text-muted"))
 
         row = html.Tr(
             [
@@ -98,7 +157,7 @@ def _build_transactions_table(transactions: list) -> list:
                 html.Td(
                     f"{amount_prefix}{format_amount(tx.amount)}", className=amount_class
                 ),
-                html.Td(category_cell),
+                category_cell,
                 html.Td(tx.description or "-", className="text-muted"),
                 html.Td(
                     [
@@ -622,6 +681,8 @@ def create_transactions_layout():
             ),
             # Store для контекста редактирования recurring
             dcc.Store(id="recurring-edit-context", data=None),
+            # Store для частых категорий (chips UI)
+            dcc.Store(id="frequent-categories-store", data=[]),
         ]
     )
 
@@ -630,24 +691,122 @@ def create_transactions_layout():
 
 
 @callback(
-    Output("transactions-table", "children"),
+    [
+        Output("transactions-table", "children"),
+        Output("frequent-categories-store", "data"),
+    ],
     [Input("url", "pathname"), Input("filter-no-category", "value")],
 )
 def load_transactions(pathname, filter_no_category):
-    """Загружает список операций из БД с фильтрацией."""
+    """Загружает список операций и частые категории из БД."""
     if pathname != "/transactions":
         raise PreventUpdate
 
     with get_db_session() as session:
-        service = TransactionService(session)
-        transactions = service.get_all_by_user(user_id=1)
+        tx_service = TransactionService(session)
+        cat_service = CategoryService(session)
+
+        # Загружаем транзакции
+        transactions = tx_service.get_all_by_user(user_id=1)
 
         # Фильтр по отсутствию категории
         if filter_no_category:
             transactions = [tx for tx in transactions if tx.category_id is None]
 
-        logger.debug(f"Загружено {len(transactions)} транзакций")
-        return _build_transactions_table(transactions)
+        # Загружаем частые категории для expense (основной use case)
+        frequent_categories = cat_service.get_frequent_for_type(
+            user_id=1, category_type="expense", limit=6
+        )
+
+        logger.debug(
+            f"Загружено {len(transactions)} транзакций, "
+            f"{len(frequent_categories)} частых категорий"
+        )
+        return (
+            _build_transactions_table(transactions, frequent_categories),
+            frequent_categories,
+        )
+
+
+# ==================== CHIPS CALLBACKS ====================
+
+
+@callback(
+    Output("transactions-table", "children", allow_duplicate=True),
+    Input({"type": "tx-chip-btn", "index": ALL, "category": ALL}, "n_clicks"),
+    State("frequent-categories-store", "data"),
+    State("filter-no-category", "value"),
+    prevent_initial_call=True,
+)
+def apply_chip_category(n_clicks_list, frequent_categories, filter_no_category):
+    """Применение категории при клике на chip."""
+    # Guard: проверка реального клика
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+    if not triggered_id or not isinstance(triggered_id, dict):
+        raise PreventUpdate
+
+    if triggered_id.get("type") != "tx-chip-btn":
+        raise PreventUpdate
+
+    tx_id = triggered_id.get("index")
+    category_id = triggered_id.get("category")
+
+    if not tx_id or not category_id:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = TransactionService(session)
+
+        # Обновляем категорию
+        service.update_transaction(tx_id, category_id=category_id)
+
+        logger.info(
+            f"Категория {category_id} применена к транзакции {tx_id} через chips"
+        )
+
+        # Перезагружаем таблицу
+        transactions = service.get_all_by_user(user_id=1)
+
+        # Применяем фильтр если активен
+        if filter_no_category:
+            transactions = [tx for tx in transactions if tx.category_id is None]
+
+        return _build_transactions_table(transactions, frequent_categories or [])
+
+
+@callback(
+    [
+        Output("edit-modal", "is_open", allow_duplicate=True),
+        Output("edit-transaction-id", "data", allow_duplicate=True),
+    ],
+    Input({"type": "tx-chip-more", "index": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def open_edit_from_chip_more(n_clicks_list):
+    """Открытие edit modal при клике на '...' в chips."""
+    # Guard: проверка реального клика
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+    if not triggered_id or not isinstance(triggered_id, dict):
+        raise PreventUpdate
+
+    if triggered_id.get("type") != "tx-chip-more":
+        raise PreventUpdate
+
+    tx_id = triggered_id.get("index")
+    if not tx_id:
+        raise PreventUpdate
+
+    logger.debug(f"Открытие edit modal для транзакции {tx_id} через chips '...'")
+    return True, tx_id
+
+
+# ==================== CREATE MODAL CALLBACKS ====================
 
 
 @callback(
@@ -733,6 +892,7 @@ def update_create_category_options(transaction_type: str | None):
         State("create-is-recurring", "value"),
         State("create-recurring-period", "value"),
         State("create-recurring-end-date", "value"),
+        State("frequent-categories-store", "data"),
     ],
     prevent_initial_call=True,
 )
@@ -746,6 +906,7 @@ def create_transaction(
     is_recurring,
     recurring_period,
     recurring_end_date,
+    frequent_categories,
 ):
     """Создает новую транзакцию или шаблон recurring через TransactionService."""
     if not n_clicks or not amount:
@@ -796,7 +957,7 @@ def create_transaction(
             # Успех: закрываем модал, очищаем форму, скрываем Alert
             return (
                 False,  # is_open
-                _build_transactions_table(transactions),  # table
+                _build_transactions_table(transactions, frequent_categories or []),
                 None,  # amount
                 "EXPENSE",  # type
                 None,  # category_id
@@ -942,6 +1103,7 @@ def open_edit_modal(edit_clicks_list, cancel_click, is_open):
         State("edit-category-dropdown", "value"),
         State("edit-date-picker", "date"),
         State("edit-description-input", "value"),
+        State("frequent-categories-store", "data"),
     ],
     prevent_initial_call=True,
 )
@@ -953,6 +1115,7 @@ def update_transaction(
     category_id,
     date_str,
     description,
+    frequent_categories,
 ):
     """Обновляет транзакцию через TransactionService."""
     if not n_clicks or not transaction_id:
@@ -976,7 +1139,12 @@ def update_transaction(
             )
             transactions = service.get_all_by_user(user_id=1)
             logger.info(f"Обновлена транзакция {transaction_id}")
-            return False, _build_transactions_table(transactions), "", False
+            return (
+                False,
+                _build_transactions_table(transactions, frequent_categories or []),
+                "",
+                False,
+            )
     except ValidationError as e:
         logger.warning(f"Ошибка валидации при обновлении: {e}")
         return True, no_update, str(e), True
@@ -984,10 +1152,12 @@ def update_transaction(
 
 @callback(
     Output("transactions-table", "children", allow_duplicate=True),
-    [Input({"type": "delete-btn", "index": ALL}, "n_clicks")],
+    Input({"type": "delete-btn", "index": ALL}, "n_clicks"),
+    State("frequent-categories-store", "data"),
+    State("filter-no-category", "value"),
     prevent_initial_call=True,
 )
-def delete_transaction(n_clicks_list):
+def delete_transaction(n_clicks_list, frequent_categories, filter_no_category):
     """Удаляет транзакцию через TransactionService."""
     triggered_id = ctx.triggered_id
 
@@ -1013,8 +1183,13 @@ def delete_transaction(n_clicks_list):
             raise PreventUpdate
 
         transactions = service.get_all_by_user(user_id=1)
+
+        # Применяем фильтр если активен
+        if filter_no_category:
+            transactions = [tx for tx in transactions if tx.category_id is None]
+
         logger.info(f"Удалена транзакция {transaction_id}")
-        return _build_transactions_table(transactions)
+        return _build_transactions_table(transactions, frequent_categories or [])
 
 
 # ==================== RECURRING EDIT CALLBACKS ====================

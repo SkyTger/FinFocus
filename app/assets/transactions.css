@@ -35,3 +35,33 @@
         margin-bottom: 0;
     }
 }
+
+/* === Chips для быстрой категоризации === */
+.tx-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.tx-chip-btn {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    white-space: nowrap;
+}
+
+.tx-chip-btn:hover {
+    background-color: var(--bs-success);
+    border-color: var(--bs-success);
+    color: white;
+}
+
+.tx-chip-more {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.tx-chips-cell {
+    min-width: 200px;
+}

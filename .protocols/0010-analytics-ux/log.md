@@ -4,6 +4,58 @@
 
 ---
 
+## Restore context: protocol-0010#ctx-4
+
+**Дата:** 2026-01-23
+**Статус на момент восстановления:** Шаг 4 частично выполнен (chips UI)
+**Последний коммит:** feat(categories): add get_frequent_for_type for chips UI [protocol-0010/03]
+**Незакоммиченные изменения:** M app/components/transactions.py (171 строка)
+**Диагноз:** Прерывание в середине шага (Сценарий B)
+**Анализ выполненной работы:**
+- ✅ Добавлена функция `_build_chips_row()` для создания chips UI
+- ✅ Модифицирована `_build_transactions_table()` для поддержки frequent_categories
+- ✅ Обновлен callback `load_transactions()` для загрузки частых категорий
+- ✅ Добавлен dcc.Store для frequent-categories-store
+- ❌ НЕ добавлен callback `apply_chip_category()` для клика на chip
+- ❌ НЕ добавлен callback `open_edit_from_chip_more()` для кнопки "..."
+- ✅ CSS файл transactions.css существует (но chips стили не добавлены)
+**Состояние:** Готов продолжить с подзадачи 4 (callbacks для chips)
+
+---
+
+## [2026-01-23] Шаг 4: Transactions UI — Chips
+
+**Действия:**
+- Добавлена функция `_build_chips_row()` для создания chips кнопок (~40 строк)
+- Модифицирована `_build_transactions_table()` для поддержки frequent_categories
+- Добавлен callback `load_transactions()` — загружает frequent categories для expense
+- Добавлен callback `apply_chip_category()` — Pattern-Matching для клика на chip
+  - Guard clause: `ctx.triggered[0].get("value") is None`
+  - Обновляет категорию через TransactionService.update_transaction()
+  - Перезагружает таблицу с учетом фильтра "Без категории"
+- Добавлен callback `open_edit_from_chip_more()` — открытие edit modal при клике на "..."
+- Обновлены callbacks `create_transaction`, `update_transaction`, `delete_transaction`:
+  - Добавлен State("frequent-categories-store", "data")
+  - Передача frequent_categories в _build_transactions_table()
+- Добавлен dcc.Store `frequent-categories-store` для кэширования категорий
+- Добавлены CSS стили в `app/assets/transactions.css`:
+  - `.tx-chips` — flexbox container
+  - `.tx-chip-btn` — стили кнопки с hover эффектом (зеленый)
+  - `.tx-chip-more` — стили кнопки "..."
+  - `.tx-chips-cell` — минимальная ширина ячейки
+
+**Результат:**
+- 246 тестов passed (без изменений)
+- Black + Flake8: OK
+- Chips показываются только для некатегоризированных не-recurring транзакций
+
+**Решения:**
+- Используется State для передачи frequent_categories во все refresh callbacks
+- Chips ограничены 5 категориями + кнопка "..." для полного списка
+- Category type hardcoded как "expense" (основной use case)
+
+---
+
 ## Restore context: protocol-0010#ctx-3
 
 **Дата:** 2026-01-23
