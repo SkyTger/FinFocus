@@ -169,6 +169,53 @@ def _build_quick_add_section(chips: list[QuickAddChipData]) -> html.Div:
     return html.Div(sections, className="qa-chip-section mb-3")
 
 
+def _build_category_more_modal() -> dbc.Modal:
+    """Создает модальное окно с полным списком категорий.
+
+    Содержимое загружается динамически при открытии через callback.
+
+    Returns:
+        dbc.Modal: Модал с табами Расход/Доход
+    """
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(
+                dbc.ModalTitle("Выберите категорию"),
+                close_button=True,
+            ),
+            dbc.ModalBody(
+                dbc.Tabs(
+                    [
+                        dbc.Tab(
+                            html.Div(
+                                id="quick-add-more-expense-grid",
+                                className="qa-more-grid",
+                            ),
+                            label="Расход",
+                            tab_id="expense",
+                        ),
+                        dbc.Tab(
+                            html.Div(
+                                id="quick-add-more-income-grid",
+                                className="qa-more-grid",
+                            ),
+                            label="Доход",
+                            tab_id="income",
+                        ),
+                    ],
+                    id="quick-add-more-tabs",
+                    active_tab="expense",
+                )
+            ),
+        ],
+        id="quick-add-more-modal",
+        is_open=False,
+        centered=True,
+        size="lg",
+        backdrop=True,
+    )
+
+
 def _pluralize_operations(count: int) -> str:
     """Склонение слова 'операция' для счётчика выбранных.
 
@@ -550,11 +597,74 @@ def create_transactions_layout():
             # Модалы теперь в глобальном layout (main.py -> transaction_modals.py)
             # Bulk Actions Panel (sticky bottom, скрыт по умолчанию)
             _build_bulk_panel(),
+            # Quick-add More Modal (полный список категорий)
+            _build_category_more_modal(),
         ]
     )
 
 
 # ==================== CALLBACKS ====================
+
+
+@callback(
+    [
+        Output("quick-add-more-expense-grid", "children"),
+        Output("quick-add-more-income-grid", "children"),
+    ],
+    Input("quick-add-more-modal", "is_open"),
+    prevent_initial_call=True,
+)
+def load_more_modal_categories(is_open: bool):
+    """Загружает категории при открытии модала 'Ещё...'.
+
+    Args:
+        is_open: Состояние модала (открыт/закрыт)
+
+    Returns:
+        tuple: (expense_grid, income_grid) — списки кнопок категорий
+    """
+    if not is_open:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = CategoryService(session)
+
+        # Получаем категории по типам
+        expense_categories = service.get_by_type("expense")
+        income_categories = service.get_by_type("income")
+
+        def build_category_buttons(categories, tx_type: str):
+            """Создает кнопки для списка категорий."""
+            if not categories:
+                return html.P(
+                    "Нет категорий",
+                    className="text-muted text-center py-3",
+                )
+
+            buttons = []
+            for cat in categories:
+                buttons.append(
+                    dbc.Button(
+                        [
+                            html.I(className=f"{cat.icon or 'bi-tag'} me-2"),
+                            cat.name,
+                        ],
+                        id={
+                            "type": "qa-more-category",
+                            "category_id": cat.id,
+                            "tx_type": tx_type,
+                        },
+                        color="outline-secondary",
+                        className="qa-more-category-btn m-1",
+                        n_clicks=0,
+                    )
+                )
+            return html.Div(buttons, className="d-flex flex-wrap")
+
+        return (
+            build_category_buttons(expense_categories, "expense"),
+            build_category_buttons(income_categories, "income"),
+        )
 
 
 @callback(

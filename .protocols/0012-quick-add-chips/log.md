@@ -29,8 +29,14 @@ Restore context: protocol-0012#ctx-1
 - Добавлена функция `_get_quick_add_chips()` — lookup по имени с warning
 - Lookup по имени защищает от ID mismatch между dev/prod окружениями
 
-### Step 02 — UI секция Quick-add (commit: pending)
+### Step 02 — UI секция Quick-add (commit: 76be290)
 - Создана `_build_quick_add_chip()` — Pattern-Matching ID, вертикальный layout
 - Создана `_build_quick_add_section()` — группировка expense/income + кнопки "Ещё"
 - Интегрировано в `create_transactions_layout()` между header и фильтрами
 - Pattern-Matching IDs: `{"type": "qa-chip", ...}`, `{"type": "qa-more-btn", ...}`
+
+### Step 03 — Модал "Ещё..." (commit: pending)
+- Создана `_build_category_more_modal()` — dbc.Modal с Tabs (expense/income)
+- Создан callback `load_more_modal_categories()` — динамическая загрузка при открытии
+- Pattern-Matching ID для кнопок: `{"type": "qa-more-category", ...}`
+- Модал добавлен в layout после bulk panel
