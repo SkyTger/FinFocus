@@ -1,10 +1,8 @@
 """Тесты для Quick-add chips функциональности."""
 
-import pytest
 from unittest.mock import patch, MagicMock
 
 from app.models.database import Category
-from app.services.category_service import CategoryService
 from app.schema import QuickAddChipData
 
 
@@ -32,10 +30,7 @@ class TestGetQuickAddChips:
     def test_returns_empty_list_when_no_categories(self, db_session):
         """Возвращает пустой список если нет категорий в БД."""
         # Импортируем функцию внутри теста для patch
-        from app.components.transactions import (
-            _get_quick_add_chips,
-            DEFAULT_QUICK_ADD_CHIP_NAMES,
-        )
+        from app.components.transactions import _get_quick_add_chips
 
         # Мокаем get_db_session чтобы использовать нашу тестовую сессию
         with patch("app.components.transactions.get_db_session") as mock_session:
@@ -124,7 +119,9 @@ class TestDefaultQuickAddChipNames:
         """5 расходных и 2 доходных категории."""
         from app.components.transactions import DEFAULT_QUICK_ADD_CHIP_NAMES
 
-        expense_count = sum(1 for _, t in DEFAULT_QUICK_ADD_CHIP_NAMES if t == "expense")
+        expense_count = sum(
+            1 for _, t in DEFAULT_QUICK_ADD_CHIP_NAMES if t == "expense"
+        )
         income_count = sum(1 for _, t in DEFAULT_QUICK_ADD_CHIP_NAMES if t == "income")
 
         assert expense_count == 5
