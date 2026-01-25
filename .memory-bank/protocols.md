@@ -8,6 +8,82 @@
 
 ## Завершенные протоколы
 
+### Протокол 0012: Quick-Add Chips (2026-01-25)
+**Статус**: ✅ READY FOR REVIEW (PR #12)
+**Батч**: Epic-04-Advanced Features (Batch 4, Quick-Add Chips)
+**Worktree**: `/worktrees/0012-quick-add-chips`
+
+**Контекст**:
+- После Батча 3 создание операций требует 6 шагов
+- Quick-add chips позволяют сократить процесс до 3-4 шагов
+- Протокол A (hardcoded chips) как фундамент для Протокола B (кастомные шаблоны)
+
+**Реализация** (8 шагов):
+1. **Schema и константы** (commit ffb88d3)
+   - TypedDict QuickAddChipData (category_id, name, icon, type)
+   - DEFAULT_QUICK_ADD_CHIP_NAMES — 7 названий (5 expense + 2 income)
+   - _get_quick_add_chips() — lookup по имени с warning
+
+2. **UI секция Quick-add** (commit 76be290)
+   - _build_quick_add_chip() — вертикальный layout (иконка + название)
+   - _build_quick_add_section() — группировка expense/income + кнопки "Ещё"
+   - Интеграция в transactions layout между header и фильтрами
+
+3. **Модал "Ещё..."** (commit 2fdcaec)
+   - _build_category_more_modal() — dbc.Modal с Tabs
+   - load_more_modal_categories() callback — динамическая загрузка
+   - Pattern-Matching ID: {"type": "qa-more-category", ...}
+
+4. **Preselection механизм** (commit b500451)
+   - dcc.Store: preselected-category, preselected-type
+   - set_preselection_on_modal_open() — применение при открытии
+   - create_transaction обновлен — reset preselection после создания
+
+5. **Callbacks Quick-add** (commit 69f7837)
+   - open_create_from_quick_add() — chip → modal с preselection
+   - open_more_modal() — "Ещё..." → modal категорий
+   - select_from_more_modal() — выбор → закрытие + открытие create
+   - ADR-003 guard clauses во всех 3 callbacks
+
+6. **CSS стили** (commit 0f1b945)
+   - Стили .qa-* (~100 строк)
+   - Вертикальный layout, hover transform, ellipsis
+   - Responsive: horizontal scroll на 768px
+
+7. **Unit тесты** (commit b325864)
+   - test_quick_add_chips.py — 13 тестов
+   - Покрытие: TypedDict, _get_quick_add_chips(), UI функции
+
+8. **Финализация** (commit 55b334c)
+   - Black: 1 файл OK
+   - Flake8: 3 unused imports исправлены
+   - Pytest: 272 passed
+
+**Результат**:
+- +~600 строк в transactions.py/transaction_modals.py
+- +13 unit тестов (272 всего)
+- Сокращение шагов создания операции: 6 → 3-4
+- 7 hardcoded chips готовы к использованию
+
+**Критичные детали**:
+- Lookup по имени защищает от ID mismatch между dev/prod окружениями
+- Preselection Store Pattern — чистая передача состояния между модалами
+- Вертикальный layout чипов экономит горизонтальное пространство
+- Pattern-Matching IDs масштабируются для будущих кастомных чипов
+
+**Следующие шаги** (Протокол B):
+- Кастомизация chips пользователем
+- Частые операции → автоматические шаблоны
+- Редактирование/удаление шаблонов
+
+**Референсы**:
+- План: `.protocols/0012-quick-add-chips/plan.md`
+- Лог: `.protocols/0012-quick-add-chips/log.md`
+- Спецификация: `.reports/epics/epic-04-advanced/spec-quick-add-chips.md`
+- Design doc: `.design/solution-v3.md`
+
+---
+
 ### Протокол 0011: Chips + Bulk + Export UI (2026-01-24)
 **Статус**: ✅ MERGED (commit ac25b5d, PR #11)
 **Батч**: Epic-03-Analytics (Batch 3.2)

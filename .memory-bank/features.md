@@ -219,9 +219,45 @@
 
 ---
 
-## Advanced Features (Батч 4 — планируется)
+### 9. Quick-Add Chips ✅
+**Статус**: Завершен (Протокол 0012, PR #12)
 
-### 9. Финансовая подушка безопасности 🔄
+**Возможности**:
+- 7 hardcoded chips (5 расходов + 2 доходов):
+  - Expense: Продукты, Транспорт, Кафе и рестораны, Развлечения, Здоровье
+  - Income: Зарплата, Подработка
+- Расположение: страница Transactions, между header и фильтрами
+- Клик на chip → модал создания с предвыбранной категорией
+- Модал "Ещё..." для выбора из всех категорий (tabs: расходы/доходы)
+- Preselection Store Pattern — передача category_id и type в модал
+- Сокращение шагов создания операции: 6 → 3-4
+
+**Технические детали**:
+- TypedDict QuickAddChipData (category_id, name, icon, type)
+- DEFAULT_QUICK_ADD_CHIP_NAMES — константа с 7 названиями
+- _get_quick_add_chips() — lookup по имени (защита от ID mismatch)
+- Pattern-Matching IDs: {"type": "qa-chip", ...}, {"type": "qa-more-btn", ...}
+- Preselection Stores: preselected-category, preselected-type
+- ADR-003 guard clauses в 3 callbacks
+- Responsive: horizontal scroll на 768px, уменьшенные размеры на 576px
+
+**Файлы**:
+- `app/schema/quick_add.py` — QuickAddChipData
+- `app/components/transactions.py` — 3 UI функции, 3 callbacks
+- `app/components/transaction_modals.py` — 2 Stores, preselection callback
+- `app/assets/transactions.css` — стили .qa-* (~100 строк)
+- `tests/test_quick_add_chips.py` — 13 unit тестов
+
+**Следующие шаги** (Протокол B):
+- Кастомизация chips пользователем
+- Частые операции → автоматические шаблоны
+- Редактирование/удаление шаблонов
+
+---
+
+## Advanced Features (Батч 4 — в процессе)
+
+### 10. Финансовая подушка безопасности 🔄
 **Статус**: Планируется
 
 **Планируемые возможности**:
@@ -234,7 +270,7 @@
 
 ---
 
-### 10. Импорт операций 🔄
+### 11. Импорт операций 🔄
 **Статус**: Планируется
 
 **Планируемые возможности**:
