@@ -97,3 +97,121 @@
 .tx-bulk-panel .Select {
     display: inline-block;
 }
+
+/* === Quick-add Chips Section === */
+.qa-chip-section {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--bs-light);
+    border-radius: 0.5rem;
+}
+
+.qa-section {
+    margin-bottom: 1rem;
+}
+
+.qa-section:last-child {
+    margin-bottom: 0;
+}
+
+.qa-section-label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--bs-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.qa-chips-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.qa-chip {
+    width: 100px;
+    height: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    transition: transform 0.15s, box-shadow 0.15s;
+    padding: 0.5rem;
+}
+
+.qa-chip:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.qa-chip-icon {
+    font-size: 1.5rem;
+}
+
+.qa-chip-label {
+    font-size: 0.7rem;
+    text-align: center;
+    line-height: 1.2;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.qa-more-btn {
+    width: 80px;
+    height: 80px;
+}
+
+/* Quick-add More Modal */
+.qa-more-grid {
+    min-height: 100px;
+}
+
+.qa-more-category-btn {
+    padding: 0.5rem 1rem;
+    text-align: left;
+    white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .qa-chips-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 0.5rem;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .qa-chip {
+        flex-shrink: 0;
+    }
+
+    .qa-more-btn {
+        flex-shrink: 0;
+    }
+}
+
+@media (max-width: 576px) {
+    .qa-chip {
+        width: 85px;
+        height: 70px;
+    }
+
+    .qa-chip-icon {
+        font-size: 1.25rem;
+    }
+
+    .qa-chip-label {
+        font-size: 0.65rem;
+    }
+
+    .qa-more-btn {
+        width: 70px;
+        height: 70px;
+    }
+}

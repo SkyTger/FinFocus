@@ -19,6 +19,201 @@ from app.core import get_db_session
 from app.models.database import TransactionType
 from app.services import TransactionService, CategoryService
 from app.utils.formatters import format_amount, format_date, ICON_TO_EMOJI
+from app.schema import QuickAddChipData
+
+# Дефолтные категории для Quick-add chips (name, type)
+# Расход: 5 категорий, Доход: 2 категории
+DEFAULT_QUICK_ADD_CHIP_NAMES: list[tuple[str, str]] = [
+    # Расходы
+    ("Еда и продукты", "expense"),
+    ("Транспорт", "expense"),
+    ("Жильё и ЖКХ", "expense"),
+    ("Связь и интернет", "expense"),
+    ("Развлечения", "expense"),
+    # Доходы
+    ("Зарплата", "income"),
+    ("Подработка", "income"),
+]
+
+
+def _get_quick_add_chips() -> list[QuickAddChipData]:
+    """Получить данные для Quick-add chips.
+
+    Lookup категорий выполняется по имени (name) для защиты от ID mismatch
+    между окружениями. Отсутствующие категории логируются как warning.
+
+    Returns:
+        list[QuickAddChipData]: Список chips с данными категорий
+    """
+    chips: list[QuickAddChipData] = []
+
+    with get_db_session() as session:
+        service = CategoryService(session)
+        all_categories = service.get_all()
+
+        # Индекс по имени для быстрого поиска
+        category_by_name = {cat.name: cat for cat in all_categories}
+
+        for name, tx_type in DEFAULT_QUICK_ADD_CHIP_NAMES:
+            category = category_by_name.get(name)
+            if category is None:
+                logger.warning(f"Quick-add chip: категория '{name}' не найдена в БД")
+                continue
+
+            chips.append(
+                QuickAddChipData(
+                    category_id=category.id,
+                    name=category.name,
+                    icon=category.icon or "bi-tag",
+                    type=tx_type,
+                )
+            )
+
+    return chips
+
+
+def _build_quick_add_chip(chip_data: QuickAddChipData) -> dbc.Button:
+    """Создает одну Quick-add chip кнопку.
+
+    Args:
+        chip_data: Данные категории для chip
+
+    Returns:
+        dbc.Button: Кнопка-chip с иконкой и названием
+    """
+    return dbc.Button(
+        [
+            html.I(className=f"{chip_data['icon']} qa-chip-icon"),
+            html.Span(chip_data["name"], className="qa-chip-label"),
+        ],
+        id={
+            "type": "qa-chip",
+            "category_id": chip_data["category_id"],
+            "tx_type": chip_data["type"],
+        },
+        color="light",
+        className="qa-chip",
+        n_clicks=0,
+        title=chip_data["name"],
+    )
+
+
+def _build_quick_add_section(chips: list[QuickAddChipData]) -> html.Div:
+    """Создает секцию Quick-add chips с группировкой по типу.
+
+    Args:
+        chips: Список данных для chips
+
+    Returns:
+        html.Div: Секция с chips, разделенная на Расход/Доход
+    """
+    expense_chips = [c for c in chips if c["type"] == "expense"]
+    income_chips = [c for c in chips if c["type"] == "income"]
+
+    sections = []
+
+    # Секция расходов
+    if expense_chips:
+        sections.append(
+            html.Div(
+                [
+                    html.Span("Расход", className="qa-section-label"),
+                    html.Div(
+                        [_build_quick_add_chip(c) for c in expense_chips]
+                        + [
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-three-dots"),
+                                    html.Span("Ещё", className="qa-chip-label"),
+                                ],
+                                id={"type": "qa-more-btn", "tx_type": "expense"},
+                                color="outline-secondary",
+                                className="qa-chip qa-more-btn",
+                                n_clicks=0,
+                            )
+                        ],
+                        className="qa-chips-row",
+                    ),
+                ],
+                className="qa-section",
+            )
+        )
+
+    # Секция доходов
+    if income_chips:
+        sections.append(
+            html.Div(
+                [
+                    html.Span("Доход", className="qa-section-label"),
+                    html.Div(
+                        [_build_quick_add_chip(c) for c in income_chips]
+                        + [
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-three-dots"),
+                                    html.Span("Ещё", className="qa-chip-label"),
+                                ],
+                                id={"type": "qa-more-btn", "tx_type": "income"},
+                                color="outline-secondary",
+                                className="qa-chip qa-more-btn",
+                                n_clicks=0,
+                            )
+                        ],
+                        className="qa-chips-row",
+                    ),
+                ],
+                className="qa-section",
+            )
+        )
+
+    return html.Div(sections, className="qa-chip-section mb-3")
+
+
+def _build_category_more_modal() -> dbc.Modal:
+    """Создает модальное окно с полным списком категорий.
+
+    Содержимое загружается динамически при открытии через callback.
+
+    Returns:
+        dbc.Modal: Модал с табами Расход/Доход
+    """
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(
+                dbc.ModalTitle("Выберите категорию"),
+                close_button=True,
+            ),
+            dbc.ModalBody(
+                dbc.Tabs(
+                    [
+                        dbc.Tab(
+                            html.Div(
+                                id="quick-add-more-expense-grid",
+                                className="qa-more-grid",
+                            ),
+                            label="Расход",
+                            tab_id="expense",
+                        ),
+                        dbc.Tab(
+                            html.Div(
+                                id="quick-add-more-income-grid",
+                                className="qa-more-grid",
+                            ),
+                            label="Доход",
+                            tab_id="income",
+                        ),
+                    ],
+                    id="quick-add-more-tabs",
+                    active_tab="expense",
+                )
+            ),
+        ],
+        id="quick-add-more-modal",
+        is_open=False,
+        centered=True,
+        size="lg",
+        backdrop=True,
+    )
 
 
 def _pluralize_operations(count: int) -> str:
@@ -360,6 +555,8 @@ def create_transactions_layout():
                 ],
                 className="d-flex justify-content-between align-items-center mb-4",
             ),
+            # Quick-add chips секция
+            _build_quick_add_section(_get_quick_add_chips()),
             # Alert для ошибок валидации находится в main.py (глобальный)
             # Панель фильтров
             dbc.Card(
@@ -400,11 +597,191 @@ def create_transactions_layout():
             # Модалы теперь в глобальном layout (main.py -> transaction_modals.py)
             # Bulk Actions Panel (sticky bottom, скрыт по умолчанию)
             _build_bulk_panel(),
+            # Quick-add More Modal (полный список категорий)
+            _build_category_more_modal(),
         ]
     )
 
 
 # ==================== CALLBACKS ====================
+
+
+@callback(
+    [
+        Output("quick-add-more-expense-grid", "children"),
+        Output("quick-add-more-income-grid", "children"),
+    ],
+    Input("quick-add-more-modal", "is_open"),
+    prevent_initial_call=True,
+)
+def load_more_modal_categories(is_open: bool):
+    """Загружает категории при открытии модала 'Ещё...'.
+
+    Args:
+        is_open: Состояние модала (открыт/закрыт)
+
+    Returns:
+        tuple: (expense_grid, income_grid) — списки кнопок категорий
+    """
+    if not is_open:
+        raise PreventUpdate
+
+    with get_db_session() as session:
+        service = CategoryService(session)
+
+        # Получаем категории по типам
+        expense_categories = service.get_by_type("expense")
+        income_categories = service.get_by_type("income")
+
+        def build_category_buttons(categories, tx_type: str):
+            """Создает кнопки для списка категорий."""
+            if not categories:
+                return html.P(
+                    "Нет категорий",
+                    className="text-muted text-center py-3",
+                )
+
+            buttons = []
+            for cat in categories:
+                buttons.append(
+                    dbc.Button(
+                        [
+                            html.I(className=f"{cat.icon or 'bi-tag'} me-2"),
+                            cat.name,
+                        ],
+                        id={
+                            "type": "qa-more-category",
+                            "category_id": cat.id,
+                            "tx_type": tx_type,
+                        },
+                        color="outline-secondary",
+                        className="qa-more-category-btn m-1",
+                        n_clicks=0,
+                    )
+                )
+            return html.Div(buttons, className="d-flex flex-wrap")
+
+        return (
+            build_category_buttons(expense_categories, "expense"),
+            build_category_buttons(income_categories, "income"),
+        )
+
+
+# ==================== QUICK-ADD CALLBACKS ====================
+
+
+@callback(
+    [
+        Output("create-modal", "is_open"),
+        Output("modal-source", "data"),
+        Output("preselected-category", "data"),
+        Output("preselected-type", "data"),
+    ],
+    Input({"type": "qa-chip", "category_id": ALL, "tx_type": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def open_create_from_quick_add(n_clicks_list):
+    """Открывает модал создания с предвыбранной категорией из Quick-add chip.
+
+    Args:
+        n_clicks_list: Список n_clicks для всех chips
+
+    Returns:
+        tuple: (is_open, modal_source, category_id, tx_type)
+    """
+    # Guard #1: No triggered_id
+    if not ctx.triggered_id:
+        raise PreventUpdate
+    # Guard #2: Not a dict
+    if not isinstance(ctx.triggered_id, dict):
+        raise PreventUpdate
+    # Guard #3: Wrong type
+    if ctx.triggered_id.get("type") != "qa-chip":
+        raise PreventUpdate
+    # Guard #4: No actual click (DOM update trigger)
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    category_id = ctx.triggered_id["category_id"]
+    tx_type = ctx.triggered_id["tx_type"].upper()  # "expense" -> "EXPENSE"
+
+    return True, "quick-add", category_id, tx_type
+
+
+@callback(
+    [
+        Output("quick-add-more-modal", "is_open"),
+        Output("quick-add-more-tabs", "active_tab"),
+    ],
+    Input({"type": "qa-more-btn", "tx_type": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def open_more_modal(n_clicks_list):
+    """Открывает модал 'Ещё...' с активной вкладкой по типу.
+
+    Args:
+        n_clicks_list: Список n_clicks для кнопок "Ещё"
+
+    Returns:
+        tuple: (is_open, active_tab)
+    """
+    # Guard #1
+    if not ctx.triggered_id:
+        raise PreventUpdate
+    # Guard #2
+    if not isinstance(ctx.triggered_id, dict):
+        raise PreventUpdate
+    # Guard #3
+    if ctx.triggered_id.get("type") != "qa-more-btn":
+        raise PreventUpdate
+    # Guard #4
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    tx_type = ctx.triggered_id["tx_type"]  # "expense" или "income"
+    return True, tx_type
+
+
+@callback(
+    [
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
+        Output("preselected-category", "data", allow_duplicate=True),
+        Output("preselected-type", "data", allow_duplicate=True),
+        Output("quick-add-more-modal", "is_open", allow_duplicate=True),
+    ],
+    Input({"type": "qa-more-category", "category_id": ALL, "tx_type": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def select_from_more_modal(n_clicks_list):
+    """Выбирает категорию из модала 'Ещё...' и открывает создание.
+
+    Закрывает модал 'Ещё...' и открывает модал создания с preselection.
+
+    Args:
+        n_clicks_list: Список n_clicks для кнопок категорий
+
+    Returns:
+        tuple: (create_open, modal_source, category_id, tx_type, more_modal_close)
+    """
+    # Guard #1
+    if not ctx.triggered_id:
+        raise PreventUpdate
+    # Guard #2
+    if not isinstance(ctx.triggered_id, dict):
+        raise PreventUpdate
+    # Guard #3
+    if ctx.triggered_id.get("type") != "qa-more-category":
+        raise PreventUpdate
+    # Guard #4
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    category_id = ctx.triggered_id["category_id"]
+    tx_type = ctx.triggered_id["tx_type"].upper()
+
+    # Закрываем "Ещё...", открываем create с preselection
+    return True, "quick-add", category_id, tx_type, False
 
 
 @callback(

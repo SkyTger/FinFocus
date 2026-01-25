@@ -15,6 +15,7 @@ from app.schema.categories import (
     CategoryOption,
     ReconciliationPreview,
 )
+from app.schema.quick_add import QuickAddChipData
 
 __all__ = [
     # Analytics
@@ -30,4 +31,6 @@ __all__ = [
     # Categories
     "CategoryOption",
     "ReconciliationPreview",
+    # Quick-add
+    "QuickAddChipData",
 ]
