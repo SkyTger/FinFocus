@@ -35,8 +35,14 @@ Restore context: protocol-0012#ctx-1
 - Интегрировано в `create_transactions_layout()` между header и фильтрами
 - Pattern-Matching IDs: `{"type": "qa-chip", ...}`, `{"type": "qa-more-btn", ...}`
 
-### Step 03 — Модал "Ещё..." (commit: pending)
+### Step 03 — Модал "Ещё..." (commit: 2fdcaec)
 - Создана `_build_category_more_modal()` — dbc.Modal с Tabs (expense/income)
 - Создан callback `load_more_modal_categories()` — динамическая загрузка при открытии
 - Pattern-Matching ID для кнопок: `{"type": "qa-more-category", ...}`
 - Модал добавлен в layout после bulk panel
+
+### Step 04 — Preselection механизм (commit: pending)
+- Добавлены Store: `preselected-category`, `preselected-type`
+- Создан callback `set_preselection_on_modal_open()` — применяет preselection при открытии
+- Модифицирован `create_transaction` — reset preselection после создания
+- 2 новых Output в create_transaction callback

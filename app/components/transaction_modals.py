@@ -64,6 +64,9 @@ def create_transaction_modals() -> html.Div:
             dcc.Store(id="recurring-edit-context", data=None),
             dcc.Store(id="modal-source", data=None),  # Источник открытия модала
             dcc.Store(id="global-transaction-trigger", data=None),  # CRUD events
+            # Quick-add preselection stores
+            dcc.Store(id="preselected-category", data=None),
+            dcc.Store(id="preselected-type", data=None),
         ],
         id="global-transaction-modals-container",
     )
@@ -518,6 +521,41 @@ def close_edit_modal(n_clicks):
 
 
 @callback(
+    [
+        Output("create-category-dropdown", "value", allow_duplicate=True),
+        Output("create-type-select", "value", allow_duplicate=True),
+    ],
+    Input("create-modal", "is_open"),
+    [
+        State("preselected-category", "data"),
+        State("preselected-type", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def set_preselection_on_modal_open(is_open, preselected_category, preselected_type):
+    """Устанавливает предвыбранные значения при открытии модала создания.
+
+    Применяет preselection из Quick-add chips если они установлены.
+
+    Args:
+        is_open: Состояние модала
+        preselected_category: ID предвыбранной категории или None
+        preselected_type: Предвыбранный тип ("EXPENSE"|"INCOME") или None
+
+    Returns:
+        tuple: (category_value, type_value)
+    """
+    if not is_open:
+        return no_update, no_update
+
+    # Применяем preselection если есть, иначе no_update
+    category_value = preselected_category if preselected_category else no_update
+    type_value = preselected_type if preselected_type else no_update
+
+    return category_value, type_value
+
+
+@callback(
     Output("create-category-dropdown", "options"),
     Input("create-modal", "is_open"),
     Input("create-type-select", "value"),
@@ -594,6 +632,8 @@ def update_edit_category_options(transaction_type: str | None, is_open: bool):
         Output("create-recurring-end-date", "value"),
         Output("transaction-error-alert", "children", allow_duplicate=True),
         Output("transaction-error-alert", "is_open", allow_duplicate=True),
+        Output("preselected-category", "data", allow_duplicate=True),
+        Output("preselected-type", "data", allow_duplicate=True),
     ],
     Input("create-submit-btn", "n_clicks"),
     [
@@ -642,6 +682,8 @@ def create_transaction(
             no_update,
             "Неверный формат даты",
             True,  # Показать Alert
+            no_update,  # preselected-category
+            no_update,  # preselected-type
         )
 
     # Парсинг даты окончания recurring (если указана)
@@ -693,6 +735,8 @@ def create_transaction(
                 None,  # recurring_end_date
                 "",  # alert text
                 False,  # alert is_open
+                None,  # preselected-category reset
+                None,  # preselected-type reset
             )
     except ValidationError as e:
         logger.warning(f"Ошибка валидации при создании: {e}")
@@ -710,6 +754,8 @@ def create_transaction(
             no_update,
             str(e),  # Текст ошибки
             True,  # Показать Alert
+            no_update,  # preselected-category
+            no_update,  # preselected-type
         )
 
 
