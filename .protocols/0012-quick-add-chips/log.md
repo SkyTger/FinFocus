@@ -53,7 +53,12 @@ Restore context: protocol-0012#ctx-1
 - `select_from_more_modal()` — выбор из модала → закрытие + открытие create
 - ADR-003 guard clauses во всех 3 callbacks
 
-### Step 06 — CSS стили (commit: pending)
+### Step 06 — CSS стили (commit: 0f1b945)
 - Добавлены стили `.qa-*` в transactions.css (~100 строк)
 - Chips: vertical layout, hover transform, ellipsis для длинных названий
 - Responsive: horizontal scroll на 768px, уменьшенные размеры на 576px
+
+### Step 07 — Unit тесты (commit: pending)
+- Создан `tests/test_quick_add_chips.py` с 13 тестами
+- Тесты покрывают: TypedDict, _get_quick_add_chips(), константы, UI функции
+- Все 272 теста проекта проходят
