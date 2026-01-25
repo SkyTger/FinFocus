@@ -8,6 +8,8 @@
 
 <!-- Записи вида: Restore context: protocol-0012#ctx-N -->
 
+Restore context: protocol-0012#ctx-1
+
 ---
 
 ## Step Log
@@ -19,3 +21,10 @@
 - Неочевидные решения и почему
 - Проблемы и как решены
 -->
+
+### Step 01 — Schema и константы (commit: pending)
+- Создан `app/schema/quick_add.py` с TypedDict QuickAddChipData
+- Обновлен `app/schema/__init__.py` — экспорт QuickAddChipData
+- Добавлена константа DEFAULT_QUICK_ADD_CHIP_NAMES (5 expense + 2 income)
+- Добавлена функция `_get_quick_add_chips()` — lookup по имени с warning
+- Lookup по имени защищает от ID mismatch между dev/prod окружениями

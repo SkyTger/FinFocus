@@ -19,6 +19,57 @@ from app.core import get_db_session
 from app.models.database import TransactionType
 from app.services import TransactionService, CategoryService
 from app.utils.formatters import format_amount, format_date, ICON_TO_EMOJI
+from app.schema import QuickAddChipData
+
+# Дефолтные категории для Quick-add chips (name, type)
+# Расход: 5 категорий, Доход: 2 категории
+DEFAULT_QUICK_ADD_CHIP_NAMES: list[tuple[str, str]] = [
+    # Расходы
+    ("Еда и продукты", "expense"),
+    ("Транспорт", "expense"),
+    ("Жильё и ЖКХ", "expense"),
+    ("Связь и интернет", "expense"),
+    ("Развлечения", "expense"),
+    # Доходы
+    ("Зарплата", "income"),
+    ("Подработка", "income"),
+]
+
+
+def _get_quick_add_chips() -> list[QuickAddChipData]:
+    """Получить данные для Quick-add chips.
+
+    Lookup категорий выполняется по имени (name) для защиты от ID mismatch
+    между окружениями. Отсутствующие категории логируются как warning.
+
+    Returns:
+        list[QuickAddChipData]: Список chips с данными категорий
+    """
+    chips: list[QuickAddChipData] = []
+
+    with get_db_session() as session:
+        service = CategoryService(session)
+        all_categories = service.get_all()
+
+        # Индекс по имени для быстрого поиска
+        category_by_name = {cat.name: cat for cat in all_categories}
+
+        for name, tx_type in DEFAULT_QUICK_ADD_CHIP_NAMES:
+            category = category_by_name.get(name)
+            if category is None:
+                logger.warning(f"Quick-add chip: категория '{name}' не найдена в БД")
+                continue
+
+            chips.append(
+                QuickAddChipData(
+                    category_id=category.id,
+                    name=category.name,
+                    icon=category.icon or "bi-tag",
+                    type=tx_type,
+                )
+            )
+
+    return chips
 
 
 def _pluralize_operations(count: int) -> str:
