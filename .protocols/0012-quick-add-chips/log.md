@@ -47,8 +47,13 @@ Restore context: protocol-0012#ctx-1
 - Модифицирован `create_transaction` — reset preselection после создания
 - 2 новых Output в create_transaction callback
 
-### Step 05 — Callbacks Quick-add (commit: pending)
+### Step 05 — Callbacks Quick-add (commit: 69f7837)
 - `open_create_from_quick_add()` — клик на chip → открытие модала с preselection
 - `open_more_modal()` — клик на "Ещё..." → открытие модала с активной вкладкой
 - `select_from_more_modal()` — выбор из модала → закрытие + открытие create
 - ADR-003 guard clauses во всех 3 callbacks
+
+### Step 06 — CSS стили (commit: pending)
+- Добавлены стили `.qa-*` в transactions.css (~100 строк)
+- Chips: vertical layout, hover transform, ellipsis для длинных названий
+- Responsive: horizontal scroll на 768px, уменьшенные размеры на 576px
