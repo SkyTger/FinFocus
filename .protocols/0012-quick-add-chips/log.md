@@ -62,3 +62,9 @@ Restore context: protocol-0012#ctx-1
 - Создан `tests/test_quick_add_chips.py` с 13 тестами
 - Тесты покрывают: TypedDict, _get_quick_add_chips(), константы, UI функции
 - Все 272 теста проекта проходят
+
+### Step 08 — Финализация (commit: 55b334c)
+- Black: 1 файл переформатирован
+- Flake8: 3 unused imports исправлены
+- pytest: 272 tests passed
+- PR #12 переведен в Ready for Review
