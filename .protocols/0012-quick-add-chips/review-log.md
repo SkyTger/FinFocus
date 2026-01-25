@@ -37,3 +37,21 @@
 - `git push origin main` — успешно
 - PR #12 закрыт автоматически
 
+## Step 5-m: Memory Bank Update (2026-01-25)
+
+- Делегирован subagent memory-bank-keeper
+- Обновлены:
+  - feature_progress.md — новая запись "Батч 11: Quick-Add Chips" (100 строк)
+  - ROADMAP.md — Батч 4 статус 20% (1/5 фичи)
+  - .memory-bank/features.md — описание Quick-Add Chips
+  - .memory-bank/protocols.md — протокол 0012
+- Коммит: c78c64d
+- Push успешен
+
+## Step 6-m: Cleanup (2026-01-25)
+
+- `git push origin --delete 0012-quick-add-chips` — успешно
+- `git worktree remove .../0012-quick-add-chips` — успешно
+- `git branch -d 0012-quick-add-chips` — успешно
+- Ветка и worktree удалены полностью
+
