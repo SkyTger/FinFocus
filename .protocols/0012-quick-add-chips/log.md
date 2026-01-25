@@ -22,9 +22,15 @@ Restore context: protocol-0012#ctx-1
 - Проблемы и как решены
 -->
 
-### Step 01 — Schema и константы (commit: pending)
+### Step 01 — Schema и константы (commit: ffb88d3)
 - Создан `app/schema/quick_add.py` с TypedDict QuickAddChipData
 - Обновлен `app/schema/__init__.py` — экспорт QuickAddChipData
 - Добавлена константа DEFAULT_QUICK_ADD_CHIP_NAMES (5 expense + 2 income)
 - Добавлена функция `_get_quick_add_chips()` — lookup по имени с warning
 - Lookup по имени защищает от ID mismatch между dev/prod окружениями
+
+### Step 02 — UI секция Quick-add (commit: pending)
+- Создана `_build_quick_add_chip()` — Pattern-Matching ID, вертикальный layout
+- Создана `_build_quick_add_section()` — группировка expense/income + кнопки "Ещё"
+- Интегрировано в `create_transactions_layout()` между header и фильтрами
+- Pattern-Matching IDs: `{"type": "qa-chip", ...}`, `{"type": "qa-more-btn", ...}`

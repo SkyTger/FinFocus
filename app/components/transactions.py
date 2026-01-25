@@ -72,6 +72,103 @@ def _get_quick_add_chips() -> list[QuickAddChipData]:
     return chips
 
 
+def _build_quick_add_chip(chip_data: QuickAddChipData) -> dbc.Button:
+    """Создает одну Quick-add chip кнопку.
+
+    Args:
+        chip_data: Данные категории для chip
+
+    Returns:
+        dbc.Button: Кнопка-chip с иконкой и названием
+    """
+    return dbc.Button(
+        [
+            html.I(className=f"{chip_data['icon']} qa-chip-icon"),
+            html.Span(chip_data["name"], className="qa-chip-label"),
+        ],
+        id={
+            "type": "qa-chip",
+            "category_id": chip_data["category_id"],
+            "tx_type": chip_data["type"],
+        },
+        color="light",
+        className="qa-chip",
+        n_clicks=0,
+        title=chip_data["name"],
+    )
+
+
+def _build_quick_add_section(chips: list[QuickAddChipData]) -> html.Div:
+    """Создает секцию Quick-add chips с группировкой по типу.
+
+    Args:
+        chips: Список данных для chips
+
+    Returns:
+        html.Div: Секция с chips, разделенная на Расход/Доход
+    """
+    expense_chips = [c for c in chips if c["type"] == "expense"]
+    income_chips = [c for c in chips if c["type"] == "income"]
+
+    sections = []
+
+    # Секция расходов
+    if expense_chips:
+        sections.append(
+            html.Div(
+                [
+                    html.Span("Расход", className="qa-section-label"),
+                    html.Div(
+                        [_build_quick_add_chip(c) for c in expense_chips]
+                        + [
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-three-dots"),
+                                    html.Span("Ещё", className="qa-chip-label"),
+                                ],
+                                id={"type": "qa-more-btn", "tx_type": "expense"},
+                                color="outline-secondary",
+                                className="qa-chip qa-more-btn",
+                                n_clicks=0,
+                            )
+                        ],
+                        className="qa-chips-row",
+                    ),
+                ],
+                className="qa-section",
+            )
+        )
+
+    # Секция доходов
+    if income_chips:
+        sections.append(
+            html.Div(
+                [
+                    html.Span("Доход", className="qa-section-label"),
+                    html.Div(
+                        [_build_quick_add_chip(c) for c in income_chips]
+                        + [
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-three-dots"),
+                                    html.Span("Ещё", className="qa-chip-label"),
+                                ],
+                                id={"type": "qa-more-btn", "tx_type": "income"},
+                                color="outline-secondary",
+                                className="qa-chip qa-more-btn",
+                                n_clicks=0,
+                            )
+                        ],
+                        className="qa-chips-row",
+                    ),
+                ],
+                className="qa-section",
+            )
+        )
+
+    return html.Div(sections, className="qa-chip-section mb-3")
+
+
 def _pluralize_operations(count: int) -> str:
     """Склонение слова 'операция' для счётчика выбранных.
 
@@ -411,6 +508,8 @@ def create_transactions_layout():
                 ],
                 className="d-flex justify-content-between align-items-center mb-4",
             ),
+            # Quick-add chips секция
+            _build_quick_add_section(_get_quick_add_chips()),
             # Alert для ошибок валидации находится в main.py (глобальный)
             # Панель фильтров
             dbc.Card(
