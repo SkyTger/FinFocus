@@ -27,7 +27,7 @@ DEFAULT_QUICK_ADD_CHIP_NAMES: list[tuple[str, str]] = [
     # Расходы
     ("Еда и продукты", "expense"),
     ("Транспорт", "expense"),
-    ("Жильё и ЖКХ", "expense"),
+    ("Жилье и ЖКХ", "expense"),
     ("Связь и интернет", "expense"),
     ("Развлечения", "expense"),
     # Доходы
@@ -672,10 +672,12 @@ def load_more_modal_categories(is_open: bool):
 
 @callback(
     [
-        Output("create-modal", "is_open"),
-        Output("modal-source", "data"),
-        Output("preselected-category", "data"),
-        Output("preselected-type", "data"),
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
+        Output("preselected-category", "data", allow_duplicate=True),
+        Output("preselected-type", "data", allow_duplicate=True),
+        Output("create-category-dropdown", "value", allow_duplicate=True),
+        Output("create-type-select", "value", allow_duplicate=True),
     ],
     Input({"type": "qa-chip", "category_id": ALL, "tx_type": ALL}, "n_clicks"),
     prevent_initial_call=True,
@@ -687,7 +689,7 @@ def open_create_from_quick_add(n_clicks_list):
         n_clicks_list: Список n_clicks для всех chips
 
     Returns:
-        tuple: (is_open, modal_source, category_id, tx_type)
+        tuple: (is_open, modal_source, category_id, tx_type, dropdown_value, type_value)
     """
     # Guard #1: No triggered_id
     if not ctx.triggered_id:
@@ -699,13 +701,17 @@ def open_create_from_quick_add(n_clicks_list):
     if ctx.triggered_id.get("type") != "qa-chip":
         raise PreventUpdate
     # Guard #4: No actual click (DOM update trigger)
-    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+    if not ctx.triggered:
+        raise PreventUpdate
+    triggered_value = ctx.triggered[0].get("value")
+    if triggered_value is None or triggered_value == 0:
         raise PreventUpdate
 
     category_id = ctx.triggered_id["category_id"]
     tx_type = ctx.triggered_id["tx_type"].upper()  # "expense" -> "EXPENSE"
 
-    return True, "quick-add", category_id, tx_type
+    # Напрямую устанавливаем dropdown value для избежания race condition
+    return True, "quick-add", category_id, tx_type, category_id, tx_type
 
 
 @callback(
@@ -734,8 +740,11 @@ def open_more_modal(n_clicks_list):
     # Guard #3
     if ctx.triggered_id.get("type") != "qa-more-btn":
         raise PreventUpdate
-    # Guard #4
-    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+    # Guard #4: No actual click (DOM update trigger)
+    if not ctx.triggered:
+        raise PreventUpdate
+    triggered_value = ctx.triggered[0].get("value")
+    if triggered_value is None or triggered_value == 0:
         raise PreventUpdate
 
     tx_type = ctx.triggered_id["tx_type"]  # "expense" или "income"
@@ -749,6 +758,8 @@ def open_more_modal(n_clicks_list):
         Output("preselected-category", "data", allow_duplicate=True),
         Output("preselected-type", "data", allow_duplicate=True),
         Output("quick-add-more-modal", "is_open", allow_duplicate=True),
+        Output("create-category-dropdown", "value", allow_duplicate=True),
+        Output("create-type-select", "value", allow_duplicate=True),
     ],
     Input({"type": "qa-more-category", "category_id": ALL, "tx_type": ALL}, "n_clicks"),
     prevent_initial_call=True,
@@ -762,7 +773,8 @@ def select_from_more_modal(n_clicks_list):
         n_clicks_list: Список n_clicks для кнопок категорий
 
     Returns:
-        tuple: (create_open, modal_source, category_id, tx_type, more_modal_close)
+        tuple: (create_open, modal_source, category_id, tx_type, more_modal_close,
+                dropdown_value, type_value)
     """
     # Guard #1
     if not ctx.triggered_id:
@@ -773,15 +785,19 @@ def select_from_more_modal(n_clicks_list):
     # Guard #3
     if ctx.triggered_id.get("type") != "qa-more-category":
         raise PreventUpdate
-    # Guard #4
-    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+    # Guard #4: No actual click (DOM update trigger)
+    if not ctx.triggered:
+        raise PreventUpdate
+    triggered_value = ctx.triggered[0].get("value")
+    if triggered_value is None or triggered_value == 0:
         raise PreventUpdate
 
     category_id = ctx.triggered_id["category_id"]
     tx_type = ctx.triggered_id["tx_type"].upper()
 
     # Закрываем "Ещё...", открываем create с preselection
-    return True, "quick-add", category_id, tx_type, False
+    # Напрямую устанавливаем dropdown value для избежания race condition
+    return True, "quick-add", category_id, tx_type, False, category_id, tx_type
 
 
 @callback(
@@ -851,20 +867,28 @@ def load_transactions(pathname, filter_no_category, frequent_categories):
 
 @callback(
     [
-        Output("create-modal", "is_open"),
-        Output("modal-source", "data"),
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
+        Output("preselected-category", "data", allow_duplicate=True),
+        Output("preselected-type", "data", allow_duplicate=True),
+        Output("create-category-dropdown", "value", allow_duplicate=True),
+        Output("create-type-select", "value", allow_duplicate=True),
     ],
     Input("add-transaction-btn", "n_clicks"),
     prevent_initial_call=True,
 )
 def open_create_modal_from_transactions(n_clicks):
-    """Открывает модальное окно создания со страницы транзакций."""
+    """Открывает модальное окно создания со страницы транзакций.
+
+    Сбрасывает preselection и форму от Quick-add chips.
+    """
     # Строгая проверка: только реальный клик
     if not n_clicks or n_clicks == 0:
         raise PreventUpdate
     if not ctx.triggered_id or ctx.triggered_id != "add-transaction-btn":
         raise PreventUpdate
-    return True, "transactions"
+    # is_open, modal-source, preselected-category, preselected-type, category-dropdown, type-select
+    return True, "transactions", None, None, None, "EXPENSE"
 
 
 @callback(

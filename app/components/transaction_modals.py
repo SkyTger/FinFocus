@@ -494,15 +494,23 @@ def toggle_recurring_section(is_recurring: bool):
     [
         Output("create-modal", "is_open", allow_duplicate=True),
         Output("modal-source", "data", allow_duplicate=True),
+        Output("preselected-category", "data", allow_duplicate=True),
+        Output("preselected-type", "data", allow_duplicate=True),
+        Output("create-category-dropdown", "value", allow_duplicate=True),
+        Output("create-type-select", "value", allow_duplicate=True),
     ],
     Input("create-cancel-btn", "n_clicks"),
     prevent_initial_call=True,
 )
 def close_create_modal(n_clicks):
-    """Закрывает модал создания при нажатии Отмена."""
+    """Закрывает модал создания при нажатии Отмена.
+
+    Сбрасывает preselection и форму от Quick-add chips.
+    """
     if not n_clicks:
         raise PreventUpdate
-    return False, None
+    # is_open, modal-source, preselected-category, preselected-type, category-dropdown, type-select
+    return False, None, None, None, None, "EXPENSE"
 
 
 @callback(
@@ -529,23 +537,31 @@ def close_edit_modal(n_clicks):
     [
         State("preselected-category", "data"),
         State("preselected-type", "data"),
+        State("modal-source", "data"),
     ],
     prevent_initial_call=True,
 )
-def set_preselection_on_modal_open(is_open, preselected_category, preselected_type):
+def set_preselection_on_modal_open(
+    is_open, preselected_category, preselected_type, modal_source
+):
     """Устанавливает предвыбранные значения при открытии модала создания.
 
-    Применяет preselection из Quick-add chips если они установлены.
+    Применяет preselection из Quick-add chips ТОЛЬКО если источник = "quick-add".
 
     Args:
         is_open: Состояние модала
         preselected_category: ID предвыбранной категории или None
         preselected_type: Предвыбранный тип ("EXPENSE"|"INCOME") или None
+        modal_source: Источник открытия модала
 
     Returns:
         tuple: (category_value, type_value)
     """
     if not is_open:
+        return no_update, no_update
+
+    # Применяем preselection ТОЛЬКО если открыто через Quick-add
+    if modal_source != "quick-add":
         return no_update, no_update
 
     # Применяем preselection если есть, иначе no_update

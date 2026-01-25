@@ -531,7 +531,7 @@ def build_recent_transactions_card(
                             className="fw-semibold",
                         ),
                         html.Div(
-                            tx["category"] or "Uncategorized",
+                            tx["category_name"] or "Без категории",
                             className="small text-muted",
                         ),
                     ]
