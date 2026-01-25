@@ -667,6 +667,123 @@ def load_more_modal_categories(is_open: bool):
         )
 
 
+# ==================== QUICK-ADD CALLBACKS ====================
+
+
+@callback(
+    [
+        Output("create-modal", "is_open"),
+        Output("modal-source", "data"),
+        Output("preselected-category", "data"),
+        Output("preselected-type", "data"),
+    ],
+    Input({"type": "qa-chip", "category_id": ALL, "tx_type": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def open_create_from_quick_add(n_clicks_list):
+    """Открывает модал создания с предвыбранной категорией из Quick-add chip.
+
+    Args:
+        n_clicks_list: Список n_clicks для всех chips
+
+    Returns:
+        tuple: (is_open, modal_source, category_id, tx_type)
+    """
+    # Guard #1: No triggered_id
+    if not ctx.triggered_id:
+        raise PreventUpdate
+    # Guard #2: Not a dict
+    if not isinstance(ctx.triggered_id, dict):
+        raise PreventUpdate
+    # Guard #3: Wrong type
+    if ctx.triggered_id.get("type") != "qa-chip":
+        raise PreventUpdate
+    # Guard #4: No actual click (DOM update trigger)
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    category_id = ctx.triggered_id["category_id"]
+    tx_type = ctx.triggered_id["tx_type"].upper()  # "expense" -> "EXPENSE"
+
+    return True, "quick-add", category_id, tx_type
+
+
+@callback(
+    [
+        Output("quick-add-more-modal", "is_open"),
+        Output("quick-add-more-tabs", "active_tab"),
+    ],
+    Input({"type": "qa-more-btn", "tx_type": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def open_more_modal(n_clicks_list):
+    """Открывает модал 'Ещё...' с активной вкладкой по типу.
+
+    Args:
+        n_clicks_list: Список n_clicks для кнопок "Ещё"
+
+    Returns:
+        tuple: (is_open, active_tab)
+    """
+    # Guard #1
+    if not ctx.triggered_id:
+        raise PreventUpdate
+    # Guard #2
+    if not isinstance(ctx.triggered_id, dict):
+        raise PreventUpdate
+    # Guard #3
+    if ctx.triggered_id.get("type") != "qa-more-btn":
+        raise PreventUpdate
+    # Guard #4
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    tx_type = ctx.triggered_id["tx_type"]  # "expense" или "income"
+    return True, tx_type
+
+
+@callback(
+    [
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
+        Output("preselected-category", "data", allow_duplicate=True),
+        Output("preselected-type", "data", allow_duplicate=True),
+        Output("quick-add-more-modal", "is_open", allow_duplicate=True),
+    ],
+    Input({"type": "qa-more-category", "category_id": ALL, "tx_type": ALL}, "n_clicks"),
+    prevent_initial_call=True,
+)
+def select_from_more_modal(n_clicks_list):
+    """Выбирает категорию из модала 'Ещё...' и открывает создание.
+
+    Закрывает модал 'Ещё...' и открывает модал создания с preselection.
+
+    Args:
+        n_clicks_list: Список n_clicks для кнопок категорий
+
+    Returns:
+        tuple: (create_open, modal_source, category_id, tx_type, more_modal_close)
+    """
+    # Guard #1
+    if not ctx.triggered_id:
+        raise PreventUpdate
+    # Guard #2
+    if not isinstance(ctx.triggered_id, dict):
+        raise PreventUpdate
+    # Guard #3
+    if ctx.triggered_id.get("type") != "qa-more-category":
+        raise PreventUpdate
+    # Guard #4
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    category_id = ctx.triggered_id["category_id"]
+    tx_type = ctx.triggered_id["tx_type"].upper()
+
+    # Закрываем "Ещё...", открываем create с preselection
+    return True, "quick-add", category_id, tx_type, False
+
+
 @callback(
     Output("frequent-categories", "data"),
     Input("url", "pathname"),
