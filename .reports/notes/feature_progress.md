@@ -1,11 +1,102 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Epic-03-Analytics — ✅ ЗАВЕРШЕН
+## 📊 Общий статус проекта: Батч 4 — Quick-Add Chips — ✅ ЗАВЕРШЕН
 
-**Последнее обновление**: 2026/01/23
-**Текущий этап**: Батч 3.2 Analytics & UX — MERGED
-**Прогресс Epic-03**: 100% (2/2 батча)
+**Последнее обновление**: 2026/01/25
+**Текущий этап**: Батч Quick-Add Chips — READY FOR REVIEW
+**Прогресс Epic-04**: 1/4 фичи (Quick-Add Chips complete)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 11: Quick-Add Chips (2026-01-25) — ЗАВЕРШЕН
+
+**Дата**: 2026/01/25
+**Протокол**: 0012-quick-add-chips
+**PR**: https://github.com/SkyTger/FinFocus/pull/12
+**Статус**: ✅ Полностью завершен (Ready for Review)
+
+### 🎯 Цель батча:
+Реализовать Quick-add chips для быстрого создания операций — сокращение процесса ввода с 6 шагов до 3-4 через предвыбранные категории.
+
+### ✅ Выполненные задачи:
+
+1. **Schema и константы** (Шаг 1, commit: ffb88d3)
+   - TypedDict QuickAddChipData в `app/schema/quick_add.py`
+   - DEFAULT_QUICK_ADD_CHIP_NAMES — 7 hardcoded чипов (5 expense + 2 income)
+   - _get_quick_add_chips() — lookup по имени с warning при mismatch
+
+2. **UI секция Quick-add** (Шаг 2, commit: 76be290)
+   - _build_quick_add_chip() — вертикальный layout (иконка + название)
+   - _build_quick_add_section() — группировка expense/income + кнопки "Ещё"
+   - Интеграция в transactions.py между header и фильтрами
+   - Pattern-Matching IDs: {"type": "qa-chip", ...}, {"type": "qa-more-btn", ...}
+
+3. **Модал "Ещё..."** (Шаг 3, commit: 2fdcaec)
+   - _build_category_more_modal() — dbc.Modal с Tabs (expense/income)
+   - load_more_modal_categories() callback — динамическая загрузка при открытии
+   - Pattern-Matching ID: {"type": "qa-more-category", ...}
+
+4. **Preselection механизм** (Шаг 4, commit: b500451)
+   - dcc.Store: preselected-category, preselected-type в transaction_modals.py
+   - set_preselection_on_modal_open() callback — применение при открытии
+   - create_transaction обновлен — reset preselection после создания
+
+5. **Callbacks Quick-add** (Шаг 5, commit: 69f7837)
+   - open_create_from_quick_add() — клик на chip → модал с preselection
+   - open_more_modal() — клик на "Ещё..." → модал категорий
+   - select_from_more_modal() — выбор → закрытие + открытие create
+   - ADR-003 guard clauses во всех 3 callbacks
+
+6. **CSS стили** (Шаг 6, commit: 0f1b945)
+   - Стили .qa-* в transactions.css (~100 строк)
+   - Chips: vertical layout, hover transform, ellipsis
+   - Responsive: horizontal scroll на 768px, уменьшенные размеры на 576px
+
+7. **Unit тесты** (Шаг 7, commit: b325864)
+   - test_quick_add_chips.py — 13 тестов
+   - Покрытие: TypedDict, _get_quick_add_chips(), константы, UI функции
+   - 272 теста проекта проходят
+
+8. **Финализация** (Шаг 8, commit: 55b334c)
+   - Black: 1 файл переформатирован
+   - Flake8: 3 unused imports исправлены
+   - pytest: 272 tests passed
+   - PR #12 Ready for Review
+
+### 📊 Результат:
+- ✅ 272 unit и integration тестов (было 246)
+- ✅ 7 hardcoded quick-add chips (5 расходов + 2 доходов)
+- ✅ Сокращение шагов создания операции: 6 → 3-4
+- ✅ Black + Flake8 OK
+- ✅ PR #12 Ready for Review
+
+### 💡 Ключевые уроки:
+
+1. **Lookup по имени** — защищает от ID mismatch между dev/prod окружениями
+2. **Preselection Store Pattern** — чистая передача состояния между модалами
+3. **Hardcoded список** — достаточен для MVP, кастомизация в следующем этапе (Протокол B: Шаблоны операций)
+4. **Pattern-Matching для chips** — масштабируемо для будущих кастомных чипов
+5. **Вертикальный layout** — иконка над названием экономит горизонтальное пространство
+
+### 🔧 Технические детали:
+
+**Новые файлы:**
+- `app/schema/quick_add.py` — QuickAddChipData TypedDict
+- `tests/test_quick_add_chips.py` — 13 unit тестов
+
+**Модифицированные файлы:**
+- `app/components/transactions.py` — +3 UI функции, +3 callbacks
+- `app/components/transaction_modals.py` — +2 Stores, +1 callback, update create_transaction
+- `app/assets/transactions.css` — +100 строк стилей .qa-*
+- `app/schema/__init__.py` — экспорт QuickAddChipData
+
+### 🚀 Следующие шаги:
+
+**Протокол B: Шаблоны операций** (запланировано):
+- Кастомизация quick-add chips пользователем
+- Частые операции → автоматическое создание шаблонов
+- Редактирование/удаление шаблонов
 
 ---
 
@@ -258,717 +349,25 @@ SQLite БД не имела колонки `users.monthly_savings_budget`, чт�
 
 ---
 
-## ✅ Батч 9: Multiple Goals with Priorities (2026-01-21) - ЗАВЕРШЕН
+## 📦 Архивные батчи
 
-**Дата**: 2026/01/21
-**Протокол**: 0006-multiple-goals
-**PR**: https://github.com/SkyTger/FinFocus/pull/6
-**Статус**: ✅ Полностью завершен
+Старые батчи перемещены в архив для соблюдения Rolling Window Pattern (последние 5 батчей).
 
-### 🎯 Цель батча:
-Реализовать множественные накопительные цели с приоритетами и автоматическим распределением бюджета — вторую фичу Батча 2 (Enhanced Planning).
+**Архив**: `.reports/archive/2026-Q1-batches.md`
 
-### ✅ Выполненные задачи:
-
-1. **Миграция БД и Types модуль** (Шаг 1)
-   - Добавлено поле `User.monthly_savings_budget` (Numeric(10,2), default=0)
-   - Создан модуль `app/types/` с централизованными TypedDicts
-   - AllocationResult, AllocationSummary, GoalDisplayData, GoalsSummary
-   - Миграционный скрипт `migrate_001_savings_budget.py` (idempotent)
-   - 3 unit теста миграции
-
-2. **GoalService расширен** (Шаг 2)
-   - Удалено ограничение D009 (одна активная цель)
-   - Методы управления приоритетами: get_next_priority(), update_priority() (shift-down алгоритм)
-   - Convenience методы: move_priority_up(), move_priority_down()
-   - Методы управления бюджетом: get_savings_budget(), update_savings_budget()
-   - 8 unit тестов приоритетов
-
-3. **AllocationService создан** (Шаг 3)
-   - Жадный алгоритм распределения: цели обрабатываются по priority (1, 2, 3...)
-   - calculate_allocation() — возвращает AllocationSummary с детализацией
-   - Обработка статусов: COMPLETED, PAUSED, zero_contribution → skipped
-   - 7 unit тестов (все сценарии распределения)
-
-4. **Goals UI рефакторинг** (Шаги 4-5)
-   - Список карточек целей вместо одной карточки
-   - Summary section: общий прогресс, статус распределения
-   - Budget alert для ненастроенного бюджета
-   - Priority badges (#1, #2, #3...) и кнопки ↑↓ для изменения
-   - Allocation badges (Полностью/Частично/Не профинансирована/Пропущена)
-   - Модал настройки бюджета накоплений
-   - Pattern-Matching callbacks для приоритетов
-   - Helper функция _recalculate_and_render() для переиспользования логики
-   - dcc.Store для синхронизации состояния (budget, allocation)
-
-5. **Dashboard интеграция** (Шаг 6)
-   - DashboardService.get_overview_metrics() агрегирует savings по всем ACTIVE целям
-   - Условное именование: "Нет целей" | "имя цели" | "N целей"
-   - Dashboard UI обновлен для корректной обработки нового формата
-   - 2 новых unit теста (multiple goals, mixed statuses)
-
-6. **Интеграционные тесты** (Шаг 7)
-   - test_create_multiple_goals_with_auto_priority — E2E создание целей
-   - test_priority_reorder_updates_allocation — E2E изменение приоритетов
-   - test_budget_change_updates_allocation — E2E изменение бюджета
-
-### 📊 Результат:
-- ✅ 98 unit и integration тестов (все проходят)
-- ✅ Coverage: allocation_service 100%, goal_service расширен, dashboard_service обновлен
-- ✅ Протокол 0006 полностью завершен (7 шагов)
-
-### 💡 Ключевые уроки:
-
-1. **Shift-down алгоритм** — эффективен для изменения приоритетов без manual re-numbering
-2. **Жадный алгоритм** — простой и понятный, покрывает 95% use cases для MVP
-3. **TypedDicts модуль** — централизация типов снижает дублирование между services и UI
-4. **Helper функции** — _recalculate_and_render() инкапсулирует сложную логику UI пересчетов
-5. **dcc.Store pattern** — эффективен для синхронизации состояния между callbacks
-6. **Integration тесты** — критичны для проверки E2E сценариев с реальными датами
-
-### 🔧 Технические детали:
-
-**Новые файлы:**
-- `app/types/__init__.py`, `app/types/goals.py` — TypedDicts
-- `app/services/allocation_service.py` — AllocationService
-- `scripts/migrate_001_savings_budget.py` — миграция БД
-- `tests/test_allocation_service.py` — 7 тестов
-- `tests/test_goal_service_priority.py` — 8 тестов
-- `tests/test_migration.py` — 3 теста
-- `tests/test_goals_integration.py` — 3 E2E теста
-
-**Модифицированные файлы:**
-- `app/models/database.py` — +monthly_savings_budget
-- `app/services/goal_service.py` — +6 методов приоритетов/бюджета
-- `app/services/dashboard_service.py` — обновлен get_overview_metrics()
-- `app/components/goals.py` — полный рефакторинг UI (+600 строк)
-- `app/components/dashboard.py` — обновлена проверка savings_name
-- `app/assets/goals.css` — +95 строк новых стилей
-- `tests/test_dashboard_service.py` — +2 теста
+**Архивированные батчи**:
+- Батч 9: Multiple Goals with Priorities (2026-01-21)
+- Батч 8: Recurring Transactions (2026-01-20)
+- Батч 7: Goals UI (2026-01-19)
+- Батч 6: Dashboard Integration (2026-01-19)
+- Батч 5: Кассовый календарь (2026-01-19)
+- Батч 4: Исправление Pattern-Matching Callbacks (2025-12-22)
+- Батч 3: Диагностика регрессии (2025-11-16)
+- Батч 2: Исправление автоудаления операций (2025-11-03)
+- Фаза 1: Database Integration (2025-01-27)
+- Батч 0: Discovery & Foundation (2025-01-27)
 
 ---
 
-## ✅ Батч 8: Recurring Transactions (2026-01-20) - ЗАВЕРШЕН
-
-**Дата**: 2026/01/20
-**Протокол**: 0005-recurring-transactions
-**PR**: https://github.com/SkyTger/FinFocus/pull/5
-**Статус**: ✅ Полностью завершен
-
-### 🎯 Цель батча:
-Реализовать повторяющиеся операции — первую фичу Батча 2 (Enhanced Planning).
-
-### ✅ Выполненные задачи:
-
-1. **Модель Transaction расширена** (app/models/database.py)
-   - recurring_end_date, recurring_parent_id, original_date, is_skipped
-   - UniqueConstraint для exceptions
-   - Property anchor_day с guard clause
-
-2. **RecurringService создан** (app/services/recurring_service.py, ~550 строк)
-   - Anchored-алгоритм генерации дат
-   - CRUD для templates и exceptions
-   - MAX_INSTANCES_PER_CALL = 1000
-
-3. **CalendarService интегрирован** (app/services/calendar_service.py)
-   - Фильтрация шаблонов во всех методах
-   - get_all_transactions_for_period()
-
-4. **UI обновлен** (app/components/)
-   - Форма создания recurring (checkbox, period, end_date)
-   - Визуализация в календаре (иконки recurring, skipped, exception)
-   - Wizard "экземпляр vs серия" при редактировании
-   - Кнопка "Пропустить" экземпляр
-
-### 📊 Результат:
-- ✅ 75 unit тестов (все проходят)
-- ✅ Coverage: recurring_service 89%, calendar_service 99%
-- ✅ ADR-004 создан
-
-### 💡 Ключевые уроки:
-
-1. **Anchored vs Sliding** — пользователи ожидают возврат к исходному дню (31 янв → 28 фев → 31 мар)
-2. **TypedDict > dataclass** — JSON-совместимость критична для dcc.Store
-3. **MAX_INSTANCES защита** — необходима для бессрочных шаблонов
-4. **Фильтрация шаблонов** — во всех balance-запросах нужно исключать templates
-
----
-
-## ✅ Батч 7: Goals UI (2026-01-19) - ЗАВЕРШЕН
-
-**Дата**: 2026/01/19
-**Протокол**: 0004-goals-ui
-**PR**: https://github.com/SkyTger/FinFocus/pull/4
-**Статус**: ✅ Полностью завершен
-
-### 🎯 Цель батча:
-Реализовать UI для управления накопительной целью — Фаза 5 Core MVP.
-
-### ✅ Выполненные задачи:
-
-1. **Utils модуль создан** (app/utils/formatters.py)
-   - format_amount(), format_date(), format_days_remaining(), parse_date_safe()
-   - Обновлены импорты в transactions.py
-
-2. **GoalService расширен** (app/services/goal_service.py)
-   - Добавлен метод get_contributions()
-   - 4 новых unit теста
-
-3. **Goals UI создан** (app/components/goals.py, ~1040 строк)
-   - Empty state, карточка цели, прогресс-бар
-   - Модалы: создание, редактирование, взнос
-   - 10 callbacks: все CRUD операции, смена статуса
-   - dcc.ConfirmDialog для удаления
-
-4. **Стили** (app/assets/goals.css, ~170 строк)
-   - Адаптивность 768px, 576px
-
-### 📊 Результат:
-- ✅ Фаза 5 Epic-01-CoreMVP завершена
-- ✅ Core MVP полностью завершен (100%)
-- ✅ Unit тесты: 37 passed
-- ✅ Quality checks: black + flake8 без ошибок
-
-### 💡 Ключевые уроки:
-
-1. **Simple IDs > Pattern-Matching** — для Goals UI использованы простые ID (без ALL), что упрощает callbacks
-2. **dcc.Store для goal_id** — эффективно хранит ID активной цели между callbacks
-3. **allow_duplicate=True** — необходим для множественных Outputs на один компонент
-4. **Utils модуль** — централизация форматирования снижает дублирование кода
-
----
-
-## ✅ Батч 6: Dashboard Integration (2026-01-19) - ЗАВЕРШЕН
-
-**Дата**: 2026/01/19
-**Протокол**: 0003-dashboard-integration
-**PR**: https://github.com/SkyTger/FinFocus/pull/3
-**Статус**: ✅ Полностью завершен
-
-### 🎯 Цель батча:
-Интегрировать дашборд с реальными данными из SQLite — Фаза 4 Core MVP.
-
-### ✅ Выполненные задачи:
-
-1. **CalendarService расширен** (app/services/calendar_service.py)
-   - `get_balance_on_date()` — баланс на конкретную дату
-   - `get_year_summary()` — агрегация доходов/расходов за год
-   - TypedDict `YearSummary` для типизации
-
-2. **DashboardService создан** (app/services/dashboard_service.py, ~290 строк)
-   - `get_overview_metrics()` — метрики для карточек (balance, income, expense, savings)
-   - `get_cashflow_data()` — данные для графика (12 месяцев или 5 лет)
-   - `get_recent_transactions()` — последние N транзакций
-   - TypedDicts: OverviewMetrics, CashflowDataPoint, RecentTransaction, PeriodType
-
-3. **Dashboard UI переписан** (app/components/dashboard.py, ~685 строк)
-   - dcc.Store для хранения периода (month/year)
-   - RadioItems переключатель периода в графике Cashflow
-   - Callbacks: load_dashboard_data(), update_period_state()
-   - Динамические build-функции вместо hardcoded данных
-   - Guard clauses и graceful error handling (ADR-003)
-
-4. **Unit тесты** (16 новых тестов)
-   - 12 тестов DashboardService (metrics, cashflow, transactions)
-   - 4 теста CalendarService (get_balance_on_date, get_year_summary)
-   - Все 33 теста проекта проходят
-
-### 🔧 Технические изменения:
-
-**Новые файлы:**
-- `app/services/dashboard_service.py` — DashboardService + TypedDicts
-- `tests/test_dashboard_service.py` — 12 unit тестов
-
-**Модифицированные файлы:**
-- `app/services/calendar_service.py` — +2 метода, +YearSummary
-- `app/services/__init__.py` — экспорт новых компонентов
-- `app/components/dashboard.py` — полный рефакторинг
-- `tests/test_calendar_service.py` — +4 теста
-
-### 📊 Результат:
-- ✅ Фаза 4 Epic-01-CoreMVP завершена
-- ✅ Прогресс Epic-01: 80% (16/20 задач)
-- ✅ Unit тесты: 33/33 passed
-- ✅ Quality checks: black + flake8 без ошибок
-
-### 💡 Ключевые уроки:
-
-1. **Composition over Inheritance** — DashboardService использует CalendarService и GoalService
-2. **dcc.Store pattern** — эффективен для хранения состояния периода между callbacks
-3. **Guard clauses** — обязательны для Pattern-Matching callbacks (ADR-003)
-4. **TypedDicts** — улучшают читаемость и типизацию сервисного слоя
-
----
-
-## ✅ Батч 5: Кассовый календарь (2026-01-19) - ЗАВЕРШЕН
-
-**Дата**: 2026/01/19
-**Протокол**: 0002-cash-calendar
-**PR**: https://github.com/SkyTger/FinFocus/pull/2
-**Статус**: ✅ Полностью завершен
-
-### 🎯 Цель батча:
-Реализовать кассовый календарь с расчетом остатков по дням — главную фичу Core MVP (Фаза 3).
-
-### ✅ Выполненные задачи:
-
-1. **CalendarService** (app/services/calendar_service.py, ~310 строк)
-   - `calculate_daily_balances()` — кумулятивный расчет остатков
-   - `get_month_summary()` — агрегация для статистики
-   - `get_transactions_by_date()` — группировка по датам
-   - TRANSFER транзакции исключены из расчетов
-   - 15 unit тестов покрывают все сценарии
-
-2. **Calendar UI** (app/components/calendar.py, ~700 строк)
-   - `serialize_balances()` / `deserialize_balances()` — Decimal ↔ JSON для dcc.Store
-   - Локализация месяцев (MONTH_NAMES_RU, WEEKDAY_NAMES_RU)
-   - Цветовая индикация балансов (positive/negative/warning)
-   - Pattern-Matching IDs для ячеек дней
-
-3. **Callbacks с guard clauses** (ADR-003)
-   - `load_and_navigate_calendar()` — загрузка и навигация ±12 месяцев
-   - `open_create_modal_from_calendar()` — открытие модала при клике на день
-   - `refresh_calendar_after_transaction()` — обновление после CRUD
-   - Все 3 callback применяют проверку `ctx.triggered[0].get('value') is None`
-
-4. **Интеграция с main.py**
-   - Роутинг `/calendar` вызывает `create_calendar_layout()`
-   - Порядок импортов: transactions → calendar (критично для callbacks)
-   - `__all__` в `__init__.py` с полным списком компонентов
-
-5. **Стили** (app/assets/calendar.css, ~190 строк)
-   - Flexbox сетка календаря
-   - Адаптивность (768px, 576px breakpoints)
-   - Подсветка сегодняшнего дня, выходных
-
-### 🔧 Технические изменения:
-
-**Новые файлы:**
-- `app/services/calendar_service.py` — CalendarService + MonthSummary TypedDict
-- `app/components/calendar.py` — UI + callbacks
-- `app/assets/calendar.css` — стили
-- `tests/test_calendar_service.py` — 15 unit тестов
-
-**Модифицированные файлы:**
-- `app/services/__init__.py` — export CalendarService
-- `app/components/__init__.py` — export create_calendar_layout
-- `app/main.py` — роутинг /calendar
-
-### 📊 Результат:
-- ✅ Фаза 3 Epic-01-CoreMVP завершена
-- ✅ Прогресс Epic-01: 60% (12/20 задач)
-- ✅ Unit тесты: 15/15 passed
-- ✅ Quality checks: black + flake8 без ошибок
-
-### 💡 Ключевые уроки:
-
-1. **Decimal сериализация** — JSON не поддерживает Decimal, нужны serialize/deserialize
-2. **Pattern-Matching guard clauses** — обязательная проверка `ctx.triggered[0].get('value') is None`
-3. **Порядок импортов** — критичен для регистрации callbacks в Dash
-4. **SQL агрегация** — GROUP BY эффективнее Python-циклов для расчета балансов
-
----
-
-## ✅ Батч 4: Исправление Pattern-Matching Callbacks (2025-12-22) - ЗАВЕРШЕН
-
-**Дата**: 2025/12/22
-**Время выполнения**: ~3 часа
-**Статус**: ✅ Полностью завершен
-
-### 🎯 Цель батча:
-Исправить неработающие кнопки Create/Edit/Delete в таблице транзакций.
-
-### ✅ Выполненные задачи:
-
-1. **Code Review проекта** (@code-reviewer)
-   - Выявлено 19 проблем (2 критичных, 6 высоких, 6 средних, 7 низких)
-   - Подтверждена корневая причина проблемы Pattern-Matching Callbacks
-
-2. **Рефакторинг callbacks** (@python-refactor)
-   - Упрощена логика `open_edit_modal()` и `delete_transaction()`
-   - Использован `ctx.triggered_id["index"]` вместо поиска в списках
-   - Добавлена проверка `triggered_id.get("index")` для безопасности
-
-3. **Исправление toggle_create_modal**
-   - Добавлен `prevent_initial_call=True`
-   - Добавлена проверка `ctx.triggered_id`
-
-4. **Финальное исправление** — проверка реального клика
-   - Добавлена проверка `ctx.triggered[0].get('value') is None`
-   - Предотвращает автовызов callbacks при обновлении таблицы
-
-### 🔧 Технические изменения:
-
-**Файл**: `app/components/transactions.py`
-- `toggle_create_modal()`: +`prevent_initial_call=True`, +проверка `ctx.triggered_id`
-- `open_edit_modal()`: упрощена логика, +проверка `ctx.triggered[0]['value']`
-- `delete_transaction()`: упрощена логика, +проверка `ctx.triggered[0]['value']`
-
-### 📊 Результат:
-- ✅ Create операций работает
-- ✅ Edit операций работает
-- ✅ Delete операций работает
-- ✅ Код упрощен на ~35%
-
-### 💡 Ключевой урок:
-При Pattern-Matching Callbacks с `ALL` нужно проверять `ctx.triggered[0].get('value')` — если `None`, значит это автовызов при обновлении DOM, а не реальный клик пользователя.
-
----
-
-## 🔍 Батч 3: Диагностика регрессии Pattern-Matching Callbacks (2025-11-16) - ЗАВЕРШЕН
-
-**Дата**: 2025/11/16
-**Время выполнения**: ~2 часа
-**Статус**: ✅ Диагностика завершена, корневая причина найдена
-
-### 🎯 Цель батча:
-Определить корневую причину неработающих Edit/Delete кнопок после исправления автоудаления операций, подготовить план решения.
-
-### ✅ Выполненные задачи:
-
-#### Делегирование анализа @code-reviewer ✅
-- [x] Создан `.protocol.md` для детального code review
-- [x] Делегирована задача субагенту @code-reviewer
-- [x] Получен детальный анализ с приоритизированными проблемами
-- [x] Обновлена документация (D011 в decisions.md, ROADMAP.md)
-
-#### Runtime debugging подготовка ✅
-- [x] Создан `.protocol.md` для добавления debug-кода
-- [x] Делегирована задача субагенту @python-refactor
-- [x] Добавлен временный debug-код в оба callback'а
-- [x] Код помечен маркером `# TEMPORARY DEBUG - Remove after diagnosis`
-
-### 🔍 Ключевые находки (см. D011):
-
-**Критические проблемы** (приоритет по вероятности):
-
-1. **Неправильный поиск индекса clicked_idx** (95% вероятность)
-   - Код ищет индекс в `ctx.inputs_list[0]` по `index`, но использует его для доступа к `n_clicks_list`
-   - Порядок элементов в `inputs_list` может не совпадать с порядком кнопок в UI
-   - Результат: `edit_clicks_list[неправильный_idx]` может быть `None` → `PreventUpdate`
-
-2. **Избыточная проверка n_clicks is None** (60% вероятность)
-   - При `prevent_initial_call=True` и валидном `triggered_id` Dash гарантирует срабатывание только при реальных событиях
-   - Проверка `is None` не нужна и создает ложные блокировки
-   - Комбинация с проблемой #1 создает регрессию
-
-3. **Неизвестная структура ctx.inputs_list[0]** (30% вероятность)
-   - Реальная структура может отличаться от предполагаемой
-   - Требуется runtime debugging для проверки
-
-### 📋 План решения (3 фазы):
-
-**Фаза 1**: ✅ Runtime debugging (ЗАВЕРШЕНА)
-- Добавлен debug-код в `open_edit_modal()` (строки 468-478)
-- Добавлен debug-код в `delete_transaction()` (строки 659-669)
-- Готово к тестированию
-
-**Фаза 2**: Упрощение логики (ожидает)
-- Использовать `triggered_id["index"]` напрямую без поиска в списках
-- Убрать избыточную проверку `n_clicks is None`
-- Упростить код на ~30%
-
-**Фаза 3**: Тестирование (ожидает)
-- Создание операций
-- Редактирование операций
-- Удаление операций
-- Валидация отсутствия регрессий
-
-### 🔧 Технические изменения:
-
-**Файлы**: `app/components/transactions.py`
-- Строки 468-478: debug-код в `open_edit_modal()`
-- Строки 659-669: debug-код в `delete_transaction()`
-
-**Документация**:
-- `decisions.md`: Добавлена запись D011 с критичными находками
-- `ROADMAP.md`: Обновлен Known Issues, отмечена Фаза 1 как завершенная
-
-### 📊 Workflow делегирования:
-
-**Использованы субагенты**:
-1. **@code-reviewer**: Детальный анализ логики Pattern-Matching Callbacks
-2. **@python-refactor**: Добавление временного debug-кода
-
-**Примененные практики** (согласно DELEGATION_GUIDE.md):
-- Создание `.protocol.md` для изоляции контекста задачи
-- Минимальные промпты для субагентов
-- Самостоятельное обновление документации главным агентом
-- Удаление `.protocol.md` после выполнения задачи
-
-### 🚨 Следующие шаги для пользователя:
-
-1. **Запустить приложение**: `python run.py`
-2. **Открыть Transactions**: http://localhost:8050/transactions
-3. **Кликнуть Edit/Delete**: Для просмотра debug-вывода в консоли
-4. **Изучить вывод**: Проверить структуру `triggered_id`, `inputs_list[0]`, `n_clicks_list`
-5. **Продолжить с Фазой 2**: Исправление логики на основе debug-данных
-
-### 📖 Референсы:
-- **D011**: Детальное описание проблем в `.reports/epics/epic-01-coreMVP/decisions.md`
-- **DELEGATION_GUIDE.md**: Примененный workflow делегирования
-- **Code Review**: Полный анализ от @code-reviewer в контексте сессии
-
-### 💡 Уроки:
-
-1. **Делегирование работает** - субагенты @code-reviewer и @python-refactor эффективно выполнили специализированные задачи
-2. **Структурированный подход** - `.protocol.md` + минимальные промпты = чистая изоляция контекста
-3. **Документация критична** - D011 сохраняет контекст для следующих сессий
-4. **Runtime debugging необходим** - без эмпирических данных невозможно решить сложные проблемы Pattern-Matching
-
----
-
-## ⚠️ Батч 2: Исправление автоудаления операций (2025-11-03) - ЧАСТИЧНО ЗАВЕРШЕН
-
-**Дата**: 2025/11/03
-**Время выполнения**: ~6 часов (план: не оценивался)
-**Статус**: ⚠️ Частичный успех с критичной регрессией
-
-### 🎯 Цель батча:
-Устранить критичный баг автоудаления операций после создания и автооткрытия модала редактирования в странице Transactions.
-
-### ✅ Достигнутые результаты:
-1. **Создание операций работает** - форма корректно добавляет новые операции без автоудаления
-2. **Автооткрытие модала устранено** - модал редактирования больше не открывается автоматически
-3. **Таблица обновляется корректно** - после создания операции список обновляется без побочных эффектов
-
-### ❌ Критичная регрессия:
-1. **Кнопки Edit перестали работать** - клик на карандаш не открывает модал редактирования
-2. **Кнопки Delete перестали работать** - клик на корзину не удаляет операции
-3. **Проблема глубже предполагаемого** - Pattern-Matching Callbacks требуют дополнительного анализа
-
-### 🔧 Технические изменения:
-
-**Файлы**: `app/components/transactions.py:488` (open_edit_modal), `app/components/transactions.py:664` (delete_transaction)
-
-**Итерация #1**: Добавлена проверка `if not triggered_id`
-- **Результат**: Не помогла, проблема осталась
-
-**Итерация #2**: Добавлена проверка `n_clicks is None or == 0`
-```python
-if clicked_idx is None or n_clicks_list[clicked_idx] is None or n_clicks_list[clicked_idx] == 0:
-    raise PreventUpdate
-```
-- **Результат**: Устранила автоудаление, но создала регрессию (Edit/Delete перестали работать)
-
-**Итерация #3**: Удалена проверка `== 0`, оставлена только `is None`
-```python
-if clicked_idx is None or n_clicks_list[clicked_idx] is None:
-    raise PreventUpdate
-```
-- **Результат**: Регрессия осталась, кнопки по-прежнему не реагируют
-
-### 🔍 Гипотезы корневой причины:
-1. **Логика поиска clicked_idx неверна** - метод поиска индекса в `ctx.inputs_list` может не работать корректно
-2. **Формат triggered_id отличается от ожидаемого** - структура ID может быть другой в runtime
-3. **n_clicks блокируется для всех случаев** - проверка `is None` может срабатывать даже для реальных кликов
-4. **Порядок элементов в inputs_list** - индексы кнопок могут не совпадать с ожидаемыми
-
-### 🚨 Следующие шаги:
-1. **Runtime debugging** - добавить `print()` для анализа:
-   - `ctx.triggered_id` (точный формат)
-   - `ctx.inputs_list[0]` (структура и порядок элементов)
-   - `n_clicks_list` (значения для каждой кнопки)
-   - `clicked_idx` (найденный индекс)
-
-2. **Изучение документации** - Dash Pattern-Matching Callbacks:
-   - Официальные примеры с `ALL`
-   - Поведение `n_clicks` в динамических списках
-
-3. **Альтернативные подходы**:
-   - Использовать `ctx.triggered_prop_ids` вместо `triggered_id`
-   - Проверять изменение `n_clicks` между вызовами (state management)
-   - Использовать отдельные callbacks для каждой кнопки (без `ALL`)
-
-### 📊 Уроки:
-1. **Простые проверки недостаточны** - Pattern-Matching Callbacks с `n_clicks` требуют глубокого понимания механизма Dash
-2. **Документация может быть неполной** - поведение `n_clicks` в ALL-callbacks требует эмпирического изучения
-3. **Runtime debugging критичен** - без точных значений переменных невозможно определить корневую причину
-4. **QA рекомендации могут быть ошибочны** - "проверка `is None` достаточна" оказалась неверной
-
-### 📖 Референсы:
-- **ADR-003**: Детальное исследование проблемы в `docs/adr/ADR-003-pattern-matching-callbacks-issue.md`
-- **Dash Docs**: https://dash.plotly.com/pattern-matching-callbacks
-
----
-
-## ✅ Фаза 1: Database Integration (ЗАВЕРШЕНА)
-**Дата завершения**: 2025/01/27
-**Время выполнения**: ~8 часов (план: 3 дня) - опережение графика на 62%!
-**Commit**: 1211796
-
-### 🎯 Выполненные задачи:
-
-#### Сервисный слой ✅
-- [x] **TransactionService** - полный CRUD с 5 методами (создание, чтение, список, обновление, удаление)
-- [x] **GoalService расширен** - добавлены 4 CRUD метода (get_by_id, get_all_by_user, update_goal, delete_goal)
-- [x] **Валидация данных** - ValidationError для всех бизнес-правил, понятные сообщения на русском
-- [x] **Session Management** - сервисы используют flush(), caller управляет commit
-
-#### База данных ✅
-- [x] **Автоинициализация** - run.py создаёт БД и таблицы при первом запуске
-- [x] **starting_balance** - добавлено поле в User для начального баланса (default=0)
-- [x] **Seed script** - улучшен для использования GoalService (data integrity)
-
-#### Качество ✅
-- [x] **QA-тестирование** - функциональное тестирование с созданием отчёта
-- [x] **Bug fixing** - исправлены 3 критичных бага (1 P1, 2 P2)
-- [x] **Guard clauses** - защита от division by zero в Goal.monthly_contribution
-
-### 🐛 Найденные и исправленные баги:
-
-1. **BUG-001 (P1)**: Data integrity в seed script
-   - **Проблема**: Hardcoded current_amount вместо использования GoalService
-   - **Решение**: Рефакторинг для использования add_contribution()
-
-2. **BUG-002 (P2)**: progress_percentage > 100%
-   - **Проблема**: Если current > target, прогресс показывал >100%
-   - **Решение**: Добавлен cap `min(progress, 100.0)`
-
-3. **BUG-003 (P2)**: Слабая валидация target_date
-   - **Проблема**: Можно было создать цель на завтра
-   - **Решение**: Требуется минимум 7 дней от сегодня
-
-### 📈 Ключевые достижения:
-
-1. **Solid foundation** - полноценный сервисный слой готов для UI интеграции
-2. **High quality** - QA статус PASS (95/100), все критичные баги исправлены
-3. **Fast delivery** - опережение графика на 62% (8 часов вместо 3 дней)
-4. **Best practices** - guard clauses, validation, session management pattern
-
-### 📊 Метрики:
-
-**Код**:
-- Строк добавлено: +1268
-- Строк удалено: -90
-- Файлов изменено: 10
-- Новых сервисов: 1 (TransactionService)
-
-**Качество**:
-- QA Score: 95/100
-- Critical bugs: 0 (все исправлены)
-- Test scenarios: 5/5 passed
-
-**Производительность**:
-- Время выполнения: 8 часов
-- Опережение графика: 62%
-- Задач выполнено: 4/20 (20% прогресс Epic-01)
-
-### 🔧 Технические решения:
-
-- **D008**: Guard clauses для предотвращения division by zero
-- **D009**: Ограничение одной активной цели в MVP (временное)
-- **D010**: Session management pattern в сервисах (flush вместо commit)
-
----
-
-## ✅ Батч 0: Discovery & Foundation (ЗАВЕРШЕН)
-**Дата завершения**: 2025/01/27
-**Время выполнения**: 1 день (план: 3 недели) - опережение графика!
-
-### 🎯 Выполненные задачи:
-
-#### Техническая архитектура ✅
-- [x] **Структура проекта** - модульная архитектура `app/` с компонентами
-- [x] **Модели данных** - SQLAlchemy: User, Transaction, Goal, GoalContribution
-- [x] **Dash приложение** - главный файл с роутингом и навигацией
-- [x] **База данных** - SQLite для разработки, готовность к PostgreSQL
-
-#### UI/UX компоненты ✅
-- [x] **Dashboard** - карточки показателей, графики Plotly, AI assistant
-- [x] **Sidebar** - навигация с Bootstrap иконками, пользовательский блок
-- [x] **Дизайн-система** - кастомные CSS стили, зелено-белая тема
-- [x] **Адаптивность** - Bootstrap Grid, мобильная совместимость
-
-#### DevOps & инфраструктура ✅
-- [x] **Git репозиторий** - настроен, опубликован на GitHub
-- [x] **Зависимости** - requirements.txt с Dash, Plotly, SQLAlchemy
-- [x] **Запуск** - run.py для локального development
-- [x] **Документация** - .gitignore, структура проекта
-
-### 📈 Ключевые достижения:
-
-1. **Валидация концепции** - дизайн соответствует макетам
-2. **Solid foundation** - модульная архитектура для расширения
-3. **Визуализация данных** - Plotly графики готовы для реальных данных
-4. **Производительность** - быстрая загрузка, оптимизированные компоненты
-
-### 🔧 Технический стек:
-- **Frontend**: Dash 2.17.1 + Dash Bootstrap Components 1.5.0
-- **Visualization**: Plotly 5.17.0
-- **Backend**: Python 3.12 + SQLAlchemy 2.0.23
-- **Database**: SQLite (разработка) → PostgreSQL (production)
-- **Styling**: Bootstrap + кастомные CSS
-
----
-
-## 🎯 Следующие приоритеты (Батч 1):
-
-### Must Have для Core MVP:
-1. **Реальные данные** - подключение к SQLite, тестовые записи
-2. **Кассовый календарь** - главная фича с расчетом остатков
-3. **Формы операций** - добавление доходов/расходов
-4. **Накопительные цели** - создание и отслеживание прогресса
-
-### Should Have:
-1. **Unit тесты** - pytest для критических компонентов
-2. **API слой** - REST endpoints для операций
-3. **Валидация данных** - проверка вводимых значений
-
----
-
-## 📊 Метрики и KPI:
-
-### Технические показатели:
-- **Время загрузки**: ~2 сек (целевое < 3 сек) ✅
-- **Покрытие тестами**: 0% (целевое 80% для Батча 1)
-- **Производительность**: Plotly графики оптимизированы ✅
-- **Код качество**: flake8/black готовы к настройке
-
-### Продуктовые показатели:
-- **UI соответствие макетам**: 90% ✅
-- **Навигация**: интуитивная, протестирована ✅
-- **Адаптивность**: мобильные устройства поддерживаются ✅
-
----
-
-## 🚨 Риски и блокеры:
-
-### Технические риски:
-- **Низкий**: Сложность кассового календаря - архитектура готова
-- **Низкий**: Производительность Plotly - оптимизация применена
-- **Отсутствуют**: Критические блокеры
-
-### Продуктовые риски:
-- **Средний**: Пользовательское тестирование - нужна валидация UX
-- **Низкий**: Концепция кассового планирования - макеты одобрены
-
----
-
-## 🔄 Lessons Learned:
-
-1. **Dash оказался отличным выбором** - быстрая разработка, мощная визуализация
-2. **Модульная архитектура работает** - легко добавлять новые компоненты
-3. **Bootstrap + кастомные стили** - хороший баланс скорости и уникальности
-4. **SQLAlchemy модели** - грамотная доменная модель упростит развитие
-
----
-
-## 📅 Планы на следующую сессию (Фаза 2):
-
-### Высокий приоритет:
-1. Создать страницу Transactions (`app/components/transactions.py`)
-2. Реализовать формы добавления/редактирования операций
-3. Добавить callbacks для CRUD операций
-
-### Средний приоритет:
-1. Добавить unit тесты для TransactionService
-2. Настроить линтеры (flake8, black)
-3. Улучшить обработку ошибок в UI
-
-**Оценка времени следующей сессии**: 4-5 часов для Фазы 2
-
----
-
-*Отчет создан автоматически по итогам Батча 0*
-*Следующее обновление: после завершения Батча 1*
+*Последнее обновление: 2026/01/25*
+*Формат: Rolling Window (последние 5 батчей)*
