@@ -25,7 +25,7 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
 - Обновлен `app/schema/__init__.py`: экспорт Percent, CushionSettings, CushionScenario
 - Добавлены поля в User: cushion_target, cushion_threshold_percent, cushion_threshold_manual
 
-### Step 02 — CushionService (commit: pending)
+### Step 02 — CushionService (commit: 560da11)
 - Создан `app/services/cushion_service.py`: CushionService с 4 методами
   - get_settings() — возвращает CushionSettings с вычисляемыми полями
   - update_settings() — обновляет настройки с валидацией
@@ -33,3 +33,12 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
   - calculate_recommendation() — расчёт по сценариям (sum/max_scenario)
 - Добавлены: _validate_percent(), DEFAULT_THRESHOLD_PERCENT, VALID_CALC_MODES
 - Обновлен `app/services/__init__.py`: экспорт CushionService и констант
+
+### Step 03 — Unit Tests (commit: pending)
+- Создан `tests/test_cushion_service.py`: 20 unit тестов
+  - TestValidatePercent: 5 тестов (valid 0/30/100, invalid -1/101)
+  - TestGetSettings: 7 тестов (not configured, configured, threshold_amount, progress, cap 100%, negative balance, user not found)
+  - TestUpdateSettings: 3 теста (valid, invalid target, invalid percent)
+  - TestResetSettings: 1 тест (reset to defaults)
+  - TestCalculateRecommendation: 4 теста (sum, max_scenario, empty, invalid mode)
+- pytest: 20 passed
