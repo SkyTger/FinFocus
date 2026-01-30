@@ -89,3 +89,9 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
   - Модал: #cushion-modal стили
   - Калькулятор: .cushion-calculator-section
   - Responsive: breakpoints 768px, 576px
+
+### Step 08 — Финализация (commit: fd5326f)
+- Верификация: black, flake8, pytest — все прошли
+- Исправлено 5 E501 ошибок (line too long)
+- 292 теста passed (было 272, добавлено 20 для CushionService)
+- PR #13 переведен в Ready for Review
