@@ -887,7 +887,8 @@ def open_create_modal_from_transactions(n_clicks):
         raise PreventUpdate
     if not ctx.triggered_id or ctx.triggered_id != "add-transaction-btn":
         raise PreventUpdate
-    # is_open, modal-source, preselected-category, preselected-type, category-dropdown, type-select
+    # is_open, modal-source, preselected-category, preselected-type,
+    # category-dropdown, type-select
     return True, "transactions", None, None, None, "EXPENSE"
 
 

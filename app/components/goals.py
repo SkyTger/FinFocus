@@ -12,7 +12,9 @@ from loguru import logger
 
 from app.core import get_db_session
 from app.models.database import GoalStatus
+from app.schema.cushion import CushionSettings, CushionScenario
 from app.services import (
+    CushionService,
     GoalService,
     AllocationService,
     RedistributionService,
@@ -20,6 +22,7 @@ from app.services import (
     AllocationSummary,
     GoalDisplayData,
     GoalsSummary,
+    DEFAULT_THRESHOLD_PERCENT,
 )
 from app.utils.formatters import (
     format_amount,
@@ -53,6 +56,189 @@ MODE_OPTIONS = {
         "description": "Максимизация накоплений для раннего достижения",
     },
 }
+
+
+def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
+    """Карточка финансовой подушки безопасности.
+
+    Два состояния:
+    - Не настроена (target=0): приглашение + кнопка "Настроить"
+    - Настроена (target>0): цель, текущая сумма, прогресс-бар с маркером порога
+
+    Args:
+        settings: Настройки подушки или None
+
+    Returns:
+        dbc.Card: Карточка подушки
+    """
+    if not settings or not settings.get("is_configured"):
+        # Состояние "Не настроена"
+        return dbc.Card(
+            [
+                dbc.CardBody(
+                    [
+                        html.Div(
+                            [
+                                html.I(
+                                    className="bi bi-shield-check cushion-icon-large"
+                                ),
+                                html.Div(
+                                    [
+                                        html.H5(
+                                            "Финансовая подушка",
+                                            className="cushion-title mb-1",
+                                        ),
+                                        html.P(
+                                            "Создайте резервный фонд для "
+                                            "непредвиденных расходов",
+                                            className="text-muted mb-0 small",
+                                        ),
+                                    ]
+                                ),
+                            ],
+                            className="d-flex align-items-center gap-3 mb-3",
+                        ),
+                        dbc.Button(
+                            [html.I(className="bi bi-gear me-2"), "Настроить"],
+                            id="cushion-setup-btn",
+                            color="primary",
+                            outline=True,
+                        ),
+                    ]
+                )
+            ],
+            className="cushion-card cushion-not-configured mb-4",
+        )
+
+    # Состояние "Настроена"
+    target = settings["target"]
+    current = settings["current_amount"]
+    progress = settings["progress"]
+    threshold_percent = settings["threshold_percent"]
+
+    # Определяем статус прогресса
+    if current < 0:
+        progress_color = "danger"
+        status_text = "Отрицательный баланс"
+        status_icon = "bi-exclamation-triangle"
+    elif progress < threshold_percent:
+        progress_color = "warning"
+        status_text = "Ниже порога безопасности"
+        status_icon = "bi-exclamation-circle"
+    elif progress < 100:
+        progress_color = "info"
+        status_text = "В процессе накопления"
+        status_icon = "bi-arrow-up-circle"
+    else:
+        progress_color = "success"
+        status_text = "Цель достигнута"
+        status_icon = "bi-check-circle"
+
+    return dbc.Card(
+        [
+            dbc.CardBody(
+                [
+                    # Header с заголовком и кнопкой
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    html.I(
+                                        className="bi bi-shield-check "
+                                        "cushion-icon-large"
+                                    ),
+                                    html.H5(
+                                        "Финансовая подушка",
+                                        className="cushion-title mb-0 ms-2",
+                                    ),
+                                ],
+                                className="d-flex align-items-center",
+                            ),
+                            dbc.Button(
+                                [html.I(className="bi bi-pencil me-1"), "Изменить"],
+                                id="cushion-edit-btn",
+                                color="secondary",
+                                outline=True,
+                                size="sm",
+                            ),
+                        ],
+                        className="d-flex justify-content-between align-items-center "
+                        "mb-3",
+                    ),
+                    # Статус
+                    html.Div(
+                        [
+                            html.I(className=f"bi {status_icon} me-2"),
+                            html.Span(status_text),
+                        ],
+                        className=f"cushion-status cushion-status-{progress_color} "
+                        "mb-3",
+                    ),
+                    # Суммы
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    html.Span(
+                                        "Накоплено", className="text-muted small"
+                                    ),
+                                    html.H4(
+                                        format_amount(current),
+                                        className="mb-0 cushion-amount",
+                                    ),
+                                ],
+                                className="cushion-amount-block",
+                            ),
+                            html.Div(
+                                [
+                                    html.Span("Цель", className="text-muted small"),
+                                    html.H4(
+                                        format_amount(target),
+                                        className="mb-0 text-muted",
+                                    ),
+                                ],
+                                className="cushion-amount-block",
+                            ),
+                        ],
+                        className="d-flex gap-4 mb-3",
+                    ),
+                    # Прогресс-бар с маркером порога
+                    html.Div(
+                        [
+                            dbc.Progress(
+                                value=min(progress, 100),
+                                color=progress_color,
+                                className="cushion-progress",
+                                style={"height": "12px"},
+                            ),
+                            # Маркер порога
+                            html.Div(
+                                className="cushion-threshold-marker",
+                                style={"left": f"{threshold_percent}%"},
+                                title=f"Порог безопасности: {threshold_percent}%",
+                            ),
+                        ],
+                        className="cushion-progress-container position-relative",
+                    ),
+                    # Подпись прогресса
+                    html.Div(
+                        [
+                            html.Span(
+                                f"{progress:.1f}%",
+                                className="cushion-progress-text",
+                            ),
+                            html.Span(
+                                f"Порог: {threshold_percent}%",
+                                className="text-muted small",
+                            ),
+                        ],
+                        className="d-flex justify-content-between mt-2",
+                    ),
+                ]
+            )
+        ],
+        className=f"cushion-card cushion-configured cushion-{progress_color} mb-4",
+    )
 
 
 def _build_mode_selector(current_mode: str) -> dbc.Card:
@@ -736,6 +922,181 @@ def _build_contributions_table(
         hover=True,
         responsive=True,
         className="contributions-table",
+    )
+
+
+def _build_cushion_modal() -> dbc.Modal:
+    """Модал настройки финансовой подушки безопасности.
+
+    Содержит:
+    - Поле "Цель подушки" (число >= 0)
+    - Поле "Минимальный остаток" (порог, по умолчанию 30% от цели)
+    - Collapsible секция "Рассчитать по сценариям"
+    - Кнопки: Сохранить, Сбросить, Отмена
+
+    Returns:
+        dbc.Modal: Модал настройки подушки
+    """
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Настройка финансовой подушки")),
+            dbc.ModalBody(
+                [
+                    # Поле цели
+                    dbc.Row(
+                        [
+                            dbc.Label("Цель подушки", width=4),
+                            dbc.Col(
+                                dbc.Input(
+                                    id="cushion-target-input",
+                                    type="number",
+                                    min=0,
+                                    step=1000,
+                                    placeholder="300000",
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    # Поле порога
+                    dbc.Row(
+                        [
+                            dbc.Label("Порог безопасности", width=4),
+                            dbc.Col(
+                                dbc.InputGroup(
+                                    [
+                                        dbc.Input(
+                                            id="cushion-threshold-input",
+                                            type="number",
+                                            min=0,
+                                            max=100,
+                                            value=30,
+                                        ),
+                                        dbc.InputGroupText("%"),
+                                    ]
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-2",
+                    ),
+                    html.P(
+                        "При достижении этого порога баланс считается в зоне риска",
+                        className="text-muted small mb-4",
+                    ),
+                    # Collapsible калькулятор сценариев
+                    html.Div(
+                        [
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-calculator me-2"),
+                                    "Рассчитать по сценариям",
+                                ],
+                                id="cushion-toggle-calculator-btn",
+                                color="secondary",
+                                outline=True,
+                                size="sm",
+                                className="mb-3",
+                            ),
+                            dbc.Collapse(
+                                [
+                                    html.Hr(),
+                                    html.H6(
+                                        "Сценарии непредвиденных расходов",
+                                        className="mb-3",
+                                    ),
+                                    html.P(
+                                        "Добавьте возможные расходы для расчёта "
+                                        "рекомендуемого размера подушки",
+                                        className="text-muted small mb-3",
+                                    ),
+                                    # Список сценариев
+                                    html.Div(id="cushion-scenarios-list"),
+                                    # Кнопка добавления
+                                    dbc.Button(
+                                        [
+                                            html.I(className="bi bi-plus me-1"),
+                                            "Добавить сценарий",
+                                        ],
+                                        id="cushion-add-scenario-btn",
+                                        color="secondary",
+                                        outline=True,
+                                        size="sm",
+                                        className="mb-3",
+                                    ),
+                                    # Режим расчёта
+                                    html.Hr(),
+                                    dbc.Label("Режим расчёта", className="small"),
+                                    dbc.RadioItems(
+                                        id="cushion-calc-mode",
+                                        options=[
+                                            {
+                                                "label": "Сумма всех сценариев",
+                                                "value": "sum",
+                                            },
+                                            {
+                                                "label": "По самому дорогому",
+                                                "value": "max_scenario",
+                                            },
+                                        ],
+                                        value="sum",
+                                        inline=True,
+                                        className="mb-3",
+                                    ),
+                                    # Рекомендация
+                                    dbc.Alert(
+                                        id="cushion-recommendation",
+                                        color="info",
+                                        className="mb-3",
+                                    ),
+                                    # Кнопка применения
+                                    dbc.Button(
+                                        "Применить рекомендацию",
+                                        id="cushion-apply-recommendation-btn",
+                                        color="primary",
+                                        outline=True,
+                                        size="sm",
+                                    ),
+                                ],
+                                id="cushion-calculator-collapse",
+                                is_open=False,
+                            ),
+                        ],
+                        className="cushion-calculator-section",
+                    ),
+                    # Store для сценариев
+                    dcc.Store(id="cushion-scenarios-store", data=[]),
+                    # Store для manual flag (threshold изменён вручную)
+                    dcc.Store(id="cushion-threshold-manual-flag", data=False),
+                ]
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "Сбросить",
+                        id="cushion-reset-btn",
+                        color="danger",
+                        outline=True,
+                        className="me-auto",
+                    ),
+                    dbc.Button(
+                        "Отмена",
+                        id="cushion-cancel-btn",
+                        color="secondary",
+                        outline=True,
+                    ),
+                    dbc.Button(
+                        "Сохранить",
+                        id="cushion-save-btn",
+                        color="primary",
+                    ),
+                ]
+            ),
+        ],
+        id="cushion-modal",
+        is_open=False,
+        size="lg",
     )
 
 
@@ -1456,6 +1817,8 @@ def create_goals_layout() -> html.Div:
                 dismissable=True,
                 duration=5000,
             ),
+            # Карточка подушки безопасности (динамический контент)
+            html.Div(id="cushion-card-container"),
             # Карточка цели (динамический контент)
             html.Div(id="goal-card-container"),
             # История взносов
@@ -1467,6 +1830,7 @@ def create_goals_layout() -> html.Div:
                 className="mt-4",
             ),
             # Модалы
+            _build_cushion_modal(),
             _build_budget_modal(),
             _build_create_goal_modal(),
             _build_edit_goal_modal(),
@@ -1490,6 +1854,10 @@ def create_goals_layout() -> html.Div:
             dcc.Store(id="redistribution-preview-store", data=None),
             # Store для состояния кнопки confirm (disabled во время обработки)
             dcc.Store(id="redistribution-btn-disabled-store", data=False),
+            # Store для настроек подушки безопасности
+            dcc.Store(id="cushion-settings-store", data=None),
+            # Store для триггера обновления подушки
+            dcc.Store(id="cushion-refresh-trigger", data=0),
         ],
         className="goals-container",
     )
@@ -2755,3 +3123,531 @@ def populate_redistribution_modal(
     preview_section = _build_preview_section(preview)
 
     return (congratulation, freed_budget, preview_section)
+
+
+# --- Cushion Callbacks ---
+
+
+@callback(
+    Output("cushion-card-container", "children"),
+    Input("cushion-settings-store", "data"),
+)
+def render_cushion_card(settings_data: dict | None):
+    """Рендерит карточку подушки на основе данных из store.
+
+    Args:
+        settings_data: Данные настроек подушки или None
+
+    Returns:
+        dbc.Card: Карточка подушки
+    """
+    if settings_data is None:
+        # Первичная загрузка — показываем "не настроена"
+        return _build_cushion_card(None)
+
+    # Преобразуем dict в CushionSettings
+    settings = CushionSettings(
+        target=Decimal(str(settings_data.get("target", 0))),
+        threshold_percent=settings_data.get("threshold_percent", 30),
+        threshold_amount=Decimal(str(settings_data.get("threshold_amount", 0))),
+        threshold_manual=settings_data.get("threshold_manual", False),
+        current_amount=Decimal(str(settings_data.get("current_amount", 0))),
+        progress=settings_data.get("progress", 0.0),
+        is_configured=settings_data.get("is_configured", False),
+    )
+    return _build_cushion_card(settings)
+
+
+@callback(
+    Output("cushion-settings-store", "data"),
+    Input("cushion-refresh-trigger", "data"),
+    prevent_initial_call=False,
+)
+def load_cushion_settings(trigger: int):
+    """Загружает настройки подушки из БД.
+
+    Args:
+        trigger: Счётчик триггера обновления
+
+    Returns:
+        dict: Сериализованные настройки подушки
+    """
+    try:
+        with get_db_session() as session:
+            service = CushionService(session)
+            settings = service.get_settings(DEFAULT_USER_ID)
+            # Сериализуем Decimal в str для JSON
+            return {
+                "target": str(settings["target"]),
+                "threshold_percent": settings["threshold_percent"],
+                "threshold_amount": str(settings["threshold_amount"]),
+                "threshold_manual": settings["threshold_manual"],
+                "current_amount": str(settings["current_amount"]),
+                "progress": settings["progress"],
+                "is_configured": settings["is_configured"],
+            }
+    except Exception as e:
+        logger.error(f"load_cushion_settings: ошибка загрузки: {e}")
+        return None
+
+
+@callback(
+    Output("cushion-modal", "is_open", allow_duplicate=True),
+    [
+        Input("cushion-setup-btn", "n_clicks"),
+        Input("cushion-edit-btn", "n_clicks"),
+    ],
+    prevent_initial_call=True,
+)
+def open_cushion_modal(setup_clicks: int | None, edit_clicks: int | None):
+    """Открывает модал настройки подушки.
+
+    Args:
+        setup_clicks: Клики на кнопку "Настроить"
+        edit_clicks: Клики на кнопку "Изменить"
+
+    Returns:
+        bool: True для открытия модала
+    """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    return True
+
+
+@callback(
+    Output("cushion-modal", "is_open", allow_duplicate=True),
+    Input("cushion-cancel-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+def close_cushion_modal(n_clicks: int | None):
+    """Закрывает модал настройки подушки.
+
+    Args:
+        n_clicks: Клики на кнопку "Отмена"
+
+    Returns:
+        bool: False для закрытия модала
+    """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    return False
+
+
+@callback(
+    [
+        Output("cushion-target-input", "value"),
+        Output("cushion-threshold-input", "value"),
+        Output("cushion-threshold-manual-flag", "data", allow_duplicate=True),
+    ],
+    Input("cushion-modal", "is_open"),
+    State("cushion-settings-store", "data"),
+    prevent_initial_call=True,
+)
+def populate_cushion_modal(is_open: bool, settings_data: dict | None):
+    """Заполняет поля модала при открытии.
+
+    Args:
+        is_open: Статус открытия модала
+        settings_data: Данные настроек подушки
+
+    Returns:
+        tuple: (target, threshold, manual_flag)
+    """
+    # Guard: только при открытии
+    if not is_open:
+        raise PreventUpdate
+
+    if not settings_data:
+        return 0, DEFAULT_THRESHOLD_PERCENT, False
+
+    target = Decimal(str(settings_data.get("target", 0)))
+    threshold = settings_data.get("threshold_percent", DEFAULT_THRESHOLD_PERCENT)
+    manual = settings_data.get("threshold_manual", False)
+
+    return float(target), threshold, manual
+
+
+@callback(
+    Output("cushion-threshold-manual-flag", "data"),
+    Input("cushion-threshold-input", "value"),
+    prevent_initial_call=True,
+)
+def mark_threshold_manual(value: int | None):
+    """Устанавливает флаг manual=True при ручном вводе порога.
+
+    ВАЖНО: Любое взаимодействие с полем threshold устанавливает manual=True,
+    даже если введённое значение совпадает с default (30%).
+
+    Args:
+        value: Новое значение порога (0-100)
+
+    Returns:
+        bool: True (manual flag)
+    """
+    # Guard: None value
+    if value is None:
+        raise PreventUpdate
+
+    return True
+
+
+@callback(
+    Output("cushion-calculator-collapse", "is_open"),
+    Input("cushion-toggle-calculator-btn", "n_clicks"),
+    State("cushion-calculator-collapse", "is_open"),
+    prevent_initial_call=True,
+)
+def toggle_calculator(n_clicks: int | None, is_open: bool):
+    """Открывает/закрывает калькулятор сценариев.
+
+    Args:
+        n_clicks: Клики на кнопку toggle
+        is_open: Текущее состояние collapse
+
+    Returns:
+        bool: Новое состояние (инвертированное)
+    """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    return not is_open
+
+
+@callback(
+    [
+        Output("cushion-scenarios-store", "data"),
+        Output("cushion-scenarios-list", "children"),
+    ],
+    Input("cushion-add-scenario-btn", "n_clicks"),
+    State("cushion-scenarios-store", "data"),
+    prevent_initial_call=True,
+)
+def add_scenario(n_clicks: int | None, scenarios: list):
+    """Добавляет новый сценарий в список.
+
+    Args:
+        n_clicks: Клики на кнопку добавления
+        scenarios: Текущий список сценариев
+
+    Returns:
+        tuple: (обновленный список, UI список)
+    """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    scenarios = scenarios or []
+    new_id = len(scenarios) + 1
+    new_scenario = {
+        "id": new_id,
+        "name": f"Сценарий {new_id}",
+        "min_amount": "0",
+        "max_amount": "10000",
+    }
+    scenarios.append(new_scenario)
+
+    return scenarios, _build_scenarios_list(scenarios)
+
+
+def _build_scenarios_list(scenarios: list) -> html.Div:
+    """Строит UI список сценариев.
+
+    Args:
+        scenarios: Список сценариев
+
+    Returns:
+        html.Div: UI со списком сценариев
+    """
+    if not scenarios:
+        return html.Div(
+            html.P("Нет сценариев", className="text-muted small"),
+            className="mb-3",
+        )
+
+    items = []
+    for s in scenarios:
+        items.append(
+            dbc.Card(
+                dbc.CardBody(
+                    [
+                        dbc.Row(
+                            [
+                                dbc.Col(
+                                    dbc.Input(
+                                        id={"type": "scenario-name", "index": s["id"]},
+                                        value=s["name"],
+                                        placeholder="Название",
+                                        size="sm",
+                                    ),
+                                    width=4,
+                                ),
+                                dbc.Col(
+                                    dbc.InputGroup(
+                                        [
+                                            dbc.Input(
+                                                id={
+                                                    "type": "scenario-min",
+                                                    "index": s["id"],
+                                                },
+                                                type="number",
+                                                value=float(s["min_amount"]),
+                                                placeholder="Мин",
+                                                size="sm",
+                                            ),
+                                            dbc.InputGroupText("-"),
+                                            dbc.Input(
+                                                id={
+                                                    "type": "scenario-max",
+                                                    "index": s["id"],
+                                                },
+                                                type="number",
+                                                value=float(s["max_amount"]),
+                                                placeholder="Макс",
+                                                size="sm",
+                                            ),
+                                        ],
+                                        size="sm",
+                                    ),
+                                    width=6,
+                                ),
+                                dbc.Col(
+                                    dbc.Button(
+                                        html.I(className="bi bi-trash"),
+                                        id={
+                                            "type": "scenario-remove",
+                                            "index": s["id"],
+                                        },
+                                        color="danger",
+                                        outline=True,
+                                        size="sm",
+                                    ),
+                                    width=2,
+                                    className="text-end",
+                                ),
+                            ],
+                            className="g-2",
+                        ),
+                    ],
+                    className="p-2",
+                ),
+                className="mb-2",
+            )
+        )
+
+    return html.Div(items)
+
+
+@callback(
+    [
+        Output("cushion-scenarios-store", "data", allow_duplicate=True),
+        Output("cushion-scenarios-list", "children", allow_duplicate=True),
+    ],
+    Input({"type": "scenario-remove", "index": ALL}, "n_clicks"),
+    State("cushion-scenarios-store", "data"),
+    prevent_initial_call=True,
+)
+def remove_scenario(n_clicks_list: list, scenarios: list):
+    """Удаляет сценарий из списка.
+
+    Args:
+        n_clicks_list: Список кликов на кнопки удаления
+        scenarios: Текущий список сценариев
+
+    Returns:
+        tuple: (обновленный список, UI список)
+    """
+    # Guard: проверка автовызова при DOM updates (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+    # Guard: проверка валидного triggered_id
+    if not triggered_id or not triggered_id.get("index"):
+        raise PreventUpdate
+
+    scenario_id = triggered_id["index"]
+    scenarios = [s for s in scenarios if s["id"] != scenario_id]
+
+    return scenarios, _build_scenarios_list(scenarios)
+
+
+@callback(
+    Output("cushion-recommendation", "children"),
+    [
+        Input("cushion-scenarios-store", "data"),
+        Input("cushion-calc-mode", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def calculate_recommendation(scenarios: list, mode: str):
+    """Рассчитывает рекомендуемый размер подушки.
+
+    Args:
+        scenarios: Список сценариев
+        mode: Режим расчёта (sum/max_scenario)
+
+    Returns:
+        str: Текст рекомендации
+    """
+    if not scenarios:
+        return "Добавьте сценарии для расчёта рекомендации"
+
+    try:
+        with get_db_session() as session:
+            service = CushionService(session)
+            # Преобразуем в CushionScenario
+            typed_scenarios = [
+                CushionScenario(
+                    name=s["name"],
+                    min_amount=Decimal(str(s["min_amount"])),
+                    max_amount=Decimal(str(s["max_amount"])),
+                )
+                for s in scenarios
+            ]
+            recommendation = service.calculate_recommendation(typed_scenarios, mode)
+            return f"Рекомендуемый размер подушки: {format_amount(recommendation)}"
+    except Exception as e:
+        logger.error(f"calculate_recommendation: ошибка: {e}")
+        return "Ошибка расчёта"
+
+
+@callback(
+    Output("cushion-target-input", "value", allow_duplicate=True),
+    Input("cushion-apply-recommendation-btn", "n_clicks"),
+    [
+        State("cushion-scenarios-store", "data"),
+        State("cushion-calc-mode", "value"),
+    ],
+    prevent_initial_call=True,
+)
+def apply_recommendation(n_clicks: int | None, scenarios: list, mode: str):
+    """Применяет рекомендацию к полю цели.
+
+    Args:
+        n_clicks: Клики на кнопку применения
+        scenarios: Список сценариев
+        mode: Режим расчёта
+
+    Returns:
+        float: Рекомендуемая сумма для поля цели
+    """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    if not scenarios:
+        raise PreventUpdate
+
+    try:
+        with get_db_session() as session:
+            service = CushionService(session)
+            typed_scenarios = [
+                CushionScenario(
+                    name=s["name"],
+                    min_amount=Decimal(str(s["min_amount"])),
+                    max_amount=Decimal(str(s["max_amount"])),
+                )
+                for s in scenarios
+            ]
+            recommendation = service.calculate_recommendation(typed_scenarios, mode)
+            return float(recommendation)
+    except Exception as e:
+        logger.error(f"apply_recommendation: ошибка: {e}")
+        raise PreventUpdate
+
+
+@callback(
+    [
+        Output("cushion-modal", "is_open"),
+        Output("cushion-refresh-trigger", "data", allow_duplicate=True),
+    ],
+    Input("cushion-save-btn", "n_clicks"),
+    [
+        State("cushion-target-input", "value"),
+        State("cushion-threshold-input", "value"),
+        State("cushion-threshold-manual-flag", "data"),
+        State("cushion-refresh-trigger", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def save_cushion_settings(
+    n_clicks: int | None,
+    target: float | None,
+    threshold: int | None,
+    manual: bool,
+    current_trigger: int,
+):
+    """Сохраняет настройки подушки в БД.
+
+    Args:
+        n_clicks: Клики на кнопку сохранения
+        target: Целевая сумма
+        threshold: Порог в процентах
+        manual: Флаг ручного ввода порога
+        current_trigger: Текущее значение триггера
+
+    Returns:
+        tuple: (is_open=False, incremented trigger)
+    """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    try:
+        with get_db_session() as session:
+            service = CushionService(session)
+            service.update_settings(
+                user_id=DEFAULT_USER_ID,
+                target=Decimal(str(target or 0)),
+                threshold_percent=threshold or DEFAULT_THRESHOLD_PERCENT,
+                threshold_manual=manual,
+            )
+            session.commit()
+            logger.info(
+                f"save_cushion_settings: сохранено target={target}, "
+                f"threshold={threshold}%"
+            )
+            return False, (current_trigger or 0) + 1
+    except Exception as e:
+        logger.error(f"save_cushion_settings: ошибка сохранения: {e}")
+        raise PreventUpdate
+
+
+@callback(
+    [
+        Output("cushion-modal", "is_open", allow_duplicate=True),
+        Output("cushion-refresh-trigger", "data"),
+    ],
+    Input("cushion-reset-btn", "n_clicks"),
+    State("cushion-refresh-trigger", "data"),
+    prevent_initial_call=True,
+)
+def reset_cushion_settings(n_clicks: int | None, current_trigger: int):
+    """Сбрасывает настройки подушки к default.
+
+    Args:
+        n_clicks: Клики на кнопку сброса
+        current_trigger: Текущее значение триггера
+
+    Returns:
+        tuple: (is_open=False, incremented trigger)
+    """
+    # Guard: проверка реального клика (ADR-003)
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    try:
+        with get_db_session() as session:
+            service = CushionService(session)
+            service.reset_settings(DEFAULT_USER_ID)
+            session.commit()
+            logger.info("reset_cushion_settings: настройки сброшены")
+            return False, (current_trigger or 0) + 1
+    except Exception as e:
+        logger.error(f"reset_cushion_settings: ошибка сброса: {e}")
+        raise PreventUpdate

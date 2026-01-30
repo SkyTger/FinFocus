@@ -38,6 +38,12 @@ from .redistribution_service import (
     RedistributionService,
 )
 from .transaction_service import MAX_BULK_UPDATE_SIZE, TransactionService
+from .cushion_service import (
+    CushionService,
+    DEFAULT_THRESHOLD_PERCENT,
+    VALID_CALC_MODES,
+    _validate_percent,
+)
 
 __all__ = [
     # Allocation
@@ -80,6 +86,11 @@ __all__ = [
     # Redistribution
     "RedistributionService",
     "NFR2_WARNING_THRESHOLD_MS",
+    # Cushion
+    "CushionService",
+    "DEFAULT_THRESHOLD_PERCENT",
+    "VALID_CALC_MODES",
+    "_validate_percent",
     # Core
     "ValidationError",
 ]

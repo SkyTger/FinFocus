@@ -98,6 +98,12 @@ class User(Base):
     # Режим накоплений: "free" (100%), "medium" (115%), "strict" (150%)
     # Валидация допустимых значений в GoalService.update_savings_mode()
     savings_mode = Column(String(20), default="free", nullable=False)
+
+    # Финансовая подушка безопасности
+    cushion_target = Column(Numeric(12, 2), default=Decimal("0"))
+    cushion_threshold_percent = Column(Integer, default=30)
+    cushion_threshold_manual = Column(Boolean, default=False)
+
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

@@ -509,7 +509,8 @@ def close_create_modal(n_clicks):
     """
     if not n_clicks:
         raise PreventUpdate
-    # is_open, modal-source, preselected-category, preselected-type, category-dropdown, type-select
+    # is_open, modal-source, preselected-category, preselected-type,
+    # category-dropdown, type-select
     return False, None, None, None, None, "EXPENSE"
 
 
