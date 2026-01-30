@@ -62,7 +62,7 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
 - Добавлены dcc.Store: cushion-scenarios-store, cushion-threshold-manual-flag
 - Модал интегрирован в layout
 
-### Step 06 — Callbacks (commit: pending)
+### Step 06 — Callbacks (commit: a31154c)
 - Добавлено 12 callbacks для подушки (~450 строк):
   1. render_cushion_card — рендер карточки из store
   2. load_cushion_settings — загрузка из БД
@@ -79,3 +79,13 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
   13. reset_cushion_settings — сброс к default
 - Добавлена функция _build_scenarios_list() для UI сценариев
 - Все callbacks с ADR-003 guard clauses
+
+### Step 07 — CSS (commit: pending)
+- Добавлены стили `.cushion-*` в goals.css (~200 строк)
+  - Карточка: .cushion-card, .cushion-not-configured, .cushion-configured
+  - Цветовые варианты: .cushion-danger/warning/info/success
+  - Статус: .cushion-status, .cushion-status-{color}
+  - Прогресс: .cushion-progress-container, .cushion-threshold-marker
+  - Модал: #cushion-modal стили
+  - Калькулятор: .cushion-calculator-section
+  - Responsive: breakpoints 768px, 576px
