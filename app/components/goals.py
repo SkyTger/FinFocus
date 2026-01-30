@@ -100,7 +100,7 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
                         ),
                         dbc.Button(
                             [html.I(className="bi bi-gear me-2"), "Настроить"],
-                            id="cushion-setup-btn",
+                            id="cushion-open-modal-btn",
                             color="primary",
                             outline=True,
                         ),
@@ -156,7 +156,7 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
                             ),
                             dbc.Button(
                                 [html.I(className="bi bi-pencil me-1"), "Изменить"],
-                                id="cushion-edit-btn",
+                                id="cushion-open-modal-btn",
                                 color="secondary",
                                 outline=True,
                                 size="sm",
@@ -3193,18 +3193,14 @@ def load_cushion_settings(trigger: int):
 
 @callback(
     Output("cushion-modal", "is_open", allow_duplicate=True),
-    [
-        Input("cushion-setup-btn", "n_clicks"),
-        Input("cushion-edit-btn", "n_clicks"),
-    ],
+    Input("cushion-open-modal-btn", "n_clicks"),
     prevent_initial_call=True,
 )
-def open_cushion_modal(setup_clicks: int | None, edit_clicks: int | None):
+def open_cushion_modal(n_clicks: int | None):
     """Открывает модал настройки подушки.
 
     Args:
-        setup_clicks: Клики на кнопку "Настроить"
-        edit_clicks: Клики на кнопку "Изменить"
+        n_clicks: Клики на кнопку открытия модала
 
     Returns:
         bool: True для открытия модала
