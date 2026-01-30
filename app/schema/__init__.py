@@ -16,6 +16,11 @@ from app.schema.categories import (
     ReconciliationPreview,
 )
 from app.schema.quick_add import QuickAddChipData
+from app.schema.cushion import (
+    Percent,
+    CushionSettings,
+    CushionScenario,
+)
 
 __all__ = [
     # Analytics
@@ -33,4 +38,8 @@ __all__ = [
     "ReconciliationPreview",
     # Quick-add
     "QuickAddChipData",
+    # Cushion
+    "Percent",
+    "CushionSettings",
+    "CushionScenario",
 ]

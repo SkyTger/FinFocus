@@ -8,6 +8,8 @@
 
 <!-- Записи вида: Restore context: protocol-0013#ctx-N -->
 
+Restore context: protocol-0013#ctx-1 (2026-01-30)
+
 ---
 
 ## Step Log
@@ -17,3 +19,8 @@
 - Worktree: `../worktrees/0013-safety-cushion`
 - Ветка: `0013-safety-cushion` от `origin/main`
 - Draft PR: https://github.com/SkyTger/FinFocus/pull/13
+
+### Step 01 — Schema + Model (commit: pending)
+- Создан `app/schema/cushion.py`: Percent NewType, CushionSettings, CushionScenario TypedDicts
+- Обновлен `app/schema/__init__.py`: экспорт Percent, CushionSettings, CushionScenario
+- Добавлены поля в User: cushion_target, cushion_threshold_percent, cushion_threshold_manual
