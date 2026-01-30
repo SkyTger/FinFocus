@@ -20,7 +20,16 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
 - Ветка: `0013-safety-cushion` от `origin/main`
 - Draft PR: https://github.com/SkyTger/FinFocus/pull/13
 
-### Step 01 — Schema + Model (commit: pending)
+### Step 01 — Schema + Model (commit: 12ed5a4)
 - Создан `app/schema/cushion.py`: Percent NewType, CushionSettings, CushionScenario TypedDicts
 - Обновлен `app/schema/__init__.py`: экспорт Percent, CushionSettings, CushionScenario
 - Добавлены поля в User: cushion_target, cushion_threshold_percent, cushion_threshold_manual
+
+### Step 02 — CushionService (commit: pending)
+- Создан `app/services/cushion_service.py`: CushionService с 4 методами
+  - get_settings() — возвращает CushionSettings с вычисляемыми полями
+  - update_settings() — обновляет настройки с валидацией
+  - reset_settings() — сброс к default (target=0, threshold=30%)
+  - calculate_recommendation() — расчёт по сценариям (sum/max_scenario)
+- Добавлены: _validate_percent(), DEFAULT_THRESHOLD_PERCENT, VALID_CALC_MODES
+- Обновлен `app/services/__init__.py`: экспорт CushionService и констант
