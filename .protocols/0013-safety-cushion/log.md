@@ -34,7 +34,7 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
 - Добавлены: _validate_percent(), DEFAULT_THRESHOLD_PERCENT, VALID_CALC_MODES
 - Обновлен `app/services/__init__.py`: экспорт CushionService и констант
 
-### Step 03 — Unit Tests (commit: pending)
+### Step 03 — Unit Tests (commit: 38a1817)
 - Создан `tests/test_cushion_service.py`: 20 unit тестов
   - TestValidatePercent: 5 тестов (valid 0/30/100, invalid -1/101)
   - TestGetSettings: 7 тестов (not configured, configured, threshold_amount, progress, cap 100%, negative balance, user not found)
@@ -42,3 +42,12 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
   - TestResetSettings: 1 тест (reset to defaults)
   - TestCalculateRecommendation: 4 теста (sum, max_scenario, empty, invalid mode)
 - pytest: 20 passed
+
+### Step 04 — Card UI (commit: pending)
+- Добавлена функция `_build_cushion_card()` в goals.py (~180 строк)
+  - Состояние "Не настроена": иконка, описание, кнопка "Настроить"
+  - Состояние "Настроена": статус, суммы, прогресс-бар с маркером порога
+  - 4 цветовых статуса: danger/warning/info/success
+- Обновлен `create_goals_layout()`:
+  - Добавлен html.Div(id="cushion-card-container")
+  - Добавлены dcc.Store: cushion-settings-store, cushion-refresh-trigger

@@ -12,6 +12,7 @@ from loguru import logger
 
 from app.core import get_db_session
 from app.models.database import GoalStatus
+from app.schema.cushion import CushionSettings
 from app.services import (
     GoalService,
     AllocationService,
@@ -53,6 +54,187 @@ MODE_OPTIONS = {
         "description": "Максимизация накоплений для раннего достижения",
     },
 }
+
+
+def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
+    """Карточка финансовой подушки безопасности.
+
+    Два состояния:
+    - Не настроена (target=0): приглашение + кнопка "Настроить"
+    - Настроена (target>0): цель, текущая сумма, прогресс-бар с маркером порога
+
+    Args:
+        settings: Настройки подушки или None
+
+    Returns:
+        dbc.Card: Карточка подушки
+    """
+    if not settings or not settings.get("is_configured"):
+        # Состояние "Не настроена"
+        return dbc.Card(
+            [
+                dbc.CardBody(
+                    [
+                        html.Div(
+                            [
+                                html.I(
+                                    className="bi bi-shield-check cushion-icon-large"
+                                ),
+                                html.Div(
+                                    [
+                                        html.H5(
+                                            "Финансовая подушка",
+                                            className="cushion-title mb-1",
+                                        ),
+                                        html.P(
+                                            "Создайте резервный фонд для "
+                                            "непредвиденных расходов",
+                                            className="text-muted mb-0 small",
+                                        ),
+                                    ]
+                                ),
+                            ],
+                            className="d-flex align-items-center gap-3 mb-3",
+                        ),
+                        dbc.Button(
+                            [html.I(className="bi bi-gear me-2"), "Настроить"],
+                            id="cushion-setup-btn",
+                            color="primary",
+                            outline=True,
+                        ),
+                    ]
+                )
+            ],
+            className="cushion-card cushion-not-configured mb-4",
+        )
+
+    # Состояние "Настроена"
+    target = settings["target"]
+    current = settings["current_amount"]
+    progress = settings["progress"]
+    threshold_percent = settings["threshold_percent"]
+
+    # Определяем статус прогресса
+    if current < 0:
+        progress_color = "danger"
+        status_text = "Отрицательный баланс"
+        status_icon = "bi-exclamation-triangle"
+    elif progress < threshold_percent:
+        progress_color = "warning"
+        status_text = "Ниже порога безопасности"
+        status_icon = "bi-exclamation-circle"
+    elif progress < 100:
+        progress_color = "info"
+        status_text = "В процессе накопления"
+        status_icon = "bi-arrow-up-circle"
+    else:
+        progress_color = "success"
+        status_text = "Цель достигнута"
+        status_icon = "bi-check-circle"
+
+    return dbc.Card(
+        [
+            dbc.CardBody(
+                [
+                    # Header с заголовком и кнопкой
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    html.I(
+                                        className="bi bi-shield-check cushion-icon-large"
+                                    ),
+                                    html.H5(
+                                        "Финансовая подушка",
+                                        className="cushion-title mb-0 ms-2",
+                                    ),
+                                ],
+                                className="d-flex align-items-center",
+                            ),
+                            dbc.Button(
+                                [html.I(className="bi bi-pencil me-1"), "Изменить"],
+                                id="cushion-edit-btn",
+                                color="secondary",
+                                outline=True,
+                                size="sm",
+                            ),
+                        ],
+                        className="d-flex justify-content-between align-items-center "
+                        "mb-3",
+                    ),
+                    # Статус
+                    html.Div(
+                        [
+                            html.I(className=f"bi {status_icon} me-2"),
+                            html.Span(status_text),
+                        ],
+                        className=f"cushion-status cushion-status-{progress_color} mb-3",
+                    ),
+                    # Суммы
+                    html.Div(
+                        [
+                            html.Div(
+                                [
+                                    html.Span(
+                                        "Накоплено", className="text-muted small"
+                                    ),
+                                    html.H4(
+                                        format_amount(current),
+                                        className="mb-0 cushion-amount",
+                                    ),
+                                ],
+                                className="cushion-amount-block",
+                            ),
+                            html.Div(
+                                [
+                                    html.Span("Цель", className="text-muted small"),
+                                    html.H4(
+                                        format_amount(target),
+                                        className="mb-0 text-muted",
+                                    ),
+                                ],
+                                className="cushion-amount-block",
+                            ),
+                        ],
+                        className="d-flex gap-4 mb-3",
+                    ),
+                    # Прогресс-бар с маркером порога
+                    html.Div(
+                        [
+                            dbc.Progress(
+                                value=min(progress, 100),
+                                color=progress_color,
+                                className="cushion-progress",
+                                style={"height": "12px"},
+                            ),
+                            # Маркер порога
+                            html.Div(
+                                className="cushion-threshold-marker",
+                                style={"left": f"{threshold_percent}%"},
+                                title=f"Порог безопасности: {threshold_percent}%",
+                            ),
+                        ],
+                        className="cushion-progress-container position-relative",
+                    ),
+                    # Подпись прогресса
+                    html.Div(
+                        [
+                            html.Span(
+                                f"{progress:.1f}%",
+                                className="cushion-progress-text",
+                            ),
+                            html.Span(
+                                f"Порог: {threshold_percent}%",
+                                className="text-muted small",
+                            ),
+                        ],
+                        className="d-flex justify-content-between mt-2",
+                    ),
+                ]
+            )
+        ],
+        className=f"cushion-card cushion-configured cushion-{progress_color} mb-4",
+    )
 
 
 def _build_mode_selector(current_mode: str) -> dbc.Card:
@@ -1456,6 +1638,8 @@ def create_goals_layout() -> html.Div:
                 dismissable=True,
                 duration=5000,
             ),
+            # Карточка подушки безопасности (динамический контент)
+            html.Div(id="cushion-card-container"),
             # Карточка цели (динамический контент)
             html.Div(id="goal-card-container"),
             # История взносов
@@ -1490,6 +1674,10 @@ def create_goals_layout() -> html.Div:
             dcc.Store(id="redistribution-preview-store", data=None),
             # Store для состояния кнопки confirm (disabled во время обработки)
             dcc.Store(id="redistribution-btn-disabled-store", data=False),
+            # Store для настроек подушки безопасности
+            dcc.Store(id="cushion-settings-store", data=None),
+            # Store для триггера обновления подушки
+            dcc.Store(id="cushion-refresh-trigger", data=0),
         ],
         className="goals-container",
     )
