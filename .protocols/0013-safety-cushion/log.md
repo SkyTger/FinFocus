@@ -80,7 +80,7 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
 - Добавлена функция _build_scenarios_list() для UI сценариев
 - Все callbacks с ADR-003 guard clauses
 
-### Step 07 — CSS (commit: pending)
+### Step 07 — CSS (commit: 76c8f96)
 - Добавлены стили `.cushion-*` в goals.css (~200 строк)
   - Карточка: .cushion-card, .cushion-not-configured, .cushion-configured
   - Цветовые варианты: .cushion-danger/warning/info/success

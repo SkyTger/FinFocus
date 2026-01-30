@@ -144,7 +144,8 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
                             html.Div(
                                 [
                                     html.I(
-                                        className="bi bi-shield-check cushion-icon-large"
+                                        className="bi bi-shield-check "
+                                        "cushion-icon-large"
                                     ),
                                     html.H5(
                                         "Финансовая подушка",
@@ -170,7 +171,8 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
                             html.I(className=f"bi {status_icon} me-2"),
                             html.Span(status_text),
                         ],
-                        className=f"cushion-status cushion-status-{progress_color} mb-3",
+                        className=f"cushion-status cushion-status-{progress_color} "
+                        "mb-3",
                     ),
                     # Суммы
                     html.Div(

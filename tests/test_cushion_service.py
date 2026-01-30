@@ -206,7 +206,9 @@ class TestCalculateRecommendation:
         service = CushionService(db_session)
         scenarios: list[CushionScenario] = [
             CushionScenario(
-                name="Scenario 1", min_amount=Decimal("1000"), max_amount=Decimal("2000")
+                name="Scenario 1",
+                min_amount=Decimal("1000"),
+                max_amount=Decimal("2000"),
             ),
             CushionScenario(
                 name="Scenario 2", min_amount=Decimal("500"), max_amount=Decimal("1000")
@@ -218,11 +220,13 @@ class TestCalculateRecommendation:
         assert result == Decimal("3000")  # 2000 + 1000
 
     def test_calculate_recommendation_max_scenario_mode(self, db_session, test_user):
-        """calculate_recommendation в режиме max_scenario берёт максимальный max_amount."""
+        """calculate_recommendation: max_scenario берёт max(max_amount)."""
         service = CushionService(db_session)
         scenarios: list[CushionScenario] = [
             CushionScenario(
-                name="Scenario 1", min_amount=Decimal("1000"), max_amount=Decimal("5000")
+                name="Scenario 1",
+                min_amount=Decimal("1000"),
+                max_amount=Decimal("5000"),
             ),
             CushionScenario(
                 name="Scenario 2", min_amount=Decimal("500"), max_amount=Decimal("3000")
@@ -248,7 +252,9 @@ class TestCalculateRecommendation:
         service = CushionService(db_session)
         scenarios: list[CushionScenario] = [
             CushionScenario(
-                name="Scenario 1", min_amount=Decimal("1000"), max_amount=Decimal("2000")
+                name="Scenario 1",
+                min_amount=Decimal("1000"),
+                max_amount=Decimal("2000"),
             ),
         ]
 
