@@ -8,6 +8,106 @@
 
 ## Завершенные протоколы
 
+### Протокол 0013: Safety Cushion (2026-01-30)
+**Статус**: ✅ READY FOR REVIEW (PR #13)
+**Батч**: Epic-04-Advanced Features (Batch 4, Safety Cushion)
+**Worktree**: `/worktrees/0013-safety-cushion`
+
+**Контекст**:
+- В MVP планировщика бюджета отсутствует функционал финансовой подушки безопасности
+- Резервный фонд для непредвиденных расходов — критичная часть финансового планирования
+- Подушка НЕ является Goal (не участвует в распределении бюджета накоплений)
+
+**Решения**:
+- Подушка как 3 поля в User (не отдельная таблица) — простота для single-user MVP
+- CushionService отдельный сервис с CRUD методами
+- Percent NewType для type safety порогов
+- Калькулятор сценариев для рекомендации размера подушки
+
+**Реализация** (8 шагов):
+1. **Schema + Model** (commit 12ed5a4)
+   - TypedDicts: CushionSettings, CushionScenario (app/schema/cushion.py)
+   - Percent NewType = int (0-100 range validation)
+   - User модель: +cushion_target, +cushion_threshold_percent, +cushion_threshold_manual
+
+2. **CushionService** (commit 560da11)
+   - get_settings() — возвращает CushionSettings с вычисляемыми полями
+   - update_settings() — обновление с валидацией
+   - reset_settings() — сброс к default (target=0, threshold=30%)
+   - calculate_recommendation() — расчет по сценариям (sum/max_scenario)
+   - Константы: DEFAULT_THRESHOLD_PERCENT = 30, VALID_CALC_MODES
+
+3. **Unit Tests** (commit 38a1817)
+   - tests/test_cushion_service.py: 20 тестов
+   - TestValidatePercent (5), TestGetSettings (7), TestUpdateSettings (3)
+   - TestResetSettings (1), TestCalculateRecommendation (4)
+
+4. **Card UI** (commit f36e0bb)
+   - _build_cushion_card() — карточка на /goals (~180 строк)
+   - Состояния: "Не настроена" / "Настроена"
+   - Прогресс-бар с маркером порога риска
+   - 4 цветовых статуса: danger/warning/info/success
+   - dcc.Store: cushion-settings-store, cushion-refresh-trigger
+
+5. **Modal UI** (commit 6a152ee)
+   - _build_cushion_modal() — модал настройки (~175 строк)
+   - Поля: cushion-target-input, cushion-threshold-input
+   - Collapsible калькулятор сценариев
+   - RadioItems режима расчёта (sum/max_scenario)
+   - dcc.Store: cushion-scenarios-store, cushion-threshold-manual-flag
+
+6. **Callbacks** (commit a31154c)
+   - 12 callbacks (~450 строк):
+     1. render_cushion_card — рендер из store
+     2. load_cushion_settings — загрузка из БД
+     3. open_cushion_modal, 4. close_cushion_modal
+     5. populate_cushion_modal — заполнение при открытии
+     6. mark_threshold_manual — флаг manual=True
+     7. toggle_calculator — collapsible
+     8. add_scenario — Pattern-Matching
+     9. remove_scenario — Pattern-Matching
+     10. calculate_recommendation — расчет
+     11. apply_recommendation — применение к полю
+     12. save_cushion_settings, 13. reset_cushion_settings
+   - Все с ADR-003 guard clauses
+
+7. **CSS** (commit 76c8f96)
+   - Стили .cushion-* (~200 строк)
+   - Варианты: .cushion-danger/warning/info/success
+   - Прогресс: .cushion-progress-container, .cushion-threshold-marker
+   - Responsive: breakpoints 768px, 576px
+
+8. **Финализация** (commit fd5326f)
+   - Black: OK
+   - Flake8: 5 E501 исправлено
+   - Pytest: 292 passed (было 272, +20 для CushionService)
+
+**Результат**:
+- +~1000 строк в goals.py (карточка + модал + callbacks)
+- +~180 строк CushionService
+- +20 unit тестов (292 всего)
+- Percent NewType для type safety
+- Калькулятор сценариев для рекомендации
+
+**Критичные детали**:
+- Percent NewType — type safety для порогов (0-100 validation)
+- cushion_threshold_manual — фиксированная сумма порога (альтернатива процентам)
+- Калькулятор сценариев: sum (сумма всех) vs max_scenario (максимальный)
+- Прогресс = User.current_balance / cushion_target (требует актуализации баланса)
+- Подушка НЕ Goal — не участвует в AllocationService распределении
+
+**Следующие шаги** (протокол 0014):
+- Календарная визуализация подушки (график пополнения)
+- Умное распределение неосвоенного бюджета накоплений
+
+**Референсы**:
+- План: `.protocols/0013-safety-cushion/plan.md`
+- Лог: `.protocols/0013-safety-cushion/log.md`
+- Brief: `.design/brief.md`
+- Solution v3: `.design/solution-v3.md`
+
+---
+
 ### Протокол 0012: Quick-Add Chips (2026-01-25)
 **Статус**: ✅ READY FOR REVIEW (PR #12)
 **Батч**: Epic-04-Advanced Features (Batch 4, Quick-Add Chips)

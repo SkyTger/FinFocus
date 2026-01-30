@@ -257,16 +257,50 @@
 
 ## Advanced Features (Батч 4 — в процессе)
 
-### 10. Финансовая подушка безопасности 🔄
-**Статус**: Планируется
+### 10. Финансовая подушка безопасности ✅
+**Статус**: Завершен (Протокол 0013, PR #13)
 
-**Планируемые возможности**:
-- Автоматическое направление неосвоенного остатка бюджета накоплений
-- Варианты поведения:
-  - Подушка безопасности (целевой размер N месяцев расходов)
-  - Свободные расходы (карманные деньги)
-  - Накопление на следующий месяц
-- Настройка целевого размера подушки
+**Возможности**:
+- Настройка целевого размера подушки (произвольная сумма)
+- Настройка порога риска:
+  - Процент от цели (30% по умолчанию)
+  - Или фиксированная сумма
+- Карточка подушки на странице /goals:
+  - Статус "Не настроена" → кнопка "Настроить"
+  - Статус "Настроена" → прогресс-бар с маркером порога
+  - 4 цветовых статуса: danger (<порог), warning, info, success (≥100%)
+- Модал настройки с калькулятором сценариев:
+  - Расчет рекомендации по сценариям (месячные расходы по категориям)
+  - Режимы: sum (сумма всех) / max_scenario (максимальный)
+  - Применение рекомендации к полю цели
+- Интеграция с балансом пользователя (User.current_balance для прогресса)
+
+**Технические детали**:
+- CushionService с Percent NewType для type safety
+- 3 поля в User модели:
+  - cushion_target (Decimal, nullable) — целевая сумма подушки
+  - cushion_threshold_percent (Integer, default 30) — порог риска в %
+  - cushion_threshold_manual (Decimal, nullable) — фиксированный порог
+- 12 callbacks с ADR-003 guard clauses:
+  - render_cushion_card, load_cushion_settings, open/close/populate modal
+  - mark_threshold_manual, toggle_calculator
+  - add/remove_scenario (Pattern-Matching)
+  - calculate_recommendation, apply_recommendation
+  - save/reset_cushion_settings
+- TypedDicts: CushionSettings, CushionScenario (app/schema/cushion.py)
+- Калькулятор сценариев: анализ расходов по категориям для рекомендации
+- Responsive стили .cushion-* с breakpoints 768px, 576px
+
+**Файлы**:
+- `app/services/cushion_service.py` — CushionService (~180 строк)
+- `app/schema/cushion.py` — Percent NewType, TypedDicts (~40 строк)
+- `app/components/goals.py` — карточка + модал + callbacks (~800 строк добавлено)
+- `app/assets/goals.css` — стили .cushion-* (~200 строк добавлено)
+- `tests/test_cushion_service.py` — 20 unit тестов
+
+**Следующие шаги** (протокол 0014):
+- Календарная визуализация подушки (график пополнения в Calendar)
+- Умное распределение неосвоенного бюджета накоплений
 
 ---
 

@@ -675,6 +675,111 @@ with get_db_session() as session:
 **Unit тесты**: 16 тестов в `tests/test_analytics_service.py`
 - Покрытие: агрегация, группировка мелких категорий, uncategorized, monthly trends
 
+## CushionService (Протокол 0013 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/cushion_service.py` (~180 строк)
+
+**Инициализация**: `CushionService(session)` - принимает SQLAlchemy session
+
+**Константы**:
+```python
+DEFAULT_THRESHOLD_PERCENT: Percent = 30  # Порог риска по умолчанию
+VALID_CALC_MODES = {"sum", "max_scenario"}  # Режимы калькулятора
+```
+
+**Методы**:
+- `get_settings(user_id)` → `CushionSettings`
+  - Возвращает настройки подушки с вычисляемыми полями
+  - progress_percent — текущий прогресс (User.current_balance / cushion_target)
+  - threshold_amount — сумма порога (auto из percent или manual)
+  - status — 4 варианта: "not_configured", "danger", "warning", "info", "success"
+- `update_settings(user_id, target, threshold_percent, threshold_manual)` → `None`
+  - Обновление настроек с валидацией
+  - Валидация: target >= 0, threshold_percent в [0, 100]
+- `reset_settings(user_id)` → `None`
+  - Сброс к default: target=0, threshold=30%, manual=None
+- `calculate_recommendation(user_id, scenarios, calc_mode)` → `Decimal`
+  - Расчет рекомендации по сценариям
+  - calc_mode="sum" — сумма всех сценариев
+  - calc_mode="max_scenario" — максимальный из сценариев
+  - Валидация: calc_mode in VALID_CALC_MODES
+
+**TypedDicts** (app/schema/cushion.py):
+```python
+Percent = NewType("Percent", int)  # Type alias для 0-100 range
+
+class CushionSettings(TypedDict):
+    cushion_target: Decimal | None
+    cushion_threshold_percent: Percent
+    cushion_threshold_manual: Decimal | None
+    current_balance: Decimal
+    progress_percent: float  # computed
+    threshold_amount: Decimal | None  # computed
+    status: str  # computed: "not_configured" | "danger" | "warning" | "info" | "success"
+
+class CushionScenario(TypedDict):
+    name: str
+    amount: Decimal
+```
+
+**Пример использования**:
+```python
+from app.services import CushionService
+
+with get_db_session() as session:
+    service = CushionService(session)
+
+    # Получить настройки
+    settings = service.get_settings(user_id=1)
+    # {"cushion_target": None, "status": "not_configured", ...}
+
+    # Обновить настройки
+    service.update_settings(
+        user_id=1,
+        target=Decimal("150000"),
+        threshold_percent=30,
+        threshold_manual=None
+    )
+
+    # Расчет рекомендации
+    scenarios = [
+        {"name": "Продукты", "amount": Decimal("15000")},
+        {"name": "Коммуналка", "amount": Decimal("8000")},
+    ]
+    recommendation = service.calculate_recommendation(
+        user_id=1, scenarios=scenarios, calc_mode="sum"
+    )
+    # Decimal("23000")
+
+    session.commit()
+```
+
+**Внутренние методы**:
+- `_validate_percent(value)` → `bool` — валидация диапазона 0-100
+
+**Вычисляемые поля**:
+- `progress_percent` = (current_balance / cushion_target) * 100, cap at 100%
+- `threshold_amount` = threshold_manual OR (cushion_target * threshold_percent / 100)
+- `status`:
+  - "not_configured" если target is None or 0
+  - "danger" если progress < threshold
+  - "warning" если threshold <= progress < 50%
+  - "info" если 50% <= progress < 100%
+  - "success" если progress >= 100%
+
+**Критичные детали**:
+- Percent NewType для type safety (IDE и mypy помощь)
+- cushion_threshold_manual приоритетнее чем percent (если установлен)
+- Прогресс берется из User.current_balance (требует актуализации)
+- Подушка НЕ Goal — не участвует в AllocationService распределении
+
+**Unit тесты**: 20 тестов в `tests/test_cushion_service.py`
+- TestValidatePercent: 5 тестов (valid 0/30/100, invalid -1/101)
+- TestGetSettings: 7 тестов (not configured, configured, threshold_amount, progress, cap 100%, negative balance, user not found)
+- TestUpdateSettings: 3 теста (valid, invalid target, invalid percent)
+- TestResetSettings: 1 тест
+- TestCalculateRecommendation: 4 теста (sum, max_scenario, empty, invalid mode)
+
 ---
 
 Детали: `architecture.md` (Service Layer Pattern), `code-style.md` (Session Management Pattern), `schema.md` (TypedDicts)
