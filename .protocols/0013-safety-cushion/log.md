@@ -43,7 +43,7 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
   - TestCalculateRecommendation: 4 теста (sum, max_scenario, empty, invalid mode)
 - pytest: 20 passed
 
-### Step 04 — Card UI (commit: pending)
+### Step 04 — Card UI (commit: f36e0bb)
 - Добавлена функция `_build_cushion_card()` в goals.py (~180 строк)
   - Состояние "Не настроена": иконка, описание, кнопка "Настроить"
   - Состояние "Настроена": статус, суммы, прогресс-бар с маркером порога
@@ -51,3 +51,13 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
 - Обновлен `create_goals_layout()`:
   - Добавлен html.Div(id="cushion-card-container")
   - Добавлены dcc.Store: cushion-settings-store, cushion-refresh-trigger
+
+### Step 05 — Modal UI (commit: pending)
+- Добавлена функция `_build_cushion_modal()` в goals.py (~175 строк)
+  - Поле цели (cushion-target-input)
+  - Поле порога (cushion-threshold-input) с InputGroupText "%"
+  - Collapsible калькулятор сценариев (cushion-calculator-collapse)
+  - RadioItems режима расчёта (sum/max_scenario)
+  - Кнопки: Сбросить, Отмена, Сохранить
+- Добавлены dcc.Store: cushion-scenarios-store, cushion-threshold-manual-flag
+- Модал интегрирован в layout

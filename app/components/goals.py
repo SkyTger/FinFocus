@@ -921,6 +921,181 @@ def _build_contributions_table(
     )
 
 
+def _build_cushion_modal() -> dbc.Modal:
+    """Модал настройки финансовой подушки безопасности.
+
+    Содержит:
+    - Поле "Цель подушки" (число >= 0)
+    - Поле "Минимальный остаток" (порог, по умолчанию 30% от цели)
+    - Collapsible секция "Рассчитать по сценариям"
+    - Кнопки: Сохранить, Сбросить, Отмена
+
+    Returns:
+        dbc.Modal: Модал настройки подушки
+    """
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Настройка финансовой подушки")),
+            dbc.ModalBody(
+                [
+                    # Поле цели
+                    dbc.Row(
+                        [
+                            dbc.Label("Цель подушки", width=4),
+                            dbc.Col(
+                                dbc.Input(
+                                    id="cushion-target-input",
+                                    type="number",
+                                    min=0,
+                                    step=1000,
+                                    placeholder="300000",
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    # Поле порога
+                    dbc.Row(
+                        [
+                            dbc.Label("Порог безопасности", width=4),
+                            dbc.Col(
+                                dbc.InputGroup(
+                                    [
+                                        dbc.Input(
+                                            id="cushion-threshold-input",
+                                            type="number",
+                                            min=0,
+                                            max=100,
+                                            value=30,
+                                        ),
+                                        dbc.InputGroupText("%"),
+                                    ]
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-2",
+                    ),
+                    html.P(
+                        "При достижении этого порога баланс считается в зоне риска",
+                        className="text-muted small mb-4",
+                    ),
+                    # Collapsible калькулятор сценариев
+                    html.Div(
+                        [
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-calculator me-2"),
+                                    "Рассчитать по сценариям",
+                                ],
+                                id="cushion-toggle-calculator-btn",
+                                color="secondary",
+                                outline=True,
+                                size="sm",
+                                className="mb-3",
+                            ),
+                            dbc.Collapse(
+                                [
+                                    html.Hr(),
+                                    html.H6(
+                                        "Сценарии непредвиденных расходов",
+                                        className="mb-3",
+                                    ),
+                                    html.P(
+                                        "Добавьте возможные расходы для расчёта "
+                                        "рекомендуемого размера подушки",
+                                        className="text-muted small mb-3",
+                                    ),
+                                    # Список сценариев
+                                    html.Div(id="cushion-scenarios-list"),
+                                    # Кнопка добавления
+                                    dbc.Button(
+                                        [
+                                            html.I(className="bi bi-plus me-1"),
+                                            "Добавить сценарий",
+                                        ],
+                                        id="cushion-add-scenario-btn",
+                                        color="secondary",
+                                        outline=True,
+                                        size="sm",
+                                        className="mb-3",
+                                    ),
+                                    # Режим расчёта
+                                    html.Hr(),
+                                    dbc.Label("Режим расчёта", className="small"),
+                                    dbc.RadioItems(
+                                        id="cushion-calc-mode",
+                                        options=[
+                                            {
+                                                "label": "Сумма всех сценариев",
+                                                "value": "sum",
+                                            },
+                                            {
+                                                "label": "По самому дорогому",
+                                                "value": "max_scenario",
+                                            },
+                                        ],
+                                        value="sum",
+                                        inline=True,
+                                        className="mb-3",
+                                    ),
+                                    # Рекомендация
+                                    dbc.Alert(
+                                        id="cushion-recommendation",
+                                        color="info",
+                                        className="mb-3",
+                                    ),
+                                    # Кнопка применения
+                                    dbc.Button(
+                                        "Применить рекомендацию",
+                                        id="cushion-apply-recommendation-btn",
+                                        color="primary",
+                                        outline=True,
+                                        size="sm",
+                                    ),
+                                ],
+                                id="cushion-calculator-collapse",
+                                is_open=False,
+                            ),
+                        ],
+                        className="cushion-calculator-section",
+                    ),
+                    # Store для сценариев
+                    dcc.Store(id="cushion-scenarios-store", data=[]),
+                    # Store для manual flag (threshold изменён вручную)
+                    dcc.Store(id="cushion-threshold-manual-flag", data=False),
+                ]
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "Сбросить",
+                        id="cushion-reset-btn",
+                        color="danger",
+                        outline=True,
+                        className="me-auto",
+                    ),
+                    dbc.Button(
+                        "Отмена",
+                        id="cushion-cancel-btn",
+                        color="secondary",
+                        outline=True,
+                    ),
+                    dbc.Button(
+                        "Сохранить",
+                        id="cushion-save-btn",
+                        color="primary",
+                    ),
+                ]
+            ),
+        ],
+        id="cushion-modal",
+        is_open=False,
+        size="lg",
+    )
+
+
 def _build_budget_modal() -> dbc.Modal:
     """Создает модал для настройки месячного бюджета накоплений.
 
@@ -1651,6 +1826,7 @@ def create_goals_layout() -> html.Div:
                 className="mt-4",
             ),
             # Модалы
+            _build_cushion_modal(),
             _build_budget_modal(),
             _build_create_goal_modal(),
             _build_edit_goal_modal(),
