@@ -52,7 +52,7 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
   - Добавлен html.Div(id="cushion-card-container")
   - Добавлены dcc.Store: cushion-settings-store, cushion-refresh-trigger
 
-### Step 05 — Modal UI (commit: pending)
+### Step 05 — Modal UI (commit: 6a152ee)
 - Добавлена функция `_build_cushion_modal()` в goals.py (~175 строк)
   - Поле цели (cushion-target-input)
   - Поле порога (cushion-threshold-input) с InputGroupText "%"
@@ -61,3 +61,21 @@ Restore context: protocol-0013#ctx-1 (2026-01-30)
   - Кнопки: Сбросить, Отмена, Сохранить
 - Добавлены dcc.Store: cushion-scenarios-store, cushion-threshold-manual-flag
 - Модал интегрирован в layout
+
+### Step 06 — Callbacks (commit: pending)
+- Добавлено 12 callbacks для подушки (~450 строк):
+  1. render_cushion_card — рендер карточки из store
+  2. load_cushion_settings — загрузка из БД
+  3. open_cushion_modal — открытие модала
+  4. close_cushion_modal — закрытие модала
+  5. populate_cushion_modal — заполнение полей при открытии
+  6. mark_threshold_manual — установка manual=True
+  7. toggle_calculator — открытие/закрытие калькулятора
+  8. add_scenario — добавление сценария
+  9. remove_scenario — удаление сценария (Pattern-Matching)
+  10. calculate_recommendation — расчёт рекомендации
+  11. apply_recommendation — применение к полю цели
+  12. save_cushion_settings — сохранение в БД
+  13. reset_cushion_settings — сброс к default
+- Добавлена функция _build_scenarios_list() для UI сценариев
+- Все callbacks с ADR-003 guard clauses
