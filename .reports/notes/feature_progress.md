@@ -1,11 +1,76 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Батч 4 — Quick-Add Chips — ✅ ЗАВЕРШЕН
+## 📊 Общий статус проекта: Батч 4 — Safety Cushion — ✅ ЗАВЕРШЕН
 
-**Последнее обновление**: 2026/01/25
-**Текущий этап**: Батч Quick-Add Chips — READY FOR REVIEW
-**Прогресс Epic-04**: 1/4 фичи (Quick-Add Chips complete)
+**Последнее обновление**: 2026/01/30
+**Текущий этап**: Safety Cushion — MERGED
+**Прогресс Epic-04**: 2/6 фичи (Quick-Add Chips + Safety Cushion complete)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 12: Safety Cushion (2026-01-30) — MERGED
+
+**Дата**: 2026/01/30
+**Протокол**: 0013-safety-cushion
+**PR**: https://github.com/SkyTger/FinFocus/pull/13
+**Статус**: ✅ Merged в main
+
+### 🎯 Цель батча:
+Реализовать финансовую подушку безопасности — резервный фонд для непредвиденных расходов с визуализацией прогресса и порога риска.
+
+### ✅ Выполненные задачи:
+
+1. **Schema + Model** (commit: 12ed5a4)
+   - Percent NewType для type safety (0-100)
+   - CushionSettings, CushionScenario TypedDicts
+   - 3 поля в User: cushion_target, cushion_threshold_percent, cushion_threshold_manual
+
+2. **CushionService** (commit: 560da11)
+   - get_settings() — возвращает CushionSettings с вычисляемыми полями
+   - update_settings() — обновляет настройки с валидацией
+   - reset_settings() — сброс к default (target=0, threshold=30%)
+   - calculate_recommendation() — расчёт по сценариям (sum/max_scenario)
+
+3. **Unit Tests** (commit: 38a1817)
+   - 20 unit тестов для CushionService
+   - Покрытие: _validate_percent, get/update/reset settings, calculate_recommendation
+
+4. **Card UI** (commit: f36e0bb)
+   - Карточка подушки на /goals (~180 строк)
+   - 4 цветовых статуса: danger/warning/info/success
+   - Прогресс-бар с маркером порога
+
+5. **Modal UI** (commit: 6a152ee)
+   - Модал настройки (~175 строк)
+   - Калькулятор сценариев (sum/max_scenario режимы)
+   - Кнопки: Сбросить, Отмена, Сохранить
+
+6. **Callbacks** (commit: a31154c)
+   - 12 callbacks с ADR-003 guard clauses (~450 строк)
+   - Pattern-Matching для remove_scenario
+
+7. **CSS стили** (commit: 76c8f96)
+   - Стили .cushion-* (~200 строк)
+   - Responsive breakpoints: 768px, 576px
+
+8. **Финализация** (commit: fd5326f)
+   - Black, Flake8, pytest — все прошли
+   - 292 теста (было 272, +20 для CushionService)
+
+### 📊 Результат:
+- ✅ 292 unit и integration тестов
+- ✅ CushionService с Percent NewType для type safety
+- ✅ Калькулятор сценариев для расчёта целевого размера
+- ✅ Black + Flake8 OK
+- ✅ PR #13 Merged
+
+### 💡 Ключевые решения:
+
+1. **Подушка как поля в User** — не Goal, т.к. подушка не участвует в распределении бюджета
+2. **Percent NewType** — type safety на уровне IDE/type checker
+3. **threshold_manual флаг** — любое изменение порога = manual=True
+4. **Калькулятор сценариев** — sum (сумма) или max_scenario (максимум) режимы
 
 ---
 
