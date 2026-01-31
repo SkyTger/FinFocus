@@ -96,6 +96,13 @@ DEFAULT_CATEGORIES = [
         "is_system": False,
         "sort_order": 10,
     },
+    {
+        "name": "Кредиты",
+        "icon": "bi-bank",
+        "type": "expense",
+        "is_system": False,
+        "sort_order": 11,
+    },
     # Доходы
     {
         "name": "Зарплата",

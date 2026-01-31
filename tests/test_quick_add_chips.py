@@ -109,14 +109,14 @@ class TestGetQuickAddChips:
 class TestDefaultQuickAddChipNames:
     """Тесты для константы DEFAULT_QUICK_ADD_CHIP_NAMES."""
 
-    def test_has_7_entries(self):
-        """Константа содержит 7 записей."""
+    def test_has_8_entries(self):
+        """Константа содержит 8 записей."""
         from app.components.transactions import DEFAULT_QUICK_ADD_CHIP_NAMES
 
-        assert len(DEFAULT_QUICK_ADD_CHIP_NAMES) == 7
+        assert len(DEFAULT_QUICK_ADD_CHIP_NAMES) == 8
 
-    def test_has_5_expense_2_income(self):
-        """5 расходных и 2 доходных категории."""
+    def test_has_6_expense_2_income(self):
+        """6 расходных и 2 доходных категории."""
         from app.components.transactions import DEFAULT_QUICK_ADD_CHIP_NAMES
 
         expense_count = sum(
@@ -124,7 +124,7 @@ class TestDefaultQuickAddChipNames:
         )
         income_count = sum(1 for _, t in DEFAULT_QUICK_ADD_CHIP_NAMES if t == "income")
 
-        assert expense_count == 5
+        assert expense_count == 6
         assert income_count == 2
 
     def test_entries_are_tuples(self):

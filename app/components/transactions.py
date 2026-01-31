@@ -22,7 +22,7 @@ from app.utils.formatters import format_amount, format_date, ICON_TO_EMOJI
 from app.schema import QuickAddChipData
 
 # Дефолтные категории для Quick-add chips (name, type)
-# Расход: 5 категорий, Доход: 2 категории
+# Расход: 6 категорий, Доход: 2 категории
 DEFAULT_QUICK_ADD_CHIP_NAMES: list[tuple[str, str]] = [
     # Расходы
     ("Еда и продукты", "expense"),
@@ -30,6 +30,7 @@ DEFAULT_QUICK_ADD_CHIP_NAMES: list[tuple[str, str]] = [
     ("Жилье и ЖКХ", "expense"),
     ("Связь и интернет", "expense"),
     ("Развлечения", "expense"),
+    ("Кредиты", "expense"),
     # Доходы
     ("Зарплата", "income"),
     ("Подработка", "income"),
