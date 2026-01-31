@@ -16,6 +16,7 @@ from app.components.calendar import create_calendar_layout  # Потом calenda
 from app.components.goals import create_goals_layout  # Потом goals
 from app.components.transaction_modals import create_transaction_modals
 from app.components.analytics import create_analytics_layout  # Аналитика
+from app.components.onboarding_wizard import create_onboarding_wizard
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -75,6 +76,10 @@ app.layout = dbc.Container(
         ),  # Убираем отступы между колонками
         # Глобальные модалы транзакций (доступны на всех страницах)
         create_transaction_modals(),
+        # Onboarding wizard (blocking modal при first_launch)
+        create_onboarding_wizard(),
+        # Глобальный store для toast dismissal (до перезагрузки)
+        dcc.Store(id="balance-toast-dismissed", data=False),
     ],
     fluid=True,
     className="p-0",
