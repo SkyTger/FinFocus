@@ -1,9 +1,9 @@
 # Protocol Context: 0014-onboarding-wizard
 
-- **Current Step**: 10
+- **Current Step**: 11
 - **Status**: In Progress
-- **Last Action**: Step 9 completed — Calendar query param auto-open
-- **Next Action**: Шаг 10 — CSS Styles
+- **Last Action**: Step 10 completed — CSS styles created
+- **Next Action**: Шаг 11 — Finalize
 - **Git Branch**: `0014-onboarding-wizard`
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0014-onboarding-wizard`

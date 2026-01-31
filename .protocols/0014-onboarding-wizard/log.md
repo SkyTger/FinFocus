@@ -65,8 +65,14 @@
 - CTA button links to /calendar?open_recon=1
 - 2 callbacks: toggle_balance_toast, persist_toast_dismissal
 
-### Step 09 — Calendar Query Param (commit: pending)
+### Step 09 — Calendar Query Param (commit: d4a0f92)
 - Extended toggle_reconciliation_modal to handle ?open_recon=1
 - Added Input("url", "search") and State("url", "pathname")
 - Query cleanup strategy: full (returns "" to clear query string)
 - All return statements updated with 6th element for url.search
+
+### Step 10 — CSS Styles (commit: pending)
+- Created app/assets/onboarding.css (~80 lines)
+- Styles for .onboarding-modal (green gradient header, border-radius)
+- Styles for .balance-toast (warning colors)
+- Responsive adjustments for mobile
