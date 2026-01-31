@@ -39,7 +39,8 @@ class OnboardingService:
             user_id: ID пользователя.
 
         Returns:
-            OnboardingStatus с полями first_launch, starting_balance, needs_balance_alert.
+            OnboardingStatus с полями first_launch, starting_balance,
+            needs_balance_alert.
 
         Raises:
             ValueError: Если пользователь не найден.
@@ -54,9 +55,7 @@ class OnboardingService:
             needs_balance_alert=user.starting_balance == Decimal("0"),
         )
 
-    def complete_with_balance(
-        self, user_id: int, starting_balance: Decimal
-    ) -> None:
+    def complete_with_balance(self, user_id: int, starting_balance: Decimal) -> None:
         """Завершить онбординг с указанным балансом.
 
         Args:

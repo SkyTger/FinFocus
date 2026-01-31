@@ -93,7 +93,7 @@ class TestOnboardingServiceComplete:
         assert user.starting_balance == Decimal("-5000")
 
     def test_complete_user_not_found_raises(self, db_session):
-        """complete_with_balance для несуществующего пользователя вызывает ValueError."""
+        """complete_with_balance для несуществующего user вызывает ValueError."""
         service = OnboardingService(db_session)
 
         with pytest.raises(ValueError, match="not found"):
