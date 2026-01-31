@@ -37,7 +37,13 @@
 - flush/commit contract documented in class docstring
 - Exported in app/services/__init__.py
 
-### Step 04 — Unit Tests (commit: pending)
+### Step 04 — Unit Tests (commit: e666816)
 - Created tests/test_onboarding_service.py with 8 tests
 - Coverage: get_status (3), complete_with_balance (3), skip (2)
 - Added email field to User fixtures (email is required in model)
+
+### Step 05 — Wizard UI (commit: pending)
+- Created app/components/onboarding_wizard.py
+- Blocking modal: backdrop="static", keyboard=False, no close button
+- InputGroup with ruble sign, warning div for negative balance
+- Buttons: "Пропустить" (secondary), "Продолжить" (success, disabled by default)
