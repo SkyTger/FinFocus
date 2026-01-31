@@ -32,7 +32,12 @@
 - Logic: starting_balance != 0 → first_launch = False
 - Idempotent: проверяет PRAGMA table_info перед ALTER
 
-### Step 03 — OnboardingService (commit: pending)
+### Step 03 — OnboardingService (commit: f70e66e)
 - Created OnboardingService with get_status, complete_with_balance, skip methods
 - flush/commit contract documented in class docstring
 - Exported in app/services/__init__.py
+
+### Step 04 — Unit Tests (commit: pending)
+- Created tests/test_onboarding_service.py with 8 tests
+- Coverage: get_status (3), complete_with_balance (3), skip (2)
+- Added email field to User fixtures (email is required in model)
