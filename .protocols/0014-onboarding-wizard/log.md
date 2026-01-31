@@ -71,8 +71,14 @@
 - Query cleanup strategy: full (returns "" to clear query string)
 - All return statements updated with 6th element for url.search
 
-### Step 10 — CSS Styles (commit: pending)
+### Step 10 — CSS Styles (commit: cd891f1)
 - Created app/assets/onboarding.css (~80 lines)
 - Styles for .onboarding-modal (green gradient header, border-radius)
 - Styles for .balance-toast (warning colors)
 - Responsive adjustments for mobile
+
+### Step 11 — Finalize (commit: 3b72b95)
+- Black: 2 files reformatted
+- Flake8: fixed 2 E501 line too long errors
+- Pytest: 300 tests PASSED (was 292, +8 for OnboardingService)
+- PR #14 marked as Ready
