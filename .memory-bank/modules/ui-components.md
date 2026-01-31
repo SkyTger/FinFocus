@@ -305,6 +305,88 @@ if ctx.triggered[0].get('value') is None:
 - CalendarService для балансов
 - GoalService для savings (агрегация по всем ACTIVE целям)
 
+## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
+
+**Файлы**:
+- `app/components/onboarding_wizard.py` — Wizard UI + callbacks (~200 строк)
+- `app/assets/onboarding.css` — стили (~80 строк)
+
+**Layout**:
+- Blocking modal (dbc.Modal):
+  - backdrop="static" — нельзя закрыть кликом вне модала
+  - keyboard=False — нельзя закрыть ESC
+  - is_open управляется из check_onboarding_and_validate callback
+- Header с зеленым градиентом
+- Body:
+  - Welcome text с объяснением важности starting_balance
+  - InputGroup с полем ввода + ruble sign (₽)
+  - Warning div для negative balance (display: none по умолчанию)
+- Footer:
+  - "Пропустить" button (secondary) — для опытных пользователей
+  - "Продолжить" button (success, disabled по умолчанию) — активируется при valid input
+
+**Callbacks** (2):
+1. **check_onboarding_and_validate** (triggered on URL change + input change)
+   - Inputs: url.pathname, starting-balance-input.value
+   - Outputs: modal is_open, continue-button disabled, continue-button n_clicks, warning visibility
+   - Logic:
+     - Check first_launch через OnboardingService.get_status()
+     - Show modal если first_launch=True
+     - Validate input: empty → disabled, negative → warning + disabled, positive → enabled
+     - DB failure strategy: fail-closed (hide wizard on error)
+
+2. **handle_onboarding_action** (triggered on button clicks)
+   - Inputs: continue-btn.n_clicks, skip-btn.n_clicks, starting-balance-input.value
+   - Outputs: modal is_open, dashboard-refresh-trigger
+   - Logic:
+     - ADR-003 guard clauses для n_clicks (prevent auto-triggers)
+     - Continue → OnboardingService.complete_with_balance()
+     - Skip → OnboardingService.skip()
+     - Emit dashboard-refresh-trigger для обновления UI
+     - Close modal
+
+**Dashboard Toast Integration** (Протокол 0014):
+- Toast UI в dashboard.py:
+  - _build_balance_toast() — warning toast с CTA кнопкой
+  - Показывается если starting_balance=0 AND first_launch=False (пользователь пропустил)
+  - Dismissable через close button (состояние в session Store)
+  - CTA кнопка "Настроить" → redirect на /calendar?open_recon=1
+- 2 callbacks:
+  - toggle_balance_toast — показ/скрытие на основе OnboardingStatus
+  - persist_toast_dismissal — сохранение dismissal state в Store
+
+**Calendar Query Param Handler** (Протокол 0014):
+- Extended toggle_reconciliation_modal в calendar.py:
+  - Added Input("url", "search") и State("url", "pathname")
+  - Logic: если ?open_recon=1 → auto-open reconciliation modal
+  - Query cleanup strategy: full (return "" для url.search Output)
+  - All return statements updated с 6th element для url.search Output
+
+**State Management**:
+- `dcc.Store(id="balance-toast-dismissed")` — session state для toast dismissal (в main.py)
+
+**Ключевые паттерны**:
+- **Fail-closed DB strategy**: wizard скрывается при ошибке БД, не блокирует приложение (critical для UX)
+- **Query param full cleanup**: url.search = "" после обработки (не оставляем артефактов в URL)
+- **Flush/commit contract**: OnboardingService.flush(), callback context manager commit()
+- **ADR-003 guard clauses**: n_clicks проверки в handle_onboarding_action
+
+**Стили** (onboarding.css):
+- `.onboarding-modal .modal-header` — green gradient (linear-gradient #1a7431 → #228b3b)
+- `.onboarding-modal .modal-body` — padding, line-height
+- `.balance-toast` — warning colors (#856404 bg, #fff3cd text)
+- Responsive: max-width 90% на mobile
+
+**Критичные детали**:
+- Modal НЕЛЬЗЯ закрыть без действия (backdrop=static, keyboard=False, no X button)
+- Negative balance → warning div показывается, button disabled
+- Toast dismissal в session Store (не в БД) — reset при новой сессии
+- Query param ?open_recon=1 обрабатывается ОДИН РАЗ (full cleanup после)
+
+**Unit тесты**: 8 тестов OnboardingService покрывают бизнес-логику
+
+---
+
 ## Goals Component (Фаза 5 — ЗАВЕРШЕНА, Протокол 0006 — РЕФАКТОРИНГ)
 
 **Файлы**:

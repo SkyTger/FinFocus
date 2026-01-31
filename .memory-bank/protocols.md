@@ -8,6 +8,109 @@
 
 ## Завершенные протоколы
 
+### Протокол 0014: Onboarding Wizard (2026-01-31)
+**Статус**: ✅ MERGED (PR #14)
+**Батч**: Epic-04-Advanced Features (Batch 4, Onboarding)
+**Worktree**: `/worktrees/0014-onboarding-wizard`
+
+**Контекст**:
+- FinFocus требует корректной настройки starting_balance для точных расчетов кассового календаря
+- Новые пользователи часто пропускают этот критичный шаг
+- Как обеспечить настройку starting_balance при первом входе без блокировки опытных пользователей?
+
+**Решения**:
+- Blocking modal-wizard при first_launch=True
+- Toast на Dashboard для пользователей с balance=0 (мягкое напоминание)
+- Calendar query param ?open_recon=1 для автооткрытия модала сверки
+- Fail-closed DB strategy (wizard скрывается при ошибке, не блокирует приложение)
+- Flush/commit contract в сервисе (docstring)
+
+**Реализация** (11 шагов):
+1. **Schema + Model** (commit 0659dfc)
+   - User.first_launch: Boolean, default=True, nullable=False
+   - OnboardingStatus TypedDict (first_launch, starting_balance, needs_balance_alert)
+   - Exported in app/schema/__init__.py
+
+2. **Migration Script** (commit e048e7a)
+   - scripts/migrate_003_first_launch.py
+   - Logic: starting_balance != 0 → first_launch = False
+   - Idempotent: проверяет PRAGMA table_info перед ALTER
+
+3. **OnboardingService** (commit f70e66e)
+   - get_status(user_id) → OnboardingStatus
+   - complete_with_balance(user_id, starting_balance) — flush(), caller commit()
+   - skip(user_id) — first_launch=False, balance остается 0
+   - Flush/commit contract documented в class docstring
+   - Exported in app/services/__init__.py
+
+4. **Unit Tests** (commit e666816)
+   - tests/test_onboarding_service.py: 8 тестов
+   - TestGetStatus (3), TestCompleteWithBalance (3), TestSkip (2)
+   - Added email field to User fixtures (model requirement)
+
+5. **Wizard UI** (commit ae8824d)
+   - app/components/onboarding_wizard.py
+   - Blocking modal: backdrop="static", keyboard=False, no close button
+   - InputGroup с ruble sign, warning div для negative balance
+   - Buttons: "Пропустить" (secondary), "Продолжить" (success, disabled by default)
+
+6. **Wizard Callbacks** (commit 3bab87f)
+   - check_onboarding_and_validate: checks first_launch on URL change, validates input
+   - handle_onboarding_action: submit or skip с ADR-003 guard clauses
+   - DB failure strategy: fail-closed (hide wizard on error)
+
+7. **Main Integration** (commit c5cd192)
+   - Exported create_onboarding_wizard в app/components/__init__.py
+   - Added wizard to main.py layout после transaction_modals
+   - Added dcc.Store("balance-toast-dismissed") для toast session state
+
+8. **Dashboard Toast** (commit 59eb24b)
+   - _build_balance_toast() function для zero-balance warning
+   - Toast shows если starting_balance == 0 и not dismissed
+   - CTA button links to /calendar?open_recon=1
+   - 2 callbacks: toggle_balance_toast, persist_toast_dismissal
+
+9. **Calendar Query Param** (commit d4a0f92)
+   - Extended toggle_reconciliation_modal для обработки ?open_recon=1
+   - Added Input("url", "search") и State("url", "pathname")
+   - Query cleanup strategy: full (returns "" to clear query string)
+   - All return statements updated с 6th element для url.search
+
+10. **CSS Styles** (commit cd891f1)
+    - app/assets/onboarding.css (~80 lines)
+    - Стили .onboarding-modal (green gradient header, border-radius)
+    - Стили .balance-toast (warning colors)
+    - Responsive adjustments для mobile
+
+11. **Финализация** (commit 3b72b95)
+    - Black: 2 files reformatted
+    - Flake8: fixed 2 E501 line too long errors
+    - Pytest: 300 tests PASSED (было 292, +8 для OnboardingService)
+    - PR #14 marked as Ready
+
+**Результат**:
+- +~500 строк (onboarding_wizard.py, dashboard toast, calendar query param)
+- +~80 строк OnboardingService
+- +8 unit тестов (300 всего)
+- Migration script для существующих пользователей
+- Fail-closed DB strategy для production safety
+
+**Критичные детали**:
+- User.first_launch — Boolean флаг (не Nullable, default=True)
+- Flush/commit contract — сервис flush(), caller commit() (documented в docstring)
+- Fail-closed DB strategy — wizard скрывается при ошибке БД, не блокирует UI
+- Query param full cleanup — url.search = "" (не оставляем артефактов в URL)
+- ADR-003 guard clauses — n_clicks проверки для предотвращения автовызовов
+- Toast dismissal в session Store (не в БД) — сброс при новой сессии
+
+**Референсы**:
+- План: `.protocols/0014-onboarding-wizard/plan.md`
+- Лог: `.protocols/0014-onboarding-wizard/log.md`
+- Brief: `.design/brief.md`
+- Solution v3: `.design/solution-v3.md`
+
+---
+
 ### Протокол 0013: Safety Cushion (2026-01-30)
 **Статус**: ✅ READY FOR REVIEW (PR #13)
 **Батч**: Epic-04-Advanced Features (Batch 4, Safety Cushion)

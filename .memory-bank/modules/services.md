@@ -675,6 +675,67 @@ with get_db_session() as session:
 **Unit тесты**: 16 тестов в `tests/test_analytics_service.py`
 - Покрытие: агрегация, группировка мелких категорий, uncategorized, monthly trends
 
+## OnboardingService (Протокол 0014 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/onboarding_service.py` (~80 строк)
+
+**Инициализация**: `OnboardingService(session)` - принимает SQLAlchemy session
+
+**Методы**:
+- `get_status(user_id)` → `OnboardingStatus`
+  - Возвращает статус onboarding пользователя
+  - first_launch — требуется ли показ wizard
+  - starting_balance — текущий баланс
+  - needs_balance_alert — показывать ли toast (balance=0 AND first_launch=False)
+- `complete_with_balance(user_id, starting_balance)` → `None`
+  - Завершение onboarding с настройкой баланса
+  - Валидация: starting_balance >= 0
+  - Обновляет User.first_launch=False, User.starting_balance
+  - **Flush/commit contract**: session.flush(), caller commit()
+- `skip(user_id)` → `None`
+  - Пропуск onboarding (для опытных пользователей)
+  - Обновляет User.first_launch=False, starting_balance остается 0
+  - **Flush/commit contract**: session.flush(), caller commit()
+
+**TypedDict** (app/schema/onboarding.py):
+```python
+class OnboardingStatus(TypedDict):
+    first_launch: bool               # Требуется ли wizard
+    starting_balance: Decimal        # Текущий баланс
+    needs_balance_alert: bool        # Показывать ли toast
+```
+
+**Пример использования**:
+```python
+from app.services import OnboardingService
+
+with get_db_session() as session:
+    service = OnboardingService(session)
+
+    # Проверка статуса
+    status = service.get_status(user_id=1)
+    # {"first_launch": True, "starting_balance": Decimal("0"), "needs_balance_alert": False}
+
+    # Завершение onboarding
+    service.complete_with_balance(user_id=1, starting_balance=Decimal("50000"))
+    # Commit происходит автоматически через context manager
+
+    # Пропуск onboarding
+    service.skip(user_id=1)
+```
+
+**Критичные детали**:
+- **Flush/commit contract**: сервис вызывает session.flush() для валидации и ID generation, caller управляет commit() через context manager (documented в class docstring)
+- **Fail-closed DB strategy**: UI callback скрывает wizard при ошибке БД, не блокирует приложение
+- **needs_balance_alert logic**: True только если balance=0 И first_launch=False (пользователь пропустил onboarding)
+
+**Unit тесты**: 8 тестов в `tests/test_onboarding_service.py`
+- TestGetStatus: 3 теста (first launch, after complete, after skip)
+- TestCompleteWithBalance: 3 теста (valid, zero balance, negative balance)
+- TestSkip: 2 теста (valid, idempotent)
+
+---
+
 ## CushionService (Протокол 0013 — ЗАВЕРШЕН)
 
 **Файл**: `app/services/cushion_service.py` (~180 строк)

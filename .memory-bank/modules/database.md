@@ -13,6 +13,7 @@ SQLAlchemy ORM модели для доменных сущностей: User, Tr
 starting_balance: Decimal          # Начальный баланс для кассового календаря
 monthly_savings_budget: Decimal    # Месячный бюджет на накопления (default=0)
 savings_mode: String(20)           # Режим накоплений: free/medium/strict (default="free")
+first_launch: Boolean              # Флаг первого запуска для onboarding (default=True)
 
 # Формула остатка: starting_balance + SUM(доходы) - SUM(расходы) до даты
 # TRANSFER транзакции исключаются из расчетов баланса
@@ -92,6 +93,8 @@ contribution_date: Date   # Дата взноса
 **Протокол 0006**: User.monthly_savings_budget, Goal.priority, idx_user_priority
 
 **Протокол 0007**: User.savings_mode (free/medium/strict)
+
+**Протокол 0014**: User.first_launch (Boolean, default=True) для onboarding wizard
 
 ---
 

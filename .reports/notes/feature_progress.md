@@ -1,11 +1,121 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Батч 4 — Safety Cushion — ✅ ЗАВЕРШЕН
+## 📊 Общий статус проекта: Батч 4 — Onboarding Wizard — ✅ ЗАВЕРШЕН
 
-**Последнее обновление**: 2026/01/30
-**Текущий этап**: Safety Cushion — MERGED
-**Прогресс Epic-04**: 2/6 фичи (Quick-Add Chips + Safety Cushion complete)
+**Последнее обновление**: 2026/01/31
+**Текущий этап**: Onboarding Wizard — MERGED
+**Прогресс Epic-04**: 3/6 фичи (Quick-Add Chips + Safety Cushion + Onboarding complete)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 13: Onboarding Wizard (2026-01-31) — MERGED
+
+**Дата**: 2026/01/31
+**Протокол**: 0014-onboarding-wizard
+**PR**: https://github.com/SkyTger/FinFocus/pull/14
+**Статус**: ✅ Merged в main
+
+### 🎯 Цель батча:
+Реализовать onboarding wizard для новых пользователей — обязательная настройка starting_balance при первом запуске для корректных расчетов кассового календаря.
+
+### ✅ Выполненные задачи:
+
+1. **Schema + Model** (commit: 0659dfc)
+   - User.first_launch: Boolean, default=True, nullable=False
+   - OnboardingStatus TypedDict (first_launch, starting_balance, needs_balance_alert)
+
+2. **Migration Script** (commit: e048e7a)
+   - scripts/migrate_003_first_launch.py
+   - Logic: starting_balance != 0 → first_launch = False
+   - Idempotent: PRAGMA table_info check перед ALTER
+
+3. **OnboardingService** (commit: f70e66e)
+   - get_status() — возвращает OnboardingStatus
+   - complete_with_balance() — flush(), caller commit()
+   - skip() — first_launch=False, balance=0
+   - Flush/commit contract documented в docstring
+
+4. **Unit Tests** (commit: e666816)
+   - 8 тестов для OnboardingService
+   - Coverage: get_status (3), complete_with_balance (3), skip (2)
+
+5. **Wizard UI** (commit: ae8824d)
+   - Blocking modal: backdrop="static", keyboard=False
+   - InputGroup с ruble sign, warning для negative
+   - Buttons: "Пропустить" + "Продолжить"
+
+6. **Wizard Callbacks** (commit: 3bab87f)
+   - check_onboarding_and_validate — first_launch check + input validation
+   - handle_onboarding_action — submit/skip с ADR-003 guards
+   - Fail-closed DB strategy (hide wizard on error)
+
+7. **Main Integration** (commit: c5cd192)
+   - Global wizard в main.py после transaction_modals
+   - dcc.Store("balance-toast-dismissed") для session state
+
+8. **Dashboard Toast** (commit: 59eb24b)
+   - _build_balance_toast() — warning toast с CTA
+   - Shows если starting_balance=0 AND first_launch=False
+   - CTA → /calendar?open_recon=1
+   - 2 callbacks: toggle, persist dismissal
+
+9. **Calendar Query Param** (commit: d4a0f92)
+   - Extended toggle_reconciliation_modal для ?open_recon=1
+   - Query cleanup: full (url.search = "")
+   - 6th Output для url.search во всех returns
+
+10. **CSS Styles** (commit: cd891f1)
+    - onboarding.css (~80 строк)
+    - Green gradient header, warning colors
+    - Responsive adjustments
+
+11. **Финализация** (commit: 3b72b95)
+    - Black: 2 files reformatted
+    - Flake8: 2 E501 fixed
+    - Pytest: 300 tests PASSED (было 292, +8)
+
+### 📊 Результат:
+- ✅ 300 unit и integration тестов (было 292, +8)
+- ✅ OnboardingService с flush/commit contract
+- ✅ Blocking modal wizard для первого запуска
+- ✅ Dashboard toast для мягкого напоминания
+- ✅ Calendar query param ?open_recon=1
+- ✅ Migration script для существующих пользователей
+- ✅ Black + Flake8 OK
+- ✅ PR #14 Merged
+
+### 💡 Ключевые решения:
+
+1. **Fail-closed DB strategy** — wizard скрывается при ошибке БД, не блокирует UI (critical для UX)
+2. **Flush/commit contract** — сервис flush(), caller commit() (documented в docstring)
+3. **Query param full cleanup** — url.search = "" после обработки (не оставляем артефактов)
+4. **Toast в session Store** — dismissal не в БД, reset при новой сессии
+5. **ADR-003 guard clauses** — n_clicks проверки для предотвращения автовызовов
+
+### 🔧 Технические детали:
+
+**Новые файлы:**
+- `app/services/onboarding_service.py` — OnboardingService (~80 строк)
+- `app/schema/onboarding.py` — OnboardingStatus TypedDict
+- `app/components/onboarding_wizard.py` — Wizard UI + callbacks (~200 строк)
+- `app/assets/onboarding.css` — стили (~80 строк)
+- `scripts/migrate_003_first_launch.py` — idempotent migration
+- `tests/test_onboarding_service.py` — 8 unit тестов
+
+**Модифицированные файлы:**
+- `app/models/database.py` — User.first_launch (+1 поле)
+- `app/main.py` — global wizard + Store
+- `app/components/dashboard.py` — toast UI + callbacks (~100 строк)
+- `app/components/calendar.py` — query param handler (~30 строк изменено)
+- `app/schema/__init__.py`, `app/services/__init__.py`, `app/components/__init__.py` — экспорты
+
+### 🚀 Следующие шаги:
+
+**Epic-04 продолжение**:
+- Импорт операций из банков (CSV, Excel, OFX)
+- Уведомления и напоминания
+- Tooltip для дней календаря
 
 ---
 
@@ -434,5 +544,5 @@ SQLite БД не имела колонки `users.monthly_savings_budget`, чт�
 
 ---
 
-*Последнее обновление: 2026/01/25*
+*Последнее обновление: 2026/01/31*
 *Формат: Rolling Window (последние 5 батчей)*

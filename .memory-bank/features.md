@@ -257,7 +257,53 @@
 
 ## Advanced Features (Батч 4 — в процессе)
 
-### 10. Финансовая подушка безопасности ✅
+### 10. Онбординг новых пользователей ✅
+**Статус**: Завершен (Протокол 0014, PR #14)
+
+**Возможности**:
+- Blocking modal wizard при первом запуске приложения
+- Обязательная настройка starting_balance для корректных расчетов календаря
+- Кнопка "Пропустить" для опытных пользователей
+- Dashboard toast (мягкое напоминание) при нулевом балансе:
+  - Показывается пользователям с starting_balance=0
+  - CTA кнопка "Настроить" → переход на Calendar с автооткрытием модала сверки
+  - Dismissable (можно закрыть, состояние в session Store)
+- Calendar query param ?open_recon=1 для автооткрытия модала сверки
+- Fail-closed DB strategy (wizard скрывается при ошибке БД, не блокирует приложение)
+
+**Технические детали**:
+- User.first_launch (Boolean, default=True) — флаг первого запуска
+- OnboardingService:
+  - get_status(user_id) → OnboardingStatus (TypedDict)
+  - complete_with_balance(user_id, starting_balance) — завершение onboarding
+  - skip(user_id) — пропуск (first_launch=False, balance остается 0)
+- Migration script: scripts/migrate_003_first_launch.py (idempotent)
+- Blocking modal: backdrop="static", keyboard=False, no close button
+- Calendar query param handler с full cleanup (url.search = "")
+- ADR-003 guard clauses в callbacks
+- Flush/commit contract в сервисе (docstring)
+
+**Файлы**:
+- `app/models/database.py` — User.first_launch (+1 поле)
+- `app/services/onboarding_service.py` — OnboardingService (~80 строк)
+- `app/schema/onboarding.py` — OnboardingStatus TypedDict
+- `app/components/onboarding_wizard.py` — Wizard UI + callbacks (~200 строк)
+- `app/components/dashboard.py` — Toast UI + callbacks (~100 строк добавлено)
+- `app/components/calendar.py` — Query param handler (~30 строк изменено)
+- `app/main.py` — Global wizard + Store integration
+- `app/assets/onboarding.css` — Стили (~80 строк)
+- `tests/test_onboarding_service.py` — 8 unit тестов
+- `scripts/migrate_003_first_launch.py` — Migration script
+
+**Ключевые паттерны**:
+- Fail-closed DB strategy — wizard скрывается при ошибке, не блокирует UI
+- Query param full cleanup — url.search = "" (не оставляем артефактов)
+- Flush/commit contract — сервис flush(), caller commit()
+- ADR-003 guard clauses — n_clicks проверки для предотвращения автовызовов
+
+---
+
+### 11. Финансовая подушка безопасности ✅
 **Статус**: Завершен (Протокол 0013, PR #13)
 
 **Возможности**:
@@ -304,7 +350,7 @@
 
 ---
 
-### 11. Импорт операций 🔄
+### 12. Импорт операций 🔄
 **Статус**: Планируется
 
 **Планируемые возможности**:
