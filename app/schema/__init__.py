@@ -22,6 +22,10 @@ from app.schema.cushion import (
     CushionScenario,
 )
 from app.schema.onboarding import OnboardingStatus
+from app.schema.recurring import (
+    RecurringDeleteContext,
+    DELETE_SCOPE_OPTIONS,
+)
 
 __all__ = [
     # Analytics
@@ -45,4 +49,7 @@ __all__ = [
     "CushionScenario",
     # Onboarding
     "OnboardingStatus",
+    # Recurring
+    "RecurringDeleteContext",
+    "DELETE_SCOPE_OPTIONS",
 ]

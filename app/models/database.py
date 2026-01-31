@@ -163,6 +163,19 @@ class Transaction(Base):
     original_date = Column(Date, nullable=True)  # Исходная дата экземпляра
     is_skipped = Column(Boolean, default=False, nullable=False)  # Пропущен ли экземпляр
 
+    # EOM Anchor: привязка к последнему дню месяца
+    recurring_anchor_eom = Column(Boolean, default=False, nullable=False)
+    """Привязка к последнему дню месяца для monthly/quarterly recurring.
+
+    True: генерировать экземпляры на последний день каждого месяца
+          (28 фев → 31 мар → 30 апр → 31 май)
+    False: использовать Anchored-алгоритм min(anchor_day, last_day)
+          (28 фев → 28 мар → 28 апр → 28 май)
+
+    Note: Редактирование EOM для существующих шаблонов — Out of Scope (MVP).
+          Пользователь пересоздаёт серию для изменения режима.
+    """
+
     # Метаданные
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

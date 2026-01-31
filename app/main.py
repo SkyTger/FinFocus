@@ -4,7 +4,9 @@
 from dotenv import load_dotenv
 
 import dash
-from dash import dcc, html, Input, Output, callback
+import time
+from dash import dcc, html, Input, Output, State, callback
+from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 
 from app.components.dashboard import create_dashboard_layout
@@ -80,10 +82,35 @@ app.layout = dbc.Container(
         create_onboarding_wizard(),
         # Глобальный store для toast dismissal (до перезагрузки)
         dcc.Store(id="balance-toast-dismissed", data=False),
+        # Trigger для автооткрытия reconciliation modal (timestamp-based)
+        dcc.Store(id="open-recon-trigger", data=None),
     ],
     fluid=True,
     className="p-0",
 )
+
+
+# Callback для обработки ?open_recon=1 query param
+@callback(
+    [Output("open-recon-trigger", "data"), Output("url", "search")],
+    Input("url", "search"),
+    State("url", "pathname"),
+    prevent_initial_call=True,
+)
+def handle_open_recon_query_param(url_search: str | None, pathname: str | None):
+    """Обрабатывает ?open_recon=1 и устанавливает trigger для calendar.
+
+    Использует timestamp вместо boolean для надежного срабатывания
+    при повторных переходах.
+    """
+    if not url_search:
+        raise PreventUpdate
+
+    if pathname == "/calendar" and "open_recon=1" in url_search:
+        # Timestamp гарантирует уникальное значение при каждом переходе
+        return int(time.time() * 1000), ""
+
+    raise PreventUpdate
 
 
 # Callback для роутинга страниц

@@ -10,7 +10,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.core import ValidationError
-from app.models.database import Transaction, TransactionType
+from app.models.database import Transaction, TransactionType, User
 from app.schema.categories import ReconciliationPreview
 from app.services.calendar_service import CalendarService
 from app.services.category_service import CategoryService
@@ -101,6 +101,13 @@ class ReconciliationService:
         """
         expected_balance = self.get_expected_balance(user_id, target_date)
         difference = actual_balance - expected_balance
+
+        # Если starting_balance == 0, обновляем его на actual_balance
+        # Это первая сверка — пользователь указывает свой начальный баланс
+        user = self.session.get(User, user_id)
+        if user and user.starting_balance == Decimal("0"):
+            user.starting_balance = actual_balance
+            self.session.flush()
 
         # Не создаем корректировку если баланс совпадает
         if difference == Decimal("0"):

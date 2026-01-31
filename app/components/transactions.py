@@ -1004,55 +1004,6 @@ def open_edit_modal(edit_clicks_list):
 
 
 @callback(
-    [
-        Output("transactions-table", "children", allow_duplicate=True),
-        Output("global-transaction-trigger", "data", allow_duplicate=True),
-    ],
-    [Input({"type": "delete-btn", "index": ALL}, "n_clicks")],
-    prevent_initial_call=True,
-)
-def delete_transaction(n_clicks_list):
-    """Удаляет транзакцию через TransactionService."""
-    triggered_id = ctx.triggered_id
-
-    if not triggered_id:
-        raise PreventUpdate
-
-    if not isinstance(triggered_id, dict) or triggered_id.get("type") != "delete-btn":
-        raise PreventUpdate
-
-    # Проверяем что был реальный клик (не автовызов при обновлении таблицы)
-    if not ctx.triggered or ctx.triggered[0].get("value") is None:
-        raise PreventUpdate
-
-    transaction_id = triggered_id.get("index")
-    if not transaction_id:
-        raise PreventUpdate
-
-    with get_db_session() as session:
-        service = TransactionService(session)
-        deleted = service.delete_transaction(transaction_id)
-
-        if not deleted:
-            raise PreventUpdate
-
-        transactions = service.get_all_by_user(user_id=1)
-        logger.info(f"Удалена транзакция {transaction_id}")
-
-        # Emit trigger для обновления других страниц
-        from datetime import datetime
-
-        trigger_data = {
-            "action": "delete",
-            "timestamp": datetime.now().isoformat(),
-            "source": "transactions",
-            "transaction_id": transaction_id,
-        }
-
-        return _build_transactions_table(transactions), trigger_data
-
-
-@callback(
     Output("transactions-table", "children", allow_duplicate=True),
     Input("global-transaction-trigger", "data"),
     State("url", "pathname"),

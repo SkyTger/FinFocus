@@ -57,6 +57,50 @@ class VirtualTransaction(TypedDict):
 class RecurringService:
     """Сервис для управления повторяющимися операциями."""
 
+    @staticmethod
+    def is_end_of_month(d: date) -> bool:
+        """Проверяет, является ли дата последним днем месяца.
+
+        Args:
+            d: Дата для проверки.
+
+        Returns:
+            bool: True если последний день месяца.
+        """
+        _, last_day = monthrange(d.year, d.month)
+        return d.day == last_day
+
+    @staticmethod
+    def should_show_eom_checkbox(selected_date: date, period: str) -> bool:
+        """Определяет, нужно ли показывать EOM checkbox.
+
+        Условия (все должны быть True):
+        1. period = monthly или quarterly
+        2. selected_date = последний день текущего месяца
+        3. day != 31 (31 уже корректно обрабатывается Anchored)
+
+        Args:
+            selected_date: Выбранная дата операции.
+            period: Период повторения.
+
+        Returns:
+            bool: True если checkbox нужно показать.
+        """
+        if period not in ("monthly", "quarterly"):
+            return False
+
+        _, last_day = monthrange(selected_date.year, selected_date.month)
+
+        # Не последний день месяца — checkbox не нужен
+        if selected_date.day != last_day:
+            return False
+
+        # 31-е число — Anchored итак корректно, checkbox избыточен
+        if selected_date.day == 31:
+            return False
+
+        return True
+
     def __init__(self, session: Session):
         """Инициализация сервиса.
 
@@ -90,19 +134,33 @@ class RecurringService:
         logger.info(f"Найдено {len(templates)} шаблонов для пользователя {user_id}")
         return templates
 
-    def _get_anchored_date(self, anchor_day: int, year: int, month: int) -> date:
-        """Вычисляет дату по Anchored-алгоритму.
+    def _get_anchored_date(
+        self,
+        anchor_day: int,
+        year: int,
+        month: int,
+        anchor_eom: bool = False,
+    ) -> date:
+        """Вычисляет дату по Anchored-алгоритму или EOM.
 
         Args:
             anchor_day: Исходный день месяца (1-31).
             year: Год.
             month: Месяц (1-12).
+            anchor_eom: True = всегда последний день месяца.
 
         Returns:
-            Дата с учетом ограничений месяца.
-            Например: anchor_day=31, февраль → 28 (или 29).
+            Дата экземпляра:
+            - EOM режим: всегда последний день месяца
+            - Anchored режим: min(anchor_day, last_day)
         """
         _, last_day = monthrange(year, month)
+
+        if anchor_eom:
+            # EOM режим: всегда последний день
+            return date(year, month, last_day)
+
+        # Anchored режим: min(anchor_day, last_day)
         actual_day = min(anchor_day, last_day)
         return date(year, month, actual_day)
 
@@ -113,8 +171,9 @@ class RecurringService:
         period: str,
         anchor_day: int,
         recurring_end_date: date | None,
+        anchor_eom: bool = False,
     ) -> list[date]:
-        """Генерирует даты экземпляров по Anchored-алгоритму.
+        """Генерирует даты экземпляров по Anchored-алгоритму или EOM.
 
         Args:
             start_date: Начало периода генерации.
@@ -122,6 +181,7 @@ class RecurringService:
             period: Период повторения (weekly, biweekly, monthly, quarterly).
             anchor_day: День месяца для привязки (1-31).
             recurring_end_date: Дата окончания серии (None = бессрочно).
+            anchor_eom: True = всегда последний день месяца (для monthly/quarterly).
 
         Returns:
             Список дат экземпляров в заданном периоде.
@@ -152,7 +212,7 @@ class RecurringService:
                 current += timedelta(days=14)
 
         elif period == "monthly":
-            # Anchored: каждый месяц возвращаемся к anchor_day
+            # Anchored/EOM: каждый месяц возвращаемся к anchor_day или EOM
             while current <= effective_end and len(dates) < MAX_INSTANCES_PER_CALL:
                 dates.append(current)
                 # Переход к следующему месяцу
@@ -160,10 +220,12 @@ class RecurringService:
                     next_year, next_month = current.year + 1, 1
                 else:
                     next_year, next_month = current.year, current.month + 1
-                current = self._get_anchored_date(anchor_day, next_year, next_month)
+                current = self._get_anchored_date(
+                    anchor_day, next_year, next_month, anchor_eom
+                )
 
         elif period == "quarterly":
-            # Anchored: каждые 3 месяца
+            # Anchored/EOM: каждые 3 месяца
             while current <= effective_end and len(dates) < MAX_INSTANCES_PER_CALL:
                 dates.append(current)
                 # Переход через 3 месяца
@@ -174,7 +236,9 @@ class RecurringService:
                 else:
                     next_year = current.year
                     next_month = new_month
-                current = self._get_anchored_date(anchor_day, next_year, next_month)
+                current = self._get_anchored_date(
+                    anchor_day, next_year, next_month, anchor_eom
+                )
 
         return [d for d in dates if start_date <= d <= effective_end]
 
@@ -186,7 +250,7 @@ class RecurringService:
     ) -> list[VirtualTransaction]:
         """Генерирует виртуальные экземпляры шаблона в периоде.
 
-        Использует Anchored-алгоритм: сохраняем исходный день месяца.
+        Использует Anchored-алгоритм или EOM режим (если anchor_eom=True).
 
         ЗАЩИТА от DoS: генерация ограничена MAX_INSTANCES_PER_CALL.
 
@@ -222,6 +286,9 @@ class RecurringService:
             )
             return []
 
+        # EOM режим: привязка к последнему дню месяца
+        anchor_eom = template.recurring_anchor_eom
+
         # Определяем start_date шаблона
         template_start = template.transaction_date
 
@@ -232,7 +299,7 @@ class RecurringService:
         if template.recurring_period in ("monthly", "quarterly"):
             # Начинаем с anchor_day в месяце effective_start
             effective_start = self._get_anchored_date(
-                anchor_day, effective_start.year, effective_start.month
+                anchor_day, effective_start.year, effective_start.month, anchor_eom
             )
             # Если эта дата раньше template_start или start_date,
             # переходим к следующему периоду
@@ -244,11 +311,11 @@ class RecurringService:
                 new_month = effective_start.month + months_to_add
                 if new_month > 12:
                     effective_start = self._get_anchored_date(
-                        anchor_day, effective_start.year + 1, new_month - 12
+                        anchor_day, effective_start.year + 1, new_month - 12, anchor_eom
                     )
                 else:
                     effective_start = self._get_anchored_date(
-                        anchor_day, effective_start.year, new_month
+                        anchor_day, effective_start.year, new_month, anchor_eom
                     )
 
         dates = self._generate_dates(
@@ -257,6 +324,7 @@ class RecurringService:
             template.recurring_period,
             anchor_day,
             template.recurring_end_date,
+            anchor_eom,
         )
 
         # Ограничение количества

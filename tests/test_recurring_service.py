@@ -884,3 +884,242 @@ class TestRecurringServiceCategoryInheritance:
         # category_id должен быть переопределен
         assert exception.category_id == cat_bonus.id
         assert exception.category_id != template.category_id
+
+
+# === Тесты для EOM (End of Month) Anchor ===
+
+
+class TestIsEndOfMonth:
+    """Тесты для статического метода is_end_of_month."""
+
+    def test_is_end_of_month_28_february(self):
+        """28 февраля в не-високосном году — последний день."""
+        assert RecurringService.is_end_of_month(date(2026, 2, 28)) is True
+
+    def test_is_end_of_month_29_february_leap(self):
+        """29 февраля в високосном году — последний день."""
+        assert RecurringService.is_end_of_month(date(2024, 2, 29)) is True
+
+    def test_is_end_of_month_30_april(self):
+        """30 апреля — последний день (30-дневный месяц)."""
+        assert RecurringService.is_end_of_month(date(2026, 4, 30)) is True
+
+    def test_is_end_of_month_31_january(self):
+        """31 января — последний день (31-дневный месяц)."""
+        assert RecurringService.is_end_of_month(date(2026, 1, 31)) is True
+
+    def test_is_end_of_month_30_november(self):
+        """30 ноября — последний день."""
+        assert RecurringService.is_end_of_month(date(2026, 11, 30)) is True
+
+    def test_is_end_of_month_false_27_february(self):
+        """27 февраля — НЕ последний день."""
+        assert RecurringService.is_end_of_month(date(2026, 2, 27)) is False
+
+    def test_is_end_of_month_false_15_march(self):
+        """15 марта — НЕ последний день."""
+        assert RecurringService.is_end_of_month(date(2026, 3, 15)) is False
+
+    def test_is_end_of_month_false_30_january(self):
+        """30 января — НЕ последний день (в январе 31 день)."""
+        assert RecurringService.is_end_of_month(date(2026, 1, 30)) is False
+
+
+class TestShouldShowEomCheckbox:
+    """Тесты для статического метода should_show_eom_checkbox."""
+
+    def test_show_checkbox_30_april_monthly(self):
+        """30 апреля + monthly → показывать checkbox."""
+        assert (
+            RecurringService.should_show_eom_checkbox(date(2026, 4, 30), "monthly")
+            is True
+        )
+
+    def test_show_checkbox_28_february_monthly(self):
+        """28 февраля + monthly → показывать checkbox."""
+        assert (
+            RecurringService.should_show_eom_checkbox(date(2026, 2, 28), "monthly")
+            is True
+        )
+
+    def test_show_checkbox_30_november_quarterly(self):
+        """30 ноября + quarterly → показывать checkbox."""
+        assert (
+            RecurringService.should_show_eom_checkbox(date(2026, 11, 30), "quarterly")
+            is True
+        )
+
+    def test_hide_checkbox_31_january_monthly(self):
+        """31 января + monthly → НЕ показывать (31 уже корректно в Anchored)."""
+        assert (
+            RecurringService.should_show_eom_checkbox(date(2026, 1, 31), "monthly")
+            is False
+        )
+
+    def test_hide_checkbox_15_march_monthly(self):
+        """15 марта + monthly → НЕ показывать (не последний день)."""
+        assert (
+            RecurringService.should_show_eom_checkbox(date(2026, 3, 15), "monthly")
+            is False
+        )
+
+    def test_hide_checkbox_30_april_weekly(self):
+        """30 апреля + weekly → НЕ показывать (период не monthly/quarterly)."""
+        assert (
+            RecurringService.should_show_eom_checkbox(date(2026, 4, 30), "weekly")
+            is False
+        )
+
+    def test_hide_checkbox_28_february_biweekly(self):
+        """28 февраля + biweekly → НЕ показывать (период не monthly/quarterly)."""
+        assert (
+            RecurringService.should_show_eom_checkbox(date(2026, 2, 28), "biweekly")
+            is False
+        )
+
+
+class TestGetAnchoredDateWithEom:
+    """Тесты для _get_anchored_date с параметром anchor_eom."""
+
+    def test_eom_mode_returns_last_day_february(self, db_session):
+        """EOM режим возвращает последний день февраля."""
+        service = RecurringService(db_session)
+        result = service._get_anchored_date(28, 2026, 2, anchor_eom=True)
+        assert result == date(2026, 2, 28)
+
+    def test_eom_mode_returns_last_day_march(self, db_session):
+        """EOM режим возвращает 31 марта (последний день)."""
+        service = RecurringService(db_session)
+        result = service._get_anchored_date(28, 2026, 3, anchor_eom=True)
+        assert result == date(2026, 3, 31)  # Не 28!
+
+    def test_eom_mode_returns_last_day_april(self, db_session):
+        """EOM режим возвращает 30 апреля (последний день)."""
+        service = RecurringService(db_session)
+        result = service._get_anchored_date(28, 2026, 4, anchor_eom=True)
+        assert result == date(2026, 4, 30)
+
+    def test_anchored_mode_respects_anchor_day(self, db_session):
+        """Anchored режим (anchor_eom=False) сохраняет anchor_day."""
+        service = RecurringService(db_session)
+        result = service._get_anchored_date(28, 2026, 3, anchor_eom=False)
+        assert result == date(2026, 3, 28)  # Anchored, не последний день
+
+
+class TestGenerateInstancesWithEom:
+    """Тесты для generate_instances с recurring_anchor_eom=True."""
+
+    def test_eom_generates_last_days(self, db_session, test_user):
+        """EOM режим генерирует последние дни каждого месяца."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("1000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 2, 28),  # Последний день февраля
+            description="Оплата в конце месяца",
+            is_recurring=True,
+            recurring_period="monthly",
+            recurring_anchor_eom=True,  # EOM режим!
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template,
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 5, 31),
+        )
+
+        assert len(instances) == 4
+        # 28 фев → 31 мар → 30 апр → 31 май
+        assert instances[0]["instance_date"] == "2026-02-28"
+        assert instances[1]["instance_date"] == "2026-03-31"
+        assert instances[2]["instance_date"] == "2026-04-30"
+        assert instances[3]["instance_date"] == "2026-05-31"
+
+    def test_eom_quarterly(self, db_session, test_user):
+        """EOM режим работает для quarterly."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 2, 28),
+            description="Квартальный платёж в конце месяца",
+            is_recurring=True,
+            recurring_period="quarterly",
+            recurring_anchor_eom=True,
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template,
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 11, 30),
+        )
+
+        assert len(instances) == 4
+        # 28 фев → 31 май → 31 авг → 30 ноя
+        assert instances[0]["instance_date"] == "2026-02-28"
+        assert instances[1]["instance_date"] == "2026-05-31"
+        assert instances[2]["instance_date"] == "2026-08-31"
+        assert instances[3]["instance_date"] == "2026-11-30"
+
+    def test_anchored_mode_default(self, db_session, test_user):
+        """По умолчанию recurring_anchor_eom=False (Anchored режим)."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("1000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 2, 28),
+            description="Оплата 28-го числа",
+            is_recurring=True,
+            recurring_period="monthly",
+            # recurring_anchor_eom=False по умолчанию
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template,
+            start_date=date(2026, 2, 1),
+            end_date=date(2026, 5, 31),
+        )
+
+        assert len(instances) == 4
+        # Anchored: 28 фев → 28 мар → 28 апр → 28 май
+        assert instances[0]["instance_date"] == "2026-02-28"
+        assert instances[1]["instance_date"] == "2026-03-28"
+        assert instances[2]["instance_date"] == "2026-04-28"
+        assert instances[3]["instance_date"] == "2026-05-28"
+
+    def test_eom_leap_year_february(self, db_session, test_user):
+        """EOM режим корректно обрабатывает високосный год."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("1000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2024, 1, 31),
+            description="Оплата в конце месяца",
+            is_recurring=True,
+            recurring_period="monthly",
+            recurring_anchor_eom=True,
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template,
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 3, 31),
+        )
+
+        assert len(instances) == 3
+        # 31 янв → 29 фев (високосный!) → 31 мар
+        assert instances[0]["instance_date"] == "2024-01-31"
+        assert instances[1]["instance_date"] == "2024-02-29"
+        assert instances[2]["instance_date"] == "2024-03-31"

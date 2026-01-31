@@ -1,4 +1,4 @@
-# FinFocus: Onboarding Wizard & Balance Alert Toast
+D# FinFocus: Onboarding Wizard & Balance Alert Toast
 ## Technical Specification (Batch 4 Advanced Features)
 
 **Дата документа:** 31.01.2026  

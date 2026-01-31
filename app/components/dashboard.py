@@ -24,29 +24,32 @@ DEFAULT_USER_ID = 1
 # =============================================================================
 
 
-def _build_balance_toast() -> dbc.Toast:
-    """Создает Toast для предупреждения о нулевом балансе."""
-    return dbc.Toast(
+def _build_balance_banner() -> dbc.Alert:
+    """Создает баннер для предупреждения о нулевом балансе."""
+    return dbc.Alert(
         id="balance-alert-toast",
-        header="Настройте начальный баланс",
-        icon="warning",
         is_open=False,
         dismissable=True,
-        duration=None,  # Не закрывается автоматически
-        className="balance-toast",
-        style={"position": "fixed", "top": 80, "right": 20, "width": 350},
+        className="balance-banner mb-3",
         children=[
-            html.P(
-                "Для точных расчётов укажите текущий остаток на счетах.",
-                className="mb-2",
-            ),
-            dcc.Link(
-                dbc.Button(
-                    "Сверить баланс",
-                    color="warning",
-                    size="sm",
-                ),
-                href="/calendar?open_recon=1",
+            html.Div(
+                [
+                    html.I(className="bi bi-exclamation-triangle-fill me-2"),
+                    html.Span(
+                        "Для точных расчётов укажите текущий остаток на счетах.",
+                        className="me-3",
+                    ),
+                    dcc.Link(
+                        dbc.Button(
+                            "Сверить баланс",
+                            color="dark",
+                            size="sm",
+                            outline=True,
+                        ),
+                        href="/calendar?open_recon=1",
+                    ),
+                ],
+                className="d-flex align-items-center justify-content-center flex-wrap",
             ),
         ],
     )
@@ -61,6 +64,8 @@ def create_dashboard_layout():
                 id="dashboard-period",
                 data={"period": "month"},
             ),
+            # Баннер предупреждения о балансе (вверху контента)
+            _build_balance_banner(),
             # Header с переключателем периода
             # КРИТИЧНО: должен быть в статическом layout
             html.Div(
@@ -115,8 +120,6 @@ def create_dashboard_layout():
                     dbc.Col([create_exchange_card()], width=4),
                 ]
             ),
-            # Toast для предупреждения о нулевом балансе
-            _build_balance_toast(),
         ]
     )
 

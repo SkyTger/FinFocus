@@ -873,75 +873,61 @@ def refresh_calendar_after_transaction(
         Output("reconciliation-actual", "value"),
         Output("reconciliation-preview", "children"),
         Output("reconciliation-message", "children"),
-        Output("url", "search", allow_duplicate=True),
     ],
     [
         Input("open-reconciliation-btn", "n_clicks"),
         Input("cancel-reconciliation-btn", "n_clicks"),
         Input("reconciliation-date", "date"),
-        Input("url", "search"),
+        Input("open-recon-trigger", "data"),
     ],
-    [
-        State("reconciliation-modal", "is_open"),
-        State("url", "pathname"),
-    ],
+    State("reconciliation-modal", "is_open"),
     prevent_initial_call=True,
 )
 def toggle_reconciliation_modal(
     open_clicks: int | None,
     cancel_clicks: int | None,
     selected_date: str | None,
-    url_search: str | None,
+    recon_trigger: int | None,
     is_open: bool,
-    pathname: str | None,
 ):
     """Открывает/закрывает модал сверки и загружает расчетный баланс.
-
-    Query Parameter Cleanup: Full.
-    При обработке ?open_recon=1 весь search string очищается пустой строкой.
 
     Args:
         open_clicks: Клики на кнопку открытия
         cancel_clicks: Клики на кнопку отмены
         selected_date: Выбранная дата
-        url_search: Query string из URL
+        recon_trigger: Timestamp trigger из query param ?open_recon=1
         is_open: Текущее состояние модала
-        pathname: Текущий путь URL
 
     Returns:
-        tuple: (is_open, expected_balance, actual_value, preview, message, url_search)
+        tuple: (is_open, expected_balance, actual_value, preview, message)
     """
     triggered_id = ctx.triggered_id
 
-    # Auto-open from query parameter
-    if triggered_id == "url":
-        # Guard: только на странице календаря
-        if pathname != "/calendar":
+    # Auto-open from query parameter trigger (timestamp-based)
+    if triggered_id == "open-recon-trigger":
+        if not recon_trigger:
             raise PreventUpdate
 
-        if url_search and "open_recon=1" in url_search:
-            target_date = date.today()
+        target_date = date.today()
 
-            try:
-                with get_db_session() as session:
-                    service = ReconciliationService(session)
-                    expected = service.get_expected_balance(
-                        user_id=DEFAULT_USER_ID, target_date=target_date
-                    )
-                # FULL CLEANUP: возвращаем пустую строку
-                return True, f"{expected:,.2f} ₽", None, "", "", ""
+        try:
+            with get_db_session() as session:
+                service = ReconciliationService(session)
+                expected = service.get_expected_balance(
+                    user_id=DEFAULT_USER_ID, target_date=target_date
+                )
+            return True, f"{expected:,.2f} ₽", None, "", ""
 
-            except Exception as e:
-                logger.error(f"Ошибка auto-open reconciliation: {e}")
-                return True, "Ошибка", None, "", "", ""
-
-        raise PreventUpdate
+        except Exception as e:
+            logger.error(f"Ошибка auto-open reconciliation: {e}")
+            return True, "Ошибка", None, "", ""
 
     # Закрытие по кнопке "Отмена" — требуем реальный клик
     if triggered_id == "cancel-reconciliation-btn":
         if cancel_clicks is None or cancel_clicks == 0:
             raise PreventUpdate
-        return False, "", None, "", "", no_update
+        return False, "", None, "", ""
 
     # Открытие модала по кнопке — требуем реальный клик
     if triggered_id == "open-reconciliation-btn":
@@ -969,7 +955,7 @@ def toggle_reconciliation_modal(
 
             # При открытии — очищаем поля, при смене даты — оставляем модал открытым
             should_open = True if triggered_id == "open-reconciliation-btn" else is_open
-            return should_open, f"{expected:,.2f} ₽", None, "", "", no_update
+            return should_open, f"{expected:,.2f} ₽", None, "", ""
 
         except Exception as e:
             logger.error(f"Ошибка получения баланса для сверки: {e}")
@@ -979,10 +965,9 @@ def toggle_reconciliation_modal(
                 None,
                 "",
                 dbc.Alert(str(e), color="danger"),
-                no_update,
             )
 
-    return is_open, "", None, "", "", no_update
+    return is_open, "", None, "", ""
 
 
 @callback(

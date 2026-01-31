@@ -31,36 +31,38 @@ def create_onboarding_wizard() -> dbc.Modal:
                 dbc.ModalTitle("Добро пожаловать в FinFocus!"),
                 close_button=False,  # Без крестика
             ),
-            dbc.ModalBody([
-                html.P(
-                    "Для точных расчётов кассового календаря укажите "
-                    "текущий остаток на всех ваших счетах:",
-                    className="mb-3",
-                ),
-                dbc.InputGroup(
-                    [
-                        dbc.Input(
-                            id="onboarding-balance-input",
-                            type="number",
-                            placeholder="0.00",
-                            step="0.01",
-                            className="onboarding-balance-input",
-                        ),
-                        dbc.InputGroupText("₽"),
-                    ],
-                    className="mb-2",
-                ),
-                html.Div(
-                    id="onboarding-balance-warning",
-                    className="onboarding-warning text-warning",
-                    style={"display": "none"},
-                    children="Отрицательный баланс — вы уверены?",
-                ),
-                html.Small(
-                    "Вы сможете изменить это значение позже через Сверку баланса.",
-                    className="text-muted",
-                ),
-            ]),
+            dbc.ModalBody(
+                [
+                    html.P(
+                        "Для точных расчётов кассового календаря укажите "
+                        "текущий остаток на всех ваших счетах:",
+                        className="mb-3",
+                    ),
+                    dbc.InputGroup(
+                        [
+                            dbc.Input(
+                                id="onboarding-balance-input",
+                                type="number",
+                                placeholder="0.00",
+                                step="0.01",
+                                className="onboarding-balance-input",
+                            ),
+                            dbc.InputGroupText("₽"),
+                        ],
+                        className="mb-2",
+                    ),
+                    html.Div(
+                        id="onboarding-balance-warning",
+                        className="onboarding-warning text-warning",
+                        style={"display": "none"},
+                        children="Отрицательный баланс — вы уверены?",
+                    ),
+                    html.Small(
+                        "Вы сможете изменить это значение позже через Сверку баланса.",
+                        className="text-muted",
+                    ),
+                ]
+            ),
             dbc.ModalFooter(
                 [
                     dbc.Button(
@@ -179,9 +181,7 @@ def handle_onboarding_action(
             service = OnboardingService(session)
 
             if triggered_id == "onboarding-submit-btn":
-                balance = (
-                    Decimal(str(balance_value)) if balance_value else Decimal("0")
-                )
+                balance = Decimal(str(balance_value)) if balance_value else Decimal("0")
                 service.complete_with_balance(DEFAULT_USER_ID, balance)
             elif triggered_id == "onboarding-skip-btn":
                 service.skip(DEFAULT_USER_ID)

@@ -46,21 +46,27 @@
 }
 
 /* ==============================================
-   Balance Alert Toast Styles
+   Balance Alert Banner Styles
    ============================================== */
 
-.balance-toast {
-    z-index: 1050;
+.balance-banner {
+    background-color: rgba(255, 243, 205, 0.95) !important;
+    border: none !important;
+    border-radius: 0 !important;
+    color: #856404 !important;
+    font-weight: 500;
+    padding: 0.75rem 1rem !important;
+    margin-left: -12px !important;
+    margin-right: -12px !important;
+    width: calc(100% + 24px) !important;
 }
 
-.balance-toast .toast-header {
-    background-color: #fff3cd;
-    color: #856404;
-    font-weight: 600;
+.balance-banner .btn-close {
+    filter: invert(40%) sepia(50%) saturate(500%) hue-rotate(10deg);
 }
 
-.balance-toast .toast-body {
-    background-color: #fffcf5;
+.balance-banner i {
+    color: #d39e00;
 }
 
 /* ==============================================
@@ -76,9 +82,12 @@
         font-size: 1rem;
     }
 
-    .balance-toast {
-        width: calc(100% - 40px) !important;
-        right: 20px !important;
-        left: 20px !important;
+    .balance-banner {
+        font-size: 0.875rem;
+        padding: 0.5rem 0.75rem !important;
+    }
+
+    .balance-banner .d-flex {
+        gap: 0.5rem;
     }
 }

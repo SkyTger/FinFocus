@@ -37,6 +37,7 @@ class TransactionService:
         is_recurring: bool = False,
         recurring_period: str | None = None,
         recurring_end_date: date | None = None,
+        recurring_anchor_eom: bool = False,
     ) -> Transaction:
         """Создает новую транзакцию или шаблон recurring с валидацией.
 
@@ -50,6 +51,7 @@ class TransactionService:
             is_recurring: Флаг повторяющейся операции
             recurring_period: Период повторения (weekly/biweekly/monthly/quarterly)
             recurring_end_date: Дата окончания серии (опционально)
+            recurring_anchor_eom: Привязка к последнему дню месяца (для monthly/quarterly)
 
         Returns:
             Transaction: Созданная транзакция или шаблон
@@ -109,6 +111,7 @@ class TransactionService:
             is_recurring=is_recurring,
             recurring_period=recurring_period if is_recurring else None,
             recurring_end_date=recurring_end_date if is_recurring else None,
+            recurring_anchor_eom=recurring_anchor_eom if is_recurring else False,
         )
 
         self.session.add(transaction)
