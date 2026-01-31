@@ -42,8 +42,14 @@
 - Coverage: get_status (3), complete_with_balance (3), skip (2)
 - Added email field to User fixtures (email is required in model)
 
-### Step 05 — Wizard UI (commit: pending)
+### Step 05 — Wizard UI (commit: ae8824d)
 - Created app/components/onboarding_wizard.py
 - Blocking modal: backdrop="static", keyboard=False, no close button
 - InputGroup with ruble sign, warning div for negative balance
 - Buttons: "Пропустить" (secondary), "Продолжить" (success, disabled by default)
+
+### Step 06 — Wizard Callbacks (commit: pending)
+- check_onboarding_and_validate: checks first_launch on URL change, validates input
+- handle_onboarding_action: submit or skip with guard clauses
+- DB failure strategy: fail-closed (hide wizard on error)
+- ADR-003 guard clauses for n_clicks checks
