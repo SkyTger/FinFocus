@@ -44,6 +44,7 @@ from .cushion_service import (
     VALID_CALC_MODES,
     _validate_percent,
 )
+from .onboarding_service import OnboardingService
 
 __all__ = [
     # Allocation
@@ -91,6 +92,8 @@ __all__ = [
     "DEFAULT_THRESHOLD_PERCENT",
     "VALID_CALC_MODES",
     "_validate_percent",
+    # Onboarding
+    "OnboardingService",
     # Core
     "ValidationError",
 ]

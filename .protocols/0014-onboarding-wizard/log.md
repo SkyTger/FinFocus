@@ -27,7 +27,12 @@
 - Created OnboardingStatus TypedDict (first_launch, starting_balance, needs_balance_alert)
 - Exported in app/schema/__init__.py
 
-### Step 02 — Migration Script (commit: pending)
+### Step 02 — Migration Script (commit: e048e7a)
 - Created scripts/migrate_003_first_launch.py (следуя паттерну migrate_NNN_name.py)
 - Logic: starting_balance != 0 → first_launch = False
 - Idempotent: проверяет PRAGMA table_info перед ALTER
+
+### Step 03 — OnboardingService (commit: pending)
+- Created OnboardingService with get_status, complete_with_balance, skip methods
+- flush/commit contract documented in class docstring
+- Exported in app/services/__init__.py
