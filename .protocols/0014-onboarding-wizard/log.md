@@ -48,8 +48,13 @@
 - InputGroup with ruble sign, warning div for negative balance
 - Buttons: "Пропустить" (secondary), "Продолжить" (success, disabled by default)
 
-### Step 06 — Wizard Callbacks (commit: pending)
+### Step 06 — Wizard Callbacks (commit: 3bab87f)
 - check_onboarding_and_validate: checks first_launch on URL change, validates input
 - handle_onboarding_action: submit or skip with guard clauses
 - DB failure strategy: fail-closed (hide wizard on error)
 - ADR-003 guard clauses for n_clicks checks
+
+### Step 07 — Main Integration (commit: pending)
+- Exported create_onboarding_wizard in app/components/__init__.py
+- Added wizard to main.py layout after transaction_modals
+- Added dcc.Store("balance-toast-dismissed") for toast session state

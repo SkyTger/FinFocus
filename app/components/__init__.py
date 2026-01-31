@@ -8,6 +8,7 @@ from app.components.goals import create_goals_layout
 from app.components.sidebar import create_sidebar
 from app.components.transactions import create_transactions_layout
 from app.components.transaction_modals import create_transaction_modals
+from app.components.onboarding_wizard import create_onboarding_wizard
 
 __all__ = [
     "create_analytics_layout",
@@ -17,4 +18,5 @@ __all__ = [
     "create_sidebar",
     "create_transactions_layout",
     "create_transaction_modals",
+    "create_onboarding_wizard",
 ]
