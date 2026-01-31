@@ -54,7 +54,13 @@
 - DB failure strategy: fail-closed (hide wizard on error)
 - ADR-003 guard clauses for n_clicks checks
 
-### Step 07 — Main Integration (commit: pending)
+### Step 07 — Main Integration (commit: c5cd192)
 - Exported create_onboarding_wizard in app/components/__init__.py
 - Added wizard to main.py layout after transaction_modals
 - Added dcc.Store("balance-toast-dismissed") for toast session state
+
+### Step 08 — Dashboard Toast (commit: pending)
+- Added _build_balance_toast() function for zero-balance warning
+- Toast shows on Dashboard if starting_balance == 0 and not dismissed
+- CTA button links to /calendar?open_recon=1
+- 2 callbacks: toggle_balance_toast, persist_toast_dismissal
