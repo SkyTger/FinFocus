@@ -59,8 +59,14 @@
 - Added wizard to main.py layout after transaction_modals
 - Added dcc.Store("balance-toast-dismissed") for toast session state
 
-### Step 08 — Dashboard Toast (commit: pending)
+### Step 08 — Dashboard Toast (commit: 59eb24b)
 - Added _build_balance_toast() function for zero-balance warning
 - Toast shows on Dashboard if starting_balance == 0 and not dismissed
 - CTA button links to /calendar?open_recon=1
 - 2 callbacks: toggle_balance_toast, persist_toast_dismissal
+
+### Step 09 — Calendar Query Param (commit: pending)
+- Extended toggle_reconciliation_modal to handle ?open_recon=1
+- Added Input("url", "search") and State("url", "pathname")
+- Query cleanup strategy: full (returns "" to clear query string)
+- All return statements updated with 6th element for url.search
