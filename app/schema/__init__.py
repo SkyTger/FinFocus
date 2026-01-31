@@ -21,6 +21,7 @@ from app.schema.cushion import (
     CushionSettings,
     CushionScenario,
 )
+from app.schema.onboarding import OnboardingStatus
 
 __all__ = [
     # Analytics
@@ -42,4 +43,6 @@ __all__ = [
     "Percent",
     "CushionSettings",
     "CushionScenario",
+    # Onboarding
+    "OnboardingStatus",
 ]
