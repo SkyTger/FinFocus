@@ -157,9 +157,9 @@ raise ValidationError("Сумма должна быть больше 0", field="
 
 **BUG-003**: target_date валидация - минимум 7 дней от сегодня
 
-## CalendarService (Фаза 3 — ЗАВЕРШЕНА)
+## CalendarService (Фаза 3 + Протокол 0015 — ЗАВЕРШЕНА)
 
-**Файл**: `app/services/calendar_service.py` (~310 строк)
+**Файл**: `app/services/calendar_service.py` (~330 строк после протокола 0015)
 
 **Инициализация**: `CalendarService(session)` - принимает SQLAlchemy session
 
@@ -177,9 +177,10 @@ raise ValidationError("Сумма должна быть больше 0", field="
   - Баланс на конец указанного дня (включительно)
 - `get_year_summary(user_id, year)` → `YearSummary`
   - Агрегация за год: total_income, total_expense, start_balance, end_balance
-- `get_all_transactions_for_period(user_id, start_date, end_date)` → `list[Transaction]`
+- `get_all_transactions_for_period(user_id, start_date, end_date)` → `list[TransactionInfo]` (Протокол 0015 — возвращает TypedDict)
   - Все транзакции + виртуальные recurring экземпляры за период
   - **КРИТИЧНО**: исключает recurring шаблоны (is_recurring=True, recurring_parent_id=None)
+  - **NEW**: Возвращает TransactionInfo с полями is_skipped, category_icon для tooltip UI
 
 **TypedDict**:
 ```python
@@ -194,6 +195,24 @@ class YearSummary(TypedDict):
     total_expense: Decimal
     start_balance: Decimal
     end_balance: Decimal
+
+# Протокол 0015: расширен TransactionInfo
+class TransactionInfo(TypedDict):
+    id: int
+    user_id: int
+    amount: Decimal
+    transaction_type: str
+    transaction_date: str          # ISO format
+    description: str | None
+    category_id: int | None
+    category_name: str | None
+    category_icon: str | None      # NEW (0015): для emoji в tooltip
+    is_recurring: bool
+    recurring_parent_id: int | None
+    original_date: str | None      # ISO format
+    is_virtual: bool
+    template_id: int | None
+    is_skipped: bool               # NEW (0015): для strikethrough в tooltip
 ```
 
 **Пример использования**:
@@ -236,9 +255,9 @@ case(
 **Unit тесты**: 19 тестов в `tests/test_calendar_service.py`
 - Покрытие: пустые данные, один день, несколько дней, TRANSFER исключение, get_balance_on_date, get_year_summary
 
-## RecurringService (Батч 2 — ЗАВЕРШЕН)
+## RecurringService (Батч 2 + Протокол 0015 — ЗАВЕРШЕН)
 
-**Файл**: `app/services/recurring_service.py` (~550 строк)
+**Файл**: `app/services/recurring_service.py` (~570 строк после протокола 0015)
 
 **Инициализация**: `RecurringService(session)` - принимает SQLAlchemy session
 
@@ -255,6 +274,7 @@ VALID_RECURRING_PERIODS = {"weekly", "biweekly", "monthly", "quarterly"}
 - `generate_instances(template, start_date, end_date)` → `list[VirtualTransaction]`
   - Anchored-алгоритм генерации виртуальных экземпляров
   - Сохраняет исходный день месяца при переходе (31 янв → 28 фев → 31 мар)
+  - **NEW (0015)**: Заполняет is_skipped=False, category_icon из template.category_rel
 - `get_instances_with_exceptions(template, start_date, end_date)` → `list[Transaction | VirtualTransaction]`
   - Объединяет виртуальные экземпляры с exceptions
   - Заменяет виртуальные на exceptions если есть
@@ -268,7 +288,7 @@ VALID_RECURRING_PERIODS = {"weekly", "biweekly", "monthly", "quarterly"}
 - `delete_template(template_id)` → `bool`
   - Удалить шаблон и все exceptions (CASCADE)
 
-**VirtualTransaction TypedDict**:
+**VirtualTransaction TypedDict** (Протокол 0015 — расширен):
 ```python
 class VirtualTransaction(TypedDict):
     template_id: int
@@ -278,6 +298,8 @@ class VirtualTransaction(TypedDict):
     transaction_type: str    # "income" | "expense"
     description: str | None
     is_virtual: bool         # Всегда True
+    is_skipped: bool         # NEW (0015): для strikethrough в tooltip
+    category_icon: str | None  # NEW (0015): для emoji в tooltip
 ```
 
 **Anchored-алгоритм**:

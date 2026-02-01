@@ -223,16 +223,17 @@ fig.update_layout(template="plotly_white", showlegend=True)
 - Использование `ctx.triggered_id["index"]` напрямую вместо поиска в списках
 - Удаление избыточной проверки `n_clicks is None` (не нужна с `prevent_initial_call=True`)
 
-## Calendar Component (Фаза 3 — ЗАВЕРШЕНА)
+## Calendar Component (Фаза 3 + Протокол 0015 — ЗАВЕРШЕНА)
 
 **Файлы**:
-- `app/components/calendar.py` — UI + callbacks (~700 строк)
-- `app/assets/calendar.css` — стили (~190 строк)
+- `app/components/calendar.py` — UI + callbacks (~850 строк после протокола 0015)
+- `app/assets/calendar.css` — стили (~390 строк после протокола 0015)
 
 **Layout**:
 - Header с навигацией (prev/today/next кнопки)
 - Stats cards (Доходы/Расходы/Баланс за месяц)
 - Calendar grid — сетка дней с балансами
+- Hover tooltips на каждой ячейке дня (Протокол 0015)
 - Интеграция с create-modal из transactions.py
 
 **Основные функции**:
@@ -240,12 +241,30 @@ fig.update_layout(template="plotly_white", showlegend=True)
 - `build_calendar_header()` — навигация по месяцам
 - `build_stats_cards()` — карточки статистики (dbc.Row)
 - `build_calendar_grid()` — сетка дней
-- `build_day_cell()` — ячейка одного дня (Pattern-Matching ID)
+- `build_day_cell()` — ячейка одного дня (sibling structure для tooltip)
+
+**Tooltip Builder Functions** (Протокол 0015):
+- `_build_day_tooltip(day_date, balance, transactions)` — полный tooltip с expand/collapse
+  - Glassmorphism стиль с backdrop-filter
+  - CSS checkbox hack для expand (max 5 visible, кнопка "Показать ещё")
+  - Pattern-Matching IDs для клика по операциям
+  - ARIA атрибуты: role="tooltip", aria-label
+- `_build_tooltip_balance(balance)` — header с балансом (positive/negative классы)
+- `_build_tooltip_transaction_row(tx)` — строка операции с emoji, описанием, суммой
+  - category_icon из TransactionInfo → ICON_TO_EMOJI mapping
+  - Strikethrough для is_skipped=True
+  - Цветовая индикация: зеленый (income), красный (expense)
 
 **Callbacks**:
 - `load_and_navigate_calendar()` — загрузка данных и навигация ±12 месяцев
 - `open_create_modal_from_calendar()` — открытие модала при клике на день
 - `refresh_calendar_after_transaction()` — обновление после CRUD операций
+- `open_edit_from_tooltip()` — Pattern-Matching callback для клика по операции в tooltip (Протокол 0015)
+  - Inputs: {"type": "tooltip-txn", "date": ALL, "id": ALL, "is_virtual": ALL, "template_id": ALL}
+  - Outputs: recurring-scope-modal is_open, recurring-edit-context data, edit-modal is_open, edit-transaction-id data
+  - 4 ADR-003 guard clauses: triggered_id exists, type="tooltip-txn", n_clicks not None, n_clicks > 0
+  - Logic: is_virtual=True → scope modal, else → edit modal
+  - Placeholder -1 для template_id вместо None (Dash PM ID limitation)
 
 **Утилиты**:
 - `serialize_balances()` / `deserialize_balances()` — Decimal ↔ JSON для dcc.Store
@@ -256,6 +275,10 @@ fig.update_layout(template="plotly_white", showlegend=True)
 ```python
 # Ячейка дня
 {"type": "calendar-day", "date": "2026-01-19"}
+
+# Tooltip операция (Протокол 0015)
+{"type": "tooltip-txn", "date": "2026-01-19", "id": 123, "is_virtual": False, "template_id": -1}
+# ВАЖНО: template_id=-1 placeholder вместо None (Dash limitation)
 
 # КРИТИЧНО: проверка автовызова (ADR-003)
 if ctx.triggered[0].get('value') is None:
@@ -271,9 +294,30 @@ if ctx.triggered[0].get('value') is None:
 - `.calendar-day.today` — подсветка сегодня
 - `.calendar-day.weekend` — выходные дни
 
+**Tooltip Styles** (Протокол 0015, ~200 строк):
+- `.calendar-day-content` — wrapper для tooltip sibling structure
+- `.day-tooltip` — glassmorphism стиль с backdrop-filter blur
+  - Transitions: opacity 0.3s, visibility с delay 0.5s
+  - Edge detection: `:nth-child(6n), :nth-child(7n)` → tooltip слева
+  - Mobile: `display: none` на 768px (нет hover на мобильных)
+- `.tooltip-balance.positive` / `.tooltip-balance.negative` — цветовая индикация баланса
+- `.tooltip-txn-row` — строка операции (hover highlight)
+- `.tooltip-txn-row.skipped` — strikethrough для пропущенных
+- `.tooltip-expand-checkbox` — CSS checkbox hack для expand/collapse
+- `.tooltip-hidden-container` — скрытые операции (display: none до expand)
+
 **Константы**:
 - `WARNING_BALANCE_THRESHOLD = Decimal("5000")` — порог предупреждения
 - `MAX_MONTHS_OFFSET = 12` — ограничение навигации
+- `MAX_VISIBLE_TRANSACTIONS = 5` — лимит видимых операций в tooltip (Протокол 0015)
+
+**Критичные детали Tooltip** (Протокол 0015):
+- **CSS-only approach** — zero server calls, instant response
+- **Sibling structure** — clickable_content (n_clicks) + tooltip как siblings в wrapper (CSS классы на wrapper)
+- **Checkbox hack** — dcc.Checklist для expand без JavaScript callbacks
+- **Edge detection** — tooltip справа для колонок 1-5, слева для колонок 6-7
+- **Mobile disabled** — tooltip скрыт на < 768px (нет hover)
+- **Placeholder -1** — template_id=-1 вместо None для Dash Pattern-Matching (None не поддерживается)
 
 ## Dashboard Component (Фаза 4 — ЗАВЕРШЕНА)
 

@@ -350,7 +350,59 @@
 
 ---
 
-### 12. Импорт операций 🔄
+### 12. Tooltip для дней календаря ✅
+**Статус**: Завершен (Протокол 0015, PR #15)
+
+**Возможности**:
+- CSS-only hover tooltip (zero server calls) при наведении на день календаря
+- Отображение баланса на конец дня (positive/negative классы)
+- Список операций дня с категориями и суммами:
+  - Emoji категории из category_icon
+  - Strikethrough для пропущенных recurring экземпляров (is_skipped)
+  - Цветовая индикация: зеленый (доходы), красный (расходы)
+- Expand/collapse через CSS checkbox hack:
+  - Max 5 операций видимы сразу
+  - Кнопка "Показать ещё" для раскрытия полного списка
+- Клик по операции в tooltip → open edit modal
+- Edge detection для правых 2 колонок (tooltip слева)
+- Mobile-friendly: tooltip отключен на ширине < 768px
+
+**Технические детали**:
+- Glassmorphism стиль: backdrop-filter blur + rgba background
+- Sibling structure в build_day_cell() для hover trigger
+- TransactionInfo расширен: is_skipped, category_icon (TypedDict)
+- VirtualTransaction расширен: is_skipped, category_icon (TypedDict)
+- Pattern-Matching callback: open_edit_from_tooltip() с ADR-003 guard clauses
+- ICON_TO_EMOJI mapping из formatters.py
+- MAX_VISIBLE_TRANSACTIONS = 5 константа
+- Transitions с delay для плавного появления
+
+**Файлы**:
+- `app/components/calendar.py` — tooltip builder functions (~150 строк добавлено)
+  - _build_day_tooltip() — полный tooltip с expand/collapse
+  - _build_tooltip_balance() — header с балансом
+  - _build_tooltip_transaction_row() — строка операции
+  - open_edit_from_tooltip() — Pattern-Matching callback
+- `app/services/calendar_service.py` — TransactionInfo extended (~20 строк изменено)
+- `app/schema/recurring.py` — VirtualTransaction extended (~2 поля)
+- `app/assets/calendar.css` — glassmorphism стили (~200 строк добавлено)
+- `tests/test_calendar_tooltip.py` — 20 unit тестов
+
+**Ключевые паттерны**:
+- CSS-only tooltip — zero server calls, instant response
+- Sibling structure — clickable_content + tooltip как siblings в wrapper
+- Checkbox hack — expand/collapse без JavaScript
+- Pattern-Matching ID: {"type": "tooltip-txn", "date": "...", "id": ..., "is_virtual": bool, "template_id": int | -1}
+- Placeholder -1 для template_id вместо None (Dash не поддерживает None в PM IDs)
+
+**Ограничения**:
+- Tooltip не показывается на mobile (< 768px) из-за отсутствия hover
+- Max 5 операций видны без expand (UX решение)
+- Tooltip скрывается при клике вне области (CSS behavior)
+
+---
+
+### 13. Импорт операций 🔄
 **Статус**: Планируется
 
 **Планируемые возможности**:
