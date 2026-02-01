@@ -3,7 +3,6 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
 from dash import html
 
 from app.components.calendar import (
@@ -230,7 +229,9 @@ class TestBuildDayTooltip:
 
     def test_many_transactions_has_expand(self):
         """Больше MAX_VISIBLE транзакций — есть кнопка expand."""
-        transactions = [self._make_txn(id=i) for i in range(MAX_VISIBLE_TRANSACTIONS + 3)]
+        transactions = [
+            self._make_txn(id=i) for i in range(MAX_VISIBLE_TRANSACTIONS + 3)
+        ]
         result = _build_day_tooltip(date(2026, 1, 15), Decimal("10000"), transactions)
         assert result is not None
         # Проверяем наличие expand button
@@ -262,11 +263,14 @@ class TestBuildDayTooltip:
 
     def test_hidden_txns_container_exists_when_many(self):
         """При большом количестве транзакций есть контейнер hidden."""
-        transactions = [self._make_txn(id=i) for i in range(MAX_VISIBLE_TRANSACTIONS + 2)]
+        transactions = [
+            self._make_txn(id=i) for i in range(MAX_VISIBLE_TRANSACTIONS + 2)
+        ]
         result = _build_day_tooltip(date(2026, 1, 15), Decimal("10000"), transactions)
         # Проверяем наличие hidden container
         has_hidden = any(
-            hasattr(child, "className") and "tooltip-hidden-txns" in str(child.className)
+            hasattr(child, "className")
+            and "tooltip-hidden-txns" in str(child.className)
             for child in result.children
             if hasattr(child, "className")
         )

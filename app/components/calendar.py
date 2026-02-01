@@ -467,7 +467,9 @@ def _build_tooltip_transaction_row(
         "date": day_date.isoformat(),
         "id": txn.get("id") if txn.get("id") is not None else -1,
         "is_virtual": txn.get("is_virtual", False),
-        "template_id": txn.get("template_id") if txn.get("template_id") is not None else -1,
+        "template_id": txn.get("template_id")
+        if txn.get("template_id") is not None
+        else -1,
     }
 
     return html.Div(
