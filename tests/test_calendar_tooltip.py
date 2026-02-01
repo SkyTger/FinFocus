@@ -214,18 +214,28 @@ class TestBuildDayTooltip:
         result = _build_day_tooltip(date(2026, 1, 15), Decimal("10000"), [])
         assert result is None
 
+    def _has_class_recursive(self, element, class_name: str) -> bool:
+        """Рекурсивно ищет элемент с заданным CSS классом."""
+        if hasattr(element, "className") and class_name in str(element.className):
+            return True
+        if hasattr(element, "children") and element.children:
+            children = (
+                element.children
+                if isinstance(element.children, list)
+                else [element.children]
+            )
+            for child in children:
+                if self._has_class_recursive(child, class_name):
+                    return True
+        return False
+
     def test_few_transactions_no_expand(self):
         """Меньше MAX_VISIBLE транзакций — нет кнопки expand."""
         transactions = [self._make_txn(id=i) for i in range(3)]
         result = _build_day_tooltip(date(2026, 1, 15), Decimal("10000"), transactions)
         assert result is not None
-        # Проверяем что нет expand button
-        has_expand_btn = any(
-            hasattr(child, "className") and "tooltip-expand-btn" in str(child.className)
-            for child in result.children
-            if hasattr(child, "className")
-        )
-        assert not has_expand_btn
+        # Проверяем что нет expand button (рекурсивно)
+        assert not self._has_class_recursive(result, "tooltip-expand-btn")
 
     def test_many_transactions_has_expand(self):
         """Больше MAX_VISIBLE транзакций — есть кнопка expand."""
@@ -234,13 +244,8 @@ class TestBuildDayTooltip:
         ]
         result = _build_day_tooltip(date(2026, 1, 15), Decimal("10000"), transactions)
         assert result is not None
-        # Проверяем наличие expand button
-        has_expand_btn = any(
-            hasattr(child, "className") and "tooltip-expand-btn" in str(child.className)
-            for child in result.children
-            if hasattr(child, "className")
-        )
-        assert has_expand_btn
+        # Проверяем наличие expand button (рекурсивно — внутри html.Details)
+        assert self._has_class_recursive(result, "tooltip-expand-btn")
 
     def test_has_aria_attributes(self):
         """Tooltip должен иметь ARIA атрибуты."""
@@ -267,11 +272,5 @@ class TestBuildDayTooltip:
             self._make_txn(id=i) for i in range(MAX_VISIBLE_TRANSACTIONS + 2)
         ]
         result = _build_day_tooltip(date(2026, 1, 15), Decimal("10000"), transactions)
-        # Проверяем наличие hidden container
-        has_hidden = any(
-            hasattr(child, "className")
-            and "tooltip-hidden-txns" in str(child.className)
-            for child in result.children
-            if hasattr(child, "className")
-        )
-        assert has_hidden
+        # Проверяем наличие hidden container (рекурсивно — внутри html.Details)
+        assert self._has_class_recursive(result, "tooltip-hidden-txns")

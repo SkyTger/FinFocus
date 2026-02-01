@@ -236,24 +236,30 @@
     position: absolute;
     top: 0;
     left: 100%;  /* Справа от ячейки */
-    margin-left: 8px;
+    margin-left: 0;  /* Вплотную к ячейке для удобства наведения */
     z-index: 1000;
     min-width: 240px;
     max-width: 300px;
     padding: 14px;
 
-    /* Glassmorphism — усиленный эффект */
-    background: rgba(255, 255, 255, 0.75);
-    backdrop-filter: blur(16px) saturate(180%);
-    -webkit-backdrop-filter: blur(16px) saturate(180%);
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    border-radius: 14px;
+    /* Glassmorphism — визуальный эффект матового стекла */
+    background: linear-gradient(
+        145deg,
+        rgba(250, 252, 255, 0.95) 0%,
+        rgba(240, 247, 255, 0.92) 50%,
+        rgba(245, 250, 255, 0.95) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    border-radius: 16px;
     box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.15),
-        0 2px 8px rgba(0, 0, 0, 0.08),
-        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+        0 4px 24px rgba(0, 40, 80, 0.12),
+        0 1px 3px rgba(0, 0, 0, 0.06),
+        inset 0 1px 0 rgba(255, 255, 255, 1),
+        inset 0 -1px 0 rgba(0, 20, 40, 0.04);
+}
 
-    /* Animation — сбоку */
+/* Animation — сбоку */
+.calendar-day-tooltip {
     opacity: 0;
     visibility: hidden;
     transform: translateX(-8px);
@@ -280,7 +286,7 @@
     left: auto;
     right: 100%;
     margin-left: 0;
-    margin-right: 8px;
+    margin-right: 0;  /* Вплотную к ячейке */
     transform: translateX(8px);
 }
 
@@ -379,19 +385,18 @@
     color: #17a2b8;
 }
 
-/* ==================== TOOLTIP EXPAND (CSS checkbox hack) ==================== */
+/* ==================== TOOLTIP EXPAND (HTML5 details/summary) ==================== */
 
-/* Hidden checkbox */
-.tooltip-expand-checkbox {
-    display: none;
+/* Details container */
+.tooltip-expand-details {
+    margin-top: 6px;
 }
 
-/* Expand button */
+/* Summary (expand button) */
 .tooltip-expand-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    margin-top: 6px;
     padding: 4px 8px;
     font-size: 11px;
     color: #666;
@@ -399,6 +404,11 @@
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.15s;
+    list-style: none;  /* Убираем стандартный треугольник */
+}
+
+.tooltip-expand-btn::-webkit-details-marker {
+    display: none;  /* Убираем треугольник в Chrome/Safari */
 }
 
 .tooltip-expand-btn:hover {
@@ -411,18 +421,13 @@
 
 /* Hidden transactions container */
 .tooltip-hidden-txns {
-    display: none;
     margin-top: 4px;
     padding-top: 4px;
     border-top: 1px dashed rgba(0, 0, 0, 0.1);
 }
 
-/* Expand state */
-.tooltip-expand-checkbox:checked ~ .tooltip-hidden-txns {
-    display: block;
-}
-
-.tooltip-expand-checkbox:checked ~ .tooltip-expand-btn .bi {
+/* Expand state — rotate chevron when open */
+.tooltip-expand-details[open] .tooltip-expand-btn .bi {
     transform: rotate(180deg);
 }
 

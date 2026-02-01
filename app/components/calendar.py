@@ -457,8 +457,8 @@ def _build_tooltip_transaction_row(
     if txn.get("is_skipped"):
         row_class += " skipped"
 
-    # Описание
-    description = txn.get("description") or "Без описания"
+    # Описание: fallback на category_name если description пустой
+    description = txn.get("description") or txn.get("category_name") or "Без описания"
 
     # Pattern-Matching ID для клика
     # Dash не разрешает None в dict id — используем -1 и "" как placeholder
@@ -508,19 +508,6 @@ def _build_day_tooltip(
     # Строим контент
     content = []
 
-    # Checkbox для expand (должен быть первым для CSS :checked ~)
-    checkbox_id = f"tooltip-expand-{day_date.isoformat()}"
-    if hidden_txns:
-        content.append(
-            dcc.Checklist(
-                id=checkbox_id,
-                options=[{"label": "", "value": "expanded"}],
-                value=[],
-                className="tooltip-expand-checkbox",
-                inputClassName="tooltip-expand-checkbox",
-            )
-        )
-
     # Balance header
     content.append(_build_tooltip_balance(balance))
 
@@ -528,24 +515,26 @@ def _build_day_tooltip(
     for txn in visible_txns:
         content.append(_build_tooltip_transaction_row(txn, day_date))
 
-    # Expand button и hidden rows (если есть)
+    # Expand section с hidden rows (используем HTML5 <details>/<summary>)
     if hidden_txns:
-        content.append(
-            html.Label(
-                [
-                    html.I(className="bi bi-chevron-down"),
-                    f" ещё {len(hidden_txns)}...",
-                ],
-                htmlFor=checkbox_id,
-                className="tooltip-expand-btn",
-            )
+        hidden_rows = [
+            _build_tooltip_transaction_row(txn, day_date) for txn in hidden_txns
+        ]
+        # details/summary — нативный expand/collapse без JS
+        expand_section = html.Details(
+            [
+                html.Summary(
+                    [
+                        html.I(className="bi bi-chevron-down"),
+                        f" ещё {len(hidden_txns)}...",
+                    ],
+                    className="tooltip-expand-btn",
+                ),
+                html.Div(hidden_rows, className="tooltip-hidden-txns"),
+            ],
+            className="tooltip-expand-details",
         )
-
-        hidden_container = html.Div(
-            [_build_tooltip_transaction_row(txn, day_date) for txn in hidden_txns],
-            className="tooltip-hidden-txns",
-        )
-        content.append(hidden_container)
+        content.append(expand_section)
 
     return html.Div(
         content,
