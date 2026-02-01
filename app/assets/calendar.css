@@ -31,7 +31,7 @@
 .calendar-grid {
     border: 1px solid #dee2e6;
     border-radius: 8px;
-    overflow: hidden;
+    overflow: visible;  /* Для tooltip за границами */
     background: #fff;
 }
 
@@ -52,6 +52,7 @@
 /* Строка недели */
 .calendar-week-row {
     border-bottom: 1px solid #dee2e6;
+    overflow: visible;  /* Для tooltip за границами строки */
 }
 
 .calendar-week-row:last-child {
@@ -230,29 +231,32 @@
     cursor: pointer;
 }
 
-/* Glassmorphism tooltip */
+/* Glassmorphism tooltip — позиционируется СБОКУ от ячейки */
 .calendar-day-tooltip {
     position: absolute;
-    top: 100%;
-    left: 0;
+    top: 0;
+    left: 100%;  /* Справа от ячейки */
+    margin-left: 8px;
     z-index: 1000;
-    min-width: 220px;
-    max-width: 280px;
-    padding: 12px;
-    margin-top: 4px;
+    min-width: 240px;
+    max-width: 300px;
+    padding: 14px;
 
-    /* Glassmorphism */
-    background: rgba(255, 255, 255, 0.88);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+    /* Glassmorphism — усиленный эффект */
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 14px;
+    box-shadow:
+        0 8px 32px rgba(0, 0, 0, 0.15),
+        0 2px 8px rgba(0, 0, 0, 0.08),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
 
-    /* Animation */
+    /* Animation — сбоку */
     opacity: 0;
     visibility: hidden;
-    transform: translateY(-4px);
+    transform: translateX(-8px);
     transition:
         opacity 0.2s ease,
         transform 0.2s ease,
@@ -265,16 +269,24 @@
 .calendar-day:hover .calendar-day-tooltip {
     opacity: 1;
     visibility: visible;
-    transform: translateY(0);
+    transform: translateX(0);
     transition-delay: 0s;
     pointer-events: auto;
 }
 
-/* Edge detection: правые 2 колонки */
+/* Правые колонки (Сб, Вс) — tooltip СЛЕВА от ячейки */
 .calendar-day:nth-child(7n-1) .calendar-day-tooltip,
 .calendar-day:nth-child(7n) .calendar-day-tooltip {
     left: auto;
-    right: 0;
+    right: 100%;
+    margin-left: 0;
+    margin-right: 8px;
+    transform: translateX(8px);
+}
+
+.calendar-day:nth-child(7n-1):hover .calendar-day-tooltip,
+.calendar-day:nth-child(7n):hover .calendar-day-tooltip {
+    transform: translateX(0);
 }
 
 /* Fallback для браузеров без backdrop-filter */
