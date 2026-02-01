@@ -50,8 +50,10 @@ class VirtualTransaction(TypedDict):
     transaction_type: str  # "income" | "expense" | "transfer"
     description: str | None
     is_virtual: bool  # Всегда True для виртуальных
+    is_skipped: bool  # True для пропущенных instances (из exceptions)
     category_id: int | None  # ID категории (наследуется из шаблона)
     category_name: str | None  # Название категории для UI
+    category_icon: str | None  # Bootstrap icon class (bi-cart, etc.)
 
 
 class RecurringService:
@@ -345,9 +347,13 @@ class RecurringService:
                     transaction_type=template.transaction_type.value,
                     description=template.description,
                     is_virtual=True,
+                    is_skipped=False,  # Virtual instances are never skipped by default
                     category_id=template.category_id,
                     category_name=(
                         template.category_rel.name if template.category_rel else None
+                    ),
+                    category_icon=(
+                        template.category_rel.icon if template.category_rel else None
                     ),
                 )
             )
