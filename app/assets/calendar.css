@@ -69,6 +69,7 @@
     transition: background-color 0.2s;
     display: flex;
     flex-direction: column;
+    position: relative;  /* Для позиционирования tooltip */
 }
 
 .calendar-day:last-child {
@@ -220,14 +221,13 @@
     --tooltip-hide-delay: 150ms;
 }
 
-/* Wrapper для кликабельной области и позиционирования tooltip */
+/* Wrapper для кликабельной области */
 .calendar-day-content {
     width: 100%;
     height: 100%;
     display: flex;
     flex-direction: column;
     cursor: pointer;
-    position: relative;
 }
 
 /* Glassmorphism tooltip */
