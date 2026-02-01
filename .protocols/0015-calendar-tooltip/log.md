@@ -85,3 +85,10 @@
 - Fix: Dash Pattern-Matching ID не поддерживает None — заменен на -1 placeholder
 - Обновлен callback open_edit_from_tooltip() для проверки -1
 - 343 теста проходят (было 300)
+
+### Step 07 — Finalize (commit: c9f7110)
+- black: 2 файла переформатировано
+- flake8: 1 unused import исправлен (pytest)
+- pytest: 343 тестов passed
+- PR #15 marked as Ready for Review
+- Protocol completed
