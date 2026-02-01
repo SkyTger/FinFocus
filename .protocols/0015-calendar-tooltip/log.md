@@ -29,3 +29,14 @@
   - exceptions: is_skipped из instance.is_skipped, category_icon из category_rel
 - Обновлено создание VirtualTransaction в generate_instances(): is_skipped=False, category_icon из template
 - 80 тестов calendar/recurring проходят
+
+### Step 02 — CSS Styles (commit: a50a7f3)
+- Добавлены CSS переменные: --tooltip-hide-delay
+- Добавлены стили .calendar-day-content (wrapper для tooltip)
+- Glassmorphism tooltip: backdrop-filter, rgba background, transitions
+- Hover trigger с delay для visibility
+- Edge detection для правых 2 колонок (nth-child)
+- Fallback для браузеров без backdrop-filter
+- Стили контента: .tooltip-balance, .tooltip-txn-row, .tooltip-txn-row.skipped
+- CSS checkbox hack для expand/collapse (.tooltip-expand-checkbox)
+- Mobile media query (display: none на 768px)
