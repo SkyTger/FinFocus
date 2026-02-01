@@ -461,12 +461,13 @@ def _build_tooltip_transaction_row(
     description = txn.get("description") or "Без описания"
 
     # Pattern-Matching ID для клика
+    # Dash не разрешает None в dict id — используем -1 и "" как placeholder
     txn_id = {
         "type": "tooltip-txn",
         "date": day_date.isoformat(),
-        "id": txn.get("id"),
+        "id": txn.get("id") if txn.get("id") is not None else -1,
         "is_virtual": txn.get("is_virtual", False),
-        "template_id": txn.get("template_id"),
+        "template_id": txn.get("template_id") if txn.get("template_id") is not None else -1,
     }
 
     return html.Div(
@@ -1009,6 +1010,9 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
 
     if is_virtual:
         # Виртуальная recurring операция — открываем scope modal
+        # template_id = -1 означает None (placeholder)
+        if template_id == -1:
+            raise PreventUpdate
         logger.debug(
             f"Tooltip: открытие scope modal для template {template_id} на {txn_date}"
         )
@@ -1020,7 +1024,8 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
         return no_update, no_update, recurring_context, True
     else:
         # Обычная или exception операция — открываем edit modal
-        if txn_id is None:
+        # txn_id = -1 означает None (placeholder)
+        if txn_id is None or txn_id == -1:
             raise PreventUpdate
 
         logger.debug(f"Tooltip: открытие edit modal для транзакции {txn_id}")

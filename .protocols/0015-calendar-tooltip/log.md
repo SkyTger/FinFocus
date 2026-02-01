@@ -75,3 +75,13 @@
   - Иначе → открыть edit modal с transaction id
 - logger.debug для отладки
 - 38 тестов calendar проходят
+
+### Step 06 — Unit Tests (commit: 90e595c)
+- Создан tests/test_calendar_tooltip.py (20 тестов)
+- Тесты TransactionInfo: category_icon, is_skipped
+- Тесты _build_tooltip_balance: positive/negative/zero
+- Тесты _build_tooltip_transaction_row: income/expense/skipped/recurring/category
+- Тесты _build_day_tooltip: empty/few/many/aria/balance_header/hidden_container
+- Fix: Dash Pattern-Matching ID не поддерживает None — заменен на -1 placeholder
+- Обновлен callback open_edit_from_tooltip() для проверки -1
+- 343 теста проходят (было 300)
