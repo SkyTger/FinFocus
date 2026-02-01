@@ -49,3 +49,15 @@
   - tooltip = None placeholder для шага 4
 - CSS классы остаются на wrapper (calendar-day, today, etc.)
 - 38 тестов calendar проходят
+
+### Step 04 — Tooltip Builders (commit: 68998f6)
+- Добавлен импорт ICON_TO_EMOJI из formatters
+- Реализованы функции:
+  - _build_tooltip_balance() — header с балансом, positive/negative классы
+  - _build_tooltip_transaction_row() — строка транзакции с emoji, описанием, суммой
+  - _build_day_tooltip() — полный tooltip с expand/collapse через CSS checkbox
+- Pattern-Matching ID для tooltip-txn (для будущего edit callback)
+- dcc.Checklist для expand checkbox (CSS hack)
+- ARIA атрибуты: role="tooltip", aria-label
+- Интеграция в build_day_cell() — вызов _build_day_tooltip()
+- 38 тестов calendar проходят
