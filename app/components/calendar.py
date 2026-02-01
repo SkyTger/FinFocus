@@ -15,6 +15,7 @@ from app.core.database import get_db_session
 from app.core.exceptions import ValidationError
 from app.services.calendar_service import CalendarService, TransactionInfo
 from app.services.reconciliation_service import ReconciliationService
+from app.utils.formatters import ICON_TO_EMOJI
 
 
 # ==================== КОНСТАНТЫ ====================
@@ -38,6 +39,7 @@ WEEKDAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 WARNING_BALANCE_THRESHOLD = Decimal("5000")
 MAX_MONTHS_OFFSET = 12
+MAX_VISIBLE_TRANSACTIONS = 5  # Максимум транзакций в tooltip без expand
 
 
 # ==================== УТИЛИТЫ СЕРИАЛИЗАЦИИ ====================
@@ -388,6 +390,171 @@ def build_calendar_grid(
     )
 
 
+# ==================== TOOLTIP ====================
+
+
+def _build_tooltip_balance(balance: Decimal) -> html.Div:
+    """Строит header tooltip с балансом.
+
+    Args:
+        balance: Остаток на дату
+
+    Returns:
+        html.Div: Header с форматированным балансом
+    """
+    balance_text = f"{balance:,.0f}".replace(",", " ") + " ₽"
+    balance_class = "positive" if balance >= 0 else "negative"
+
+    return html.Div(
+        [
+            html.Span("Остаток:", className="tooltip-balance-label"),
+            html.Span(balance_text, className=f"tooltip-balance-value {balance_class}"),
+        ],
+        className="tooltip-balance",
+    )
+
+
+def _build_tooltip_transaction_row(
+    txn: TransactionInfo,
+    day_date: date,
+) -> html.Div:
+    """Строит строку транзакции в tooltip.
+
+    Args:
+        txn: Данные транзакции (TransactionInfo dict)
+        day_date: Дата дня
+
+    Returns:
+        html.Div: Строка транзакции с иконкой, описанием и суммой
+    """
+    # Иконка категории (emoji)
+    category_icon = txn.get("category_icon")
+    emoji = ICON_TO_EMOJI.get(category_icon, "📋") if category_icon else "📋"
+
+    # Добавляем 🔁 для recurring
+    if txn.get("is_recurring") or txn.get("is_virtual"):
+        emoji = "🔁 " + emoji
+
+    # Форматируем сумму
+    amount = Decimal(txn["amount"])
+    txn_type = txn.get("transaction_type", "expense")
+
+    if txn_type == "income":
+        amount_text = f"+{amount:,.0f}".replace(",", " ")
+        amount_class = "income"
+    elif txn_type == "adjustment":
+        amount_text = f"{amount:+,.0f}".replace(",", " ")
+        amount_class = "adjustment"
+    elif txn_type == "transfer":
+        amount_text = f"{amount:,.0f}".replace(",", " ")
+        amount_class = "transfer"
+    else:  # expense
+        amount_text = f"-{amount:,.0f}".replace(",", " ")
+        amount_class = "expense"
+
+    # CSS класс для skipped
+    row_class = "tooltip-txn-row"
+    if txn.get("is_skipped"):
+        row_class += " skipped"
+
+    # Описание
+    description = txn.get("description") or "Без описания"
+
+    # Pattern-Matching ID для клика
+    # Dash не разрешает None в dict id — используем -1 и "" как placeholder
+    txn_id = {
+        "type": "tooltip-txn",
+        "date": day_date.isoformat(),
+        "id": txn.get("id") if txn.get("id") is not None else -1,
+        "is_virtual": txn.get("is_virtual", False),
+        "template_id": txn.get("template_id")
+        if txn.get("template_id") is not None
+        else -1,
+    }
+
+    return html.Div(
+        [
+            html.Span(emoji, className="tooltip-txn-icon"),
+            html.Span(description, className="tooltip-txn-desc", title=description),
+            html.Span(amount_text, className=f"tooltip-txn-amount {amount_class}"),
+        ],
+        id=txn_id,
+        className=row_class,
+    )
+
+
+def _build_day_tooltip(
+    day_date: date,
+    balance: Decimal,
+    transactions: list[TransactionInfo],
+) -> html.Div | None:
+    """Строит tooltip для ячейки дня.
+
+    Args:
+        day_date: Дата дня
+        balance: Остаток на дату
+        transactions: Список транзакций дня
+
+    Returns:
+        html.Div или None если нет транзакций
+    """
+    if not transactions:
+        return None
+
+    # Разделяем на visible и hidden
+    visible_txns = transactions[:MAX_VISIBLE_TRANSACTIONS]
+    hidden_txns = transactions[MAX_VISIBLE_TRANSACTIONS:]
+
+    # Строим контент
+    content = []
+
+    # Checkbox для expand (должен быть первым для CSS :checked ~)
+    checkbox_id = f"tooltip-expand-{day_date.isoformat()}"
+    if hidden_txns:
+        content.append(
+            dcc.Checklist(
+                id=checkbox_id,
+                options=[{"label": "", "value": "expanded"}],
+                value=[],
+                className="tooltip-expand-checkbox",
+                inputClassName="tooltip-expand-checkbox",
+            )
+        )
+
+    # Balance header
+    content.append(_build_tooltip_balance(balance))
+
+    # Visible transaction rows
+    for txn in visible_txns:
+        content.append(_build_tooltip_transaction_row(txn, day_date))
+
+    # Expand button и hidden rows (если есть)
+    if hidden_txns:
+        content.append(
+            html.Label(
+                [
+                    html.I(className="bi bi-chevron-down"),
+                    f" ещё {len(hidden_txns)}...",
+                ],
+                htmlFor=checkbox_id,
+                className="tooltip-expand-btn",
+            )
+        )
+
+        hidden_container = html.Div(
+            [_build_tooltip_transaction_row(txn, day_date) for txn in hidden_txns],
+            className="tooltip-hidden-txns",
+        )
+        content.append(hidden_container)
+
+    return html.Div(
+        content,
+        className="calendar-day-tooltip",
+        role="tooltip",
+        **{"aria-label": f"Операции за {day_date.strftime('%d.%m.%Y')}"},
+    )
+
+
 # ==================== ЯЧЕЙКА ДНЯ ====================
 
 
@@ -467,7 +634,8 @@ def build_day_cell(
                 )
             )
 
-    return html.Div(
+    # Кликабельная область (для create-modal)
+    clickable_content = html.Div(
         [
             # Номер дня
             html.Div(
@@ -491,6 +659,15 @@ def build_day_cell(
         ],
         id={"type": "calendar-day", "date": day_date.isoformat()},
         n_clicks=0,
+        className="calendar-day-content",
+    )
+
+    # Tooltip как sibling
+    tooltip = _build_day_tooltip(day_date, balance, transactions)
+
+    # Wrapper без n_clicks — CSS классы для стилизации
+    return html.Div(
+        [clickable_content, tooltip] if tooltip else [clickable_content],
         className=" ".join(css_classes),
     )
 
@@ -769,6 +946,92 @@ def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
 
     logger.debug(f"Открыт модал создания из календаря: {selected_date}")
     return True, selected_date, "calendar"
+
+
+@callback(
+    [
+        Output("edit-modal", "is_open", allow_duplicate=True),
+        Output("edit-transaction-id", "data", allow_duplicate=True),
+        Output("recurring-edit-context", "data", allow_duplicate=True),
+        Output("recurring-edit-scope-modal", "is_open", allow_duplicate=True),
+    ],
+    Input(
+        {
+            "type": "tooltip-txn",
+            "date": ALL,
+            "id": ALL,
+            "is_virtual": ALL,
+            "template_id": ALL,
+        },
+        "n_clicks",
+    ),
+    prevent_initial_call=True,
+)
+def open_edit_from_tooltip(n_clicks_list: list[int | None]):
+    """Открывает модал редактирования при клике на операцию в tooltip.
+
+    Args:
+        n_clicks_list: Список кликов по строкам операций
+
+    Returns:
+        tuple: (edit_modal_open, txn_id, recurring_context, scope_modal_open)
+    """
+    triggered_id = ctx.triggered_id
+
+    # Guard #1: проверка triggered_id существует
+    if not triggered_id:
+        raise PreventUpdate
+
+    # Guard #2: проверка типа (для Pattern-Matching)
+    if not isinstance(triggered_id, dict) or triggered_id.get("type") != "tooltip-txn":
+        raise PreventUpdate
+
+    # Guard #3: проверка реального клика (НЕ автовызов при DOM update!)
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    # Guard #4: находим индекс нажатой кнопки и проверяем её n_clicks
+    clicked_idx = None
+    for idx, item in enumerate(ctx.inputs_list[0]):
+        if item.get("id") == triggered_id:
+            clicked_idx = idx
+            break
+
+    if clicked_idx is None:
+        raise PreventUpdate
+
+    n_clicks = n_clicks_list[clicked_idx]
+    if n_clicks is None or n_clicks == 0:
+        raise PreventUpdate
+
+    # Извлекаем данные из triggered_id
+    txn_id = triggered_id.get("id")
+    is_virtual = triggered_id.get("is_virtual", False)
+    template_id = triggered_id.get("template_id")
+    txn_date = triggered_id.get("date")
+
+    if is_virtual:
+        # Виртуальная recurring операция — открываем scope modal
+        # template_id = -1 означает None (placeholder)
+        if template_id == -1:
+            raise PreventUpdate
+        logger.debug(
+            f"Tooltip: открытие scope modal для template {template_id} на {txn_date}"
+        )
+        recurring_context = {
+            "template_id": template_id,
+            "instance_date": txn_date,
+            "source": "tooltip",
+        }
+        return no_update, no_update, recurring_context, True
+    else:
+        # Обычная или exception операция — открываем edit modal
+        # txn_id = -1 означает None (placeholder)
+        if txn_id is None or txn_id == -1:
+            raise PreventUpdate
+
+        logger.debug(f"Tooltip: открытие edit modal для транзакции {txn_id}")
+        return True, txn_id, no_update, no_update
 
 
 @callback(

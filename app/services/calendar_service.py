@@ -41,8 +41,10 @@ class TransactionInfo(TypedDict):
     is_virtual: bool  # True для виртуальных recurring instances
     is_recurring: bool  # True для recurring (виртуальных и exceptions)
     is_exception: bool  # True для exceptions (материализованных recurring)
+    is_skipped: bool  # True для пропущенных recurring instances
     category_id: int | None  # ID категории (None = без категории)
     category_name: str | None  # Название категории для UI
+    category_icon: str | None  # Bootstrap icon class (bi-cart, etc.)
 
 
 class YearSummary(TypedDict):
@@ -731,8 +733,10 @@ class CalendarService:
                     is_virtual=False,
                     is_recurring=False,
                     is_exception=False,
+                    is_skipped=False,  # Regular transactions cannot be skipped
                     category_id=txn.category_id,
                     category_name=txn.category_rel.name if txn.category_rel else None,
+                    category_icon=txn.category_rel.icon if txn.category_rel else None,
                 )
             )
 
@@ -757,9 +761,10 @@ class CalendarService:
                             is_virtual=True,
                             is_recurring=True,
                             is_exception=False,
-                            # Category fields добавляются в Шаге 7 (RecurringService)
+                            is_skipped=instance.get("is_skipped", False),
                             category_id=instance.get("category_id"),
                             category_name=instance.get("category_name"),
+                            category_icon=instance.get("category_icon"),
                         )
                     )
                 else:  # Transaction (exception)
@@ -774,9 +779,15 @@ class CalendarService:
                             is_virtual=False,
                             is_recurring=True,
                             is_exception=True,
+                            is_skipped=instance.is_skipped,
                             category_id=instance.category_id,
                             category_name=(
                                 instance.category_rel.name
+                                if instance.category_rel
+                                else None
+                            ),
+                            category_icon=(
+                                instance.category_rel.icon
                                 if instance.category_rel
                                 else None
                             ),
