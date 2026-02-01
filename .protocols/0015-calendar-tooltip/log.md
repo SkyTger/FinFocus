@@ -8,6 +8,8 @@
 
 <!-- Записи вида: Restore context: protocol-0015#ctx-N -->
 
+- Restore context: protocol-0015#ctx-1 (2026/02/01)
+
 ---
 
 ## Step Log
