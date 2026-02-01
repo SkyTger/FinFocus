@@ -61,3 +61,17 @@
 - ARIA атрибуты: role="tooltip", aria-label
 - Интеграция в build_day_cell() — вызов _build_day_tooltip()
 - 38 тестов calendar проходят
+
+### Step 05 — Edit Callback (commit: 2318c57)
+- Реализован callback open_edit_from_tooltip()
+- Pattern-Matching Input для tooltip-txn (date, id, is_virtual, template_id)
+- 4 ADR-003 guard clauses:
+  - Guard #1: triggered_id exists
+  - Guard #2: correct type (dict with type="tooltip-txn")
+  - Guard #3: real click (value is not None)
+  - Guard #4: n_clicks > 0
+- Логика:
+  - is_virtual=True → открыть scope modal с recurring_context
+  - Иначе → открыть edit modal с transaction id
+- logger.debug для отладки
+- 38 тестов calendar проходят

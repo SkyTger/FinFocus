@@ -947,6 +947,88 @@ def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
 
 @callback(
     [
+        Output("edit-modal", "is_open", allow_duplicate=True),
+        Output("edit-transaction-id", "data", allow_duplicate=True),
+        Output("recurring-edit-context", "data", allow_duplicate=True),
+        Output("recurring-edit-scope-modal", "is_open", allow_duplicate=True),
+    ],
+    Input(
+        {
+            "type": "tooltip-txn",
+            "date": ALL,
+            "id": ALL,
+            "is_virtual": ALL,
+            "template_id": ALL,
+        },
+        "n_clicks",
+    ),
+    prevent_initial_call=True,
+)
+def open_edit_from_tooltip(n_clicks_list: list[int | None]):
+    """Открывает модал редактирования при клике на операцию в tooltip.
+
+    Args:
+        n_clicks_list: Список кликов по строкам операций
+
+    Returns:
+        tuple: (edit_modal_open, txn_id, recurring_context, scope_modal_open)
+    """
+    triggered_id = ctx.triggered_id
+
+    # Guard #1: проверка triggered_id существует
+    if not triggered_id:
+        raise PreventUpdate
+
+    # Guard #2: проверка типа (для Pattern-Matching)
+    if not isinstance(triggered_id, dict) or triggered_id.get("type") != "tooltip-txn":
+        raise PreventUpdate
+
+    # Guard #3: проверка реального клика (НЕ автовызов при DOM update!)
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    # Guard #4: находим индекс нажатой кнопки и проверяем её n_clicks
+    clicked_idx = None
+    for idx, item in enumerate(ctx.inputs_list[0]):
+        if item.get("id") == triggered_id:
+            clicked_idx = idx
+            break
+
+    if clicked_idx is None:
+        raise PreventUpdate
+
+    n_clicks = n_clicks_list[clicked_idx]
+    if n_clicks is None or n_clicks == 0:
+        raise PreventUpdate
+
+    # Извлекаем данные из triggered_id
+    txn_id = triggered_id.get("id")
+    is_virtual = triggered_id.get("is_virtual", False)
+    template_id = triggered_id.get("template_id")
+    txn_date = triggered_id.get("date")
+
+    if is_virtual:
+        # Виртуальная recurring операция — открываем scope modal
+        logger.debug(
+            f"Tooltip: открытие scope modal для template {template_id} на {txn_date}"
+        )
+        recurring_context = {
+            "template_id": template_id,
+            "instance_date": txn_date,
+            "source": "tooltip",
+        }
+        return no_update, no_update, recurring_context, True
+    else:
+        # Обычная или exception операция — открываем edit modal
+        if txn_id is None:
+            raise PreventUpdate
+
+        logger.debug(f"Tooltip: открытие edit modal для транзакции {txn_id}")
+        return True, txn_id, no_update, no_update
+
+
+@callback(
+    [
         Output("calendar-grid", "children", allow_duplicate=True),
         Output("calendar-stats", "children", allow_duplicate=True),
         Output("calendar-state", "data", allow_duplicate=True),
