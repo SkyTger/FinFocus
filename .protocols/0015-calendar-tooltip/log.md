@@ -40,3 +40,12 @@
 - Стили контента: .tooltip-balance, .tooltip-txn-row, .tooltip-txn-row.skipped
 - CSS checkbox hack для expand/collapse (.tooltip-expand-checkbox)
 - Mobile media query (display: none на 768px)
+
+### Step 03 — DOM Restructure (commit: c28f455)
+- Добавлена константа MAX_VISIBLE_TRANSACTIONS = 5
+- Реструктурирован build_day_cell():
+  - clickable_content (id, n_clicks, className=calendar-day-content)
+  - wrapper без n_clicks (className=css_classes)
+  - tooltip = None placeholder для шага 4
+- CSS классы остаются на wrapper (calendar-day, today, etc.)
+- 38 тестов calendar проходят

@@ -38,6 +38,7 @@ WEEKDAY_NAMES_RU = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
 
 WARNING_BALANCE_THRESHOLD = Decimal("5000")
 MAX_MONTHS_OFFSET = 12
+MAX_VISIBLE_TRANSACTIONS = 5  # Максимум транзакций в tooltip без expand
 
 
 # ==================== УТИЛИТЫ СЕРИАЛИЗАЦИИ ====================
@@ -467,7 +468,8 @@ def build_day_cell(
                 )
             )
 
-    return html.Div(
+    # Кликабельная область (для create-modal)
+    clickable_content = html.Div(
         [
             # Номер дня
             html.Div(
@@ -491,6 +493,15 @@ def build_day_cell(
         ],
         id={"type": "calendar-day", "date": day_date.isoformat()},
         n_clicks=0,
+        className="calendar-day-content",
+    )
+
+    # Tooltip как sibling (будет реализован в шаге 4)
+    tooltip = None  # TODO: _build_day_tooltip() в шаге 4
+
+    # Wrapper без n_clicks — CSS классы для стилизации
+    return html.Div(
+        [clickable_content, tooltip] if tooltip else [clickable_content],
         className=" ".join(css_classes),
     )
 
