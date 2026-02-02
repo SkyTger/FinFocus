@@ -47,9 +47,15 @@
 - _get_recurring_totals_for_period() — аналогично
 - Unit tests: 34 passed (+4 новых)
 
-### Step 5 — GoalService Integration (commit: pending)
+### Step 5 — GoalService Integration (commit: d17dab7)
 - add_contribution() — создаёт SAVINGS_CONTRIBUTION транзакцию (from_balance режим)
 - add_contribution() — guard clause для COMPLETED целей
 - add_contribution() — warning logging при budget=0
 - update_savings_budget() — sync_template_amount для fixed_date
 - Unit tests: 8 passed (+4 новых)
+
+### Step 6 — Goals UI (commit: pending)
+- _build_budget_progress_card() — карточка прогресса бюджета (цвета по статусу)
+- budget-progress-card-container — контейнер в layout
+- load_budget_progress_card callback — загрузка при переходе на /goals
+- CSS стили .budget-progress-card с gradient header
