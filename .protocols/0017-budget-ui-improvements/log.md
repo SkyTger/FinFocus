@@ -42,7 +42,7 @@ Restore context: protocol-0017#ctx-1
 - Если сумма взносов >= бюджета → description "(внесено досрочно)"
 - Использует RecurringService.create_exception() для создания Exception
 
-### Step 5 — Integration Tests (commit: pending)
+### Step 5 — Integration Tests (commit: 2c7e834)
 - Интеграция: вызов adjust_reserve_for_contribution() добавлен в GoalService.add_contribution()
 - Исправлен вызов RecurringService.create_exception() (правильные аргументы: original_date, new_amount, new_description)
 - 6 unit тестов для TestAdjustReserveForContribution:

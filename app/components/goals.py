@@ -3775,5 +3775,3 @@ def reset_cushion_settings(n_clicks: int | None, current_trigger: int):
     except Exception as e:
         logger.error(f"reset_cushion_settings: ошибка сброса: {e}")
         raise PreventUpdate
-
-
