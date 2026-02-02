@@ -35,3 +35,31 @@
 - Тестовое покрытие: 5/5
 - Status: **APPROVE**
 
+## Step 4-m — Merge (2026-02-02)
+
+- Merge выполнен: git merge --no-ff 0018-budget-reservation-bugfix
+- Commit: 3f7b589
+- Push: успешен в origin/main
+- Status: ✅ Completed
+
+## Step 5-m — Memory Bank (2026-02-02)
+
+- mb-update: обновлены 5 файлов
+  - .memory-bank/index.md — date + protocol 0018 details
+  - .memory-bank/architecture.md — new methods + patterns
+  - .memory-bank/modules/services.md — BudgetReservationService + GoalService
+  - .memory-bank/protocols.md — Protocol 0018 full entry
+  - .reports/epics/epic-04-advanced/decisions.md — D005
+- Commit: 02d06ae
+- Push: успешен в origin/main
+- Status: ✅ Completed
+
+## Step 6-m — Cleanup (2026-02-02)
+
+- git push origin --delete 0018-budget-reservation-bugfix: ✅
+- git branch -d 0018-budget-reservation-bugfix: ✅
+- git worktree remove --force ../worktrees/0018-budget-reservation-bugfix: ✅
+- Status: ✅ Completed
+
+---
+
