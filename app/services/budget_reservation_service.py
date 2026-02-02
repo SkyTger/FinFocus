@@ -1,7 +1,7 @@
 """Сервис для управления режимами резервирования бюджета на цели.
 
 Реализует два режима:
-- fixed_date: recurring операция "Резерв на цели" в фиксированный день месяца
+- fixed_date: recurring операция "Резервирование бюджета" в фиксированный день месяца
 - from_balance: взносы создаются как SAVINGS_CONTRIBUTION при каждом вкладе
 
 См. solution-v2.md секция "Режимы резервирования".
@@ -31,7 +31,7 @@ from app.schema.budget_reservation import (
 
 # === КОНСТАНТЫ ===
 
-RESERVE_DESCRIPTION: str = "Резерв на цели"
+RESERVE_DESCRIPTION: str = "Резервирование бюджета"
 """Описание для recurring шаблона резерва."""
 
 STATUS_THRESHOLDS: dict[str, int] = {
