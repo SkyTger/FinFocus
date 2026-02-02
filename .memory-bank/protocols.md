@@ -8,6 +8,97 @@
 
 ## Завершенные протоколы
 
+### Протокол 0018: Budget Reservation Bugfix (2026-02-02)
+**Статус**: ✅ MERGED (PR #18, merge commit TBD)
+**Батч**: Epic-04-Advanced Features (Batch 4, Budget-Calendar Integration bugfix)
+**Worktree**: `/worktrees/0018-budget-reservation-bugfix`
+
+**Контекст**:
+- Протоколы 0016-0017 реализовали интеграцию бюджета с календарём, но выявлены критические баги:
+  - При переключении режима fixed_date → from_balance → fixed_date ранее внесённые суммы "забывались"
+  - Exception сбрасывался при переключении режимов — досрочный взнос терялся
+- Корневая причина: создание нового шаблона при каждом переключении → exceptions становились orphan (привязаны к старому template_id)
+
+**Решения**:
+- Переиспользовать существующий шаблон при совпадении дня
+- Добавить recalculate_current_month_exception() для пересчёта при изменениях
+- GoalService.delete_contribution() с lazy import для избежания circular dependency
+- _cleanup_orphan_exceptions() с логированием
+
+**Реализация** (10 шагов):
+1. **Helper методы** (commit 644bef6)
+   - _find_any_reserve_template() — поиск любого шаблона (включая остановленный)
+   - _get_template_day() — извлечение дня из шаблона (EOM → 31)
+   - _get_reserve_date_for_month() — дата резерва с учётом коротких месяцев
+   - _delete_exception_for_date() — удаление exception для даты
+
+2. **recalculate метод** (commit b5a1204)
+   - recalculate_current_month_exception(user_id, reference_date)
+   - Расширен _get_contributions_sum_for_month параметром before_date
+   - Логика: нет взносов → удалить exception, есть → создать/обновить
+   - Lazy import RecurringService (как в adjust_reserve_for_contribution)
+
+3. **cleanup + logging** (commit 408308a)
+   - _cleanup_orphan_exceptions(template_id) — удаляет exceptions остановленного шаблона
+   - logger.info() при удалении, logger.debug() если нечего удалять
+
+4. **set_mode модификация** (commit 88f044b)
+   - Логика переиспользования шаблонов:
+     - Тот же день → реактивируем (recurring_end_date = None, exceptions сохраняются)
+     - Другой день → stop + cleanup + create new
+     - from_balance → stop (exceptions НЕ чистим — пригодятся при возврате)
+
+5. **get_budget_progress** (commit b68e2d0)
+   - Унифицирован расчёт used_budget — взносы для обоих режимов
+   - mode_text = "Внесено" для обоих режимов
+
+6. **GoalService** (commit 5f4cf36)
+   - delete_contribution() в GoalService
+   - Lazy import BudgetReservationService (избежание circular dependency)
+   - Удаление транзакции если есть → пересчёт exception
+
+7. **Callbacks интеграция** (commit 16975a5)
+   - goals.py: save_budget — добавлен recalculate_current_month_exception после set_mode
+   - budget_reservation_service.py: update_contribution_transaction — добавлен recalculate
+
+8. **Unit тесты** (commit afbe1dc)
+   - 13 новых тестов для protocol-0018 (всего 45 в test_budget_reservation_service.py)
+   - Исправлен test_progress_fixed_date_mode (mode_text → "Внесено")
+
+9. **Integration тесты** (commit 4a572a7)
+   - test_budget_calendar_integration.py с 3 E2E тестами
+   - pytest.skip() для дат >= reserve_day (тесты требуют today < reserve_day)
+
+10. **Финализация** (commit 18d6a1c)
+    - Black: 2 files reformatted
+    - Flake8: E501 fix в docstring
+    - Pytest: 418 passed (было 402, +16)
+
+**Результат**:
+- +~250 строк в BudgetReservationService
+- +13 unit тестов, +3 integration тестов (418 всего)
+- Решены оба критических бага
+- Exceptions сохраняются при переключении режимов
+
+**Критичные детали**:
+- **Template reuse logic**: тот же день → reactivate, разный → stop + cleanup + new
+- **recalculate_current_month_exception**: вызывается при delete/update contribution, изменении бюджета
+- **Lazy import pattern**: используется в delete_contribution для избежания circular import
+- **Orphan cleanup**: удаляет exceptions только для остановленных шаблонов с recurring_end_date < today
+- **reference_date parameter**: переименован из month для консистентности с get_budget_progress()
+
+**Альтернативы** (отвергнуты):
+- Event-driven пересчёт через signals — overcomplicated для MVP
+- Обновление шаблона вместо Exception — проблема с расчётом следующего месяца
+
+**Референсы**:
+- План: `.protocols/0018-budget-reservation-bugfix/plan.md`
+- Лог: `.protocols/0018-budget-reservation-bugfix/log.md`
+- Спецификация: `.reports/epics/epic-04-advanced/spec-budget-reservation-bugfix.md`
+- Solution v3: `.design/solution-v3.md`
+
+---
+
 ### Протокол 0017: Budget UI Improvements (2026-02-02)
 **Статус**: ✅ MERGED (PR #17, merge commit TBD)
 **Батч**: Epic-04-Advanced Features (Batch 4, Budget-Calendar Integration improvements)

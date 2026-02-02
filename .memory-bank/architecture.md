@@ -263,6 +263,13 @@ refresh_transactions_table() - updates table
 - RESERVE_DESCRIPTION: "Резерв на цели" → "Резервирование бюджета"
 - Exception description "(внесено досрочно)" когда взносы покрыли бюджет
 
+**Протокол 0018**: Исправление багов режима fixed_date
+- Переиспользование шаблона при переключении режимов (set_mode logic)
+- recalculate_current_month_exception() для пересчёта exceptions при изменениях
+- GoalService.delete_contribution() с lazy import для избежания circular dependency
+- _cleanup_orphan_exceptions() с логированием удалённых exceptions
+- Логика: тот же день → реактивировать шаблон, разные дни → stop + cleanup + create new
+
 ## Диаграмма компонентов
 
 ```

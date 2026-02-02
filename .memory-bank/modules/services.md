@@ -57,6 +57,7 @@ session.commit()  # Caller управляет commit
 - `update_goal(goal_id, **kwargs)` - обновление
 - `delete_goal(goal_id)` - удаление
 - `get_contributions(goal_id)` - получить все взносы цели
+- `delete_contribution(contribution_id)` - удаляет взнос, синхронизирует Goal.current_amount, пересчитывает exception (Протокол 0018)
 
 **Contributions**:
 - `add_contribution(goal_id, amount, contribution_date)` - добавление взноса
@@ -758,9 +759,9 @@ with get_db_session() as session:
 
 ---
 
-## BudgetReservationService (Протокол 0016-0017 — ЗАВЕРШЕН)
+## BudgetReservationService (Протокол 0016-0018 — ЗАВЕРШЕН)
 
-**Файл**: `app/services/budget_reservation_service.py` (~350 строк)
+**Файл**: `app/services/budget_reservation_service.py` (~600 строк после протокола 0018)
 
 **Инициализация**: `BudgetReservationService(session)` - принимает SQLAlchemy session
 
@@ -779,9 +780,15 @@ RESERVE_DESCRIPTION = "Резервирование бюджета"  # Прот�
   - day — день месяца для fixed_date режима (1-28)
 - `set_mode(user_id, mode, day=None)` → `None`
   - Изменение режима резервирования
+  - **NEW (Протокол 0018)**: переиспользует шаблон если день совпадает (exceptions сохраняются)
   - В режиме fixed_date создаёт/обновляет recurring шаблон "Резервирование бюджета"
-  - В режиме from_balance останавливает recurring шаблон
+  - В режиме from_balance останавливает recurring шаблон (но НЕ чистит exceptions)
   - Валидация: mode in VALID_MODES, day в диапазоне [1, 28]
+- `recalculate_current_month_exception(user_id, reference_date=None)` → `bool` **(Протокол 0018)**
+  - Пересчитывает exception для указанного месяца после изменений
+  - Вызывается при удалении взноса, изменении суммы взноса, изменении бюджета
+  - Логика: contributions_sum до reserve_date → new_reserve = budget - contributions_sum
+  - Если contributions_sum == 0 → удаляет exception, иначе создаёт/обновляет
 - `get_budget_progress(user_id, year, month)` → `BudgetProgress`
   - Возвращает прогресс использования бюджета за месяц
   - total_budget — User.monthly_savings_budget
@@ -862,7 +869,12 @@ with get_db_session() as session:
 ```
 
 **Внутренние методы**:
-- `_get_reserve_template(user_id)` → `Transaction | None` — получение шаблона резервирования
+- `_get_reserve_template(user_id)` → `Transaction | None` — получение активного шаблона резервирования
+- `_find_any_reserve_template(user_id)` → `Transaction | None` — **NEW (0018)**: поиск любого шаблона (включая остановленный)
+- `_get_template_day(template)` → `int` — **NEW (0018)**: извлечение дня из шаблона (EOM → 31)
+- `_get_reserve_date_for_month(user_id, reference_date)` → `date | None` — **NEW (0018)**: дата резерва с учётом коротких месяцев
+- `_delete_exception_for_date(template_id, target_date)` → `bool` — **NEW (0018)**: удаление exception для даты
+- `_cleanup_orphan_exceptions(template_id)` → `int` — **NEW (0018)**: удаление orphan exceptions с логированием
 - `_create_reserve_template(user_id, day)` → `Transaction` — создание recurring шаблона
 - `_stop_reserve_template(user_id)` → `None` — остановка шаблона (set recurring_end_date)
 
@@ -880,11 +892,27 @@ with get_db_session() as session:
   - Exception сумма = original_amount - SUM(contributions_before_reserve_date)
   - Description "(внесено досрочно)" когда взносы покрыли бюджет полностью
   - Guard: ничего не делает в режиме from_balance
+- **Переиспользование шаблонов (Протокол 0018)**:
+  - set_mode() переиспользует шаблон если день совпадает (exceptions сохраняются)
+  - from_balance → fixed_date → exceptions НЕ чистятся при переключении на from_balance
+  - Изменение дня → stop старый + cleanup orphan exceptions + create new
+- **recalculate_current_month_exception (Протокол 0018)**:
+  - Вызывается при delete_contribution, update_contribution, изменении бюджета
+  - Пересчитывает exception только для будущих дат (reserve_date > today)
+  - Если contributions_sum == 0 → удаляет exception, иначе создаёт/обновляет
 
-**Unit тесты**: 32 тестов в `tests/test_budget_reservation_service.py`
+**Unit тесты**: 45 тестов в `tests/test_budget_reservation_service.py` (было 32, +13 для протокола 0018)
 - TestGetSettings (4), TestSetMode (6), TestGetBudgetProgress (4)
 - TestCRUD (12): create/update/delete contribution transactions
 - TestAdjustReserveForContribution (6): досрочные взносы, edge cases (Протокол 0017)
+- TestFindAnyReserveTemplate (4), TestGetTemplateDay (2) — **NEW (0018)**
+- TestCleanupOrphanExceptions (2), TestRecalculateCurrentMonthException (4) — **NEW (0018)**
+- TestUpdateContributionRecalc (1) — **NEW (0018)**
+
+**Integration тесты**: 3 теста в `tests/test_budget_calendar_integration.py` (Протокол 0018)
+- test_contribution_before_reserve_reduces_reserve_in_calendar — E2E взнос до резерва
+- test_contribution_after_mode_switch_updates_reserve — E2E переключение режимов
+- test_delete_contribution_restores_reserve — E2E удаление взноса
 
 **Integration с другими сервисами**:
 - GoalService: add_contribution() создаёт SAVINGS_CONTRIBUTION через BudgetReservationService (from_balance) и вызывает adjust_reserve_for_contribution() (fixed_date)
