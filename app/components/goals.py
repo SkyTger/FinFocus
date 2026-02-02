@@ -2893,15 +2893,19 @@ def save_budget(n_clicks, budget_value, reservation_mode, day_of_month, savings_
             goal_service = GoalService(session)
             reservation_service = BudgetReservationService(session)
 
-            # Сохраняем бюджет в БД
+            # Порядок вызовов ВАЖЕН:
+            # 1. update_savings_budget() — обновить User.monthly_savings_budget
             goal_service.update_savings_budget(DEFAULT_USER_ID, budget)
 
-            # Сохраняем режим резервирования
+            # 2. set_mode() — использует НОВОЕ значение бюджета
             reservation_service.set_mode(
                 user_id=DEFAULT_USER_ID,
                 mode=reservation_mode,
                 day_of_month=day_of_month if reservation_mode == "fixed_date" else None,
             )
+
+            # 3. recalculate_current_month_exception() — пересчитывает с НОВЫМ бюджетом
+            reservation_service.recalculate_current_month_exception(DEFAULT_USER_ID)
 
             session.commit()
 

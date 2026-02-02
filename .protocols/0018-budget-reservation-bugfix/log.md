@@ -57,8 +57,14 @@
 - Сохранена существующая логика статусов (success/warning/orange/danger)
 - py_compile: OK
 
-### Step 6 — GoalService (commit: pending)
+### Step 6 — GoalService (commit: 5f4cf36)
 - Добавлен delete_contribution() в GoalService
 - Lazy import BudgetReservationService (избежание circular dependency)
 - Удаление транзакции если есть → пересчёт exception
+- py_compile: OK
+
+### Step 7 — Callbacks интеграция (commit: pending)
+- goals.py: save_budget — добавлен recalculate_current_month_exception после set_mode
+- budget_reservation_service.py: update_contribution_transaction — добавлен recalculate
+- Комментарии про порядок вызовов
 - py_compile: OK

@@ -755,6 +755,12 @@ class BudgetReservationService:
 
             self.session.flush()
 
+            # Пересчитываем exception для месяца взноса
+            self.recalculate_current_month_exception(
+                user_id=goal.user_id,
+                reference_date=contribution.contribution_date,
+            )
+
         logger.info(
             f"Updated transaction {transaction_id}: {old_amount} -> {new_amount}"
         )
