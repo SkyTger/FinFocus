@@ -38,7 +38,15 @@
 - Lazy import для RecurringService (как в adjust_reserve_for_contribution)
 - py_compile: OK
 
-### Step 3 — cleanup + logging (commit: pending)
+### Step 3 — cleanup + logging (commit: 408308a)
 - Добавлен `_cleanup_orphan_exceptions(template_id)` — удаляет все exceptions остановленного шаблона
 - logger.info() при удалении, logger.debug() если нечего удалять
+- py_compile: OK
+
+### Step 4 — set_mode модификация (commit: pending)
+- Рефакторинг set_mode() для переиспользования шаблонов:
+  - Тот же день → реактивируем (exceptions сохраняются!)
+  - Другой день → stop + cleanup + create new
+  - from_balance → stop (exceptions НЕ чистим — пригодятся при возврате)
+- Обновлен docstring с описанием логики
 - py_compile: OK

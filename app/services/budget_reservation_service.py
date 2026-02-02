@@ -89,8 +89,13 @@ class BudgetReservationService:
     ) -> BudgetReservationSettings:
         """Устанавливает режим резервирования.
 
-        При переключении на fixed_date создаёт recurring шаблон.
-        При переключении на from_balance останавливает существующий шаблон.
+        При переключении на fixed_date:
+        - Если шаблон с тем же днём существует → реактивируем (exceptions сохраняются!)
+        - Если день изменился → останавливаем старый, чистим exceptions, создаём новый
+        - Если нет шаблона → создаём новый
+
+        При переключении на from_balance:
+        - Останавливаем шаблон (exceptions НЕ чистим — пригодятся при возврате)
 
         Args:
             user_id: ID пользователя.
@@ -113,23 +118,46 @@ class BudgetReservationService:
             if not 1 <= day_of_month <= 31:
                 raise ValueError("day_of_month must be 1-31")
 
-            # Останавливаем старый шаблон если есть
-            self._stop_reserve_template(user_id)
+            # Поиск существующего шаблона (включая остановленный)
+            existing_template = self._find_any_reserve_template(user_id)
 
-            # Создаём новый шаблон
-            template = self._create_reserve_template(user_id, day_of_month)
+            if existing_template:
+                existing_day = self._get_template_day(existing_template)
+
+                if existing_day == day_of_month:
+                    # Тот же день — реактивируем (exceptions сохраняются!)
+                    if existing_template.recurring_end_date is not None:
+                        existing_template.recurring_end_date = None
+                        self.session.flush()
+                        logger.info(
+                            f"Reactivated template {existing_template.id} "
+                            f"for user {user_id}"
+                        )
+                    else:
+                        logger.debug(
+                            f"Template {existing_template.id} already active "
+                            f"for user {user_id}"
+                        )
+                else:
+                    # Другой день — останавливаем старый, чистим exceptions
+                    self._stop_reserve_template(user_id)
+                    self._cleanup_orphan_exceptions(existing_template.id)
+                    # Создаём новый шаблон
+                    self._create_reserve_template(user_id, day_of_month)
+            else:
+                # Нет шаблона — создаём новый
+                self._create_reserve_template(user_id, day_of_month)
 
             user.reservation_mode = "fixed_date"
             user.reservation_day = day_of_month
             self.session.flush()
 
             logger.info(
-                f"User {user_id}: set mode=fixed_date, day={day_of_month}, "
-                f"template_id={template.id}"
+                f"User {user_id}: set mode=fixed_date, day={day_of_month}"
             )
 
         else:  # from_balance
-            # Останавливаем шаблон
+            # Останавливаем шаблон (exceptions НЕ чистим — пригодятся при возврате)
             self._stop_reserve_template(user_id)
 
             user.reservation_mode = "from_balance"
