@@ -384,6 +384,113 @@ class BudgetReservationService:
 
         return Decimal(str(result))
 
+    def _find_any_reserve_template(self, user_id: int) -> Transaction | None:
+        """Находит любой recurring шаблон резерва (включая остановленный).
+
+        В отличие от _get_reserve_template(), не фильтрует по recurring_end_date.
+        Используется для переиспользования существующего шаблона при смене режима.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            Transaction | None: Последний созданный шаблон или None.
+        """
+        template = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.is_recurring.is_(True),
+                Transaction.transaction_type == TransactionType.SAVINGS_RESERVE,
+            )
+            .order_by(Transaction.created_at.desc())
+            .first()
+        )
+
+        return template
+
+    def _get_template_day(self, template: Transaction) -> int:
+        """Извлекает день месяца из шаблона резерва.
+
+        Args:
+            template: Шаблон транзакции (is_recurring=True).
+
+        Returns:
+            int: День месяца (1-31). Для EOM anchor возвращает 31.
+        """
+        if template.recurring_anchor_eom:
+            return 31
+
+        # anchor_day — property, возвращает день из transaction_date
+        return template.anchor_day or template.transaction_date.day
+
+    def _get_reserve_date_for_month(
+        self,
+        user_id: int,
+        reference_date: date,
+    ) -> date | None:
+        """Возвращает дату резерва для указанного месяца.
+
+        Учитывает короткие месяцы: min(day_of_month, last_day_of_month).
+
+        Args:
+            user_id: ID пользователя.
+            reference_date: Дата в целевом месяце.
+
+        Returns:
+            date | None: Дата резерва или None если режим != fixed_date.
+        """
+        settings = self.get_settings(user_id)
+
+        if settings["mode"] != "fixed_date":
+            return None
+
+        day_of_month = settings["day_of_month"]
+        if day_of_month is None:
+            return None
+
+        _, last_day = monthrange(reference_date.year, reference_date.month)
+        actual_day = min(day_of_month, last_day)
+
+        return date(reference_date.year, reference_date.month, actual_day)
+
+    def _delete_exception_for_date(
+        self,
+        template_id: int,
+        target_date: date,
+    ) -> bool:
+        """Удаляет exception для конкретной даты.
+
+        Используется когда нет взносов — резерв должен быть полным (из шаблона).
+
+        Args:
+            template_id: ID шаблона.
+            target_date: Дата экземпляра (original_date).
+
+        Returns:
+            bool: True если exception был удалён, False если не существовал.
+        """
+        exception = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.recurring_parent_id == template_id,
+                Transaction.original_date == target_date,
+            )
+            .first()
+        )
+
+        if not exception:
+            return False
+
+        self.session.delete(exception)
+        self.session.flush()
+
+        logger.info(
+            f"Deleted exception for template {template_id} on date {target_date}"
+        )
+
+        return True
+
     # === CRUD методы для SAVINGS_CONTRIBUTION ===
 
     def create_contribution_transaction(
