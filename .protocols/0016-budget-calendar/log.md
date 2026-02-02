@@ -54,8 +54,21 @@
 - update_savings_budget() — sync_template_amount для fixed_date
 - Unit tests: 8 passed (+4 новых)
 
-### Step 6 — Goals UI (commit: pending)
+### Step 6 — Goals UI (commit: 1ef4503)
 - _build_budget_progress_card() — карточка прогресса бюджета (цвета по статусу)
 - budget-progress-card-container — контейнер в layout
 - load_budget_progress_card callback — загрузка при переходе на /goals
 - CSS стили .budget-progress-card с gradient header
+- _build_mode_selector_modal() — модал выбора режима резервирования
+- toggle_mode_selector, handle_mode_change callbacks — интерактивность
+- BudgetReservationSettings TypedDict с mode/day
+- Unit tests: режимы резервирования и карточка прогресса
+
+### Step 7 — Calendar UI (commit: pending)
+- ICON_TO_EMOJI: добавлены savings_reserve (💼), savings_contribution (🎯)
+- _build_tooltip_transaction_row(): специальная обработка SAVINGS типов
+  - SAVINGS_RESERVE: readonly, id=-1, "(авто)" суффикс, без 🔁 иконки
+  - SAVINGS_CONTRIBUTION: кликабельно → edit modal
+- CSS: .tooltip-txn-amount.savings (purple), .tooltip-txn-row.readonly
+- open_edit_from_tooltip(): +txn_type в Pattern-Matching ID, guard для savings_reserve
+- Unit tests: 14 новых тестов для SAVINGS визуализации (395 passed)

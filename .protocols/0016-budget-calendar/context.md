@@ -1,9 +1,9 @@
 # Protocol Context: 0016-budget-calendar
 
-- **Current Step**: 7
+- **Current Step**: 8
 - **Status**: In Progress
-- **Last Action**: Шаг 6 завершён — Goals UI (карточка прогресса бюджета)
-- **Next Action**: Шаг 7 — Calendar UI (иконки SAVINGS_* транзакций, tooltip)
+- **Last Action**: Шаг 7 завершён — Calendar UI (SAVINGS_* визуализация в tooltip)
+- **Next Action**: Шаг 8 — Finalize (QA, документация, PR)
 - **Git Branch**: `0016-budget-calendar`
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0016-budget-calendar`

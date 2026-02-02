@@ -427,17 +427,25 @@ def _build_tooltip_transaction_row(
     Returns:
         html.Div: Строка транзакции с иконкой, описанием и суммой
     """
-    # Иконка категории (emoji)
-    category_icon = txn.get("category_icon")
-    emoji = ICON_TO_EMOJI.get(category_icon, "📋") if category_icon else "📋"
+    txn_type = txn.get("transaction_type", "expense")
 
-    # Добавляем 🔁 для recurring
-    if txn.get("is_recurring") or txn.get("is_virtual"):
+    # Иконка: специальная для SAVINGS типов, иначе категория
+    if txn_type == "savings_reserve":
+        emoji = ICON_TO_EMOJI.get("savings_reserve", "💼")
+    elif txn_type == "savings_contribution":
+        emoji = ICON_TO_EMOJI.get("savings_contribution", "🎯")
+    else:
+        category_icon = txn.get("category_icon")
+        emoji = ICON_TO_EMOJI.get(category_icon, "📋") if category_icon else "📋"
+
+    # Добавляем 🔁 для recurring (кроме SAVINGS_RESERVE — он всегда recurring)
+    if txn_type != "savings_reserve" and (
+        txn.get("is_recurring") or txn.get("is_virtual")
+    ):
         emoji = "🔁 " + emoji
 
     # Форматируем сумму
     amount = Decimal(txn["amount"])
-    txn_type = txn.get("transaction_type", "expense")
 
     if txn_type == "income":
         amount_text = f"+{amount:,.0f}".replace(",", " ")
@@ -448,6 +456,10 @@ def _build_tooltip_transaction_row(
     elif txn_type == "transfer":
         amount_text = f"{amount:,.0f}".replace(",", " ")
         amount_class = "transfer"
+    elif txn_type in ("savings_reserve", "savings_contribution"):
+        # Savings уменьшают баланс как расход
+        amount_text = f"-{amount:,.0f}".replace(",", " ")
+        amount_class = "savings"
     else:  # expense
         amount_text = f"-{amount:,.0f}".replace(",", " ")
         amount_class = "expense"
@@ -457,19 +469,31 @@ def _build_tooltip_transaction_row(
     if txn.get("is_skipped"):
         row_class += " skipped"
 
+    # SAVINGS_RESERVE — read-only (системная), без клика
+    if txn_type == "savings_reserve":
+        row_class += " readonly"
+
     # Описание: fallback на category_name если description пустой
     description = txn.get("description") or txn.get("category_name") or "Без описания"
 
+    # Добавляем "(системная)" для SAVINGS_RESERVE
+    if txn_type == "savings_reserve":
+        description = f"{description} (авто)"
+
     # Pattern-Matching ID для клика
     # Dash не разрешает None в dict id — используем -1 и "" как placeholder
+    # SAVINGS_RESERVE: id=-1 чтобы callback игнорировал клики
     txn_id = {
         "type": "tooltip-txn",
         "date": day_date.isoformat(),
-        "id": txn.get("id") if txn.get("id") is not None else -1,
+        "id": -1
+        if txn_type == "savings_reserve"
+        else (txn.get("id") if txn.get("id") is not None else -1),
         "is_virtual": txn.get("is_virtual", False),
         "template_id": txn.get("template_id")
         if txn.get("template_id") is not None
         else -1,
+        "txn_type": txn_type,
     }
 
     return html.Div(
@@ -951,6 +975,7 @@ def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
             "id": ALL,
             "is_virtual": ALL,
             "template_id": ALL,
+            "txn_type": ALL,
         },
         "n_clicks",
     ),
@@ -998,6 +1023,12 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
     is_virtual = triggered_id.get("is_virtual", False)
     template_id = triggered_id.get("template_id")
     txn_date = triggered_id.get("date")
+    txn_type = triggered_id.get("txn_type", "expense")
+
+    # Guard #5: SAVINGS_RESERVE — read-only, игнорируем клики
+    if txn_type == "savings_reserve":
+        logger.debug("Tooltip: клик на SAVINGS_RESERVE ignored (read-only)")
+        raise PreventUpdate
 
     if is_virtual:
         # Виртуальная recurring операция — открываем scope modal
@@ -1014,12 +1045,14 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
         }
         return no_update, no_update, recurring_context, True
     else:
-        # Обычная или exception операция — открываем edit modal
+        # Обычная, exception или SAVINGS_CONTRIBUTION операция — открываем edit modal
         # txn_id = -1 означает None (placeholder)
         if txn_id is None or txn_id == -1:
             raise PreventUpdate
 
-        logger.debug(f"Tooltip: открытие edit modal для транзакции {txn_id}")
+        logger.debug(
+            f"Tooltip: открытие edit modal для транзакции {txn_id} (type={txn_type})"
+        )
         return True, txn_id, no_update, no_update
 
 
