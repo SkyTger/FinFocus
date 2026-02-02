@@ -26,9 +26,16 @@
 - Migration: scripts/migrate_005_reservation.py (idempotent)
 - Unit tests: 15 passed (8 новых тестов)
 
-### Step 2 — BudgetReservationService Core (commit: pending)
+### Step 2 — BudgetReservationService Core (commit: 20fe4c3)
 - TypedDicts: ReservationMode, BudgetReservationSettings, BudgetProgress, ContributionRecord
 - BudgetReservationService: get_settings(), set_mode(), get_budget_progress()
 - Private helpers: _get_reserve_template(), _create_reserve_template(), _stop_reserve_template()
 - Экспорт в schema/__init__.py и services/__init__.py
 - Unit tests: 17 passed
+
+### Step 3 — BudgetReservationService CRUD (commit: pending)
+- create_contribution_transaction() — создаёт SAVINGS_CONTRIBUTION в режиме from_balance
+- update_contribution_transaction() — синхронизирует Transaction ↔ GoalContribution ↔ Goal
+- delete_contribution_transaction() — каскадное удаление с обновлением цели
+- sync_template_amount() — синхронизация суммы шаблона с бюджетом
+- Unit tests: 26 passed (+9 новых)

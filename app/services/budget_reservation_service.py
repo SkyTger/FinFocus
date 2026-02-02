@@ -16,7 +16,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.database import (
+    Goal,
     GoalContribution,
+    GoalStatus,
     Transaction,
     TransactionType,
     User,
@@ -333,8 +335,6 @@ class BudgetReservationService:
         end_of_month = date(reference_date.year, reference_date.month, last_day)
 
         # Join через Goal для фильтрации по user_id
-        from app.models.database import Goal
-
         result = (
             self.session.query(func.coalesce(func.sum(GoalContribution.amount), 0))
             .join(Goal, GoalContribution.goal_id == Goal.id)
@@ -383,3 +383,192 @@ class BudgetReservationService:
         )
 
         return Decimal(str(result))
+
+    # === CRUD методы для SAVINGS_CONTRIBUTION ===
+
+    def create_contribution_transaction(
+        self,
+        user_id: int,
+        goal_name: str,
+        amount: Decimal,
+        contribution_date: date,
+    ) -> Transaction | None:
+        """Создаёт транзакцию SAVINGS_CONTRIBUTION для режима from_balance.
+
+        В режиме fixed_date транзакции создаются автоматически через recurring,
+        поэтому метод возвращает None.
+
+        Args:
+            user_id: ID пользователя.
+            goal_name: Название цели для описания транзакции.
+            amount: Сумма взноса.
+            contribution_date: Дата взноса.
+
+        Returns:
+            Transaction | None: Созданная транзакция или None для fixed_date.
+        """
+        settings = self.get_settings(user_id)
+        if settings["mode"] == "fixed_date":
+            logger.debug(f"User {user_id} in fixed_date mode, skipping transaction")
+            return None
+
+        transaction = Transaction(
+            user_id=user_id,
+            amount=amount,
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=contribution_date,
+            description=f"Взнос: {goal_name}",
+            category_id=None,  # Не расход с категорией
+        )
+
+        self.session.add(transaction)
+        self.session.flush()
+
+        logger.info(
+            f"Created contribution transaction {transaction.id} for user {user_id}: "
+            f"goal={goal_name}, amount={amount}"
+        )
+
+        return transaction
+
+    def update_contribution_transaction(
+        self,
+        transaction_id: int,
+        new_amount: Decimal,
+    ) -> bool:
+        """Обновляет сумму транзакции и синхронизирует GoalContribution.
+
+        Args:
+            transaction_id: ID транзакции.
+            new_amount: Новая сумма.
+
+        Returns:
+            bool: True если обновление успешно, False если транзакция не найдена.
+        """
+        transaction = self.session.get(Transaction, transaction_id)
+        if not transaction:
+            logger.warning(f"Transaction {transaction_id} not found")
+            return False
+
+        if transaction.transaction_type != TransactionType.SAVINGS_CONTRIBUTION:
+            logger.warning(f"Transaction {transaction_id} is not SAVINGS_CONTRIBUTION")
+            return False
+
+        old_amount = transaction.amount
+        delta = new_amount - old_amount
+
+        # Обновляем транзакцию
+        transaction.amount = new_amount
+        self.session.flush()
+
+        # Находим связанный GoalContribution
+        contribution = (
+            self.session.query(GoalContribution)
+            .filter(GoalContribution.transaction_id == transaction_id)
+            .first()
+        )
+
+        if contribution:
+            # Обновляем GoalContribution
+            contribution.amount = new_amount
+
+            # Обновляем Goal.current_amount
+            goal = contribution.goal
+            goal.current_amount = goal.current_amount + delta
+
+            # Проверяем статус
+            if goal.current_amount >= goal.target_amount:
+                if goal.status != GoalStatus.COMPLETED:
+                    goal.status = GoalStatus.COMPLETED
+                    logger.info(f"Goal {goal.id} marked as COMPLETED")
+            else:
+                if goal.status == GoalStatus.COMPLETED:
+                    goal.status = GoalStatus.ACTIVE
+                    logger.info(f"Goal {goal.id} reverted to ACTIVE")
+
+            self.session.flush()
+
+        logger.info(
+            f"Updated transaction {transaction_id}: {old_amount} -> {new_amount}"
+        )
+        return True
+
+    def delete_contribution_transaction(self, transaction_id: int) -> bool:
+        """Удаляет транзакцию и связанный GoalContribution.
+
+        Args:
+            transaction_id: ID транзакции.
+
+        Returns:
+            bool: True если удаление успешно, False если не найдена.
+        """
+        transaction = self.session.get(Transaction, transaction_id)
+        if not transaction:
+            logger.warning(f"Transaction {transaction_id} not found")
+            return False
+
+        if transaction.transaction_type != TransactionType.SAVINGS_CONTRIBUTION:
+            logger.warning(f"Transaction {transaction_id} is not SAVINGS_CONTRIBUTION")
+            return False
+
+        # Находим связанный GoalContribution
+        contribution = (
+            self.session.query(GoalContribution)
+            .filter(GoalContribution.transaction_id == transaction_id)
+            .first()
+        )
+
+        if contribution:
+            amount = contribution.amount
+            goal = contribution.goal
+
+            # Уменьшаем Goal.current_amount
+            goal.current_amount = goal.current_amount - amount
+
+            # Откатываем статус если был COMPLETED
+            if goal.status == GoalStatus.COMPLETED:
+                goal.status = GoalStatus.ACTIVE
+                logger.info(f"Goal {goal.id} reverted to ACTIVE")
+
+            # Удаляем GoalContribution
+            self.session.delete(contribution)
+
+        # Удаляем транзакцию
+        self.session.delete(transaction)
+        self.session.flush()
+
+        logger.info(f"Deleted transaction {transaction_id}")
+        return True
+
+    def sync_template_amount(self, user_id: int) -> bool:
+        """Синхронизирует сумму recurring шаблона с monthly_savings_budget.
+
+        Вызывается при изменении бюджета пользователем.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            bool: True если шаблон обновлён, False если не найден.
+        """
+        template = self._get_reserve_template(user_id)
+        if not template:
+            logger.debug(f"No active template for user {user_id}")
+            return False
+
+        user = self.session.get(User, user_id)
+        if not user:
+            return False
+
+        new_amount = Decimal(user.monthly_savings_budget)
+
+        if template.amount != new_amount:
+            old_amount = template.amount
+            template.amount = new_amount
+            self.session.flush()
+
+            logger.info(
+                f"Synced template {template.id} amount: {old_amount} -> {new_amount}"
+            )
+
+        return True

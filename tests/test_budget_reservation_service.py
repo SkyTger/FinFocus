@@ -318,3 +318,268 @@ class TestPrivateHelpers:
         result = service._stop_reserve_template(test_user.id)
 
         assert result is False
+
+
+class TestCreateContributionTransaction:
+    """Тесты для create_contribution_transaction()."""
+
+    def test_create_transaction_from_balance_mode(self, db_session, test_user):
+        """create_contribution_transaction создаёт транзакцию в режиме from_balance."""
+        service = BudgetReservationService(db_session)
+
+        transaction = service.create_contribution_transaction(
+            user_id=test_user.id,
+            goal_name="Отпуск",
+            amount=Decimal("5000.00"),
+            contribution_date=date.today(),
+        )
+
+        assert transaction is not None
+        assert transaction.transaction_type == TransactionType.SAVINGS_CONTRIBUTION
+        assert transaction.amount == Decimal("5000.00")
+        assert transaction.description == "Взнос: Отпуск"
+        assert transaction.category_id is None
+
+    def test_create_transaction_fixed_date_returns_none(self, db_session, test_user):
+        """create_contribution_transaction возвращает None в режиме fixed_date."""
+        test_user.reservation_mode = "fixed_date"
+        test_user.reservation_day = 15
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+
+        transaction = service.create_contribution_transaction(
+            user_id=test_user.id,
+            goal_name="Отпуск",
+            amount=Decimal("5000.00"),
+            contribution_date=date.today(),
+        )
+
+        assert transaction is None
+
+
+class TestUpdateContributionTransaction:
+    """Тесты для update_contribution_transaction()."""
+
+    def test_update_transaction_syncs_contribution(self, db_session, test_user):
+        """update_contribution_transaction синхронизирует GoalContribution."""
+        # Создаём цель
+        goal = Goal(
+            user_id=test_user.id,
+            name="Цель",
+            target_amount=Decimal("100000.00"),
+            current_amount=Decimal("10000.00"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+        )
+        db_session.add(goal)
+        db_session.commit()
+
+        # Создаём транзакцию
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("10000.00"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date.today(),
+            description="Взнос: Цель",
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        # Создаём GoalContribution со связью
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("10000.00"),
+            contribution_date=date.today(),
+            transaction_id=transaction.id,
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        # Обновляем
+        service = BudgetReservationService(db_session)
+        result = service.update_contribution_transaction(
+            transaction_id=transaction.id,
+            new_amount=Decimal("15000.00"),
+        )
+
+        assert result is True
+
+        db_session.refresh(transaction)
+        db_session.refresh(contribution)
+        db_session.refresh(goal)
+
+        assert transaction.amount == Decimal("15000.00")
+        assert contribution.amount == Decimal("15000.00")
+        assert goal.current_amount == Decimal("15000.00")  # 10000 + delta(5000)
+
+    def test_update_transaction_marks_goal_completed(self, db_session, test_user):
+        """update_contribution_transaction помечает цель как COMPLETED."""
+        goal = Goal(
+            user_id=test_user.id,
+            name="Почти готовая цель",
+            target_amount=Decimal("10000.00"),
+            current_amount=Decimal("8000.00"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+        )
+        db_session.add(goal)
+        db_session.commit()
+
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("8000.00"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date.today(),
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("8000.00"),
+            contribution_date=date.today(),
+            transaction_id=transaction.id,
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.update_contribution_transaction(
+            transaction_id=transaction.id,
+            new_amount=Decimal("10000.00"),  # delta = 2000, goal = 10000
+        )
+
+        db_session.refresh(goal)
+        assert goal.status == GoalStatus.COMPLETED
+
+    def test_update_transaction_not_found(self, db_session, test_user):
+        """update_contribution_transaction возвращает False если не найдена."""
+        service = BudgetReservationService(db_session)
+        result = service.update_contribution_transaction(
+            transaction_id=99999,
+            new_amount=Decimal("1000.00"),
+        )
+
+        assert result is False
+
+
+class TestDeleteContributionTransaction:
+    """Тесты для delete_contribution_transaction()."""
+
+    def test_delete_transaction_cascade(self, db_session, test_user):
+        """delete_contribution_transaction каскадно удаляет GoalContribution."""
+        goal = Goal(
+            user_id=test_user.id,
+            name="Цель",
+            target_amount=Decimal("100000.00"),
+            current_amount=Decimal("20000.00"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+        )
+        db_session.add(goal)
+        db_session.commit()
+
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("10000.00"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date.today(),
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("10000.00"),
+            contribution_date=date.today(),
+            transaction_id=transaction.id,
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        transaction_id = transaction.id
+        contribution_id = contribution.id
+
+        service = BudgetReservationService(db_session)
+        result = service.delete_contribution_transaction(transaction_id)
+
+        assert result is True
+
+        # Проверяем удаление
+        assert db_session.get(Transaction, transaction_id) is None
+        assert db_session.get(GoalContribution, contribution_id) is None
+
+        # Проверяем обновление цели
+        db_session.refresh(goal)
+        assert goal.current_amount == Decimal("10000.00")  # 20000 - 10000
+
+    def test_delete_transaction_reverts_completed_status(self, db_session, test_user):
+        """delete_contribution_transaction откатывает статус COMPLETED."""
+        goal = Goal(
+            user_id=test_user.id,
+            name="Завершённая цель",
+            target_amount=Decimal("10000.00"),
+            current_amount=Decimal("10000.00"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.COMPLETED,
+        )
+        db_session.add(goal)
+        db_session.commit()
+
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date.today(),
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("5000.00"),
+            contribution_date=date.today(),
+            transaction_id=transaction.id,
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.delete_contribution_transaction(transaction.id)
+
+        db_session.refresh(goal)
+        assert goal.status == GoalStatus.ACTIVE
+        assert goal.current_amount == Decimal("5000.00")
+
+
+class TestSyncTemplateAmount:
+    """Тесты для sync_template_amount()."""
+
+    def test_sync_template_amount_updates(self, db_session, test_user):
+        """sync_template_amount обновляет сумму шаблона."""
+        test_user.monthly_savings_budget = Decimal("10000.00")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=15)
+
+        # Меняем бюджет
+        test_user.monthly_savings_budget = Decimal("15000.00")
+        db_session.commit()
+
+        # Синхронизируем
+        result = service.sync_template_amount(test_user.id)
+
+        assert result is True
+
+        settings = service.get_settings(test_user.id)
+        template = db_session.get(Transaction, settings["template_id"])
+        assert template.amount == Decimal("15000.00")
+
+    def test_sync_template_amount_no_template(self, db_session, test_user):
+        """sync_template_amount возвращает False если нет шаблона."""
+        service = BudgetReservationService(db_session)
+        result = service.sync_template_amount(test_user.id)
+
+        assert result is False
