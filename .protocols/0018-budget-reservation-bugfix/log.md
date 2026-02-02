@@ -43,10 +43,16 @@
 - logger.info() при удалении, logger.debug() если нечего удалять
 - py_compile: OK
 
-### Step 4 — set_mode модификация (commit: pending)
+### Step 4 — set_mode модификация (commit: 88f044b)
 - Рефакторинг set_mode() для переиспользования шаблонов:
   - Тот же день → реактивируем (exceptions сохраняются!)
   - Другой день → stop + cleanup + create new
   - from_balance → stop (exceptions НЕ чистим — пригодятся при возврате)
 - Обновлен docstring с описанием логики
+- py_compile: OK
+
+### Step 5 — get_budget_progress (commit: pending)
+- Унифицирован расчёт used_budget — взносы для обоих режимов
+- mode_text = "Внесено" для обоих режимов
+- Сохранена существующая логика статусов (success/warning/orange/danger)
 - py_compile: OK

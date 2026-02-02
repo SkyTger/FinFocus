@@ -175,8 +175,9 @@ class BudgetReservationService:
     ) -> BudgetProgress:
         """Рассчитывает прогресс использования бюджета в месяце.
 
-        Для fixed_date: сумма = резерв (если дата прошла).
-        Для from_balance: сумма = взносы за месяц.
+        Единообразно для обоих режимов считает взносы (contributions),
+        а не резервы. Это обеспечивает консистентное отображение прогресса
+        независимо от режима резервирования.
 
         Args:
             user_id: ID пользователя.
@@ -191,12 +192,8 @@ class BudgetReservationService:
         settings = self.get_settings(user_id)
         total_budget = settings["monthly_budget"]
 
-        if settings["mode"] == "fixed_date":
-            used = self._get_reserve_sum_for_month(user_id, reference_date)
-            mode_text = "Зарезервировано"
-        else:
-            used = self._get_contributions_sum_for_month(user_id, reference_date)
-            mode_text = "Внесено"
+        # Единообразный расчёт: взносы за месяц (для обоих режимов)
+        used = self._get_contributions_sum_for_month(user_id, reference_date)
 
         available = total_budget - used if total_budget > 0 else Decimal("0")
 
@@ -223,7 +220,7 @@ class BudgetReservationService:
             progress_percent=min(progress_percent, 100.0),
             status=status,
             mode=settings["mode"],
-            mode_text=mode_text,
+            mode_text="Внесено",  # Единообразно для обоих режимов
         )
 
     def recalculate_current_month_exception(
