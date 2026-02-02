@@ -758,6 +758,128 @@ with get_db_session() as session:
 
 ---
 
+## BudgetReservationService (Протокол 0016 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/budget_reservation_service.py` (~280 строк)
+
+**Инициализация**: `BudgetReservationService(session)` - принимает SQLAlchemy session
+
+**Константы**:
+```python
+VALID_RESERVATION_MODES = {"fixed_date", "from_balance"}
+MIN_RESERVATION_DAY = 1
+MAX_RESERVATION_DAY = 28  # Безопасно для всех месяцев
+```
+
+**Методы**:
+- `get_settings(user_id)` → `BudgetReservationSettings`
+  - Возвращает текущие настройки резервирования пользователя
+  - mode — "fixed_date" или "from_balance"
+  - day — день месяца для fixed_date режима (1-28)
+- `set_mode(user_id, mode, day=None)` → `None`
+  - Изменение режима резервирования
+  - В режиме fixed_date создаёт/обновляет recurring шаблон "Резерв на цели"
+  - В режиме from_balance останавливает recurring шаблон
+  - Валидация: mode in VALID_MODES, day в диапазоне [1, 28]
+- `get_budget_progress(user_id, year, month)` → `BudgetProgress`
+  - Возвращает прогресс использования бюджета за месяц
+  - total_budget — User.monthly_savings_budget
+  - contributions_sum — сумма взносов за месяц (через GoalContribution)
+  - remaining_budget — доступный остаток
+  - all_allocated — все цели получили полное финансирование (True/False)
+  - records — список ContributionRecord (цель, взнос, дата)
+- `create_contribution_transaction(user_id, goal_id, amount, date, contribution_id=None)` → `Transaction`
+  - Создаёт SAVINGS_CONTRIBUTION транзакцию в режиме from_balance
+  - Связывает с GoalContribution через transaction_id
+  - description = "Взнос: {goal.name}"
+- `update_contribution_transaction(contribution_id, new_amount)` → `None`
+  - Синхронизирует Transaction ↔ GoalContribution ↔ Goal.current_amount
+  - Обновляет все 3 сущности атомарно
+- `delete_contribution_transaction(contribution_id)` → `None`
+  - Каскадное удаление Transaction + GoalContribution с обновлением Goal
+- `sync_template_amount(user_id)` → `None`
+  - Синхронизация суммы recurring шаблона "Резерв на цели" с User.monthly_savings_budget
+  - Используется при изменении бюджета в режиме fixed_date
+
+**TypedDicts** (app/schema/budget_reservation.py):
+```python
+ReservationMode = Literal["fixed_date", "from_balance"]
+
+class BudgetReservationSettings(TypedDict):
+    mode: ReservationMode
+    day: int | None
+
+class BudgetProgress(TypedDict):
+    total_budget: Decimal
+    contributions_sum: Decimal
+    remaining_budget: Decimal
+    all_allocated: bool
+    records: list[ContributionRecord]
+
+class ContributionRecord(TypedDict):
+    goal_name: str
+    amount: Decimal
+    date: str  # ISO format
+```
+
+**Пример использования**:
+```python
+from app.services import BudgetReservationService
+
+with get_db_session() as session:
+    service = BudgetReservationService(session)
+
+    # Получить настройки
+    settings = service.get_settings(user_id=1)
+    # {"mode": "from_balance", "day": None}
+
+    # Изменить режим на fixed_date с днём 5
+    service.set_mode(user_id=1, mode="fixed_date", day=5)
+    # Создан recurring шаблон "Резерв на цели" на 5-е число
+
+    # Прогресс бюджета за месяц
+    progress = service.get_budget_progress(user_id=1, year=2026, month=2)
+    # {"total_budget": Decimal("15000"), "contributions_sum": Decimal("8000"), ...}
+
+    # Создать взнос с транзакцией (режим from_balance)
+    tx = service.create_contribution_transaction(
+        user_id=1,
+        goal_id=5,
+        amount=Decimal("3000"),
+        date=date(2026, 2, 15),
+        contribution_id=12
+    )
+    # Создана SAVINGS_CONTRIBUTION транзакция "Взнос: Отпуск"
+
+    session.commit()
+```
+
+**Внутренние методы**:
+- `_get_reserve_template(user_id)` → `Transaction | None` — получение шаблона резервирования
+- `_create_reserve_template(user_id, day)` → `Transaction` — создание recurring шаблона
+- `_stop_reserve_template(user_id)` → `None` — остановка шаблона (set recurring_end_date)
+
+**Критичные детали**:
+- **Два режима резервирования**:
+  - **fixed_date** — вся сумма бюджета резервируется в календаре на указанную дату (recurring операция)
+  - **from_balance** — операции создаются только при взносах в цели
+- **Динамический бюджет**: `remaining = total_budget - SUM(contributions этого месяца)`
+- **FK связь**: GoalContribution.transaction_id → Transaction.id (SET NULL при удалении транзакции)
+- **Синхронизация**: update/delete contribution → синхронизация Transaction + GoalContribution + Goal.current_amount
+- **SAVINGS операции не влияют на расчет целей**, но уменьшают баланс в календаре
+- **Validation**: day в диапазоне [1, 28] для безопасности (февраль)
+
+**Unit тесты**: 26 тестов в `tests/test_budget_reservation_service.py`
+- TestGetSettings (4), TestSetMode (6), TestGetBudgetProgress (4)
+- TestCRUD (12): create/update/delete contribution transactions
+
+**Integration с другими сервисами**:
+- GoalService: add_contribution() создаёт SAVINGS_CONTRIBUTION через BudgetReservationService
+- CalendarService: _calculate_balance_before_date() и _get_daily_changes() обрабатывают SAVINGS типы
+- RecurringService: генерирует виртуальные экземпляры для "Резерв на цели" шаблона
+
+---
+
 ## CushionService (Протокол 0013 — ЗАВЕРШЕН)
 
 **Файл**: `app/services/cushion_service.py` (~180 строк)

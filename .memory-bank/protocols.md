@@ -8,6 +8,187 @@
 
 ## Завершенные протоколы
 
+### Протокол 0016: Budget-Calendar Integration (2026-02-02)
+**Статус**: ✅ MERGED (PR #16, merge commit fdea488)
+**Батч**: Epic-04-Advanced Features (Batch 4, Budget-Calendar Integration)
+**Worktree**: `/worktrees/0016-budget-calendar`
+
+**Контекст**:
+- FinFocus MVP имеет систему накопительных целей с monthly_savings_budget, но бюджет не отражается в кассовом календаре
+- Пользователь не видит, как накопления влияют на остатки по дням
+- Как связать бюджет накоплений с календарём, чтобы пользователь видел влияние резервирования на остаток?
+
+**Решения**:
+- Два режима резервирования:
+  - **fixed_date** — recurring операция "Резерв на цели" в календаре на указанную дату (1-28 число)
+  - **from_balance** — операции "Взнос: цель" при каждом взносе
+- Новый BudgetReservationService для управления резервированием
+- Два новых TransactionType: SAVINGS_RESERVE, SAVINGS_CONTRIBUTION
+- FK связь GoalContribution → Transaction для целостности данных
+- Динамический бюджет: remaining = total - SUM(contributions_this_month)
+
+**Реализация** (8 шагов):
+1. **Schema + Migration** (commit 66a0a6f)
+   - TransactionType: +SAVINGS_RESERVE, +SAVINGS_CONTRIBUTION
+   - User: +reservation_mode (default "from_balance"), +reservation_day (nullable, 1-28)
+   - GoalContribution: +transaction_id FK (SET NULL), +ix_contribution_date index
+   - Migration: scripts/migrate_005_reservation.py (idempotent)
+   - Unit tests: 15 passed (8 новых тестов)
+
+2. **BudgetReservationService Core** (commit 20fe4c3)
+   - TypedDicts: ReservationMode, BudgetReservationSettings, BudgetProgress, ContributionRecord
+   - BudgetReservationService: get_settings(), set_mode(), get_budget_progress()
+   - Private helpers: _get_reserve_template(), _create_reserve_template(), _stop_reserve_template()
+   - Экспорт в schema/__init__.py и services/__init__.py
+   - Unit tests: 17 passed
+
+3. **BudgetReservationService CRUD** (commit 19c1bef)
+   - create_contribution_transaction() — создаёт SAVINGS_CONTRIBUTION в режиме from_balance
+   - update_contribution_transaction() — синхронизирует Transaction ↔ GoalContribution ↔ Goal
+   - delete_contribution_transaction() — каскадное удаление с обновлением цели
+   - sync_template_amount() — синхронизация суммы шаблона с бюджетом
+   - Unit tests: 26 passed (+9 новых)
+
+4. **CalendarService Integration** (commit ade680f)
+   - _calculate_balance_before_date() — добавлены SAVINGS_RESERVE, SAVINGS_CONTRIBUTION
+   - _get_daily_changes() — добавлены новые типы (уменьшают баланс как EXPENSE)
+   - _get_recurring_daily_changes() — обработка savings_reserve, savings_contribution
+   - _get_recurring_totals_for_period() — аналогично
+   - Unit tests: 34 passed (+4 новых)
+
+5. **GoalService Integration** (commit d17dab7)
+   - add_contribution() — создаёт SAVINGS_CONTRIBUTION транзакцию (from_balance режим)
+   - add_contribution() — guard clause для COMPLETED целей
+   - add_contribution() — warning logging при budget=0
+   - update_savings_budget() — sync_template_amount для fixed_date
+   - Unit tests: 8 passed (+4 новых)
+
+6. **Goals UI** (commit 1ef4503)
+   - _build_budget_progress_card() — карточка прогресса бюджета (цвета по статусу)
+   - budget-progress-card-container — контейнер в layout
+   - load_budget_progress_card callback — загрузка при переходе на /goals
+   - CSS стили .budget-progress-card с gradient header
+   - _build_mode_selector_modal() — модал выбора режима резервирования
+   - toggle_mode_selector, handle_mode_change callbacks — интерактивность
+   - BudgetReservationSettings TypedDict с mode/day
+
+7. **Calendar UI** (commit f1ff0df)
+   - ICON_TO_EMOJI: добавлены savings_reserve (💼), savings_contribution (🎯)
+   - _build_tooltip_transaction_row(): специальная обработка SAVINGS типов
+     - SAVINGS_RESERVE: readonly, id=-1, "(авто)" суффикс, без 🔁 иконки
+     - SAVINGS_CONTRIBUTION: кликабельно → edit modal
+   - CSS: .tooltip-txn-amount.savings (purple), .tooltip-txn-row.readonly
+   - open_edit_from_tooltip(): +txn_type в Pattern-Matching ID, guard для savings_reserve
+   - Unit tests: 14 новых тестов для SAVINGS визуализации (395 passed)
+
+8. **Финализация** (commit fdea488)
+   - Black: OK
+   - Flake8: OK (E501 pre-existing)
+   - Pytest: 396 тестов passed (было 343, +53)
+   - PR #16 merged в main
+
+**Результат**:
+- +~280 строк BudgetReservationService
+- +~300 строк UI (goals + calendar)
+- +53 unit и integration тестов (396 всего)
+- FK связь GoalContribution → Transaction (SET NULL)
+- Визуализация SAVINGS операций в календаре
+- Карточка прогресса бюджета на /goals
+
+**Критичные детали**:
+- **Два режима**: fixed_date (recurring) vs from_balance (per contribution)
+- **FK связь**: GoalContribution.transaction_id → Transaction.id (SET NULL ondelete)
+- **Динамический бюджет**: remaining = total - SUM(contributions_this_month)
+- **SAVINGS_RESERVE readonly**: нельзя редактировать напрямую (only через mode settings)
+- **Sync template**: sync_template_amount() синхронизирует recurring шаблон с budget
+- **SAVINGS операции**: уменьшают баланс в календаре, но не считаются расходами для целей
+- **Migration 005**: idempotent script для добавления reservation_mode, reservation_day
+
+**Референсы**:
+- План: `.protocols/0016-budget-calendar/plan.md`
+- Лог: `.protocols/0016-budget-calendar/log.md`
+- Brief: `.design/brief.md`
+- Solution v2: `.design/solution-v2.md`
+- Спецификация: `.reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
+
+---
+
+### Протокол 0015: Calendar Tooltip (2026-02-01)
+**Статус**: ✅ MERGED (PR #15, merge commit c9f7110)
+**Батч**: Epic-04-Advanced Features (Batch 4, Calendar Tooltip)
+**Worktree**: `/worktrees/0015-calendar-tooltip`
+
+**Контекст**:
+- В кассовом календаре пользователь видит только иконки операций и баланс, но не детали
+- Нужен быстрый способ просмотра списка операций дня без открытия модала
+- Как показать детальную информацию о дне при наведении без конфликта с существующим кликом?
+
+**Решения**:
+- CSS-only hover tooltip как sibling элемент к кликабельной области
+- Expand/collapse через CSS checkbox hack (max 5 visible операций)
+- Glassmorphism стиль с backdrop-filter blur
+- Pattern-Matching callback для клика по операции в tooltip
+- На mobile (< 768px) tooltip отключен
+
+**Реализация** (7 шагов):
+1. **Extend TransactionInfo** (commit 77db700)
+   - Добавлены поля is_skipped: bool, category_icon: str | None в TransactionInfo
+   - Добавлены поля is_skipped: bool, category_icon: str | None в VirtualTransaction
+   - CalendarService: заполнение новых полей в get_all_transactions_for_period()
+   - RecurringService: заполнение category_icon в generate_instances()
+
+2. **CSS Styles** (commit a50a7f3)
+   - Glassmorphism tooltip: backdrop-filter blur, rgba background, transitions
+   - Edge detection для правых 2 колонок (nth-child)
+   - CSS checkbox hack для expand/collapse
+   - Mobile: display:none на 768px
+
+3. **DOM Restructure** (commit c28f455)
+   - Константа MAX_VISIBLE_TRANSACTIONS = 5
+   - Sibling structure: clickable_content + tooltip в wrapper
+
+4. **Tooltip Builders** (commit 68998f6)
+   - _build_tooltip_balance() — header с балансом
+   - _build_tooltip_transaction_row() — строка операции с emoji, суммой
+   - _build_day_tooltip() — полный tooltip с expand/collapse
+   - Pattern-Matching ID для tooltip-txn
+
+5. **Edit Callback** (commit 2318c57)
+   - open_edit_from_tooltip() — Pattern-Matching callback
+   - 4 ADR-003 guard clauses
+   - is_virtual → scope modal, иначе → edit modal
+
+6. **Unit Tests** (commit 90e595c)
+   - tests/test_calendar_tooltip.py: 20 тестов
+   - Fix: Dash PM ID не поддерживает None → placeholder -1 для template_id
+
+7. **Финализация** (commit c9f7110)
+   - Black: 2 файла OK
+   - Flake8: 1 unused import исправлен
+   - Pytest: 343 тестов passed (было 300, +43)
+
+**Результат**:
+- +~200 строк в calendar.py (tooltip builders + callback)
+- +~200 строк CSS стилей
+- +43 unit тестов (343 всего)
+- CSS-only tooltip (zero server calls)
+- Glassmorphism стиль
+
+**Критичные детали**:
+- CSS-only tooltip — zero server calls, instant response
+- Sibling structure — clickable_content + tooltip как siblings в wrapper
+- Checkbox hack — expand/collapse без JavaScript
+- Pattern-Matching ID: {"type": "tooltip-txn", "date": ..., "id": ..., "is_virtual": bool, "template_id": int | -1}
+- Placeholder -1 для template_id (Dash не поддерживает None в PM IDs)
+- Mobile disabled — tooltip не показывается на < 768px
+
+**Референсы**:
+- План: `.protocols/0015-calendar-tooltip/plan.md`
+- Лог: `.protocols/0015-calendar-tooltip/log.md`
+- Solution v3: `.design/solution-v3.md`
+
+---
+
 ### Протокол 0014: Onboarding Wizard (2026-01-31)
 **Статус**: ✅ MERGED (PR #14)
 **Батч**: Epic-04-Advanced Features (Batch 4, Onboarding)

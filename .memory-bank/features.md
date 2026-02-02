@@ -402,22 +402,77 @@
 
 ---
 
-### 13. Интеграция бюджета целей с календарём 🔄
-**Статус**: Планируется (Epic-04)
+### 13. Интеграция бюджета целей с календарём ✅
+**Статус**: Завершена (Протокол 0016, PR #16)
 
-**Планируемые возможности**:
-- Два режима работы бюджета накоплений:
-  - **"Фиксированная дата"** — резервирование всей суммы бюджета в календаре на указанную дату (например, 5-е число)
-  - **"Из остатка"** — создание операции в календаре при каждом взносе в цель
-- Визуализация прогресса бюджета на странице Goals ("X из Y распределено/внесено")
-- Динамический расчёт доступного бюджета (уменьшается при взносах)
-- Операция "Резерв на цели" в календаре (режим 1)
-- Операции "Взнос: {название цели}" в календаре (режим 2)
+**Возможности**:
+- Два режима резервирования бюджета накоплений:
+  - **"fixed_date"** — recurring операция "Резерв на цели" на указанную дату месяца (1-28 число)
+    - Создаётся автоматически при выборе режима
+    - Сумма синхронизируется с User.monthly_savings_budget
+    - Операция SAVINGS_RESERVE уменьшает баланс в календаре
+  - **"from_balance"** — операции создаются только при взносах в цели
+    - При добавлении взноса создаётся SAVINGS_CONTRIBUTION транзакция
+    - description = "Взнос: {название цели}"
+    - FK связь GoalContribution.transaction_id → Transaction.id
+- Карточка прогресса бюджета на странице /goals:
+  - Показывает: "X из Y распределено" (в текущем месяце)
+  - Список взносов за месяц с датами
+  - Доступный остаток бюджета
+  - Статус all_allocated (True/False)
+- Модал выбора режима резервирования:
+  - Переключатель режимов (Radio buttons)
+  - Выбор дня месяца (1-28) для fixed_date режима
+  - Automatic recurring template creation/stop
+- Визуализация SAVINGS операций в календаре:
+  - SAVINGS_RESERVE: иконка 💼, суффикс "(авто)", readonly (нельзя редактировать)
+  - SAVINGS_CONTRIBUTION: иконка 🎯, кликабельно → edit modal
+  - Purple цвет для сумм (.tooltip-txn-amount.savings)
+- Динамический расчёт доступного бюджета:
+  - `remaining_budget = monthly_savings_budget - SUM(contributions_this_month)`
+  - Обновляется при каждом взносе
+
+**Технические детали**:
+- BudgetReservationService (~280 строк) с CRUD методами:
+  - get_settings(), set_mode(), get_budget_progress()
+  - create/update/delete_contribution_transaction()
+  - sync_template_amount() для синхронизации recurring шаблона
+- TransactionType расширен: SAVINGS_RESERVE, SAVINGS_CONTRIBUTION
+- User модель: reservation_mode, reservation_day (1-28)
+- GoalContribution.transaction_id FK (SET NULL ondelete)
+- CalendarService интеграция: SAVINGS операции учитываются в балансе, но не в расчётах целей
+- GoalService интеграция: add_contribution() создаёт транзакцию в режиме from_balance
+- TypedDicts: BudgetReservationSettings, BudgetProgress, ContributionRecord
+- Migration: scripts/migrate_005_reservation.py (idempotent)
+- 26 unit тестов для BudgetReservationService
+- 8 integration тестов для CalendarService с SAVINGS операциями
+
+**Файлы**:
+- `app/services/budget_reservation_service.py` — BudgetReservationService (~280 строк)
+- `app/schema/budget_reservation.py` — TypedDicts (~60 строк)
+- `app/models/database.py` — User (+2 поля), TransactionType (+2 enum), GoalContribution (+1 FK)
+- `app/components/goals.py` — карточка прогресса + модал режима (~250 строк добавлено)
+- `app/components/calendar.py` — визуализация SAVINGS (~50 строк изменено)
+- `app/services/calendar_service.py` — SAVINGS_RESERVE/CONTRIBUTION handling (~30 строк изменено)
+- `app/services/goal_service.py` — add_contribution интеграция (~20 строк изменено)
+- `app/assets/goals.css` — стили .budget-progress-* (~80 строк)
+- `app/assets/calendar.css` — стили .savings (~20 строк)
+- `tests/test_budget_reservation_service.py` — 26 unit тестов
+- `scripts/migrate_005_reservation.py` — Migration script
+
+**Ключевые паттерны**:
+- **Два режима резервирования** — гибкость для разных стилей планирования
+- **FK связь** — GoalContribution.transaction_id обеспечивает целостность данных
+- **Динамический бюджет** — прозрачность и контроль расходования бюджета
+- **Readonly SAVINGS_RESERVE** — автоматические операции нельзя редактировать напрямую
+- **Sync template amount** — автоматическая синхронизация recurring шаблона с бюджетом
+- **SET NULL ondelete** — при удалении транзакции contribution остаётся в истории
 
 **Философия**:
-- Бюджет и подушка — это НЕ расходы, а "состояние кармана"
-- Динамический бюджет: `доступный_бюджет = monthly_savings_budget - сумма_взносов_в_этом_месяце`
-- Нет блокировок и давления — только визуализация прогресса
+- Бюджет накоплений — это НЕ расход, а резервирование части денег
+- SAVINGS операции уменьшают баланс, но не считаются расходами для целей
+- Нет блокировок — только визуализация прогресса и остатка бюджета
+- Пользователь видит, как накопления влияют на остаток по дням
 
 **Детали**: `.reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
 

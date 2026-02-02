@@ -32,6 +32,10 @@
 - **ReconciliationService** - сверка баланса, создание ADJUSTMENT транзакций
 - **AnalyticsService** - агрегация расходов по категориям, monthly trends, donut/bar charts
 
+- **BudgetReservationService** - управление резервированием бюджета накоплений, два режима (fixed_date/from_balance)
+- **CushionService** - финансовая подушка безопасности, калькулятор сценариев
+- **OnboardingService** - onboarding wizard для новых пользователей
+
 **Паттерн**: Service Layer с изолированной бизнес-логикой, session management через flush()
 
 ### 3. Data Access Layer (ORM)
@@ -247,6 +251,12 @@ refresh_transactions_table() - updates table
 - Redistribution Modal UI с confirm/decline callbacks
 - NFR: preview < 100ms, аудит-логирование
 
+**Протокол 0016**: Интеграция бюджета накоплений с календарём
+- BudgetReservationService с двумя режимами резервирования
+- TransactionType: SAVINGS_RESERVE, SAVINGS_CONTRIBUTION
+- GoalContribution.transaction_id FK для связи с календарём
+- Динамический бюджет: remaining = total - SUM(contributions_this_month)
+
 ## Диаграмма компонентов
 
 ```
@@ -279,6 +289,9 @@ refresh_transactions_table() - updates table
          │  - CategoryService           │
          │  - ReconciliationService     │
          │  - AnalyticsService          │
+         │  - CushionService            │
+         │  - OnboardingService         │
+         │  - BudgetReservationService  │
          └──────────────┬───────────────┘
                         │
            ┌────────────┼────────────┬─────────────┐
