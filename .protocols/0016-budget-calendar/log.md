@@ -64,7 +64,7 @@
 - BudgetReservationSettings TypedDict с mode/day
 - Unit tests: режимы резервирования и карточка прогресса
 
-### Step 7 — Calendar UI (commit: pending)
+### Step 7 — Calendar UI (commit: f1ff0df)
 - ICON_TO_EMOJI: добавлены savings_reserve (💼), savings_contribution (🎯)
 - _build_tooltip_transaction_row(): специальная обработка SAVINGS типов
   - SAVINGS_RESERVE: readonly, id=-1, "(авто)" суффикс, без 🔁 иконки
@@ -72,3 +72,8 @@
 - CSS: .tooltip-txn-amount.savings (purple), .tooltip-txn-row.readonly
 - open_edit_from_tooltip(): +txn_type в Pattern-Matching ID, guard для savings_reserve
 - Unit tests: 14 новых тестов для SAVINGS визуализации (395 passed)
+
+### Step 8 — Finalize (commit: pending)
+- Верификация: black ✅, flake8 ✅ (E501 pre-existing), pytest 395/396 ✅
+- Критерии приёмки: 8/8 выполнено
+- PR #16: переведён в Ready
