@@ -13,8 +13,11 @@ from loguru import logger
 
 from app.core.database import get_db_session
 from app.core.exceptions import ValidationError
+from app.models.database import TransactionType
 from app.services.calendar_service import CalendarService, TransactionInfo
+from app.services.category_service import CategoryService
 from app.services.reconciliation_service import ReconciliationService
+from app.services.transaction_service import TransactionService
 from app.utils.formatters import ICON_TO_EMOJI
 
 
@@ -967,6 +970,14 @@ def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
         Output("edit-transaction-id", "data", allow_duplicate=True),
         Output("recurring-edit-context", "data", allow_duplicate=True),
         Output("recurring-edit-scope-modal", "is_open", allow_duplicate=True),
+        # Поля формы редактирования
+        Output("edit-amount-input", "value", allow_duplicate=True),
+        Output("edit-type-select", "value", allow_duplicate=True),
+        Output("edit-category-dropdown", "value", allow_duplicate=True),
+        Output("edit-category-dropdown", "options", allow_duplicate=True),
+        Output("edit-date-picker", "date", allow_duplicate=True),
+        Output("edit-description-input", "value", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
     ],
     Input(
         {
@@ -984,11 +995,13 @@ def open_create_modal_from_calendar(n_clicks_list: list[int | None]):
 def open_edit_from_tooltip(n_clicks_list: list[int | None]):
     """Открывает модал редактирования при клике на операцию в tooltip.
 
+    Загружает данные транзакции из БД и заполняет форму редактирования.
+
     Args:
         n_clicks_list: Список кликов по строкам операций
 
     Returns:
-        tuple: (edit_modal_open, txn_id, recurring_context, scope_modal_open)
+        tuple: Данные для модала и формы редактирования
     """
     triggered_id = ctx.triggered_id
 
@@ -1043,17 +1056,68 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
             "instance_date": txn_date,
             "source": "tooltip",
         }
-        return no_update, no_update, recurring_context, True
+        # Возвращаем no_update для полей формы — они заполнятся в process_recurring_edit_scope
+        return (
+            no_update,  # edit-modal
+            no_update,  # edit-transaction-id
+            recurring_context,  # recurring-edit-context
+            True,  # recurring-edit-scope-modal
+            no_update,  # edit-amount-input
+            no_update,  # edit-type-select
+            no_update,  # edit-category-dropdown value
+            no_update,  # edit-category-dropdown options
+            no_update,  # edit-date-picker
+            no_update,  # edit-description-input
+            no_update,  # modal-source
+        )
     else:
         # Обычная, exception или SAVINGS_CONTRIBUTION операция — открываем edit modal
         # txn_id = -1 означает None (placeholder)
         if txn_id is None or txn_id == -1:
             raise PreventUpdate
 
-        logger.debug(
-            f"Tooltip: открытие edit modal для транзакции {txn_id} (type={txn_type})"
-        )
-        return True, txn_id, no_update, no_update
+        # Загружаем данные транзакции из БД
+        with get_db_session() as session:
+            tx_service = TransactionService(session)
+            tx = tx_service.get_by_id(txn_id)
+
+            if not tx:
+                logger.warning(f"Tooltip: транзакция {txn_id} не найдена")
+                raise PreventUpdate
+
+            # Загружаем категории для dropdown
+            category_service = CategoryService(session)
+            category_type = (
+                "income" if tx.transaction_type == TransactionType.INCOME else "expense"
+            )
+            category_options = category_service.get_for_dropdown(
+                category_type=category_type
+            )
+            dropdown_options = [
+                {
+                    "label": f"{ICON_TO_EMOJI.get(opt['icon'], '📁')} {opt['label']}",
+                    "value": opt["value"],
+                }
+                for opt in category_options
+            ]
+
+            logger.debug(
+                f"Tooltip: открытие edit modal для транзакции {txn_id} (type={txn_type})"
+            )
+
+            return (
+                True,  # edit-modal is_open
+                txn_id,  # edit-transaction-id
+                no_update,  # recurring-edit-context
+                no_update,  # recurring-edit-scope-modal
+                float(tx.amount),  # edit-amount-input
+                tx.transaction_type.name,  # edit-type-select
+                tx.category_id,  # edit-category-dropdown value
+                dropdown_options,  # edit-category-dropdown options
+                tx.transaction_date.isoformat(),  # edit-date-picker
+                tx.description or "",  # edit-description-input
+                "calendar",  # modal-source
+            )
 
 
 @callback(
