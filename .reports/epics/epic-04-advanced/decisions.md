@@ -330,6 +330,99 @@ Toast notification (3 сек):
 
 ---
 
+## D005: Исправление багов режима fixed_date — переиспользование шаблонов
+
+**Дата**: 2026-02-02
+**Статус**: Утверждено и реализовано (Протокол 0018)
+
+### Контекст
+
+После реализации протоколов 0016-0017 выявлены критические баги в режиме `fixed_date`:
+1. При переключении `fixed_date → from_balance → fixed_date` ранее внесённые суммы "забывались"
+2. Exception сбрасывался при переключении режимов — досрочный взнос терялся
+
+**Корневая причина**: `set_mode()` создавал новый шаблон при каждом переключении → exceptions становились orphan (привязаны к старому `template_id`).
+
+### Решение
+
+**Переиспользовать существующий шаблон при совпадении дня:**
+
+```python
+# Логика set_mode()
+if mode == "fixed_date":
+    existing_template = _find_any_reserve_template(user_id)  # Включая остановленный
+
+    if existing_template and _get_template_day(existing_template) == day:
+        # Тот же день → реактивируем шаблон
+        existing_template.recurring_end_date = None
+        # Exceptions сохраняются!
+    else:
+        # Другой день → stop + cleanup + create new
+        if existing_template:
+            _stop_reserve_template(user_id)
+            _cleanup_orphan_exceptions(existing_template.id)
+        template = _create_reserve_template(user_id, day)
+```
+
+**Добавить автоматический пересчёт exceptions:**
+
+```python
+def recalculate_current_month_exception(user_id, reference_date):
+    """Пересчитывает exception при изменениях.
+
+    Вызывается при:
+    - Удалении взноса (GoalService.delete_contribution)
+    - Изменении суммы взноса (update_contribution_transaction)
+    - Изменении monthly_savings_budget (save_budget callback)
+
+    Логика:
+    - contributions_sum до reserve_date → new_reserve = budget - contributions_sum
+    - contributions_sum == 0 → удалить exception
+    - contributions_sum > 0 → создать/обновить exception
+    """
+```
+
+### Обоснование
+
+1. **Сохранение exceptions** — пользователь не теряет данные при переключении режимов
+2. **Корректность расчётов** — exception всегда актуален при любых изменениях
+3. **Минимальная сложность** — переиспользование проще чем event-driven пересчёт
+4. **Lazy import pattern** — избегаем circular dependency в GoalService.delete_contribution()
+
+### Критичные детали
+
+- **from_balance → fixed_date**: exceptions НЕ чистятся при переключении на `from_balance` (пригодятся при возврате)
+- **Изменение дня**: stop старый шаблон + cleanup orphan exceptions + create new
+- **Orphan cleanup**: удаляет exceptions только для дат после `recurring_end_date`
+- **Пересчёт только для будущих дат**: `reserve_date > today` (прошлые месяцы не трогаем)
+
+### Реализация
+
+**Протокол 0018 (10 шагов)**:
+1. Helper методы (_find_any_reserve_template, _get_template_day, _get_reserve_date_for_month, _delete_exception_for_date)
+2. recalculate_current_month_exception() с расширенным _get_contributions_sum_for_month
+3. _cleanup_orphan_exceptions() с логированием
+4. set_mode() рефакторинг для переиспользования
+5. get_budget_progress() унификация (взносы для обоих режимов)
+6. GoalService.delete_contribution() с lazy import
+7. Callbacks интеграция (save_budget, update_contribution_transaction)
+8. 13 unit тестов
+9. 3 integration теста (E2E сценарии)
+10. Финализация (418 тестов passed)
+
+### Альтернативы (отвергнуты)
+
+- **Event-driven пересчёт через signals** — overcomplicated для MVP
+- **Обновление шаблона вместо Exception** — проблема с расчётом следующего месяца
+- **Виртуальный расчёт при рендере** — проблемы с производительностью
+
+### Связь с другими решениями
+
+- D004: Интеграция бюджета с календарём (основа)
+- Протокол 0017: adjust_reserve_for_contribution() (дополняется recalculate)
+
+---
+
 ## Backlog решений (для будущих батчей)
 
 ### D005: Импорт CSV — маппинг колонок
@@ -341,4 +434,4 @@ Toast notification (3 сек):
 ---
 
 **Дата создания**: 2026-01-25
-**Последнее обновление**: 2026-02-01
+**Последнее обновление**: 2026-02-02
