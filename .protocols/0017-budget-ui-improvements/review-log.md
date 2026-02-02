@@ -27,3 +27,20 @@
 - 8 коммитов, все с тегами [protocol-0017/XX]
 - Замечаний нет
 
+### 4-m. Merge
+- Merge выполнен: `git merge --no-ff 0017-budget-ui-improvements`
+- Push: main → origin/main (a81921e..4730f1b)
+- Конфликтов нет
+
+### 5-m. Memory Bank Update
+- mb-update: обновлены 5 файлов (.memory-bank/*)
+- Обновлены: features.md, protocols.md, architecture.md, modules/services.md, index.md
+- Commit: docs(memory-bank): update after 0017-budget-ui-improvements [5-m]
+- Push: (4730f1b..6901f6e)
+
+### 6-m. Cleanup
+- Remote branch удалена: `git push origin --delete 0017-budget-ui-improvements`
+- Worktree удалена
+- Local branch удалена: `git branch -d 0017-budget-ui-improvements`
+- Cleanup завершен
+
