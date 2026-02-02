@@ -587,6 +587,45 @@ class BudgetReservationService:
 
         return True
 
+    def _cleanup_orphan_exceptions(self, template_id: int) -> int:
+        """Удаляет exceptions для остановленного шаблона.
+
+        Вызывается при изменении дня месяца для очистки
+        невалидных exceptions от старого шаблона.
+        Удаляет ВСЕ exceptions для шаблона с recurring_end_date < today.
+
+        Args:
+            template_id: ID остановленного шаблона.
+
+        Returns:
+            int: Количество удалённых exceptions.
+        """
+        # Находим и удаляем все exceptions для шаблона
+        exceptions_to_delete = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.recurring_parent_id == template_id,
+                Transaction.original_date.isnot(None),  # Это exception
+            )
+            .all()
+        )
+
+        count = len(exceptions_to_delete)
+        for exc in exceptions_to_delete:
+            self.session.delete(exc)
+
+        if count > 0:
+            self.session.flush()
+            logger.info(
+                f"Cleaned up {count} orphan exception(s) for template {template_id}"
+            )
+        else:
+            logger.debug(
+                f"No orphan exceptions to clean up for template {template_id}"
+            )
+
+        return count
+
     # === CRUD методы для SAVINGS_CONTRIBUTION ===
 
     def create_contribution_transaction(

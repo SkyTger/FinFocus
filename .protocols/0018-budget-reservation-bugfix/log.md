@@ -31,9 +31,14 @@
   - `_delete_exception_for_date()` — удаление exception для даты
 - py_compile: OK
 
-### Step 2 — recalculate метод (commit: pending)
+### Step 2 — recalculate метод (commit: b5a1204)
 - Добавлен `recalculate_current_month_exception(user_id, reference_date)`
 - Расширен `_get_contributions_sum_for_month` параметром `before_date`
 - Логика: нет взносов → удалить exception, есть → создать/обновить с уменьшенной суммой
 - Lazy import для RecurringService (как в adjust_reserve_for_contribution)
+- py_compile: OK
+
+### Step 3 — cleanup + logging (commit: pending)
+- Добавлен `_cleanup_orphan_exceptions(template_id)` — удаляет все exceptions остановленного шаблона
+- logger.info() при удалении, logger.debug() если нечего удалять
 - py_compile: OK
