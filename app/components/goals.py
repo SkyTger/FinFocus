@@ -25,7 +25,6 @@ from app.services import (
     GoalsSummary,
     DEFAULT_THRESHOLD_PERCENT,
 )
-from app.schema.budget_reservation import BudgetProgress
 from app.utils.formatters import (
     format_amount,
     format_date,
@@ -384,79 +383,6 @@ def _build_budget_alert() -> dbc.Alert:
         color="info",
         dismissable=True,
         className="budget-alert mb-3",
-    )
-
-
-def _build_budget_progress_card(progress: BudgetProgress, month_label: str) -> dbc.Card:
-    """Строит карточку прогресса использования бюджета накоплений.
-
-    Args:
-        progress: Данные о прогрессе бюджета из BudgetReservationService
-        month_label: Название месяца для заголовка (например, "Февраль 2026")
-
-    Returns:
-        dbc.Card: Карточка с прогресс-баром и текстом
-    """
-    # Цвет прогресс-бара по статусу
-    color_map = {
-        "success": "success",
-        "warning": "warning",
-        "orange": "warning",  # Bootstrap не имеет orange, используем warning
-        "danger": "danger",
-    }
-    bar_color = color_map.get(progress["status"], "primary")
-
-    # Форматирование сумм
-    used = format_amount(progress["used_budget"])
-    total = format_amount(progress["total_budget"])
-    available = format_amount(progress["available_budget"])
-
-    # Текст режима
-    mode_text = progress["mode_text"]  # "Внесено" или "Зарезервировано"
-
-    return dbc.Card(
-        [
-            dbc.CardHeader(
-                html.Div(
-                    [
-                        html.H5(
-                            f"Бюджет накоплений ({month_label})",
-                            className="mb-0",
-                        ),
-                        dbc.Button(
-                            html.I(className="bi bi-gear"),
-                            id="open-budget-modal-btn",
-                            color="link",
-                            size="sm",
-                            className="p-0",
-                        ),
-                    ],
-                    className="d-flex justify-content-between align-items-center",
-                )
-            ),
-            dbc.CardBody(
-                [
-                    # Прогресс-бар
-                    dbc.Progress(
-                        value=min(progress["progress_percent"], 100),
-                        color=bar_color,
-                        className="mb-2",
-                        style={"height": "10px"},
-                    ),
-                    # Текст прогресса
-                    html.P(
-                        f"{mode_text} {used} из {total}",
-                        className="mb-1 text-center",
-                    ),
-                    # Доступный бюджет
-                    html.P(
-                        f"Доступно: {available}",
-                        className="mb-0 text-muted small text-center",
-                    ),
-                ]
-            ),
-        ],
-        className="budget-progress-card mb-3",
     )
 
 
@@ -1946,8 +1872,6 @@ def create_goals_layout() -> html.Div:
             ),
             # Карточка подушки безопасности (динамический контент)
             html.Div(id="cushion-card-container"),
-            # Карточка прогресса бюджета (динамический контент)
-            html.Div(id="budget-progress-card-container"),
             # Карточка цели (динамический контент)
             html.Div(id="goal-card-container"),
             # История взносов
@@ -1987,8 +1911,6 @@ def create_goals_layout() -> html.Div:
             dcc.Store(id="cushion-settings-store", data=None),
             # Store для триггера обновления подушки
             dcc.Store(id="cushion-refresh-trigger", data=0),
-            # Store для триггера обновления карточки бюджета
-            dcc.Store(id="budget-progress-refresh-trigger", data=0),
         ],
         className="goals-container",
     )
@@ -3841,58 +3763,3 @@ def reset_cushion_settings(n_clicks: int | None, current_trigger: int):
         raise PreventUpdate
 
 
-# --- Budget Progress Card Callbacks ---
-
-
-@callback(
-    Output("budget-progress-card-container", "children"),
-    [
-        Input("url", "pathname"),
-        Input("budget-progress-refresh-trigger", "data"),
-    ],
-)
-def load_budget_progress_card(pathname: str, trigger: int):
-    """Загружает карточку прогресса бюджета.
-
-    Args:
-        pathname: Текущий URL
-        trigger: Триггер обновления
-
-    Returns:
-        html.Div: Карточка прогресса или пустой div
-    """
-    if pathname != "/goals":
-        raise PreventUpdate
-
-    try:
-        with get_db_session() as session:
-            service = BudgetReservationService(session)
-            progress = service.get_budget_progress(DEFAULT_USER_ID)
-
-            # Если бюджет не настроен, не показываем карточку
-            if progress["total_budget"] == 0:
-                return html.Div()
-
-            # Формируем название месяца
-            today = date.today()
-            months_ru = [
-                "",
-                "Январь",
-                "Февраль",
-                "Март",
-                "Апрель",
-                "Май",
-                "Июнь",
-                "Июль",
-                "Август",
-                "Сентябрь",
-                "Октябрь",
-                "Ноябрь",
-                "Декабрь",
-            ]
-            month_label = f"{months_ru[today.month]} {today.year}"
-
-            return _build_budget_progress_card(progress, month_label)
-    except Exception as e:
-        logger.error(f"load_budget_progress_card: ошибка загрузки: {e}")
-        return html.Div()
