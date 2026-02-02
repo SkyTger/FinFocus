@@ -1,544 +1,311 @@
-# Solution v1: Budget-Calendar Integration с новым TransactionType
+# Solution v1: Переиспользование шаблонов и автоматический пересчёт exceptions
 
 ## Обзор решения
-
-Интеграция реализуется через добавление нового типа транзакций `TransactionType.SAVINGS_RESERVE` для режима "Фиксированная дата" и `TransactionType.SAVINGS_CONTRIBUTION` для режима "Из остатка". Новый сервис `BudgetReservationService` управляет созданием/остановкой recurring шаблона "Резерв на цели" и расчетом доступного бюджета. Переиспользуется существующий Anchored-алгоритм из RecurringService.
+Решение состоит из трёх ключевых изменений в BudgetReservationService: (1) переиспользование существующего шаблона при переключении режимов вместо создания нового, (2) добавление метода recalculate_current_month_exception() для пересчёта при изменениях взносов/бюджета, (3) унификация логики get_budget_progress() для показа взносов вместо резервов. Дополнительно интегрируем пересчёт в GoalService и callback save_budget.
 
 ## Архитектура
 
 ### Компоненты
 
-**1. BudgetReservationService** (новый)
-- Управляет режимами резервирования бюджета
-- Создает/останавливает recurring шаблон "Резерв на цели"
-- Рассчитывает `available_budget` = budget - contributions_this_month
-- Создает операции SAVINGS_CONTRIBUTION при взносе в режиме "Из остатка"
+**BudgetReservationService (модифицируется)**
+- Добавляется `_find_any_reserve_template()` — поиск любого шаблона включая остановленный
+- Добавляется `_get_template_day()` — извлечение дня из шаблона
+- Добавляется `_cleanup_orphan_exceptions()` — удаление orphan exceptions
+- Добавляется `_get_reserve_date_for_month()` — вычисление даты резерва
+- Добавляется `_delete_exception_for_date()` — удаление exception по дате
+- Добавляется `recalculate_current_month_exception()` — пересчёт exception
+- Модифицируется `set_mode()` — логика переиспользования шаблона
+- Модифицируется `get_budget_progress()` — единообразный расчёт used_budget
 
-**2. GoalService** (расширение)
-- Метод `add_contribution()` расширяется для создания транзакции в режиме "Из остатка"
-- Новые поля User: `reservation_mode` ("fixed_date" | "from_balance"), `reservation_day` (1-31)
+**GoalService (модифицируется)**
+- Добавляется `delete_contribution()` — удаление взноса с пересчётом exception
 
-**3. CalendarService** (расширение)
-- Обработка SAVINGS_RESERVE и SAVINGS_CONTRIBUTION в расчетах баланса
-- Оба типа уменьшают баланс (как EXPENSE)
-
-**4. Goals UI** (расширение)
-- Карточка "Бюджет накоплений" над списком целей
-- Расширенный модал настройки бюджета с выбором режима
+**goals.py callbacks (модифицируется)**
+- `save_budget()` — добавить вызов recalculate после изменения бюджета
 
 ### Диаграмма взаимодействия
 
 ```
-User -> Goals Page -> Budget Modal (режим + день)
-                          |
-                          v
-              BudgetReservationService.set_mode()
-                          |
-        +------------------+------------------+
-        |                                     |
-        v                                     v
- "fixed_date"                           "from_balance"
-        |                                     |
-        v                                     v
-RecurringService.                      (без recurring,
-create_template(                       операции при взносах)
-  type=SAVINGS_RESERVE)                       |
-        |                                     |
-        v                                     v
-CalendarService.                      GoalService.
-calculate_daily_balances()            add_contribution()
-(учитывает SAVINGS_RESERVE)                   |
-                                              v
-                                    Transaction(type=
-                                      SAVINGS_CONTRIBUTION)
+set_mode("fixed_date", day=15)
+    │
+    ▼
+_find_any_reserve_template()
+    │
+    ├─ Найден с day=15 ──► Реактивировать (recurring_end_date=None)
+    │                      Exceptions сохраняются!
+    │
+    └─ Найден с day≠15 ──► _stop_reserve_template()
+       или не найден       _cleanup_orphan_exceptions()
+                           _create_reserve_template()
+
+add_contribution() / delete_contribution()
+    │
+    ▼
+adjust_reserve_for_contribution() / recalculate_current_month_exception()
+    │
+    ▼
+RecurringService.create_exception()
+    │
+    ▼
+Calendar показывает корректный резерв
 ```
 
 ## Файловая структура
 
 ```
-app/models/database.py            — добавить SAVINGS_RESERVE, SAVINGS_CONTRIBUTION в TransactionType
-                                  — добавить User.reservation_mode, User.reservation_day
-
-app/schema/budget_reservation.py  — новый файл с TypedDicts:
-                                    BudgetReservationSettings, BudgetProgress
-
-app/services/budget_reservation_service.py — новый BudgetReservationService
-
-app/services/goal_service.py      — расширить add_contribution() для создания транзакции
-                                  — добавить get/set_reservation_mode()
-
-app/services/calendar_service.py  — добавить SAVINGS_RESERVE и SAVINGS_CONTRIBUTION в расчеты
-
-app/services/__init__.py          — экспорт BudgetReservationService
-
-app/components/goals.py           — карточка бюджета, расширенный модал
-
-tests/test_budget_reservation_service.py — unit тесты
-tests/test_goal_service_contribution.py  — тесты add_contribution с режимами
+app/services/budget_reservation_service.py  — основные изменения (6 новых методов, 2 модификации)
+app/services/goal_service.py                — новый метод delete_contribution()
+app/components/goals.py                     — вызов recalculate в save_budget callback
+tests/test_budget_reservation_service.py    — новые тестовые классы
 ```
 
 ## Ключевые интерфейсы
 
 ```python
-# === app/schema/budget_reservation.py ===
-
-from decimal import Decimal
-from typing import TypedDict, Literal
-
-ReservationMode = Literal["fixed_date", "from_balance"]
-
-class BudgetReservationSettings(TypedDict):
-    """Настройки режима резервирования бюджета."""
-    mode: ReservationMode
-    day_of_month: int | None  # 1-31, None для "from_balance"
-    monthly_budget: Decimal
-    template_id: int | None  # ID recurring шаблона, None если нет
-
-
-class BudgetProgress(TypedDict):
-    """Прогресс использования бюджета за текущий месяц."""
-    total_budget: Decimal
-    used_budget: Decimal  # сумма взносов в месяце
-    available_budget: Decimal  # total - used
-    progress_percent: float  # 0-100+
-    status: str  # "ok" | "warning" | "danger" | "over"
-    mode: ReservationMode
-    mode_text: str  # "Распределено" | "Внесено"
-
-
-# === app/services/budget_reservation_service.py ===
-
-from datetime import date
-from decimal import Decimal
-from typing import TypedDict
-
-from sqlalchemy.orm import Session
-from loguru import logger
-
-from app.core.exceptions import ValidationError
-from app.models.database import (
-    User, Transaction, TransactionType, GoalContribution
-)
-from app.schema.budget_reservation import (
-    BudgetReservationSettings, BudgetProgress, ReservationMode
-)
-from app.services.recurring_service import RecurringService
-
+# app/services/budget_reservation_service.py
 
 class BudgetReservationService:
-    """Сервис управления резервированием бюджета накоплений.
+    """Сервис управления режимами резервирования бюджета на накопления."""
 
-    Поддерживает два режима:
-    - "fixed_date": recurring операция "Резерв на цели" на фиксированную дату
-    - "from_balance": операции при каждом взносе
+    def _find_any_reserve_template(self, user_id: int) -> Transaction | None:
+        """Находит любой recurring шаблон резерва (включая остановленный).
 
-    Flush/commit contract: сервис вызывает session.flush(),
-    caller управляет commit().
-    """
+        Ищет последний созданный шаблон SAVINGS_RESERVE для переиспользования.
 
-    RESERVE_DESCRIPTION = "Резерв на цели"
-    CONTRIBUTION_PREFIX = "Взнос: "
+        Returns:
+            Transaction | None: Шаблон или None если не найден.
+        """
+        ...
 
-    def __init__(self, session: Session):
-        """Инициализация сервиса."""
-        self.session = session
-        self.recurring_service = RecurringService(session)
+    def _get_template_day(self, template: Transaction) -> int:
+        """Извлекает день месяца из шаблона.
 
-    def get_settings(self, user_id: int) -> BudgetReservationSettings:
-        """Получает текущие настройки резервирования.
+        Для EOM anchor (recurring_anchor_eom=True) возвращает 31.
+
+        Returns:
+            int: День месяца (1-31).
+        """
+        ...
+
+    def _cleanup_orphan_exceptions(self, template_id: int) -> int:
+        """Удаляет exceptions для дат после recurring_end_date.
+
+        Вызывается при изменении дня месяца для очистки
+        невалидных exceptions от старого шаблона.
+
+        Returns:
+            int: Количество удалённых exceptions.
+        """
+        ...
+
+    def _get_reserve_date_for_month(
+        self, user_id: int, reference_date: date
+    ) -> date | None:
+        """Возвращает дату резерва для указанного месяца.
+
+        Учитывает короткие месяцы (min(day_of_month, last_day)).
+
+        Returns:
+            date | None: Дата резерва или None если режим != fixed_date.
+        """
+        ...
+
+    def _delete_exception_for_date(
+        self, template_id: int, target_date: date
+    ) -> bool:
+        """Удаляет exception для конкретной даты.
+
+        Используется при пересчёте когда взносов нет.
+
+        Returns:
+            bool: True если exception удалён, False если не существовал.
+        """
+        ...
+
+    def recalculate_current_month_exception(
+        self, user_id: int, month: date | None = None
+    ) -> bool:
+        """Пересчитывает exception для текущего/указанного месяца.
+
+        Вызывается при:
+        - Удалении взноса
+        - Изменении суммы взноса
+        - Изменении monthly_savings_budget
 
         Args:
             user_id: ID пользователя.
+            month: Дата в целевом месяце (default: today).
 
         Returns:
-            BudgetReservationSettings с текущими настройками.
+            bool: True если exception обновлён/создан, False если не требуется.
         """
-        user = self.session.get(User, user_id)
-        if not user:
-            raise ValidationError(f"Пользователь {user_id} не найден")
-
-        # Найти существующий шаблон "Резерв на цели"
-        template = self._get_reserve_template(user_id)
-
-        return BudgetReservationSettings(
-            mode=user.reservation_mode or "from_balance",
-            day_of_month=user.reservation_day,
-            monthly_budget=user.monthly_savings_budget,
-            template_id=template.id if template else None,
-        )
+        ...
 
     def set_mode(
         self,
         user_id: int,
         mode: ReservationMode,
         day_of_month: int | None = None,
-    ) -> None:
-        """Устанавливает режим резервирования бюджета.
+    ) -> BudgetReservationSettings:
+        """Устанавливает режим резервирования с переиспользованием шаблона.
 
-        Args:
-            user_id: ID пользователя.
-            mode: "fixed_date" или "from_balance".
-            day_of_month: День месяца (1-31) для режима "fixed_date".
-
-        Raises:
-            ValidationError: Если mode невалиден или day_of_month вне диапазона.
+        При переключении на fixed_date:
+        1. Ищет существующий шаблон (включая остановленный)
+        2. Если день совпадает — реактивирует (exceptions сохраняются)
+        3. Если день изменился — останавливает старый, чистит orphan exceptions,
+           создаёт новый
         """
-        user = self.session.get(User, user_id)
-        if not user:
-            raise ValidationError(f"Пользователь {user_id} не найден")
-
-        if mode not in ("fixed_date", "from_balance"):
-            raise ValidationError(
-                f"Недопустимый режим: {mode}. "
-                f"Допустимые: fixed_date, from_balance"
-            )
-
-        if mode == "fixed_date":
-            if day_of_month is None:
-                raise ValidationError(
-                    "Для режима 'fixed_date' необходимо указать день месяца",
-                    field="day_of_month"
-                )
-            if not 1 <= day_of_month <= 31:
-                raise ValidationError(
-                    f"День месяца должен быть от 1 до 31, получено: {day_of_month}",
-                    field="day_of_month"
-                )
-
-        old_mode = user.reservation_mode
-        user.reservation_mode = mode
-        user.reservation_day = day_of_month if mode == "fixed_date" else None
-
-        # Управление recurring шаблоном
-        if mode == "fixed_date" and old_mode != "fixed_date":
-            self._create_reserve_template(user_id, day_of_month)
-        elif mode == "from_balance" and old_mode == "fixed_date":
-            self._stop_reserve_template(user_id)
-        elif mode == "fixed_date" and old_mode == "fixed_date":
-            # Изменился день — пересоздать шаблон
-            self._stop_reserve_template(user_id)
-            self._create_reserve_template(user_id, day_of_month)
-
-        self.session.flush()
-        logger.info(
-            f"Режим резервирования для user {user_id} изменен: "
-            f"{old_mode} -> {mode}"
-        )
+        ...
 
     def get_budget_progress(
         self,
         user_id: int,
         reference_date: date | None = None,
     ) -> BudgetProgress:
-        """Рассчитывает прогресс использования бюджета за месяц.
+        """Рассчитывает прогресс использования бюджета.
+
+        Изменение: единообразно для обоих режимов считает взносы,
+        а не резервы. mode_text = "Внесено" для обоих режимов.
+        """
+        ...
+```
+
+```python
+# app/services/goal_service.py
+
+class GoalService:
+    """Сервис для операций с целями накопления."""
+
+    def delete_contribution(self, contribution_id: int) -> bool:
+        """Удаляет взнос и пересчитывает exception.
 
         Args:
-            user_id: ID пользователя.
-            reference_date: Дата для определения месяца (по умолчанию сегодня).
+            contribution_id: ID взноса GoalContribution.
 
         Returns:
-            BudgetProgress с расчетами.
+            bool: True если взнос удалён, False если не найден.
         """
-        user = self.session.get(User, user_id)
-        if not user:
-            raise ValidationError(f"Пользователь {user_id} не найден")
-
-        ref_date = reference_date or date.today()
-
-        # Получить сумму взносов за текущий месяц
-        used = self._get_contributions_sum_for_month(user_id, ref_date)
-        total = user.monthly_savings_budget
-        available = max(Decimal("0"), total - used)
-
-        # Рассчитать процент
-        progress = float(used / total * 100) if total > 0 else 0.0
-
-        # Определить статус
-        if total == 0:
-            status = "ok"
-        elif progress > 100:
-            status = "over"
-        elif progress >= 90:
-            status = "danger"
-        elif progress >= 70:
-            status = "warning"
-        else:
-            status = "ok"
-
-        mode = user.reservation_mode or "from_balance"
-        mode_text = "Распределено" if mode == "fixed_date" else "Внесено"
-
-        return BudgetProgress(
-            total_budget=total,
-            used_budget=used,
-            available_budget=available,
-            progress_percent=progress,
-            status=status,
-            mode=mode,
-            mode_text=mode_text,
-        )
-
-    def create_contribution_transaction(
-        self,
-        user_id: int,
-        goal_name: str,
-        amount: Decimal,
-        contribution_date: date,
-    ) -> Transaction | None:
-        """Создает транзакцию "Взнос: {цель}" для режима "from_balance".
-
-        Args:
-            user_id: ID пользователя.
-            goal_name: Название цели.
-            amount: Сумма взноса.
-            contribution_date: Дата взноса.
-
-        Returns:
-            Transaction или None если режим "fixed_date".
-        """
-        user = self.session.get(User, user_id)
-        if not user:
-            raise ValidationError(f"Пользователь {user_id} не найден")
-
-        # В режиме "fixed_date" транзакции не создаются
-        if user.reservation_mode == "fixed_date":
-            return None
-
-        transaction = Transaction(
-            user_id=user_id,
-            amount=amount,
-            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
-            transaction_date=contribution_date,
-            description=f"{self.CONTRIBUTION_PREFIX}{goal_name}",
-            is_recurring=False,
-        )
-
-        self.session.add(transaction)
-        self.session.flush()
-
-        logger.info(
-            f"Создана транзакция SAVINGS_CONTRIBUTION для user {user_id}: "
-            f"{amount} -> {goal_name}"
-        )
-
-        return transaction
-
-    def _get_reserve_template(self, user_id: int) -> Transaction | None:
-        """Получает активный шаблон "Резерв на цели"."""
-        return (
-            self.session.query(Transaction)
-            .filter(
-                Transaction.user_id == user_id,
-                Transaction.transaction_type == TransactionType.SAVINGS_RESERVE,
-                Transaction.is_recurring == True,  # noqa: E712
-                Transaction.recurring_parent_id == None,  # noqa: E711
-            )
-            .first()
-        )
-
-    def _create_reserve_template(self, user_id: int, day_of_month: int) -> Transaction:
-        """Создает recurring шаблон "Резерв на цели"."""
-        user = self.session.get(User, user_id)
-
-        # Определить первую дату (текущий или следующий месяц)
-        today = date.today()
-        if today.day <= day_of_month:
-            # В этом месяце еще не прошла дата
-            from calendar import monthrange
-            _, last_day = monthrange(today.year, today.month)
-            actual_day = min(day_of_month, last_day)
-            start_date = date(today.year, today.month, actual_day)
-        else:
-            # Уже прошла, начинаем со следующего месяца
-            if today.month == 12:
-                start_date = date(today.year + 1, 1, day_of_month)
-            else:
-                from calendar import monthrange
-                _, last_day = monthrange(today.year, today.month + 1)
-                actual_day = min(day_of_month, last_day)
-                start_date = date(today.year, today.month + 1, actual_day)
-
-        template = Transaction(
-            user_id=user_id,
-            amount=user.monthly_savings_budget,
-            transaction_type=TransactionType.SAVINGS_RESERVE,
-            transaction_date=start_date,
-            description=self.RESERVE_DESCRIPTION,
-            is_recurring=True,
-            recurring_period="monthly",
-            recurring_end_date=None,  # Бессрочно
-        )
-
-        self.session.add(template)
-        self.session.flush()
-
-        logger.info(
-            f"Создан шаблон SAVINGS_RESERVE для user {user_id}: "
-            f"day={day_of_month}, amount={user.monthly_savings_budget}"
-        )
-
-        return template
-
-    def _stop_reserve_template(self, user_id: int) -> None:
-        """Останавливает recurring шаблон "Резерв на цели"."""
-        template = self._get_reserve_template(user_id)
-        if template:
-            self.recurring_service.stop_template(
-                template.id,
-                stop_date=date.today() - timedelta(days=1)
-            )
-            logger.info(f"Остановлен шаблон SAVINGS_RESERVE для user {user_id}")
-
-    def _get_contributions_sum_for_month(
-        self,
-        user_id: int,
-        reference_date: date,
-    ) -> Decimal:
-        """Получает сумму всех GoalContribution за месяц."""
-        from calendar import monthrange
-
-        first_day = date(reference_date.year, reference_date.month, 1)
-        _, last_day_num = monthrange(reference_date.year, reference_date.month)
-        last_day = date(reference_date.year, reference_date.month, last_day_num)
-
-        from sqlalchemy import func
-        from app.models.database import Goal
-
-        result = (
-            self.session.query(func.coalesce(func.sum(GoalContribution.amount), 0))
-            .join(Goal, GoalContribution.goal_id == Goal.id)
-            .filter(
-                Goal.user_id == user_id,
-                GoalContribution.contribution_date >= first_day,
-                GoalContribution.contribution_date <= last_day,
-            )
-            .scalar()
-        )
-
-        return Decimal(str(result)) if result else Decimal("0")
+        ...
 ```
 
 ## Модель данных
 
-### Изменения в User:
+Изменений в схеме БД не требуется. Используются существующие структуры:
+
 ```python
-# app/models/database.py
+# Существующие TypedDicts
+BudgetReservationSettings = TypedDict(
+    "BudgetReservationSettings",
+    {
+        "mode": ReservationMode,
+        "day_of_month": int | None,
+        "monthly_budget": Decimal,
+        "template_id": int | None,
+    },
+)
 
-class User(Base):
-    # ... существующие поля ...
-
-    # Режим резервирования бюджета
-    reservation_mode = Column(String(20), default="from_balance", nullable=False)
-    """Режим резервирования: "fixed_date" или "from_balance"."""
-
-    reservation_day = Column(Integer, nullable=True)
-    """День месяца для режима "fixed_date" (1-31). Null для "from_balance"."""
-```
-
-### Изменения в TransactionType:
-```python
-class TransactionType(PyEnum):
-    INCOME = "income"
-    EXPENSE = "expense"
-    TRANSFER = "transfer"
-    ADJUSTMENT = "adjustment"
-    SAVINGS_RESERVE = "savings_reserve"        # NEW: Резерв на цели
-    SAVINGS_CONTRIBUTION = "savings_contribution"  # NEW: Взнос в цель
-```
-
-### TypedDicts в app/schema/budget_reservation.py:
-```python
-ReservationMode = Literal["fixed_date", "from_balance"]
-
-class BudgetReservationSettings(TypedDict):
-    mode: ReservationMode
-    day_of_month: int | None
-    monthly_budget: Decimal
-    template_id: int | None
-
-class BudgetProgress(TypedDict):
-    total_budget: Decimal
-    used_budget: Decimal
-    available_budget: Decimal
-    progress_percent: float
-    status: str  # "ok" | "warning" | "danger" | "over"
-    mode: ReservationMode
-    mode_text: str
+BudgetProgress = TypedDict(
+    "BudgetProgress",
+    {
+        "total_budget": Decimal,
+        "used_budget": Decimal,  # Теперь всегда взносы, не резервы
+        "available_budget": Decimal,
+        "progress_percent": float,
+        "status": str,
+        "mode": ReservationMode,
+        "mode_text": str,  # Теперь всегда "Внесено"
+    },
+)
 ```
 
 ## Обработка ошибок
 
+**Стратегия: Fail-safe with logging**
+- Отсутствие шаблона при пересчёте — логируем, возвращаем False (не ошибка)
+- Прошедшая дата резерва — логируем, не пересчитываем (корректное поведение)
+- Отсутствие пользователя — ValueError (существующее поведение)
+- Невалидный day_of_month — ValueError (существующее поведение)
+
 ```python
-# Использовать существующий ValidationError из app/core/exceptions.py
+# Паттерн обработки в recalculate_current_month_exception
+def recalculate_current_month_exception(self, user_id: int, month: date | None = None) -> bool:
+    if month is None:
+        month = date.today()
 
-# В BudgetReservationService:
-if mode not in ("fixed_date", "from_balance"):
-    raise ValidationError(
-        f"Недопустимый режим: {mode}",
-        field="mode"
-    )
+    settings = self.get_settings(user_id)
 
-if mode == "fixed_date" and not 1 <= day_of_month <= 31:
-    raise ValidationError(
-        "День месяца должен быть от 1 до 31",
-        field="day_of_month"
-    )
+    # Guard: только fixed_date режим
+    if settings["mode"] != "fixed_date":
+        return False
 
-# В CalendarService (для read-only операций):
-# SAVINGS_RESERVE клик -> tooltip с объяснением
-# Не выбрасывать ошибку, просто блокировать редактирование
+    reserve_date = self._get_reserve_date_for_month(user_id, month)
+    if reserve_date is None:
+        return False
+
+    # Guard: не пересчитываем прошедшие даты
+    if reserve_date <= date.today():
+        logger.debug(f"Reserve date {reserve_date} already passed, skipping recalc")
+        return False
+
+    template = self._get_reserve_template(user_id)
+    if not template:
+        logger.warning(f"No active template for user {user_id}, skipping recalc")
+        return False
+
+    # ... пересчёт
 ```
 
 ## План реализации
 
-### Фаза 1: Database Schema (1 шаг)
-1. Добавить SAVINGS_RESERVE, SAVINGS_CONTRIBUTION в TransactionType
-2. Добавить User.reservation_mode, User.reservation_day
-3. Создать migration script (scripts/migrate_004_reservation_mode.py)
+1. **Добавить helper методы в BudgetReservationService** (~60 строк)
+   - `_find_any_reserve_template()`
+   - `_get_template_day()`
+   - `_cleanup_orphan_exceptions()`
+   - `_get_reserve_date_for_month()`
+   - `_delete_exception_for_date()`
 
-### Фаза 2: BudgetReservationService (3 шага)
-4. Создать app/schema/budget_reservation.py с TypedDicts
-5. Создать BudgetReservationService с get_settings, set_mode, get_budget_progress
-6. Интегрировать с RecurringService для создания/остановки шаблона
+2. **Реализовать recalculate_current_month_exception()** (~50 строк)
+   - Логика пересчёта из спецификации
+   - Обработка случая "нет взносов — удалить exception"
 
-### Фаза 3: GoalService интеграция (2 шага)
-7. Расширить add_contribution() для вызова create_contribution_transaction()
-8. Добавить get_reservation_mode(), set_reservation_mode() прокси-методы
+3. **Модифицировать set_mode()** (~30 строк изменений)
+   - Добавить логику поиска существующего шаблона
+   - Условие реактивации vs создания нового
 
-### Фаза 4: CalendarService интеграция (2 шага)
-9. Добавить SAVINGS_RESERVE и SAVINGS_CONTRIBUTION в _calculate_balance_before_date()
-10. Добавить в _get_daily_changes() обработку как EXPENSE
+4. **Модифицировать get_budget_progress()** (~10 строк изменений)
+   - Единообразный расчёт через _get_contributions_sum_for_month
+   - mode_text = "Внесено" для обоих режимов
 
-### Фаза 5: Goals UI (4 шага)
-11. Создать _build_budget_progress_card() для карточки бюджета
-12. Расширить _build_budget_modal() для выбора режима и дня
-13. Добавить callbacks для режима и обновления карточки
-14. Добавить dcc.Store для budget_progress
+5. **Добавить delete_contribution() в GoalService** (~30 строк)
+   - Удаление взноса
+   - Обновление Goal.current_amount
+   - Вызов recalculate_current_month_exception
 
-### Фаза 6: Calendar UI (2 шага)
-15. Визуализация SAVINGS_RESERVE в ячейке (иконка 💼, нейтральный цвет)
-16. Блокировка редактирования системных операций (tooltip)
+6. **Интегрировать в save_budget callback** (~5 строк)
+   - Вызов recalculate после изменения бюджета
 
-### Фаза 7: Тесты и финализация (3 шага)
-17. Unit тесты для BudgetReservationService (15+ тестов)
-18. Integration тесты для GoalService + BudgetReservationService
-19. Black, Flake8, pytest --cov
+7. **Unit тесты для новых методов** (~150 строк)
+   - TestSetModeReuse
+   - TestRecalculateException
+   - TestBudgetProgressUnified
 
-**Всего**: ~17 шагов, ~4-5 батчей
+8. **Integration тесты** (~50 строк)
+   - TestModeSwitch E2E сценарии
+
+9. **Финализация** (lint, format, full test suite)
 
 ## Зависимости
 
-Новые библиотеки не требуются. Все зависимости уже присутствуют:
-- SQLAlchemy 2.0.23 (ORM)
-- Dash 2.x + dash-bootstrap-components (UI)
+Новых библиотек не требуется. Используются существующие:
+- SQLAlchemy (ORM)
 - loguru (logging)
+- datetime, decimal (stdlib)
 
 ## Риски и mitigation
 
 | Риск | Вероятность | Mitigation |
 |------|-------------|------------|
-| Конфликт при одновременном изменении режима и взносе | Низкая | flush/commit contract + session isolation |
-| Некорректный расчет баланса с новыми типами | Средняя | Extensive unit tests для CalendarService |
-| Сложность UI модала с двумя режимами | Средняя | Пошаговая разработка, сначала логика потом UI |
-| Производительность расчета contributions_sum | Низкая | SQL агрегация, индекс на contribution_date |
-| Обратная совместимость со старыми взносами | Низкая | Режим "from_balance" по умолчанию, старые взносы не затрагиваются |
+| Регрессия в CalendarService при изменении get_budget_progress | Средняя | Calendar использует виртуальные экземпляры, не get_budget_progress напрямую. Добавить integration тесты calendar + reservation |
+| Некорректная логика EOM anchor при _get_template_day | Низкая | Отдельные unit тесты для day=31 и anchor_eom=True |
+| Race condition при параллельных вызовах recalculate | Низкая | Single-user приложение в MVP. Для multi-user добавить pessimistic locking |
+| Orphan exceptions не удаляются для старых шаблонов | Средняя | _cleanup_orphan_exceptions вызывается только при смене дня. Существующие orphan exceptions от предыдущих багов останутся. Можно добавить migration script при необходимости |
