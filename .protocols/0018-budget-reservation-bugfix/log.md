@@ -51,8 +51,14 @@
 - Обновлен docstring с описанием логики
 - py_compile: OK
 
-### Step 5 — get_budget_progress (commit: pending)
+### Step 5 — get_budget_progress (commit: b68e2d0)
 - Унифицирован расчёт used_budget — взносы для обоих режимов
 - mode_text = "Внесено" для обоих режимов
 - Сохранена существующая логика статусов (success/warning/orange/danger)
+- py_compile: OK
+
+### Step 6 — GoalService (commit: pending)
+- Добавлен delete_contribution() в GoalService
+- Lazy import BudgetReservationService (избежание circular dependency)
+- Удаление транзакции если есть → пересчёт exception
 - py_compile: OK

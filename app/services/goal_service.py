@@ -539,3 +539,57 @@ class GoalService:
         self.session.flush()
 
         logger.info(f"Обновлен режим накоплений для user {user_id}: {mode}")
+
+    def delete_contribution(self, contribution_id: int) -> bool:
+        """Удаляет взнос и пересчитывает exception резерва.
+
+        Алгоритм:
+        1. Находит GoalContribution по ID
+        2. Если есть transaction_id — удаляет через BudgetReservationService
+        3. Иначе — удаляет напрямую
+        4. Обновляет Goal.current_amount
+        5. Вызывает recalculate_current_month_exception()
+
+        Args:
+            contribution_id: ID взноса GoalContribution.
+
+        Returns:
+            bool: True если взнос удалён, False если не найден.
+        """
+        contribution = self.session.get(GoalContribution, contribution_id)
+        if not contribution:
+            return False
+
+        goal = contribution.goal
+        user_id = goal.user_id
+        amount = contribution.amount
+        contribution_date = contribution.contribution_date
+
+        # Lazy import для избежания circular dependency
+        from app.services.budget_reservation_service import BudgetReservationService
+
+        budget_service = BudgetReservationService(self.session)
+
+        # Удаляем транзакцию если есть
+        if contribution.transaction_id:
+            budget_service.delete_contribution_transaction(contribution.transaction_id)
+        else:
+            self.session.delete(contribution)
+
+        # Обновляем current_amount
+        goal.current_amount -= amount
+        if goal.current_amount < Decimal("0"):
+            goal.current_amount = Decimal("0")
+
+        # Пересчитываем exception для месяца взноса
+        budget_service.recalculate_current_month_exception(
+            user_id=user_id,
+            reference_date=contribution_date,
+        )
+
+        self.session.flush()
+        logger.info(
+            f"Deleted contribution {contribution_id} for goal {goal.id}, "
+            f"amount={amount}, recalculated exception"
+        )
+        return True
