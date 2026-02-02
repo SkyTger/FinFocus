@@ -12,6 +12,7 @@ from loguru import logger
 
 from app.core import get_db_session
 from app.models.database import GoalStatus
+from app.schema.budget_reservation import BudgetProgress
 from app.schema.cushion import CushionSettings, CushionScenario
 from app.services import (
     BudgetReservationService,
@@ -389,12 +390,14 @@ def _build_budget_alert() -> dbc.Alert:
 def _build_summary_section(
     goals_summary: GoalsSummary,
     allocation_summary: AllocationSummary,
+    budget_progress: BudgetProgress,
 ) -> dbc.Card:
     """Строит сводную секцию с общим прогрессом и статусом распределения.
 
     Args:
         goals_summary: Сводка по всем активным целям
         allocation_summary: Результат распределения бюджета
+        budget_progress: Прогресс использования бюджета в текущем месяце
 
     Returns:
         dbc.Card: Карточка со сводной информацией
@@ -420,12 +423,21 @@ def _build_summary_section(
             className="mb-0",
         )
 
-    # Бюджет накоплений
-    budget_display = (
-        format_amount(goals_summary["monthly_budget"])
-        if not allocation_summary["budget_not_set"]
-        else "Не настроен"
-    )
+    # Бюджет накоплений - формат "used / total"
+    if allocation_summary["budget_not_set"]:
+        budget_content = html.H5("Не настроен", className="mb-0 text-muted")
+    else:
+        budget_content = html.H5(
+            [
+                format_amount(budget_progress["used_budget"]),
+                html.Span(" / ", className="text-muted"),
+                html.Span(
+                    format_amount(budget_progress["total_budget"]),
+                    className="text-muted",
+                ),
+            ],
+            className="mb-0",
+        )
 
     return dbc.Card(
         [
@@ -466,17 +478,13 @@ def _build_summary_section(
                                 [
                                     html.P(
                                         "Бюджет накоплений",
-                                        className="text-muted mb-1 small",
+                                        className="text-muted mb-0 small",
                                     ),
-                                    html.H5(
-                                        [
-                                            budget_display,
-                                            html.Span(
-                                                "/мес", className="text-muted ms-1"
-                                            ),
-                                        ],
-                                        className="mb-0",
+                                    html.Small(
+                                        "В текущем месяце",
+                                        className="text-muted",
                                     ),
+                                    budget_content,
                                 ],
                                 md=6,
                             ),
@@ -1796,6 +1804,10 @@ def _recalculate_and_render(
     # Преобразуем AllocationResult в dict для удобства
     allocation_dict = {r["goal_id"]: r for r in allocation_summary["results"]}
 
+    # Получаем прогресс бюджета для текущего месяца
+    budget_service = BudgetReservationService(session)
+    budget_progress = budget_service.get_budget_progress(user_id)
+
     # Строим layout
     goals_container_children = []
 
@@ -1804,7 +1816,9 @@ def _recalculate_and_render(
         dbc.Row(
             [
                 dbc.Col(
-                    _build_summary_section(goals_summary, allocation_summary),
+                    _build_summary_section(
+                        goals_summary, allocation_summary, budget_progress
+                    ),
                     lg=8,
                     md=12,
                     className="mb-3 mb-lg-0",
