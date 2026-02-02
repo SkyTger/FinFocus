@@ -172,6 +172,13 @@ class GoalService:
         )
         self.session.add(contribution)
 
+        # Корректировка резерва для fixed_date режима
+        budget_service.adjust_reserve_for_contribution(
+            user_id=goal.user_id,
+            contribution_date=actual_date,
+            contribution_amount=amount,
+        )
+
         # Обновляем текущую сумму цели
         goal.current_amount += amount
 
