@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.core.exceptions import ValidationError
 from app.models.database import GoalStatus
 from app.services.allocation_service import AllocationService
 from app.services.goal_service import GoalService
@@ -216,15 +217,15 @@ class TestGoalCompletionTriggersPreview:
 class TestRepeatedContribution:
     """Тесты: повторный взнос в completed цель не триггерит redistribution."""
 
-    def test_repeated_contribution_no_redistribution(
+    def test_repeated_contribution_raises_validation_error(
         self, db_session, user_with_budget, setup_goals_for_redistribution
     ):
-        """E2E: Повторный взнос в уже завершенную цель не триггерит redistribution.
+        """E2E: Повторный взнос в уже завершенную цель вызывает ValidationError.
 
         Сценарий:
         1. Достигнуть goal1 взносом 500
-        2. Добавить еще один взнос 100
-        3. Проверить: just_completed = False (was_completed_before = True)
+        2. Попытаться добавить еще один взнос 100
+        3. Проверить: ValidationError с сообщением о завершенной цели
         """
         goal1, _, _ = setup_goals_for_redistribution
         goal_service = GoalService(db_session)
@@ -234,14 +235,12 @@ class TestRepeatedContribution:
         db_session.commit()
         assert goal1.is_completed is True
 
-        # Шаг 2: добавляем еще один взнос
-        was_completed_before = goal1.is_completed  # True
-        goal_service.add_contribution(goal1.id, Decimal("100.00"), date.today())
-        db_session.commit()
+        # Шаг 2: попытка добавить взнос в завершенную цель
+        with pytest.raises(ValidationError) as exc_info:
+            goal_service.add_contribution(goal1.id, Decimal("100.00"), date.today())
 
-        # Шаг 3: проверяем just_completed
-        just_completed = goal1.is_completed and not was_completed_before
-        assert just_completed is False  # НЕ триггерит redistribution
+        # Шаг 3: проверяем сообщение об ошибке
+        assert "завершенную цель" in str(exc_info.value)
 
 
 # =============================================================================
