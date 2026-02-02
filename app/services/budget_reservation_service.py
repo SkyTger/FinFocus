@@ -89,8 +89,13 @@ class BudgetReservationService:
     ) -> BudgetReservationSettings:
         """Устанавливает режим резервирования.
 
-        При переключении на fixed_date создаёт recurring шаблон.
-        При переключении на from_balance останавливает существующий шаблон.
+        При переключении на fixed_date:
+        - Если шаблон с тем же днём существует → реактивируем (exceptions сохраняются!)
+        - Если день изменился → останавливаем старый, чистим exceptions, создаём новый
+        - Если нет шаблона → создаём новый
+
+        При переключении на from_balance:
+        - Останавливаем шаблон (exceptions НЕ чистим — пригодятся при возврате)
 
         Args:
             user_id: ID пользователя.
@@ -113,23 +118,44 @@ class BudgetReservationService:
             if not 1 <= day_of_month <= 31:
                 raise ValueError("day_of_month must be 1-31")
 
-            # Останавливаем старый шаблон если есть
-            self._stop_reserve_template(user_id)
+            # Поиск существующего шаблона (включая остановленный)
+            existing_template = self._find_any_reserve_template(user_id)
 
-            # Создаём новый шаблон
-            template = self._create_reserve_template(user_id, day_of_month)
+            if existing_template:
+                existing_day = self._get_template_day(existing_template)
+
+                if existing_day == day_of_month:
+                    # Тот же день — реактивируем (exceptions сохраняются!)
+                    if existing_template.recurring_end_date is not None:
+                        existing_template.recurring_end_date = None
+                        self.session.flush()
+                        logger.info(
+                            f"Reactivated template {existing_template.id} "
+                            f"for user {user_id}"
+                        )
+                    else:
+                        logger.debug(
+                            f"Template {existing_template.id} already active "
+                            f"for user {user_id}"
+                        )
+                else:
+                    # Другой день — останавливаем старый, чистим exceptions
+                    self._stop_reserve_template(user_id)
+                    self._cleanup_orphan_exceptions(existing_template.id)
+                    # Создаём новый шаблон
+                    self._create_reserve_template(user_id, day_of_month)
+            else:
+                # Нет шаблона — создаём новый
+                self._create_reserve_template(user_id, day_of_month)
 
             user.reservation_mode = "fixed_date"
             user.reservation_day = day_of_month
             self.session.flush()
 
-            logger.info(
-                f"User {user_id}: set mode=fixed_date, day={day_of_month}, "
-                f"template_id={template.id}"
-            )
+            logger.info(f"User {user_id}: set mode=fixed_date, day={day_of_month}")
 
         else:  # from_balance
-            # Останавливаем шаблон
+            # Останавливаем шаблон (exceptions НЕ чистим — пригодятся при возврате)
             self._stop_reserve_template(user_id)
 
             user.reservation_mode = "from_balance"
@@ -147,8 +173,9 @@ class BudgetReservationService:
     ) -> BudgetProgress:
         """Рассчитывает прогресс использования бюджета в месяце.
 
-        Для fixed_date: сумма = резерв (если дата прошла).
-        Для from_balance: сумма = взносы за месяц.
+        Единообразно для обоих режимов считает взносы (contributions),
+        а не резервы. Это обеспечивает консистентное отображение прогресса
+        независимо от режима резервирования.
 
         Args:
             user_id: ID пользователя.
@@ -163,12 +190,8 @@ class BudgetReservationService:
         settings = self.get_settings(user_id)
         total_budget = settings["monthly_budget"]
 
-        if settings["mode"] == "fixed_date":
-            used = self._get_reserve_sum_for_month(user_id, reference_date)
-            mode_text = "Зарезервировано"
-        else:
-            used = self._get_contributions_sum_for_month(user_id, reference_date)
-            mode_text = "Внесено"
+        # Единообразный расчёт: взносы за месяц (для обоих режимов)
+        used = self._get_contributions_sum_for_month(user_id, reference_date)
 
         available = total_budget - used if total_budget > 0 else Decimal("0")
 
@@ -195,8 +218,90 @@ class BudgetReservationService:
             progress_percent=min(progress_percent, 100.0),
             status=status,
             mode=settings["mode"],
-            mode_text=mode_text,
+            mode_text="Внесено",  # Единообразно для обоих режимов
         )
+
+    def recalculate_current_month_exception(
+        self,
+        user_id: int,
+        reference_date: date | None = None,
+    ) -> bool:
+        """Пересчитывает exception резерва для месяца на основе взносов.
+
+        Вызывается при:
+        - Добавлении взноса (GoalService.add_contribution)
+        - Удалении взноса
+        - Изменении суммы взноса
+
+        Логика:
+        - Если взносов нет → удаляем exception (резерв = полный бюджет)
+        - Если есть взносы → создаём/обновляем exception с уменьшенной суммой
+
+        Args:
+            user_id: ID пользователя.
+            reference_date: Дата в целевом месяце. По умолчанию — сегодня.
+                           Используется для определения месяца и даты резерва.
+
+        Returns:
+            bool: True если exception был изменён/удалён, False если не применимо.
+        """
+        if reference_date is None:
+            reference_date = date.today()
+
+        settings = self.get_settings(user_id)
+
+        # Guard: только fixed_date режим
+        if settings["mode"] != "fixed_date":
+            return False
+
+        reserve_date = self._get_reserve_date_for_month(user_id, reference_date)
+        if reserve_date is None:
+            return False
+
+        # Guard: не пересчитываем прошедшие даты
+        # Если reserve_date == today, recurring экземпляр ещё не материализован
+        if reserve_date < date.today():
+            logger.debug(f"Reserve date {reserve_date} already passed, skipping recalc")
+            return False
+
+        template = self._get_reserve_template(user_id)
+        if not template:
+            logger.warning(f"No active template for user {user_id}, skipping recalc")
+            return False
+
+        # Считаем взносы ДО даты резерва (< reserve_date)
+        contributions_sum = self._get_contributions_sum_for_month(
+            user_id, reference_date, before_date=reserve_date
+        )
+
+        budget = settings["monthly_budget"]
+        new_reserve = budget - contributions_sum
+
+        if new_reserve == budget:
+            # Нет взносов — удаляем exception (резерв = полный бюджет)
+            deleted = self._delete_exception_for_date(template.id, reserve_date)
+            if deleted:
+                logger.info(
+                    f"User {user_id}: removed exception for {reserve_date}, "
+                    f"reserve = full budget {budget}"
+                )
+            return deleted
+        else:
+            # Создаём/обновляем exception с уменьшенной суммой
+            from app.services import RecurringService
+
+            recurring_service = RecurringService(self.session)
+            recurring_service.create_exception(
+                template_id=template.id,
+                original_date=reserve_date,
+                new_amount=max(new_reserve, Decimal("0")),
+            )
+
+            logger.info(
+                f"User {user_id}: updated exception for {reserve_date}, "
+                f"contributions={contributions_sum}, new_reserve={new_reserve}"
+            )
+            return True
 
     # === Private helpers ===
 
@@ -320,19 +425,29 @@ class BudgetReservationService:
         self,
         user_id: int,
         reference_date: date,
+        before_date: date | None = None,
     ) -> Decimal:
         """Суммирует взносы пользователя за месяц.
 
         Args:
             user_id: ID пользователя.
             reference_date: Дата в целевом месяце.
+            before_date: Если указано, считает взносы строго ДО этой даты.
+                         Используется для расчёта досрочных взносов до резерва.
 
         Returns:
             Decimal: Сумма взносов.
         """
         start_of_month = date(reference_date.year, reference_date.month, 1)
-        _, last_day = monthrange(reference_date.year, reference_date.month)
-        end_of_month = date(reference_date.year, reference_date.month, last_day)
+
+        if before_date is not None:
+            # Взносы строго ДО указанной даты (< before_date)
+            end_filter = GoalContribution.contribution_date < before_date
+        else:
+            # Весь месяц включительно
+            _, last_day = monthrange(reference_date.year, reference_date.month)
+            end_of_month = date(reference_date.year, reference_date.month, last_day)
+            end_filter = GoalContribution.contribution_date <= end_of_month
 
         # Join через Goal для фильтрации по user_id
         result = (
@@ -341,7 +456,7 @@ class BudgetReservationService:
             .filter(
                 Goal.user_id == user_id,
                 GoalContribution.contribution_date >= start_of_month,
-                GoalContribution.contribution_date <= end_of_month,
+                end_filter,
             )
             .scalar()
         )
@@ -383,6 +498,150 @@ class BudgetReservationService:
         )
 
         return Decimal(str(result))
+
+    def _find_any_reserve_template(self, user_id: int) -> Transaction | None:
+        """Находит любой recurring шаблон резерва (включая остановленный).
+
+        В отличие от _get_reserve_template(), не фильтрует по recurring_end_date.
+        Используется для переиспользования существующего шаблона при смене режима.
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            Transaction | None: Последний созданный шаблон или None.
+        """
+        template = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.is_recurring.is_(True),
+                Transaction.transaction_type == TransactionType.SAVINGS_RESERVE,
+            )
+            .order_by(Transaction.created_at.desc())
+            .first()
+        )
+
+        return template
+
+    def _get_template_day(self, template: Transaction) -> int:
+        """Извлекает день месяца из шаблона резерва.
+
+        Args:
+            template: Шаблон транзакции (is_recurring=True).
+
+        Returns:
+            int: День месяца (1-31). Для EOM anchor возвращает 31.
+        """
+        if template.recurring_anchor_eom:
+            return 31
+
+        # anchor_day — property, возвращает день из transaction_date
+        return template.anchor_day or template.transaction_date.day
+
+    def _get_reserve_date_for_month(
+        self,
+        user_id: int,
+        reference_date: date,
+    ) -> date | None:
+        """Возвращает дату резерва для указанного месяца.
+
+        Учитывает короткие месяцы: min(day_of_month, last_day_of_month).
+
+        Args:
+            user_id: ID пользователя.
+            reference_date: Дата в целевом месяце.
+
+        Returns:
+            date | None: Дата резерва или None если режим != fixed_date.
+        """
+        settings = self.get_settings(user_id)
+
+        if settings["mode"] != "fixed_date":
+            return None
+
+        day_of_month = settings["day_of_month"]
+        if day_of_month is None:
+            return None
+
+        _, last_day = monthrange(reference_date.year, reference_date.month)
+        actual_day = min(day_of_month, last_day)
+
+        return date(reference_date.year, reference_date.month, actual_day)
+
+    def _delete_exception_for_date(
+        self,
+        template_id: int,
+        target_date: date,
+    ) -> bool:
+        """Удаляет exception для конкретной даты.
+
+        Используется когда нет взносов — резерв должен быть полным (из шаблона).
+
+        Args:
+            template_id: ID шаблона.
+            target_date: Дата экземпляра (original_date).
+
+        Returns:
+            bool: True если exception был удалён, False если не существовал.
+        """
+        exception = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.recurring_parent_id == template_id,
+                Transaction.original_date == target_date,
+            )
+            .first()
+        )
+
+        if not exception:
+            return False
+
+        self.session.delete(exception)
+        self.session.flush()
+
+        logger.info(
+            f"Deleted exception for template {template_id} on date {target_date}"
+        )
+
+        return True
+
+    def _cleanup_orphan_exceptions(self, template_id: int) -> int:
+        """Удаляет exceptions для остановленного шаблона.
+
+        Вызывается при изменении дня месяца для очистки
+        невалидных exceptions от старого шаблона.
+        Удаляет ВСЕ exceptions для шаблона с recurring_end_date < today.
+
+        Args:
+            template_id: ID остановленного шаблона.
+
+        Returns:
+            int: Количество удалённых exceptions.
+        """
+        # Находим и удаляем все exceptions для шаблона
+        exceptions_to_delete = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.recurring_parent_id == template_id,
+                Transaction.original_date.isnot(None),  # Это exception
+            )
+            .all()
+        )
+
+        count = len(exceptions_to_delete)
+        for exc in exceptions_to_delete:
+            self.session.delete(exc)
+
+        if count > 0:
+            self.session.flush()
+            logger.info(
+                f"Cleaned up {count} orphan exception(s) for template {template_id}"
+            )
+        else:
+            logger.debug(f"No orphan exceptions to clean up for template {template_id}")
+
+        return count
 
     # === CRUD методы для SAVINGS_CONTRIBUTION ===
 
@@ -487,6 +746,12 @@ class BudgetReservationService:
                     logger.info(f"Goal {goal.id} reverted to ACTIVE")
 
             self.session.flush()
+
+            # Пересчитываем exception для месяца взноса
+            self.recalculate_current_month_exception(
+                user_id=goal.user_id,
+                reference_date=contribution.contribution_date,
+            )
 
         logger.info(
             f"Updated transaction {transaction_id}: {old_amount} -> {new_amount}"
