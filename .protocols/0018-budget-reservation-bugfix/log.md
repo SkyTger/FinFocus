@@ -63,8 +63,18 @@
 - Удаление транзакции если есть → пересчёт exception
 - py_compile: OK
 
-### Step 7 — Callbacks интеграция (commit: pending)
+### Step 7 — Callbacks интеграция (commit: 16975a5)
 - goals.py: save_budget — добавлен recalculate_current_month_exception после set_mode
 - budget_reservation_service.py: update_contribution_transaction — добавлен recalculate
 - Комментарии про порядок вызовов
 - py_compile: OK
+
+### Step 8 — Unit тесты (commit: pending)
+- Добавлено 13 новых тестов для protocol-0018:
+  - TestFindAnyReserveTemplate: 4 теста
+  - TestGetTemplateDay: 2 теста
+  - TestCleanupOrphanExceptions: 2 теста
+  - TestRecalculateCurrentMonthException: 4 теста
+  - TestUpdateContributionRecalc: 1 тест
+- Исправлен test_progress_fixed_date_mode (mode_text → "Внесено")
+- pytest: 45 passed

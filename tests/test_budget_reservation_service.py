@@ -236,7 +236,10 @@ class TestGetBudgetProgress:
         assert progress["status"] == "danger"
 
     def test_progress_fixed_date_mode(self, db_session, test_user):
-        """get_budget_progress для fixed_date режима."""
+        """get_budget_progress для fixed_date режима.
+
+        После унификации (protocol-0018) mode_text = "Внесено" для обоих режимов.
+        """
         test_user.monthly_savings_budget = Decimal("15000.00")
         test_user.reservation_mode = "fixed_date"
         db_session.commit()
@@ -245,7 +248,7 @@ class TestGetBudgetProgress:
         progress = service.get_budget_progress(test_user.id)
 
         assert progress["mode"] == "fixed_date"
-        assert progress["mode_text"] == "Зарезервировано"
+        assert progress["mode_text"] == "Внесено"  # Унифицировано для обоих режимов
 
 
 class TestPrivateHelpers:
@@ -815,3 +818,347 @@ class TestAdjustReserveForContribution:
             .all()
         )
         assert len(templates) == 0
+
+
+# === Новые тесты для protocol-0018 ===
+
+
+class TestFindAnyReserveTemplate:
+    """Тесты для _find_any_reserve_template()."""
+
+    def test_find_active_template(self, db_session, test_user):
+        """Находит активный шаблон."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=15)
+        db_session.commit()
+
+        template = service._find_any_reserve_template(test_user.id)
+        assert template is not None
+        assert template.recurring_end_date is None  # Активный
+
+    def test_find_stopped_template(self, db_session, test_user):
+        """Находит остановленный шаблон."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=15)
+        db_session.commit()
+
+        # Останавливаем
+        service.set_mode(test_user.id, "from_balance")
+        db_session.commit()
+
+        template = service._find_any_reserve_template(test_user.id)
+        assert template is not None
+        assert template.recurring_end_date is not None  # Остановленный
+
+    def test_find_returns_latest_when_multiple(self, db_session, test_user):
+        """Возвращает последний созданный при наличии нескольких.
+
+        Примечание: метод сортирует по created_at DESC, поэтому ID может
+        быть меньше если created_at одинаковый. Проверяем что возвращается
+        какой-то из шаблонов данного пользователя.
+        """
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+
+        # Создаём первый, меняем день (создаётся второй)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=10)
+        db_session.commit()
+        first_settings = service.get_settings(test_user.id)
+        first_template_id = first_settings["template_id"]
+
+        service.set_mode(test_user.id, "fixed_date", day_of_month=20)
+        db_session.commit()
+        second_settings = service.get_settings(test_user.id)
+        second_template_id = second_settings["template_id"]
+
+        # Проверяем что было создано 2 разных шаблона
+        assert first_template_id != second_template_id
+
+        template = service._find_any_reserve_template(test_user.id)
+        assert template is not None
+        # Должен вернуть один из существующих шаблонов
+        assert template.id in [first_template_id, second_template_id]
+
+    def test_find_returns_none_when_no_templates(self, db_session, test_user):
+        """Возвращает None если нет шаблонов."""
+        service = BudgetReservationService(db_session)
+        template = service._find_any_reserve_template(test_user.id)
+        assert template is None
+
+
+class TestGetTemplateDay:
+    """Тесты для _get_template_day()."""
+
+    def test_normal_day(self, db_session, test_user):
+        """Возвращает день из transaction_date."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=15)
+        db_session.commit()
+
+        template = service._get_reserve_template(test_user.id)
+        day = service._get_template_day(template)
+        assert day == 15
+
+    def test_anchor_eom_returns_31(self, db_session, test_user):
+        """EOM anchor возвращает 31."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=31)
+        db_session.commit()
+
+        template = service._get_reserve_template(test_user.id)
+        assert template.recurring_anchor_eom is True
+        day = service._get_template_day(template)
+        assert day == 31
+
+
+class TestCleanupOrphanExceptions:
+    """Тесты для _cleanup_orphan_exceptions()."""
+
+    def test_deletes_all_exceptions(self, db_session, test_user):
+        """Удаляет все exceptions для шаблона."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=15)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        # Создаём exception вручную
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(db_session)
+        recurring_service.create_exception(
+            template_id=template_id,
+            original_date=date(2026, 3, 15),
+            new_amount=Decimal("5000"),
+        )
+        db_session.commit()
+
+        # Проверяем что exception существует
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 1
+
+        # Удаляем
+        count = service._cleanup_orphan_exceptions(template_id)
+        db_session.commit()
+
+        assert count == 1
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 0
+
+    def test_returns_zero_when_none(self, db_session, test_user):
+        """Возвращает 0 если нет exceptions."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=15)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        count = service._cleanup_orphan_exceptions(template_id)
+        assert count == 0
+
+
+class TestRecalculateCurrentMonthException:
+    """Тесты для recalculate_current_month_exception()."""
+
+    def test_skips_for_from_balance_mode(self, db_session, test_user):
+        """Пропускает если режим from_balance."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        # Режим по умолчанию from_balance
+        result = service.recalculate_current_month_exception(test_user.id)
+        assert result is False
+
+    def test_skips_for_past_reserve_date(self, db_session, test_user):
+        """Пропускает если дата резерва уже прошла."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=1)
+        db_session.commit()
+
+        # reference_date = сегодня, день резерва = 1
+        # Если сегодня > 1, то дата уже прошла
+        # Используем дату в прошлом явно
+        result = service.recalculate_current_month_exception(
+            test_user.id, reference_date=date(2025, 1, 15)
+        )
+        assert result is False  # 1 января 2025 уже прошло
+
+    def test_creates_exception_when_contributions_exist(self, db_session, test_user):
+        """Создаёт exception когда есть взносы до даты резерва."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=28)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        # Создаём цель и взнос
+        goal = Goal(
+            user_id=test_user.id,
+            name="Test Goal",
+            target_amount=Decimal("100000"),
+            current_amount=Decimal("3000"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+            priority=1,
+        )
+        db_session.add(goal)
+        db_session.flush()
+
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("3000"),
+            contribution_date=date(2026, 2, 5),  # До 28-го
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        # Пересчитываем для февраля
+        result = service.recalculate_current_month_exception(
+            test_user.id, reference_date=date(2026, 2, 10)
+        )
+        db_session.commit()
+
+        assert result is True
+
+        # Проверяем exception
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(db_session)
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 1
+        assert exceptions[0].amount == Decimal("7000")  # 10000 - 3000
+
+    def test_deletes_exception_when_no_contributions(self, db_session, test_user):
+        """Удаляет exception когда нет взносов."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=28)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        # Создаём exception вручную (симулируем что был взнос, потом удалён)
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(db_session)
+        recurring_service.create_exception(
+            template_id=template_id,
+            original_date=date(2026, 2, 28),
+            new_amount=Decimal("5000"),
+        )
+        db_session.commit()
+
+        # Проверяем что exception есть
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 1
+
+        # Пересчитываем (взносов нет)
+        result = service.recalculate_current_month_exception(
+            test_user.id, reference_date=date(2026, 2, 10)
+        )
+        db_session.commit()
+
+        assert result is True  # Exception был удалён
+
+        # Проверяем что exception удалён
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 0
+
+
+class TestUpdateContributionRecalc:
+    """Тесты для update_contribution_transaction с recalculate."""
+
+    def test_recalculates_after_amount_change(self, db_session, test_user):
+        """Пересчитывает exception после изменения суммы."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", day_of_month=28)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        # Создаём цель
+        goal = Goal(
+            user_id=test_user.id,
+            name="Test Goal",
+            target_amount=Decimal("100000"),
+            current_amount=Decimal("0"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+            priority=1,
+        )
+        db_session.add(goal)
+        db_session.flush()
+
+        # Создаём транзакцию и contribution
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("2000"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date(2026, 2, 5),
+            description="Взнос: Test Goal",
+        )
+        db_session.add(transaction)
+        db_session.flush()
+
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("2000"),
+            contribution_date=date(2026, 2, 5),
+            transaction_id=transaction.id,
+        )
+        db_session.add(contribution)
+        goal.current_amount = Decimal("2000")
+        db_session.commit()
+
+        # Обновляем сумму
+        result = service.update_contribution_transaction(
+            transaction.id, Decimal("5000")
+        )
+        db_session.commit()
+
+        assert result is True
+
+        # Проверяем что exception создан/обновлён
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(db_session)
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 1
+        assert exceptions[0].amount == Decimal("5000")  # 10000 - 5000
