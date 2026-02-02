@@ -53,3 +53,9 @@ Restore context: protocol-0017#ctx-1
   - test_contribution_exceeds_budget_zero_amount
   - test_no_template_no_action
 - Все 402 теста проходят
+
+### Step 6 — Finalize (commit: 962349e)
+- Black: 1 файл переформатирован (goals.py)
+- Flake8: нет критических ошибок
+- Pytest: 402 теста passed
+- PR #17 переведён в Ready for Review
