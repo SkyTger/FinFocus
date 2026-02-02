@@ -7,7 +7,7 @@ from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.core import ValidationError
-from app.models.database import Goal, GoalContribution, GoalStatus
+from app.models.database import Goal, GoalContribution, GoalStatus, User
 
 # Допустимые значения для User.savings_mode
 VALID_SAVINGS_MODES = {"free", "medium", "strict"}
@@ -117,6 +117,9 @@ class GoalService:
     ) -> Goal:
         """Добавляет взнос в цель с созданием записи GoalContribution.
 
+        Для режима from_balance создаёт транзакцию SAVINGS_CONTRIBUTION в календаре.
+        Для режима fixed_date транзакция не создаётся (бюджет резервируется recurring).
+
         Args:
             goal_id: ID цели
             amount: Сумма взноса
@@ -127,7 +130,7 @@ class GoalService:
             Goal: Обновленная цель
 
         Raises:
-            ValidationError: Если amount <= 0 или цель не найдена
+            ValidationError: Если amount <= 0, цель не найдена или цель завершена
         """
         if amount <= 0:
             raise ValidationError("Сумма взноса должна быть больше 0", field="amount")
@@ -136,12 +139,36 @@ class GoalService:
         if not goal:
             raise ValidationError(f"Цель с ID {goal_id} не найдена")
 
-        # Создаём запись взноса
+        # Guard: нельзя вносить в COMPLETED цель
+        if goal.status == GoalStatus.COMPLETED:
+            raise ValidationError(
+                f"Невозможно внести взнос в завершенную цель '{goal.name}'"
+            )
+
+        # Warning если бюджет не настроен
+        user = self.session.get(User, goal.user_id)
+        if user and user.monthly_savings_budget == 0:
+            logger.warning(f"Взнос {amount} в цель {goal_id} без настроенного бюджета")
+
+        # Создать транзакцию через BudgetReservationService (если from_balance)
+        from app.services.budget_reservation_service import BudgetReservationService
+
+        budget_service = BudgetReservationService(self.session)
+        actual_date = contribution_date or date.today()
+        transaction = budget_service.create_contribution_transaction(
+            user_id=goal.user_id,
+            goal_name=goal.name,
+            amount=amount,
+            contribution_date=actual_date,
+        )
+
+        # Создаём запись взноса с transaction_id
         contribution = GoalContribution(
             goal_id=goal_id,
             amount=amount,
-            contribution_date=contribution_date or date.today(),
+            contribution_date=actual_date,
             description=description,
+            transaction_id=transaction.id if transaction else None,
         )
         self.session.add(contribution)
 
@@ -156,7 +183,8 @@ class GoalService:
         self.session.flush()
         logger.info(
             f"Добавлен взнос {amount} в цель {goal_id}, "
-            f"текущая сумма: {goal.current_amount}"
+            f"текущая сумма: {goal.current_amount}, "
+            f"transaction_id: {transaction.id if transaction else None}"
         )
         return goal
 
@@ -426,6 +454,8 @@ class GoalService:
     def update_savings_budget(self, user_id: int, budget: Decimal) -> None:
         """Обновляет бюджет накоплений пользователя.
 
+        Если пользователь в режиме fixed_date, синхронизирует сумму recurring шаблона.
+
         Args:
             user_id: ID пользователя
             budget: Новый месячный бюджет (должен быть >= 0)
@@ -433,8 +463,6 @@ class GoalService:
         Raises:
             ValidationError: Если пользователь не найден или budget < 0
         """
-        from app.models.database import User
-
         user = self.session.get(User, user_id)
         if not user:
             raise ValidationError(f"Пользователь с ID {user_id} не найден")
@@ -446,6 +474,12 @@ class GoalService:
 
         user.monthly_savings_budget = budget
         self.session.flush()
+
+        # Синхронизировать recurring шаблон если режим fixed_date
+        from app.services.budget_reservation_service import BudgetReservationService
+
+        budget_service = BudgetReservationService(self.session)
+        budget_service.sync_template_amount(user_id)
 
         logger.info(f"Обновлен бюджет накоплений для user {user_id}: {budget}")
 
