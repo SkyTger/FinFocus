@@ -69,7 +69,7 @@
 - Комментарии про порядок вызовов
 - py_compile: OK
 
-### Step 8 — Unit тесты (commit: pending)
+### Step 8 — Unit тесты (commit: afbe1dc)
 - Добавлено 13 новых тестов для protocol-0018:
   - TestFindAnyReserveTemplate: 4 теста
   - TestGetTemplateDay: 2 теста
@@ -78,3 +78,12 @@
   - TestUpdateContributionRecalc: 1 тест
 - Исправлен test_progress_fixed_date_mode (mode_text → "Внесено")
 - pytest: 45 passed
+
+### Step 9 — Integration тесты (commit: pending)
+- Создан test_budget_calendar_integration.py с 3 E2E тестами:
+  - test_contribution_before_reserve_reduces_reserve_in_calendar
+  - test_contribution_after_mode_switch_updates_reserve
+  - test_delete_contribution_restores_reserve
+- pytest.skip() для дат >= reserve_day
+- Decimal конверсия для сравнения amount
+- pytest: 3 passed
