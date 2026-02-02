@@ -79,7 +79,7 @@
 - Исправлен test_progress_fixed_date_mode (mode_text → "Внесено")
 - pytest: 45 passed
 
-### Step 9 — Integration тесты (commit: pending)
+### Step 9 — Integration тесты (commit: 4a572a7)
 - Создан test_budget_calendar_integration.py с 3 E2E тестами:
   - test_contribution_before_reserve_reduces_reserve_in_calendar
   - test_contribution_after_mode_switch_updates_reserve
@@ -87,3 +87,9 @@
 - pytest.skip() для дат >= reserve_day
 - Decimal конверсия для сравнения amount
 - pytest: 3 passed
+
+### Step 10 — Финализация (commit: 18d6a1c)
+- black: 2 files reformatted
+- flake8: E501 fix в docstring
+- pytest: 418 passed
+- Статус: Completed
