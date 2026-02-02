@@ -1004,6 +1004,9 @@ def cancel_recurring_edit_scope(n_clicks):
         Output("recurring-edit-scope-modal", "is_open", allow_duplicate=True),
         Output("edit-skip-instance", "style"),
         Output("recurring-edit-context", "data", allow_duplicate=True),
+        Output("edit-category-dropdown", "value", allow_duplicate=True),
+        Output("transaction-error-alert", "children", allow_duplicate=True),
+        Output("transaction-error-alert", "is_open", allow_duplicate=True),
     ],
     Input("recurring-edit-continue", "n_clicks"),
     [
@@ -1013,48 +1016,120 @@ def cancel_recurring_edit_scope(n_clicks):
     prevent_initial_call=True,
 )
 def process_recurring_edit_scope(n_clicks, scope, context):
-    """Обрабатывает выбор scope редактирования recurring операции."""
+    """Обрабатывает выбор scope редактирования recurring операции.
+
+    При выборе "instance" для виртуальной операции (без transaction_id)
+    автоматически создаёт exception через RecurringService.
+    """
     if not n_clicks or not context:
         raise PreventUpdate
 
     transaction_id = context.get("transaction_id")
     template_id = context.get("template_id")
-    instance_date = context.get("instance_date")
+    instance_date_str = context.get("instance_date")
 
-    with get_db_session() as session:
-        service = TransactionService(session)
+    if not template_id:
+        logger.warning("process_recurring_edit_scope: template_id отсутствует")
+        raise PreventUpdate
 
-        if scope == "all":
-            # Редактируем шаблон (всю серию)
-            tx = service.get_by_id(template_id)
-            logger.debug(f"Редактирование шаблона recurring {template_id}")
-            skip_button_style = {"display": "none"}
-            updated_context = None  # Не нужен контекст для шаблона
-        else:
-            # scope == "instance" — редактируем конкретный экземпляр
-            tx = service.get_by_id(transaction_id)
-            logger.debug(f"Редактирование экземпляра recurring {transaction_id}")
-            skip_button_style = {"display": "inline-block"}
-            # Сохраняем контекст для кнопки "Пропустить"
-            updated_context = {
-                "template_id": template_id,
-                "instance_date": instance_date,
-                "scope": scope,
-            }
+    try:
+        with get_db_session() as session:
+            tx_service = TransactionService(session)
 
-        if not tx:
-            raise PreventUpdate
+            if scope == "all":
+                # Редактируем шаблон (всю серию)
+                tx = tx_service.get_by_id(template_id)
+                if not tx:
+                    raise PreventUpdate
+                logger.debug(f"Редактирование шаблона recurring {template_id}")
+                skip_button_style = {"display": "none"}
+                updated_context = None  # Не нужен контекст для шаблона
+            else:
+                # scope == "instance" — редактируем конкретный экземпляр
+                if transaction_id:
+                    # Exception уже существует — редактируем его
+                    tx = tx_service.get_by_id(transaction_id)
+                    if not tx:
+                        raise PreventUpdate
+                    logger.debug(
+                        f"Редактирование существующего exception {transaction_id}"
+                    )
+                else:
+                    # Виртуальная операция — создаём exception для редактирования
+                    if not instance_date_str:
+                        logger.warning(
+                            "process_recurring_edit_scope: instance_date отсутствует"
+                        )
+                        raise PreventUpdate
 
+                    instance_date = date.fromisoformat(instance_date_str)
+                    recurring_service = RecurringService(session)
+
+                    # create_exception создаст новый или вернёт существующий
+                    tx = recurring_service.create_exception(
+                        template_id=template_id,
+                        original_date=instance_date,
+                    )
+                    session.commit()
+                    logger.debug(
+                        f"Создан exception {tx.id} для шаблона {template_id} "
+                        f"на дату {instance_date}"
+                    )
+
+                skip_button_style = {"display": "inline-block"}
+                # Сохраняем контекст для кнопки "Пропустить"
+                updated_context = {
+                    "template_id": template_id,
+                    "instance_date": instance_date_str,
+                    "scope": scope,
+                }
+
+            return (
+                True,  # Открыть edit modal
+                tx.id,
+                float(tx.amount),
+                tx.transaction_type.name,
+                tx.transaction_date.isoformat(),
+                tx.description or "",
+                False,  # Закрыть scope modal
+                skip_button_style,
+                updated_context,
+                tx.category_id,  # Категория для dropdown
+                "",  # Нет ошибки
+                False,  # Скрыть alert
+            )
+
+    except ValidationError as e:
+        logger.warning(f"Ошибка при редактировании recurring: {e}")
         return (
-            True,  # Открыть edit modal
-            tx.id,
-            float(tx.amount),
-            tx.transaction_type.name,
-            tx.transaction_date.isoformat(),
-            tx.description or "",
+            False,  # Закрыть edit modal
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
             False,  # Закрыть scope modal
-            skip_button_style,
-            updated_context,
+            no_update,
+            no_update,
+            no_update,
+            str(e),  # Текст ошибки
+            True,  # Показать alert
+        )
+    except Exception as e:
+        logger.error(f"Неожиданная ошибка при редактировании recurring: {e}")
+        return (
+            False,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            False,
+            no_update,
+            no_update,
+            no_update,
+            "Произошла ошибка при обработке операции",
+            True,
         )
 
 
