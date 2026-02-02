@@ -385,6 +385,20 @@
     color: #17a2b8;
 }
 
+.tooltip-txn-amount.savings {
+    color: #6f42c1;  /* Purple — выделяем savings от expense */
+}
+
+/* Read-only rows (e.g. SAVINGS_RESERVE) */
+.tooltip-txn-row.readonly {
+    cursor: default;
+    opacity: 0.75;
+}
+
+.tooltip-txn-row.readonly:hover {
+    background: transparent;
+}
+
 /* ==================== TOOLTIP EXPAND (HTML5 details/summary) ==================== */
 
 /* Details container */

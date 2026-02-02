@@ -34,7 +34,7 @@ class TransactionInfo(TypedDict):
 
     id: int | None  # ID транзакции (None для виртуальных recurring)
     template_id: int | None  # ID шаблона для recurring (None для обычных)
-    transaction_type: str  # "income" | "expense" | "transfer" | "adjustment"
+    transaction_type: str  # income/expense/savings_reserve/savings_contribution/...
     amount: str  # Decimal в строковом формате
     description: str | None  # Описание
     date: str  # ISO format (YYYY-MM-DD)
@@ -199,6 +199,16 @@ class CalendarService:
                                 Transaction.transaction_type == TransactionType.EXPENSE,
                                 -Transaction.amount,
                             ),
+                            (
+                                Transaction.transaction_type
+                                == TransactionType.SAVINGS_RESERVE,
+                                -Transaction.amount,
+                            ),
+                            (
+                                Transaction.transaction_type
+                                == TransactionType.SAVINGS_CONTRIBUTION,
+                                -Transaction.amount,
+                            ),
                             else_=Decimal("0"),
                         )
                     ),
@@ -213,6 +223,8 @@ class CalendarService:
                         TransactionType.INCOME,
                         TransactionType.EXPENSE,
                         TransactionType.ADJUSTMENT,
+                        TransactionType.SAVINGS_RESERVE,
+                        TransactionType.SAVINGS_CONTRIBUTION,
                     ]
                 ),
                 # Исключаем recurring шаблоны (учитываются отдельно)
@@ -259,6 +271,16 @@ class CalendarService:
                             Transaction.transaction_type == TransactionType.EXPENSE,
                             -Transaction.amount,
                         ),
+                        (
+                            Transaction.transaction_type
+                            == TransactionType.SAVINGS_RESERVE,
+                            -Transaction.amount,
+                        ),
+                        (
+                            Transaction.transaction_type
+                            == TransactionType.SAVINGS_CONTRIBUTION,
+                            -Transaction.amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ).label("daily_change"),
@@ -272,6 +294,8 @@ class CalendarService:
                         TransactionType.INCOME,
                         TransactionType.EXPENSE,
                         TransactionType.ADJUSTMENT,
+                        TransactionType.SAVINGS_RESERVE,
+                        TransactionType.SAVINGS_CONTRIBUTION,
                     ]
                 ),
                 # Исключаем recurring шаблоны (учитываются отдельно)
@@ -403,7 +427,11 @@ class CalendarService:
         for inst in instances:
             if inst["transaction_type"] == "income":
                 daily_changes[inst["date"]] += inst["amount"]
-            elif inst["transaction_type"] == "expense":
+            elif inst["transaction_type"] in (
+                "expense",
+                "savings_reserve",
+                "savings_contribution",
+            ):
                 daily_changes[inst["date"]] -= inst["amount"]
 
         return dict(daily_changes)
@@ -431,7 +459,11 @@ class CalendarService:
         for inst in instances:
             if inst["transaction_type"] == "income":
                 total_income += inst["amount"]
-            elif inst["transaction_type"] == "expense":
+            elif inst["transaction_type"] in (
+                "expense",
+                "savings_reserve",
+                "savings_contribution",
+            ):
                 total_expense += inst["amount"]
 
         return total_income, total_expense

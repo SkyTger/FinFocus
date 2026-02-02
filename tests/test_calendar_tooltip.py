@@ -182,6 +182,140 @@ class TestBuildTooltipTransactionRow:
         # template_id = -1 placeholder for None (Dash restriction)
         assert result.id["template_id"] == -1
 
+    def test_row_has_txn_type_in_id(self):
+        """Pattern-Matching ID должен содержать txn_type."""
+        txn = self._make_txn(transaction_type="income")
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        assert result.id["txn_type"] == "income"
+
+
+# ==================== SAVINGS_RESERVE / SAVINGS_CONTRIBUTION ====================
+
+
+class TestSavingsTransactionRows:
+    """Тесты для визуализации SAVINGS_RESERVE и SAVINGS_CONTRIBUTION."""
+
+    def _make_txn(self, **kwargs) -> TransactionInfo:
+        """Создает транзакцию с дефолтными значениями."""
+        base: TransactionInfo = {
+            "id": 1,
+            "template_id": None,
+            "transaction_type": "expense",
+            "amount": "1000",
+            "description": "Test transaction",
+            "date": "2026-01-15",
+            "is_virtual": False,
+            "is_recurring": False,
+            "is_exception": False,
+            "is_skipped": False,
+            "category_id": None,
+            "category_name": None,
+            "category_icon": None,
+        }
+        base.update(kwargs)
+        return base
+
+    def test_savings_reserve_has_briefcase_emoji(self):
+        """SAVINGS_RESERVE должен отображать 💼."""
+        txn = self._make_txn(
+            transaction_type="savings_reserve",
+            description="Резерв на цели",
+        )
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        icon_span = result.children[0]
+        assert "💼" in icon_span.children
+
+    def test_savings_contribution_has_target_emoji(self):
+        """SAVINGS_CONTRIBUTION должен отображать 🎯."""
+        txn = self._make_txn(
+            transaction_type="savings_contribution",
+            description="Взнос: Отпуск",
+        )
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        icon_span = result.children[0]
+        assert "🎯" in icon_span.children
+
+    def test_savings_reserve_is_readonly(self):
+        """SAVINGS_RESERVE должен иметь класс readonly."""
+        txn = self._make_txn(
+            transaction_type="savings_reserve",
+            description="Резерв на цели",
+        )
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        assert "readonly" in result.className
+
+    def test_savings_contribution_is_not_readonly(self):
+        """SAVINGS_CONTRIBUTION НЕ должен иметь класс readonly."""
+        txn = self._make_txn(
+            transaction_type="savings_contribution",
+            description="Взнос: Отпуск",
+        )
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        assert "readonly" not in result.className
+
+    def test_savings_reserve_has_auto_suffix(self):
+        """SAVINGS_RESERVE должен иметь суффикс '(авто)' в описании."""
+        txn = self._make_txn(
+            transaction_type="savings_reserve",
+            description="Резерв на цели",
+        )
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        desc_span = result.children[1]
+        assert "(авто)" in desc_span.children
+
+    def test_savings_reserve_has_id_minus_one(self):
+        """SAVINGS_RESERVE должен иметь id=-1 в Pattern-Matching ID (не кликабельно)."""
+        txn = self._make_txn(
+            id=42,
+            transaction_type="savings_reserve",
+        )
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        assert result.id["id"] == -1  # Игнорируем реальный ID
+
+    def test_savings_contribution_preserves_id(self):
+        """SAVINGS_CONTRIBUTION должен сохранять ID в Pattern-Matching."""
+        txn = self._make_txn(
+            id=42,
+            transaction_type="savings_contribution",
+        )
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        assert result.id["id"] == 42
+
+    def test_savings_amounts_have_savings_class(self):
+        """SAVINGS типы должны иметь класс savings для суммы."""
+        for txn_type in ("savings_reserve", "savings_contribution"):
+            txn = self._make_txn(
+                transaction_type=txn_type,
+                amount="5000",
+            )
+            result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+            amount_span = result.children[2]
+            assert "savings" in amount_span.className
+
+    def test_savings_amounts_have_minus_sign(self):
+        """SAVINGS типы должны отображаться с минусом (уменьшают баланс)."""
+        for txn_type in ("savings_reserve", "savings_contribution"):
+            txn = self._make_txn(
+                transaction_type=txn_type,
+                amount="5000",
+            )
+            result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+            amount_span = result.children[2]
+            assert "-5 000" in amount_span.children
+
+    def test_savings_reserve_no_recurring_icon(self):
+        """SAVINGS_RESERVE не добавляет 🔁 иконку (он всегда recurring)."""
+        txn = self._make_txn(
+            transaction_type="savings_reserve",
+            is_recurring=True,
+            is_virtual=True,
+        )
+        result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
+        icon_span = result.children[0]
+        # Должен быть только 💼, без 🔁
+        assert "🔁" not in icon_span.children
+        assert "💼" in icon_span.children
+
 
 # ==================== _build_day_tooltip ====================
 

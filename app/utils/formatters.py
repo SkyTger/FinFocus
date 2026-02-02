@@ -25,6 +25,9 @@ ICON_TO_EMOJI: dict[str, str] = {
     "bi-graph-up": "📈",
     "bi-piggy-bank": "🐷",
     "bi-tag": "🏷️",
+    # Savings types
+    "savings_reserve": "💼",
+    "savings_contribution": "🎯",
 }
 
 

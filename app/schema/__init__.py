@@ -26,6 +26,12 @@ from app.schema.recurring import (
     RecurringDeleteContext,
     DELETE_SCOPE_OPTIONS,
 )
+from app.schema.budget_reservation import (
+    ReservationMode,
+    BudgetReservationSettings,
+    BudgetProgress,
+    ContributionRecord,
+)
 
 __all__ = [
     # Analytics
@@ -52,4 +58,9 @@ __all__ = [
     # Recurring
     "RecurringDeleteContext",
     "DELETE_SCOPE_OPTIONS",
+    # Budget Reservation
+    "ReservationMode",
+    "BudgetReservationSettings",
+    "BudgetProgress",
+    "ContributionRecord",
 ]

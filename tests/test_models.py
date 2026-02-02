@@ -11,7 +11,14 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models.database import Transaction, TransactionType
+from app.models.database import (
+    Goal,
+    GoalContribution,
+    GoalStatus,
+    Transaction,
+    TransactionType,
+    User,
+)
 
 
 class TestTransactionAnchorDay:
@@ -216,3 +223,140 @@ class TestUniqueConstraintExceptionDate:
 
         with pytest.raises(IntegrityError):
             db_session.commit()
+
+
+class TestTransactionTypeSavings:
+    """Тесты для новых типов транзакций SAVINGS_RESERVE и SAVINGS_CONTRIBUTION."""
+
+    def test_savings_reserve_type_exists(self):
+        """TransactionType.SAVINGS_RESERVE существует и имеет корректное значение."""
+        assert TransactionType.SAVINGS_RESERVE.value == "savings_reserve"
+
+    def test_savings_contribution_type_exists(self):
+        """TransactionType.SAVINGS_CONTRIBUTION существует и имеет значение."""
+        assert TransactionType.SAVINGS_CONTRIBUTION.value == "savings_contribution"
+
+    def test_savings_reserve_transaction(self, db_session, test_user):
+        """Можно создать транзакцию типа SAVINGS_RESERVE."""
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("10000.00"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=date(2026, 2, 1),
+            description="Резерв на цели",
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        assert transaction.id is not None
+        assert transaction.transaction_type == TransactionType.SAVINGS_RESERVE
+
+    def test_savings_contribution_transaction(self, db_session, test_user):
+        """Можно создать транзакцию типа SAVINGS_CONTRIBUTION."""
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date(2026, 2, 1),
+            description="Взнос: Отпуск",
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        assert transaction.id is not None
+        assert transaction.transaction_type == TransactionType.SAVINGS_CONTRIBUTION
+
+
+class TestUserReservationMode:
+    """Тесты для полей User.reservation_mode и reservation_day."""
+
+    def test_reservation_mode_default(self, db_session):
+        """reservation_mode по умолчанию 'from_balance'."""
+        user = User(email="test_res@example.com", name="Test Reservation")
+        db_session.add(user)
+        db_session.commit()
+
+        assert user.reservation_mode == "from_balance"
+        assert user.reservation_day is None
+
+    def test_reservation_mode_fixed_date(self, db_session):
+        """Можно установить режим fixed_date с днём месяца."""
+        user = User(
+            email="test_fixed@example.com",
+            name="Test Fixed",
+            reservation_mode="fixed_date",
+            reservation_day=15,
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        assert user.reservation_mode == "fixed_date"
+        assert user.reservation_day == 15
+
+
+class TestGoalContributionTransactionLink:
+    """Тесты для GoalContribution.transaction_id FK."""
+
+    def test_contribution_transaction_id_nullable(self, db_session, test_user):
+        """transaction_id может быть NULL (взносы до интеграции)."""
+        goal = Goal(
+            user_id=test_user.id,
+            name="Тестовая цель",
+            target_amount=Decimal("100000.00"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+        )
+        db_session.add(goal)
+        db_session.commit()
+
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("5000.00"),
+            contribution_date=date(2026, 2, 1),
+            description="Без связи с транзакцией",
+            transaction_id=None,
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        assert contribution.id is not None
+        assert contribution.transaction_id is None
+        assert contribution.transaction is None
+
+    def test_contribution_with_transaction(self, db_session, test_user):
+        """Взнос может быть связан с транзакцией."""
+        goal = Goal(
+            user_id=test_user.id,
+            name="Цель со связью",
+            target_amount=Decimal("50000.00"),
+            target_date=date(2026, 6, 30),
+            status=GoalStatus.ACTIVE,
+        )
+        db_session.add(goal)
+        db_session.commit()
+
+        transaction = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date(2026, 2, 1),
+            description="Взнос: Цель со связью",
+        )
+        db_session.add(transaction)
+        db_session.commit()
+
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("5000.00"),
+            contribution_date=date(2026, 2, 1),
+            description="Взнос со связью",
+            transaction_id=transaction.id,
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        assert contribution.transaction_id == transaction.id
+        assert contribution.transaction == transaction
+
+    # Note: тест SET NULL on delete пропущен — SQLite требует PRAGMA foreign_keys=ON
+    # для работы ON DELETE SET NULL. В production с PostgreSQL/MySQL это работает.
