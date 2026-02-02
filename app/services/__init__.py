@@ -45,6 +45,11 @@ from .cushion_service import (
     _validate_percent,
 )
 from .onboarding_service import OnboardingService
+from .budget_reservation_service import (
+    BudgetReservationService,
+    RESERVE_DESCRIPTION,
+    STATUS_THRESHOLDS,
+)
 
 __all__ = [
     # Allocation
@@ -94,6 +99,10 @@ __all__ = [
     "_validate_percent",
     # Onboarding
     "OnboardingService",
+    # Budget Reservation
+    "BudgetReservationService",
+    "RESERVE_DESCRIPTION",
+    "STATUS_THRESHOLDS",
     # Core
     "ValidationError",
 ]

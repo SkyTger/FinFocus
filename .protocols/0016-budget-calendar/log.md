@@ -19,9 +19,16 @@
 - Brief: `.design/brief.md`
 - Solution: `.design/solution-v2.md`
 
-### Step 1 — Database Schema (commit: pending)
+### Step 1 — Database Schema (commit: 66a0a6f)
 - TransactionType: +SAVINGS_RESERVE, +SAVINGS_CONTRIBUTION
 - User: +reservation_mode (default "from_balance"), +reservation_day (nullable)
 - GoalContribution: +transaction_id FK (SET NULL), +ix_contribution_date index
 - Migration: scripts/migrate_005_reservation.py (idempotent)
 - Unit tests: 15 passed (8 новых тестов)
+
+### Step 2 — BudgetReservationService Core (commit: pending)
+- TypedDicts: ReservationMode, BudgetReservationSettings, BudgetProgress, ContributionRecord
+- BudgetReservationService: get_settings(), set_mode(), get_budget_progress()
+- Private helpers: _get_reserve_template(), _create_reserve_template(), _stop_reserve_template()
+- Экспорт в schema/__init__.py и services/__init__.py
+- Unit tests: 17 passed
