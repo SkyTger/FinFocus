@@ -704,3 +704,119 @@ class TestCalendarServiceCategoryFields:
         assert tx_info["transaction_type"] == "adjustment"
         assert tx_info["amount"] == "100.00"
         assert tx_info["description"] == "Сверка баланса"
+
+
+class TestSavingsTypesInBalance:
+    """Тесты для SAVINGS_RESERVE и SAVINGS_CONTRIBUTION в балансах."""
+
+    def test_savings_reserve_decreases_balance(self, db_session, test_user):
+        """SAVINGS_RESERVE уменьшает баланс как расход."""
+        test_user.starting_balance = Decimal("50000.00")
+        db_session.commit()
+
+        reserve = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("10000.00"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=date(2026, 1, 15),
+            description="Резерв на цели",
+        )
+        db_session.add(reserve)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        balances = service.calculate_daily_balances(
+            test_user.id, date(2026, 1, 1), date(2026, 1, 31)
+        )
+
+        # 50000 - 10000 = 40000
+        assert balances[date(2026, 1, 15)] == Decimal("40000.00")
+
+    def test_savings_contribution_decreases_balance(self, db_session, test_user):
+        """SAVINGS_CONTRIBUTION уменьшает баланс как расход."""
+        test_user.starting_balance = Decimal("30000.00")
+        db_session.commit()
+
+        contribution = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date(2026, 1, 10),
+            description="Взнос: Отпуск",
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        balances = service.calculate_daily_balances(
+            test_user.id, date(2026, 1, 1), date(2026, 1, 31)
+        )
+
+        # 30000 - 5000 = 25000
+        assert balances[date(2026, 1, 10)] == Decimal("25000.00")
+
+    def test_multiple_savings_transactions_cumulative(self, db_session, test_user):
+        """Несколько SAVINGS транзакций суммируются корректно."""
+        test_user.starting_balance = Decimal("100000.00")
+        db_session.commit()
+
+        reserve = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("15000.00"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=date(2026, 1, 5),
+            description="Резерв",
+        )
+        contribution = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date(2026, 1, 10),
+            description="Взнос",
+        )
+        expense = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("10000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 15),
+            description="Расход",
+        )
+        db_session.add_all([reserve, contribution, expense])
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        balances = service.calculate_daily_balances(
+            test_user.id, date(2026, 1, 1), date(2026, 1, 31)
+        )
+
+        # 100000 - 15000 - 5000 - 10000 = 70000
+        assert balances[date(2026, 1, 15)] == Decimal("70000.00")
+
+    def test_recurring_savings_reserve_in_balance(self, db_session, test_user):
+        """Recurring SAVINGS_RESERVE учитывается в балансе."""
+        test_user.starting_balance = Decimal("50000.00")
+        db_session.commit()
+
+        # Создаём recurring шаблон
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("10000.00"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=date(2026, 1, 15),
+            description="Резерв на цели",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+
+        service = CalendarService(db_session)
+        # Проверяем баланс в январе (один экземпляр)
+        balances = service.calculate_daily_balances(
+            test_user.id, date(2026, 1, 1), date(2026, 1, 31)
+        )
+
+        # 50000 - 10000 = 40000 на 15 января
+        assert balances[date(2026, 1, 15)] == Decimal("40000.00")
+        # 40000 на 31 января (баланс сохраняется)
+        assert balances[date(2026, 1, 31)] == Decimal("40000.00")

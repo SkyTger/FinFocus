@@ -33,9 +33,16 @@
 - Экспорт в schema/__init__.py и services/__init__.py
 - Unit tests: 17 passed
 
-### Step 3 — BudgetReservationService CRUD (commit: pending)
+### Step 3 — BudgetReservationService CRUD (commit: 19c1bef)
 - create_contribution_transaction() — создаёт SAVINGS_CONTRIBUTION в режиме from_balance
 - update_contribution_transaction() — синхронизирует Transaction ↔ GoalContribution ↔ Goal
 - delete_contribution_transaction() — каскадное удаление с обновлением цели
 - sync_template_amount() — синхронизация суммы шаблона с бюджетом
 - Unit tests: 26 passed (+9 новых)
+
+### Step 4 — CalendarService Integration (commit: pending)
+- _calculate_balance_before_date() — добавлены SAVINGS_RESERVE, SAVINGS_CONTRIBUTION
+- _get_daily_changes() — добавлены новые типы (уменьшают баланс как EXPENSE)
+- _get_recurring_daily_changes() — обработка savings_reserve, savings_contribution
+- _get_recurring_totals_for_period() — аналогично
+- Unit tests: 34 passed (+4 новых)
