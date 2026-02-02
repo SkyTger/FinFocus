@@ -758,9 +758,9 @@ with get_db_session() as session:
 
 ---
 
-## BudgetReservationService (Протокол 0016 — ЗАВЕРШЕН)
+## BudgetReservationService (Протокол 0016-0017 — ЗАВЕРШЕН)
 
-**Файл**: `app/services/budget_reservation_service.py` (~280 строк)
+**Файл**: `app/services/budget_reservation_service.py` (~350 строк)
 
 **Инициализация**: `BudgetReservationService(session)` - принимает SQLAlchemy session
 
@@ -769,6 +769,7 @@ with get_db_session() as session:
 VALID_RESERVATION_MODES = {"fixed_date", "from_balance"}
 MIN_RESERVATION_DAY = 1
 MAX_RESERVATION_DAY = 28  # Безопасно для всех месяцев
+RESERVE_DESCRIPTION = "Резервирование бюджета"  # Протокол 0017
 ```
 
 **Методы**:
@@ -778,7 +779,7 @@ MAX_RESERVATION_DAY = 28  # Безопасно для всех месяцев
   - day — день месяца для fixed_date режима (1-28)
 - `set_mode(user_id, mode, day=None)` → `None`
   - Изменение режима резервирования
-  - В режиме fixed_date создаёт/обновляет recurring шаблон "Резерв на цели"
+  - В режиме fixed_date создаёт/обновляет recurring шаблон "Резервирование бюджета"
   - В режиме from_balance останавливает recurring шаблон
   - Валидация: mode in VALID_MODES, day в диапазоне [1, 28]
 - `get_budget_progress(user_id, year, month)` → `BudgetProgress`
@@ -798,8 +799,14 @@ MAX_RESERVATION_DAY = 28  # Безопасно для всех месяцев
 - `delete_contribution_transaction(contribution_id)` → `None`
   - Каскадное удаление Transaction + GoalContribution с обновлением Goal
 - `sync_template_amount(user_id)` → `None`
-  - Синхронизация суммы recurring шаблона "Резерв на цели" с User.monthly_savings_budget
+  - Синхронизация суммы recurring шаблона "Резервирование бюджета" с User.monthly_savings_budget
   - Используется при изменении бюджета в режиме fixed_date
+- `adjust_reserve_for_contribution(user_id, contribution_amount, contribution_date)` → `None` **(Протокол 0017)**
+  - Коррекция резерва при досрочных взносах в режиме fixed_date
+  - Если взнос ДО даты резерва → создаёт Exception для recurring с уменьшенной суммой
+  - Новая сумма = original_amount - SUM(contributions_before_reserve_date)
+  - Если взносы ≥ бюджета → description "(внесено досрочно)", сумма 0
+  - В режиме from_balance ничего не делает (guard clause)
 
 **TypedDicts** (app/schema/budget_reservation.py):
 ```python
@@ -868,15 +875,21 @@ with get_db_session() as session:
 - **Синхронизация**: update/delete contribution → синхронизация Transaction + GoalContribution + Goal.current_amount
 - **SAVINGS операции не влияют на расчет целей**, но уменьшают баланс в календаре
 - **Validation**: day в диапазоне [1, 28] для безопасности (февраль)
+- **adjust_reserve_for_contribution (Протокол 0017)**:
+  - Создаёт Exception для recurring шаблона при досрочном взносе (до reserve_date)
+  - Exception сумма = original_amount - SUM(contributions_before_reserve_date)
+  - Description "(внесено досрочно)" когда взносы покрыли бюджет полностью
+  - Guard: ничего не делает в режиме from_balance
 
-**Unit тесты**: 26 тестов в `tests/test_budget_reservation_service.py`
+**Unit тесты**: 32 тестов в `tests/test_budget_reservation_service.py`
 - TestGetSettings (4), TestSetMode (6), TestGetBudgetProgress (4)
 - TestCRUD (12): create/update/delete contribution transactions
+- TestAdjustReserveForContribution (6): досрочные взносы, edge cases (Протокол 0017)
 
 **Integration с другими сервисами**:
-- GoalService: add_contribution() создаёт SAVINGS_CONTRIBUTION через BudgetReservationService
+- GoalService: add_contribution() создаёт SAVINGS_CONTRIBUTION через BudgetReservationService (from_balance) и вызывает adjust_reserve_for_contribution() (fixed_date)
 - CalendarService: _calculate_balance_before_date() и _get_daily_changes() обрабатывают SAVINGS типы
-- RecurringService: генерирует виртуальные экземпляры для "Резерв на цели" шаблона
+- RecurringService: генерирует виртуальные экземпляры для "Резервирование бюджета" шаблона, создаёт Exceptions при adjust_reserve
 
 ---
 

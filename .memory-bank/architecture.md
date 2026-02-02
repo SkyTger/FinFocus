@@ -32,7 +32,7 @@
 - **ReconciliationService** - сверка баланса, создание ADJUSTMENT транзакций
 - **AnalyticsService** - агрегация расходов по категориям, monthly trends, donut/bar charts
 
-- **BudgetReservationService** - управление резервированием бюджета накоплений, два режима (fixed_date/from_balance)
+- **BudgetReservationService** - управление резервированием бюджета накоплений, два режима (fixed_date/from_balance), adjust_reserve_for_contribution() для досрочных взносов
 - **CushionService** - финансовая подушка безопасности, калькулятор сценариев
 - **OnboardingService** - onboarding wizard для новых пользователей
 
@@ -256,6 +256,12 @@ refresh_transactions_table() - updates table
 - TransactionType: SAVINGS_RESERVE, SAVINGS_CONTRIBUTION
 - GoalContribution.transaction_id FK для связи с календарём
 - Динамический бюджет: remaining = total - SUM(contributions_this_month)
+
+**Протокол 0017**: Улучшения UX бюджета накоплений
+- adjust_reserve_for_contribution() — создание Exception для recurring при досрочных взносах
+- Объединение UI: карточка прогресса удалена, данные в "Сводке по целям"
+- RESERVE_DESCRIPTION: "Резерв на цели" → "Резервирование бюджета"
+- Exception description "(внесено досрочно)" когда взносы покрыли бюджет
 
 ## Диаграмма компонентов
 

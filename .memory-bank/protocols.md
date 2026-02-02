@@ -8,6 +8,84 @@
 
 ## Завершенные протоколы
 
+### Протокол 0017: Budget UI Improvements (2026-02-02)
+**Статус**: ✅ MERGED (PR #17, merge commit TBD)
+**Батч**: Epic-04-Advanced Features (Batch 4, Budget-Calendar Integration improvements)
+**Worktree**: `/worktrees/0017-budget-ui-improvements`
+
+**Контекст**:
+- Протокол 0016 реализовал интеграцию бюджета с календарём, но выявлены UX проблемы:
+  - Непонятный текст "Резерв на цели" → что это значит?
+  - Дублирование UI: карточка прогресса бюджета + сводка целей
+  - Взносы до даты резерва (fixed_date) не уменьшают сумму резервирования
+- Как улучшить UX бюджета накоплений и реализовать корректное поведение при досрочных взносах?
+
+**Решения**:
+- Изменить текст на "Резервирование бюджета" (ясность назначения)
+- Удалить верхнюю карточку, объединить информацию в "Сводку по целям"
+- При взносе до даты резерва — создавать Exception для recurring с уменьшенной суммой
+- Формат сводки: "Бюджет накоплений (месяц): X / Y ₽" + "Сумма активных целей: Z ₽"
+
+**Реализация** (6 шагов):
+1. **UI Description** (commit c4ae7ad)
+   - RESERVE_DESCRIPTION: "Резерв на цели" → "Резервирование бюджета"
+   - "(авто)" суффикс подтвержден в calendar.py
+
+2. **Remove Budget Card** (commit 6ba5570)
+   - Удалена _build_budget_progress_card() (~70 строк)
+   - Удалён container budget-progress-card-container
+   - Удалён Store budget-progress-refresh-trigger
+   - Удалён callback load_budget_progress_card() (~55 строк)
+   - Итого удалено: ~130 строк кода
+
+3. **Update Summary** (commit fa13a27)
+   - Параметр budget_progress: BudgetProgress в _build_summary_section()
+   - Секция "Бюджет накоплений": формат "used / total" с подписью "В текущем месяце"
+   - Вызов BudgetReservationService.get_budget_progress() в _recalculate_and_render()
+
+4. **Fixed Date Mechanism** (commit 5d5074d)
+   - adjust_reserve_for_contribution() метод в BudgetReservationService (~70 строк)
+   - Логика: взнос ДО даты резерва → Exception с уменьшенной суммой
+   - Если взносы ≥ бюджета → description "(внесено досрочно)"
+   - Использует RecurringService.create_exception()
+
+5. **Integration Tests** (commit 2c7e834)
+   - Интеграция adjust_reserve_for_contribution() в GoalService.add_contribution()
+   - 6 unit тестов для TestAdjustReserveForContribution
+   - Исправлен вызов RecurringService.create_exception() (правильные аргументы)
+   - Все 402 теста PASSED
+
+6. **Финализация** (commit 962349e)
+   - Black: 1 файл переформатирован (goals.py)
+   - Flake8: OK
+   - Pytest: 402 теста PASSED
+   - PR #17 Ready for Review
+
+**Результат**:
+- +~70 строк adjust_reserve_for_contribution() метод
+- -~130 строк удалённая карточка прогресса
+- +6 unit тестов (402 всего)
+- Улучшенный UX без дублирования интерфейса
+- Корректное поведение при досрочных взносах
+
+**Критичные детали**:
+- **adjust_reserve_for_contribution** — создаёт Exception для recurring при взносе до reserve_date
+- **Exception суммы** — original_amount - SUM(contributions_before_reserve_date)
+- **"(внесено досрочно)"** — description когда взносы полностью покрыли бюджет
+- **from_balance guard** — метод ничего не делает в режиме from_balance
+- **Сводка целей** — единая секция объединяет бюджет и сумму активных целей
+
+**Альтернативы** (отвергнуты):
+- Обновление шаблона вместо Exception — проблема с расчётом следующего месяца
+- Виртуальный расчёт при рендере — проблемы с производительностью
+
+**Референсы**:
+- План: `.protocols/0017-budget-ui-improvements/plan.md`
+- Лог: `.protocols/0017-budget-ui-improvements/log.md`
+- Спецификация: `.reports/epics/epic-04-advanced/spec-budget-ui-improvements.md`
+
+---
+
 ### Протокол 0016: Budget-Calendar Integration (2026-02-02)
 **Статус**: ✅ MERGED (PR #16, merge commit fdea488)
 **Батч**: Epic-04-Advanced Features (Batch 4, Budget-Calendar Integration)
@@ -20,7 +98,7 @@
 
 **Решения**:
 - Два режима резервирования:
-  - **fixed_date** — recurring операция "Резерв на цели" в календаре на указанную дату (1-28 число)
+  - **fixed_date** — recurring операция "Резервирование бюджета" в календаре на указанную дату (1-28 число)
   - **from_balance** — операции "Взнос: цель" при каждом взносе
 - Новый BudgetReservationService для управления резервированием
 - Два новых TransactionType: SAVINGS_RESERVE, SAVINGS_CONTRIBUTION

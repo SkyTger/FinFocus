@@ -403,23 +403,23 @@
 ---
 
 ### 13. Интеграция бюджета целей с календарём ✅
-**Статус**: Завершена (Протокол 0016, PR #16)
+**Статус**: Завершена (Протокол 0016, PR #16; улучшения UX — Протокол 0017)
 
 **Возможности**:
 - Два режима резервирования бюджета накоплений:
-  - **"fixed_date"** — recurring операция "Резерв на цели" на указанную дату месяца (1-28 число)
+  - **"fixed_date"** — recurring операция "Резервирование бюджета" на указанную дату месяца (1-28 число)
     - Создаётся автоматически при выборе режима
     - Сумма синхронизируется с User.monthly_savings_budget
     - Операция SAVINGS_RESERVE уменьшает баланс в календаре
+    - "(авто)" суффикс для readonly операций
   - **"from_balance"** — операции создаются только при взносах в цели
     - При добавлении взноса создаётся SAVINGS_CONTRIBUTION транзакция
     - description = "Взнос: {название цели}"
     - FK связь GoalContribution.transaction_id → Transaction.id
-- Карточка прогресса бюджета на странице /goals:
-  - Показывает: "X из Y распределено" (в текущем месяце)
-  - Список взносов за месяц с датами
-  - Доступный остаток бюджета
-  - Статус all_allocated (True/False)
+- Сводка по целям (Goals Summary) объединяет два аспекта:
+  - "Бюджет накоплений (месяц): X / Y ₽" — используемый / общий бюджет
+  - "Сумма активных целей: Z ₽" — агрегация по всем ACTIVE целям
+  - Подпись "В текущем месяце" для ясности
 - Модал выбора режима резервирования:
   - Переключатель режимов (Radio buttons)
   - Выбор дня месяца (1-28) для fixed_date режима
@@ -431,33 +431,37 @@
 - Динамический расчёт доступного бюджета:
   - `remaining_budget = monthly_savings_budget - SUM(contributions_this_month)`
   - Обновляется при каждом взносе
+  - При взносах до даты резерва (fixed_date) — создаётся Exception для recurring с уменьшенной суммой
 
 **Технические детали**:
-- BudgetReservationService (~280 строк) с CRUD методами:
+- BudgetReservationService (~350 строк) с CRUD методами:
   - get_settings(), set_mode(), get_budget_progress()
   - create/update/delete_contribution_transaction()
   - sync_template_amount() для синхронизации recurring шаблона
+  - adjust_reserve_for_contribution() — коррекция резерва при досрочных взносах (Протокол 0017)
 - TransactionType расширен: SAVINGS_RESERVE, SAVINGS_CONTRIBUTION
 - User модель: reservation_mode, reservation_day (1-28)
 - GoalContribution.transaction_id FK (SET NULL ondelete)
 - CalendarService интеграция: SAVINGS операции учитываются в балансе, но не в расчётах целей
-- GoalService интеграция: add_contribution() создаёт транзакцию в режиме from_balance
+- GoalService интеграция:
+  - add_contribution() создаёт транзакцию в режиме from_balance
+  - add_contribution() вызывает adjust_reserve_for_contribution() для fixed_date
 - TypedDicts: BudgetReservationSettings, BudgetProgress, ContributionRecord
 - Migration: scripts/migrate_005_reservation.py (idempotent)
-- 26 unit тестов для BudgetReservationService
+- 32 unit тестов для BudgetReservationService (26 + 6 для adjust_reserve)
 - 8 integration тестов для CalendarService с SAVINGS операциями
 
 **Файлы**:
-- `app/services/budget_reservation_service.py` — BudgetReservationService (~280 строк)
+- `app/services/budget_reservation_service.py` — BudgetReservationService (~350 строк)
 - `app/schema/budget_reservation.py` — TypedDicts (~60 строк)
 - `app/models/database.py` — User (+2 поля), TransactionType (+2 enum), GoalContribution (+1 FK)
-- `app/components/goals.py` — карточка прогресса + модал режима (~250 строк добавлено)
+- `app/components/goals.py` — сводка целей + модал режима (~250 строк изменено, Протокол 0017)
 - `app/components/calendar.py` — визуализация SAVINGS (~50 строк изменено)
 - `app/services/calendar_service.py` — SAVINGS_RESERVE/CONTRIBUTION handling (~30 строк изменено)
 - `app/services/goal_service.py` — add_contribution интеграция (~20 строк изменено)
-- `app/assets/goals.css` — стили .budget-progress-* (~80 строк)
+- `app/assets/goals.css` — стили goals summary (~80 строк)
 - `app/assets/calendar.css` — стили .savings (~20 строк)
-- `tests/test_budget_reservation_service.py` — 26 unit тестов
+- `tests/test_budget_reservation_service.py` — 32 unit тестов
 - `scripts/migrate_005_reservation.py` — Migration script
 
 **Ключевые паттерны**:
@@ -467,6 +471,7 @@
 - **Readonly SAVINGS_RESERVE** — автоматические операции нельзя редактировать напрямую
 - **Sync template amount** — автоматическая синхронизация recurring шаблона с бюджетом
 - **SET NULL ondelete** — при удалении транзакции contribution остаётся в истории
+- **adjust_reserve_for_contribution** — создание Exception для recurring при досрочных взносах (Протокол 0017)
 
 **Философия**:
 - Бюджет накоплений — это НЕ расход, а резервирование части денег
@@ -474,7 +479,9 @@
 - Нет блокировок — только визуализация прогресса и остатка бюджета
 - Пользователь видит, как накопления влияют на остаток по дням
 
-**Детали**: `.reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
+**Детали**:
+- `.reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
+- `.reports/epics/epic-04-advanced/spec-budget-ui-improvements.md`
 
 ---
 
