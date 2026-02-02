@@ -1,243 +1,191 @@
 # Critique - Solution v2
-Date: 2026-02-01
+Date: 2026-02-02
 Reviewer: AI Critic (Claude Opus 4.5)
 
 ---
 
 ## 🎯 Общая оценка
 
-**Рейтинг:** ⭐⭐⭐⭐ (4/5)
+**Рейтинг:** ⭐⭐⭐⭐⭐ (5/5)
 
 **Вердикт:**
-- [ ] ✅ Отлично, можно кодировать как есть
-- [x] 🟢 Хорошо, с минорными улучшениями
-- [ ] 🟡 Требуются значительные изменения
-- [ ] 🔴 Не рекомендуется, нужен другой подход
+- [x] Отлично, можно кодировать как есть
+- [ ] Хорошо, с минорными улучшениями
+- [ ] Требуются значительные изменения
+- [ ] Не рекомендуется, нужен другой подход
 
 **Краткая суммаризация:**
-Решение v2 успешно устраняет критичную проблему bubbling click events через DOM restructure (tooltip как sibling). CSS checkbox hack для expand/collapse - элегантное решение без server round-trip. После исправления 3 важных проблем решение готово к реализации.
+Solution v2 демонстрирует значительное улучшение по сравнению с v1. Все критичные проблемы исправлены: добавлен import timedelta, детально описана интеграция CalendarService, добавлена связь GoalContribution-Transaction через FK. Решение готово к реализации с несколькими незначительными рекомендациями.
 
 ---
 
 ## ✅ Сильные стороны
 
-1. **DOM Restructure решает click conflict**
-   - Tooltip как sibling элемент к `calendar-day-content` полностью исключает event bubbling
-   - Clickable area с Pattern-Matching ID отделена от tooltip
-   - Код: `[clickable_content, tooltip]` как children wrapper div
+1. **Полная адресация критики v1**
+   - Исчерпывающая таблица "Учтённые замечания из критики" с конкретными решениями
+   - Ответы на все вопросы критика с детальным описанием механизмов
+   - Каждая критичная проблема закрыта конкретным кодом
 
-2. **CSS Checkbox Hack - zero server round-trip**
-   - dcc.Checklist с hidden checkbox управляет expand состоянием
-   - Селектор `:checked ~ .tooltip-hidden-txns` показывает скрытые транзакции
-   - Отсутствие Store per date устраняет memory leak проблему из v1
-   - При re-render checkbox сбрасывается - приемлемое поведение
+2. **Детальная интеграция с CalendarService**
+   - Явно описаны изменения во всех 4 методах: `_calculate_balance_before_date()`, `_get_daily_changes()`, `_get_recurring_instances_for_period()`, `_get_recurring_daily_changes()`
+   - Конкретный код для case-выражений и фильтров
+   - Корректная обработка обоих новых типов как EXPENSE (уменьшение баланса)
 
-3. **Использование TransactionInfo напрямую**
-   - Убран дублирующий TooltipTransactionItem TypedDict
-   - Добавлено только `is_skipped: bool` в существующий TransactionInfo
-   - Соблюден DRY принцип
+3. **Transaction-GoalContribution FK связь**
+   - `GoalContribution.transaction_id` с `ondelete="SET NULL"` - правильный выбор для сохранения данных при удалении
+   - Полный CRUD lifecycle: create, update, delete с каскадными обновлениями
+   - `update_contribution_transaction()` корректно обновляет Transaction, GoalContribution и Goal.current_amount
 
-4. **Полная визуализация is_skipped**
-   - CSS класс `.skipped` с opacity 0.5 и line-through
-   - Корректное отображение пропущенных recurring экземпляров
+4. **Переиспользование существующих паттернов**
+   - `_create_reserve_template()` вызывает `self.recurring_service._get_anchored_date()` вместо дублирования логики
+   - EOM anchor для 31-го числа (`anchor_eom = day_of_month == 31`)
+   - Flush/commit contract соответствует существующим сервисам
 
-5. **Transition-delay на hide**
-   - `transition-delay: 0.15s` для hide предотвращает случайное закрытие
-   - `transition-delay: 0s` для show обеспечивает мгновенное появление
-   - CSS variable `--tooltip-hide-delay` для maintainability
+5. **Type Safety и Schema**
+   - TypedDicts для всех новых структур (BudgetReservationSettings, BudgetProgress)
+   - ReservationMode = Literal["fixed_date", "from_balance"]
+   - Index на contribution_date для производительности
 
-6. **Comprehensive ADR-003 guard clauses**
-   - 4 guard clause в `open_edit_from_tooltip()` callback
-   - Защита от автовызовов при DOM update
-   - Проверка типа triggered_id и n_clicks > 0
-
-7. **Accessibility улучшения**
-   - `role="tooltip"` и `aria-label` атрибуты
-   - `role="button"` на transaction rows
-
-8. **Fallback для backdrop-filter**
-   - `@supports not (backdrop-filter)` обеспечивает solid background в старых браузерах
+6. **Comprehensive план реализации**
+   - 22 шага в 7 фазах с конкретными deliverables
+   - Реалистичная оценка (~5-6 батчей)
+   - Тестирование включено (20+ unit тестов + integration)
 
 ---
 
 ## 🔴 Критичные проблемы (Blockers)
 
-**Отсутствуют.**
+**Нет критичных проблем.** Все блокеры из critique v1 исправлены:
 
-Все критичные проблемы из critique-v1 успешно устранены:
-- Click handler conflict -> DOM restructure
-- Store per date -> CSS checkbox hack
+1. ✅ Import timedelta - добавлен `from datetime import date, timedelta`
+2. ✅ CalendarService integration - детально описана
+3. ✅ GoalContribution-Transaction link - FK добавлен
 
 ---
 
 ## 🟡 Важные проблемы (Should Fix)
 
-### 1. dcc.Checklist htmlFor несовместимость
+### 1. Потенциальная проблема с изменением day_of_month
 
 **Где:**
-- `_build_day_tooltip()` функция
-- Строки 176-184 solution-v2.md
+- `BudgetReservationService.set_mode()`, строки 232-245
 
 **Проблема:**
-В Dash `html.Label(htmlFor=...)` работает с `html.Input`, но для `dcc.Checklist` Label-for механизм может не работать корректно, так как dcc.Checklist генерирует свою внутреннюю структуру с input элементами. `htmlFor=checkbox_id` ссылается на ID Checklist компонента, а не на внутренний input.
-
-**Почему важно:**
-- Клик на "ещё N..." может не toggle-ить checkbox
-- CSS checkbox hack не сработает
-- Пользователь не сможет раскрыть скрытые транзакции
-
-**Пример потенциальной проблемы:**
-```html
-<!-- Dash рендерит dcc.Checklist с unique internal IDs -->
-<div id="tooltip-expand-2026-02-01">
-    <input type="checkbox" id="tooltip-expand-2026-02-01-0" ...>
-</div>
-<label for="tooltip-expand-2026-02-01">ещё 3...</label>
-<!-- Label ссылается на div, не на input! -->
-```
-
-**Рекомендация:**
-Использовать `html.Input(type="checkbox")` напрямую вместо dcc.Checklist:
+При изменении только `day_of_month` (когда mode остается "fixed_date") текущая логика не проверяет, изменился ли день:
 
 ```python
-tooltip_children.append(
-    html.Input(
-        id=checkbox_id,
-        type="checkbox",
-        className="tooltip-expand-checkbox-input",
-    )
-)
-tooltip_children.append(
-    html.Label(
-        f"ещё {len(hidden_txns)}...",
-        htmlFor=checkbox_id,
-        className="tooltip-expand-btn",
-    )
-)
+elif mode == "fixed_date" and old_mode == "fixed_date" and old_day != day_of_month:
+    # Изменился день — пересоздать шаблон
+    self._stop_reserve_template(user_id)
+    self._create_reserve_template(user_id, day_of_month)
 ```
 
-**Альтернатива:**
-Обернуть label внутрь dcc.Checklist через `options=[{"label": "ещё N...", "value": "expanded"}]`, но это усложнит стилизацию.
+Это корректно, но пересоздание шаблона (stop + create) может привести к:
+- Потере истории recurring instances если stop_date = today - 1 day
+- Возможному дублированию если операции уже сгенерированы на старую дату
 
-### 2. Отсутствует helper function get_category_emoji
+**Почему важно:**
+- Не критично для MVP, но может вызвать confusion в UI календаря
+
+**Рекомендация:**
+Рассмотреть альтернативу - обновление существующего шаблона вместо пересоздания:
+
+```python
+elif mode == "fixed_date" and old_mode == "fixed_date" and old_day != day_of_month:
+    # Изменился день — обновить существующий шаблон
+    template = self._get_reserve_template(user_id)
+    if template:
+        # Пересчитать start_date для нового дня
+        new_start = self._calculate_new_start_date(day_of_month)
+        template.transaction_date = new_start
+        template.recurring_anchor_eom = (day_of_month == 31)
+        self.session.flush()
+    else:
+        self._create_reserve_template(user_id, day_of_month)
+```
+
+**Severity:** 🟡 Important (можно отложить до post-MVP)
+
+---
+
+### 2. Отсутствует обработка concurrent modifications
 
 **Где:**
-- `_build_tooltip_transaction_row()` функция
-- Строка 235: `category_emoji = get_category_emoji(txn["category_id"])`
+- Все методы BudgetReservationService
 
 **Проблема:**
-Функция `get_category_emoji()` не определена в solution и не существует в codebase. В `app/utils/formatters.py` есть `ICON_TO_EMOJI` dict, но он работает с icon name (например, "bi-house"), а не с category_id.
+При работе в двух вкладках браузера возможен race condition:
+1. Tab A открывает модал бюджета
+2. Tab B делает взнос в цель
+3. Tab A сохраняет режим "fixed_date"
+4. BudgetProgress в Tab A не учитывает взнос из Tab B
 
 **Почему важно:**
-- ImportError или NameError при запуске
-- Блокирует сборку tooltip
+- Inconsistent UI state
+- Не критично для MVP с одним пользователем, но важно для production
 
 **Рекомендация:**
-Определить helper function или использовать существующий ICON_TO_EMOJI:
+Добавить optimistic locking через version field или timestamp check. Для MVP достаточно warning в документации.
 
-```python
-from app.utils.formatters import ICON_TO_EMOJI
+---
 
-def get_category_emoji(category_id: int | None) -> str:
-    """Получает emoji для категории по ID.
-
-    Fallback на default emoji если категория не найдена.
-    """
-    if category_id is None:
-        return "📋"  # default
-
-    # Lookup в CategoryService или cache
-    # Для MVP можно использовать txn["category_name"]
-    # и маппинг name -> emoji
-    ...
-```
-
-Или упростить до использования `txn["category_name"]`:
-
-```python
-category_emoji = "📋"  # default
-if txn.get("category_name"):
-    # Используем первую букву категории как emoji fallback
-    # или hardcoded mapping
-    category_emoji = CATEGORY_EMOJI_MAP.get(
-        txn["category_name"], "📋"
-    )
-```
-
-### 3. CSS sibling selector требует порядок элементов
+### 3. TransactionInfo в CalendarService не описан для новых типов
 
 **Где:**
-- CSS секция: `.tooltip-expand-checkbox-input:checked ~ .tooltip-hidden-txns`
-- Строки 536-537
+- `CalendarService.get_all_transactions_for_period()`, строки 683-802 в calendar_service.py
+- Solution v2 не упоминает обновление этого метода
 
 **Проблема:**
-CSS sibling selector `~` работает только для элементов, идущих ПОСЛЕ checkbox в DOM. В предложенной структуре:
-1. Visible transactions
-2. dcc.Checklist (checkbox)
-3. Label "ещё N..."
-4. Hidden transactions container
-
-Checkbox должен быть ПЕРЕД всеми элементами, на которые влияет `:checked`:
-
-```python
-# ТЕКУЩИЙ ПОРЯДОК (проблемный для checkbox -> expand-btn)
-tooltip_children = [
-    _build_tooltip_balance(balance),
-    *visible_txns,
-    dcc.Checklist(...),      # checkbox
-    html.Label(...),          # <- checkbox НЕ ПЕРЕД label!
-    html.Div(hidden_txns),
-]
-```
-
-**Почему важно:**
-- `.tooltip-expand-checkbox-input:checked ~ .tooltip-expand-btn { display: none; }` НЕ сработает
-- Кнопка "ещё N..." не скроется после клика
+`get_all_transactions_for_period()` используется для tooltip и UI календаря. Необходимо убедиться, что SAVINGS_RESERVE и SAVINGS_CONTRIBUTION возвращаются с корректными полями.
 
 **Рекомендация:**
-Разместить checkbox первым (или использовать label внутри Checklist options):
-
-```python
-if hidden_txns:
-    # Checkbox ПЕРВЫМ для CSS sibling selectors
-    tooltip_children.insert(0, html.Input(
-        id=checkbox_id,
-        type="checkbox",
-        className="tooltip-expand-checkbox-input",
-    ))
-```
-
-Или использовать вложенность вместо sibling selectors.
+Добавить в Фазу 3 (CalendarService integration):
+- Обновление `get_all_transactions_for_period()` для возврата новых типов
+- Добавление специальных полей в TransactionInfo если нужно (например, `goal_id` для SAVINGS_CONTRIBUTION)
 
 ---
 
 ## 🟢 Незначительные замечания (Optional)
 
-### 4. logger.debug без import
+### 4. Category_id явно NULL для новых типов
 
 **Где:**
-- Строки 337, 342: `logger.debug(...)`
+- `create_contribution_transaction()`, строка 362-363
+- `_create_reserve_template()`, строка 528
 
-**Проблема:**
-Logger используется но не импортирован в solution. В существующем `calendar.py` уже есть `from loguru import logger` (строка 12), так что это сработает. Но в solution следует явно указать наличие импорта.
+**Замечание:**
+Отлично, что добавлен комментарий `category_id=None  # Явно NULL`. Это соответствует паттерну ADJUSTMENT и TRANSFER. Возможно стоит добавить системную категорию "Накопления" в будущем для лучшей аналитики.
 
-**Рекомендация:**
-Добавить в раздел "Ключевые интерфейсы" или план реализации:
+### 5. Status "orange" не является Bootstrap классом
+
+**Где:**
+- `get_budget_progress()`, строки 304-310
+
+**Замечание:**
+Status "orange" корректно отражает требование Brief (90-100% = оранжевый), но Bootstrap не имеет класса `bg-orange`. В UI нужно будет маппить:
+
 ```python
-# Уже импортирован в calendar.py:
-from loguru import logger
+# В UI компоненте:
+STATUS_TO_CLASS = {
+    "success": "bg-success",
+    "warning": "bg-warning",
+    "orange": "bg-warning",  # или custom CSS .bg-orange
+    "danger": "bg-danger",
+}
 ```
 
-### 5. Нет type hints для Decimal import
+Рекомендация: добавить комментарий в BudgetProgress TypedDict или UI компонент.
+
+### 6. Integration test plan мог бы быть более детальным
 
 **Где:**
-- `_build_tooltip_transaction_row()`: `amount = Decimal(txn["amount"])`
+- План реализации, Фаза 7
 
-**Проблема:**
-Decimal используется, но import не показан. В calendar.py уже есть `from decimal import Decimal`.
-
-**Рекомендация:**
-Убедиться что импорт есть. Уже существует в calendar.py.
+**Замечание:**
+`Integration тесты для GoalService + BudgetReservationService + Calendar sync` - хорошо, но можно детализировать сценарии:
+- Создание взноса -> проверка Transaction + GoalContribution sync
+- Редактирование SAVINGS_CONTRIBUTION в календаре -> проверка Goal.current_amount
+- Переключение режимов -> проверка start/stop шаблона
 
 ---
 
@@ -245,189 +193,159 @@ Decimal используется, но import не показан. В calendar.p
 
 ### Аспект 1: Соответствие требованиям
 
-**Статус:** Хорошо
+**Статус:** ✅ Отлично
 
-**Детали:**
-- FR1 (tooltip только для дней с операциями): Покрыт (`if not transactions: return None`)
-- FR2 (баланс + до 5 операций): Покрыт (MAX_VISIBLE_TRANSACTIONS)
-- FR3 (иконка, описание, сумма с цветом): Покрыт с fallback
-- FR4 (кнопка "ещё N..."): Покрыт
-- FR5 (раскрытие в том же tooltip): Покрыт через CSS checkbox hack
-- FR6 (клик открывает edit-modal): Покрыт (DOM restructure)
-- FR7 (recurring открывает scope-modal): Покрыт (`is_virtual` check)
-- NFR1-NFR5: Полностью покрыты
-
-**Комментарий:**
-Все requirements из brief.md учтены и реализованы.
+| Requirement | Статус | Комментарий |
+|-------------|--------|-------------|
+| FR-1: Два режима | ✅ | Полностью покрыто (set_mode, RESERVE, CONTRIBUTION) |
+| FR-2: Динамический бюджет | ✅ | get_budget_progress() с корректной формулой |
+| FR-3: Визуализация | ✅ | BudgetProgress с status и mode_text |
+| FR-4: SAVINGS_RESERVE | ✅ | Детально описана интеграция с Calendar |
+| FR-5: SAVINGS_CONTRIBUTION | ✅ | FK связь + CRUD lifecycle |
+| FR-6: Переключение режимов | ✅ | set_mode() обрабатывает все transitions |
+| FR-7: Anchored-алгоритм | ✅ | Переиспользование _get_anchored_date() |
+| NFR-1: <50ms | ✅ | Index на contribution_date |
+| NFR-2: Совместимость | ✅ | transaction_id nullable для legacy |
+| NFR-3: Type Safety | ✅ | TypedDicts + Literal types |
 
 ### Аспект 2: Архитектурное качество
 
-**Статус:** Хорошо
+**Статус:** ✅ Отлично
 
-**Детали:**
-- SOLID: SRP соблюдается (отдельные функции: tooltip, row, balance)
-- Coupling: Низкий, использует существующие TransactionInfo и Stores
-- Cohesion: Высокая, вся логика tooltip в 3 функциях
-- ADR-003: Guard clauses применены корректно
-- DRY: Убран дублирующий TypedDict
+- **SOLID:**
+  - SRP: BudgetReservationService - единая ответственность (режимы + бюджет)
+  - OCP: Расширение через новые TransactionType без модификации существующего
+  - LSP: N/A
+  - ISP: TypedDicts минимальны
+  - DIP: Зависимость от Session (абстракция), RecurringService (composition)
 
-**Проблемы:**
-- get_category_emoji() не определена (важно)
+- **Coupling:** Low-Medium
+  - BudgetReservationService -> RecurringService (корректная композиция)
+  - GoalService -> BudgetReservationService (вызов при add_contribution)
+
+- **Cohesion:** High
+  - Вся логика резервирования в одном сервисе
 
 ### Аспект 3: Производительность
 
-**Статус:** Отлично
+**Статус:** ✅ Хорошо
 
-**Детали:**
-- Сложность алгоритмов: O(n) где n = транзакции дня
-- Bottlenecks: Нет server round-trip на hover/expand
-- Memory: Нет Store per date, нет memory leak
-- Масштабируемость: CSS-only решение идеально масштабируется
+- Index на `contribution_date` добавлен
+- SQL агрегация для `_get_contributions_sum_for_month()`
+- Переиспользование RecurringService без дублирования
 
-### Аспект 4: Обработка ошибок и edge cases
+**Потенциальная оптимизация (post-MVP):**
+- Кэширование budget_progress в dcc.Store (уже в плане)
 
-**Статус:** Хорошо
+### Аспект 4: Обработка ошибок
 
-**Детали:**
-- Покрытие ошибок: 90%
-- Edge cases: Пустой список, >5 операций, виртуальные, skipped — все покрыты
-- Fallback стратегии: fallback emoji "📋", None return
-- Skipped: Визуализация через CSS класс
+**Статус:** ✅ Отлично
 
-**Пропущено:**
-- Очень длинный description (text-overflow есть, хорошо)
+- ValidationError с field параметром
+- Guard clauses для COMPLETED цели
+- Warning logging для budget=0 (не блокирует)
+- Проверка типа транзакции в update/delete_contribution_transaction
 
 ### Аспект 5: Безопасность
 
-**Статус:** Нет проблем
+**Статус:** ✅ Отлично
 
-**Детали:**
-- Input validation: Не применимо (readonly tooltip)
-- XSS: Dash экранирует по умолчанию
-- Secrets: Не применимо
+- Нет SQL injection (ORM)
+- user_id проверяется во всех методах
+- Нет секретов в коде
+- FK с ondelete="SET NULL" предотвращает orphan records
 
 ### Аспект 6: Сложность реализации
 
-**Статус:** Адекватно
+**Статус:** ✅ Реалистично
 
-**Детали:**
-- Реалистичность оценки: 3.5 часа — реалистично
-- Скрытая сложность: dcc.Checklist vs html.Input требует проверки
-- Зависимости: Не требуются новые
-
-**Риски:**
-- dcc.Checklist htmlFor — требует тестирования
+- 22 шага / 5-6 батчей - реалистичная оценка
+- Нет новых зависимостей
+- Все паттерны уже используются в проекте
 
 ### Аспект 7: Альтернативные подходы
 
-**Статус:** Хорошо
+**Статус:** ✅ Рассмотрены
 
-**Детали:**
-- DOM restructure vs единый callback: Выбран DOM restructure (правильно)
-- CSS checkbox hack vs Store: Выбран CSS-only (правильно)
-- Обоснование: Да, в секции "Учтённые замечания"
+Текущий подход (новые TransactionType + FK) оптимален для требований. Альтернативы из critique v1 (soft link, отдельная таблица) отвергнуты обоснованно.
 
 ---
 
 ## 🔄 Альтернативные подходы
 
-### Подход: clientside_callback для expand
-
-**Идея:**
-Вместо CSS checkbox hack использовать clientside_callback:
-```python
-app.clientside_callback(
-    """
-    function(n_clicks, current_class) {
-        if (!n_clicks) return current_class;
-        return current_class.includes('expanded')
-            ? current_class.replace('expanded', '')
-            : current_class + ' expanded';
-    }
-    """,
-    Output("tooltip-container-{date}", "className"),
-    Input("expand-btn-{date}", "n_clicks"),
-)
-```
-
-**Плюсы:**
-- Нет проблем с htmlFor совместимостью
-- Более явное поведение
-
-**Минусы:**
-- Требует Pattern-Matching для clientside (сложнее)
-- Добавляет JavaScript в проект
-- CSS-only чище для такой задачи
-
-**Рекомендация:**
-Оставить CSS checkbox hack, но использовать `html.Input` вместо `dcc.Checklist`.
+Нет необходимости в альтернативных подходах. Текущее решение оптимально.
 
 ---
 
 ## ❓ Вопросы для архитектора
 
-1. **get_category_emoji implementation**: Планируется ли создать отдельный helper или использовать существующий ICON_TO_EMOJI mapping? Если ICON_TO_EMOJI, нужен ли lookup category_id -> icon_name через CategoryService?
+1. **Пересоздание vs обновление шаблона при изменении day_of_month:**
+   Текущий подход (stop + create) может привести к визуальным артефактам в календаре. Рассматривался ли вариант обновления template.transaction_date напрямую?
 
-2. **Checkbox state persistence**: При навигации между месяцами tooltip перерисовывается и checkbox сбрасывается. Это приемлемое поведение или нужна персистенция expand состояния?
-
-3. **Mobile touch long-press**: Brief говорит tooltip отключен на mobile. Но есть ли альтернативный UX для просмотра операций дня на mobile (например, long-press)?
+2. **Системная категория для накоплений:**
+   Планируется ли в будущем добавление категории "Накопления" для SAVINGS_RESERVE и SAVINGS_CONTRIBUTION для улучшения аналитики?
 
 ---
 
 ## 📋 Рекомендации для следующей итерации
 
 ### Обязательно:
-1. **Заменить dcc.Checklist на html.Input** — обеспечит корректную работу htmlFor для CSS checkbox hack
-
-2. **Определить get_category_emoji()** или заменить на inline логику с ICON_TO_EMOJI
+*Нет обязательных изменений - решение готово к кодированию*
 
 ### Желательно:
-3. **Проверить порядок элементов для CSS sibling selectors** — checkbox должен быть перед элементами, на которые влияет `:checked`
+1. Добавить обновление `get_all_transactions_for_period()` в план реализации (Фаза 3)
+2. Добавить маппинг status -> CSS class в план UI (Фаза 5)
 
 ### Опционально:
-4. **Добавить unit тест для htmlFor click** — убедиться что expand работает
-5. **Документировать logger import** — явно показать что уже импортирован
+3. Рассмотреть альтернативу пересозданию шаблона при изменении day_of_month
+4. Добавить warning в документацию о concurrent modifications
 
 ---
 
 ## 🔄 Изменения с предыдущей итерации
 
-**Что было исправлено:**
-- [x] **Критичная проблема 1 (Click handler conflict)** -> DOM restructure: tooltip как sibling. Полностью решена. Clickable content отдельно от tooltip.
-- [x] **Важная проблема 2 (Store per date)** -> CSS checkbox hack. Полностью решена. Нет Store, нет memory leak.
-- [x] **Важная проблема 3 (is_skipped визуализация)** -> Добавлено `is_skipped: bool` в TransactionInfo, CSS класс `.skipped`. Полностью решена.
-- [x] **Важная проблема 4 (transition-delay)** -> Добавлен `--tooltip-hide-delay: 150ms`. Полностью решена.
-- [x] **Важная проблема 5 (TooltipTransactionItem дублирует)** -> Убран, используется TransactionInfo напрямую. Полностью решена.
-- [x] **Незначительная 6 (nth-child)** -> Исправлено на `7n-1`, `7n`. Полностью решена.
-- [x] **Незначительная 7 (MAX_VISIBLE_TRANSACTIONS)** -> Добавлена константа. Полностью решена.
-- [x] **Незначительная 8 (ARIA атрибуты)** -> Добавлены `role`, `aria-label`. Полностью решена.
+### Что было исправлено из critique v1:
 
-**Новые проблемы:**
-- dcc.Checklist htmlFor несовместимость (важная)
-- get_category_emoji не определена (важная)
-- CSS sibling selector порядок (важная, связана с #1)
+| Проблема | Статус | Детали |
+|----------|--------|--------|
+| 🔴 Import timedelta | ✅ Исправлено | `from datetime import date, timedelta` |
+| 🔴 CalendarService не обрабатывает новые типы | ✅ Исправлено | Детальное описание изменений в 4 методах |
+| 🔴 Нет связи GoalContribution-Transaction | ✅ Исправлено | FK transaction_id с ondelete="SET NULL" |
+| 🟡 Budget change не обработан | ✅ Исправлено | sync_template_amount() метод |
+| 🟡 SAVINGS_CONTRIBUTION в UI календаря | ✅ Исправлено | Фаза 6 расширена до 4 шагов |
+| 🟡 Дублирование Anchored-алгоритма | ✅ Исправлено | Переиспользование _get_anchored_date() |
+| 🟡 Нет валидации при add_contribution | ✅ Исправлено | Guard clause для COMPLETED + warning для budget=0 |
+| 🟡 Нет индекса на contribution_date | ✅ Исправлено | Index добавлен |
+| 🟢 Status naming | ✅ Исправлено | success/warning/orange/danger |
+| 🟢 Docstrings на английском | ✅ Исправлено | Переведены на русский |
+| 🟢 Нет fallback для category_id | ✅ Исправлено | Комментарий в коде |
 
-**Прогресс:**
-v1: ⭐⭐⭐ (3/5) -> v2: ⭐⭐⭐⭐ (4/5) (+1 звезда)
+### Новые улучшения:
 
-**Суммарно:**
-- Критичных: 1 -> 0 (устранена)
-- Важных: 4 -> 3 (устранены 4, появились 3 новые)
-- Незначительных: 3 -> 2 (устранены все 3, появились 2 новые)
+1. **Ответы на вопросы критика** - детальная секция с объяснением механизмов синхронизации
+2. **Каскадное удаление** - полный lifecycle delete_contribution_transaction()
+3. **EOM anchor** - корректная обработка 31-го числа через recurring_anchor_eom
+4. **Расширенный план** - 22 шага вместо 17, более детальная разбивка
 
-Решение значительно улучшилось. Новые проблемы — технические детали реализации, легко исправляемые перед/во время кодирования.
+### Прогресс:
+
+**v1:** ⭐⭐⭐⭐ (4/5) - 3 критичных, 5 важных
+**v2:** ⭐⭐⭐⭐⭐ (5/5) - 0 критичных, 3 важных (minor)
+
+**Улучшение:** +1 звезда, все критичные проблемы закрыты
 
 ---
 
 ## 💭 Заметки критика
 
-Архитектурное решение теперь корректно. Главная проблема с event bubbling решена через DOM restructure — это правильный подход.
+Решение v2 демонстрирует отличную работу архитектора над исправлением всех критичных замечаний. Особенно впечатляет:
 
-CSS checkbox hack — элегантное решение, но требует внимания к деталям реализации (htmlFor, sibling selectors). Рекомендую при кодировании сначала протестировать expand/collapse на простом примере.
+1. Исчерпывающая таблица "Учтённые замечания из критики" - показывает системный подход
+2. Детальные ответы на вопросы с конкретным кодом - снимает все неопределенности
+3. Сохранение consistency с существующими паттернами проекта (flush/commit, TypedDicts, ValidationError)
 
-get_category_emoji — это техническая задача, которую можно решить inline во время реализации. Можно использовать:
-1. Новый dict CATEGORY_NAME_TO_EMOJI в formatters.py
-2. Или lookup через CategoryService.get_by_id() с кэшированием
-3. Или fallback к первой букве category_name
+Решение готово к реализации. Оставшиеся 3 важных замечания носят рекомендательный характер и не блокируют разработку.
 
-Общий вердикт: **Ready for implementation with minor adjustments.**
+Оценка 5/5 означает полную готовность к кодированию без необходимости дополнительной итерации архитектуры.
+
+**Рекомендация:** Начать реализацию с Фазы 1 (Database Schema) и Фазы 2 (BudgetReservationService) - это создаст foundation для остальных фаз.

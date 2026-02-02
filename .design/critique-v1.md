@@ -1,304 +1,385 @@
 # Critique - Solution v1
-Date: 2026-02-01
+Date: 2026-02-02
 Reviewer: AI Critic (Claude Opus 4.5)
 
 ---
 
 ## 🎯 Общая оценка
 
-**Рейтинг:** ⭐⭐⭐ (3/5)
+**Рейтинг:** ⭐⭐⭐⭐ (4/5)
 
 **Вердикт:**
 - [ ] Отлично, можно кодировать как есть
-- [ ] Хорошо, с минорными улучшениями
-- [x] Требуются значительные изменения
+- [x] Хорошо, с минорными улучшениями
+- [ ] Требуются значительные изменения
 - [ ] Не рекомендуется, нужен другой подход
 
 **Краткая суммаризация:**
-Решение демонстрирует грамотный CSS-only подход для hover-функциональности, однако содержит одну критичную проблему с конфликтом click-событий и несколько важных архитектурных упущений. После исправления критичной проблемы решение будет готово к реализации.
+Решение демонстрирует хорошее понимание существующей архитектуры и предлагает логичную интеграцию через новые TransactionType. Основные проблемы связаны с неполной интеграцией CalendarService, отсутствием обработки edge cases при изменении бюджета, и необходимостью уточнения связи между GoalContribution и Transaction.
 
 ---
 
-## ✅ Сильные стороны
+## Сильные стороны
 
-1. **CSS-only hover подход**
-   - Правильно выбран подход без server round-trip при hover
-   - Обеспечивает мгновенный отклик UI без мерцания
-   - Совместим с существующими callbacks
+1. **Переиспользование существующих паттернов**
+   - Корректное использование flush/commit contract
+   - Интеграция с RecurringService через существующий Anchored-алгоритм
+   - Соответствие TypedDict паттерну для schema
 
-2. **Glassmorphism реализация**
-   - Грамотное использование backdrop-filter с @supports fallback
-   - Правильное позиционирование absolute внутри relative
-   - Edge detection через CSS nth-child для правой границы
+2. **Четкое разделение ответственности**
+   - BudgetReservationService изолирован от GoalService
+   - Proxy-методы в GoalService для удобства вызова
+   - Минимальное изменение существующих сервисов
 
-3. **Использование существующей архитектуры**
-   - TransactionInfo TypedDict уже содержит все необходимые поля
-   - Интеграция с существующими Stores (edit-transaction-id, recurring-edit-context)
-   - Соблюдение ADR-003 guard clauses pattern
+3. **Продуманная модель данных**
+   - Два новых TransactionType семантически корректны
+   - Поля User.reservation_mode и reservation_day достаточны для MVP
+   - BudgetProgress TypedDict покрывает все UI требования
 
-4. **Обработка ошибок**
-   - Предусмотрены fallback для отсутствующих категорий
-   - `_build_day_tooltip()` возвращает None для пустых дней
-   - Guard clauses в callbacks защищают от автовызовов
+4. **Детальный план реализации**
+   - 7 фаз с конкретными шагами
+   - Реалистичная оценка (17 шагов, 4-5 батчей)
+   - Тестирование включено в план
 
-5. **Продуманный план реализации**
-   - Четкая декомпозиция на 7 шагов
-   - Адекватные временные оценки (около 3.5 часов)
-   - Включены unit-тесты
+5. **Корректная обработка валидации**
+   - ValidationError с field параметром
+   - Проверка диапазона day_of_month (1-31)
+   - Проверка существования пользователя
 
 ---
 
 ## 🔴 Критичные проблемы (Blockers)
 
-### 1. Конфликт click handlers между tooltip и day cell
+### 1. Отсутствует import timedelta в _stop_reserve_template
 
 **Где:**
-- Секция "Решение конфликта click handlers" в solution-v1.md
-- `app/components/calendar.py`, функция `build_day_cell()`, строка 492
+- Файл: `app/services/budget_reservation_service.py`
+- Метод: `_stop_reserve_template()`, строка 388
 
 **Проблема:**
-Предложенное решение конфликта недостаточно. CSS `pointer-events: auto` на tooltip НЕ предотвращает event bubbling в JavaScript/Dash. Клик на элемент внутри tooltip все равно сначала триггерит callback для tooltip-txn, но затем событие bubbling достигает родительского calendar-day и триггерит его callback тоже.
+```python
+def _stop_reserve_template(self, user_id: int) -> None:
+    ...
+    self.recurring_service.stop_template(
+        template.id,
+        stop_date=date.today() - timedelta(days=1)  # timedelta не импортирован!
+    )
+```
 
-В Dash Pattern-Matching callbacks оба callback будут вызваны последовательно, что приведет к:
-1. Сначала откроется edit-modal (через tooltip-txn callback)
-2. Затем откроется create-modal (через calendar-day callback)
+В секции импортов указан только `from datetime import date`, но `timedelta` не импортирован.
 
 **Почему критично:**
-- Полностью ломает основной use case: клик по операции в tooltip должен открывать ТОЛЬКО edit-modal
-- Пользователь получит конфликтующее UX-поведение
-- Нет возможности исправить через CSS — требуется архитектурное решение
-
-**Пример сценария:**
-```
-User hovers day cell -> Tooltip appears
-User clicks on transaction row in tooltip
--> tooltip-txn callback fires -> edit-modal opens
--> calendar-day callback fires -> create-modal opens (BUG!)
-```
+- Код упадет с `NameError: name 'timedelta' is not defined` при переключении режима
 
 **Рекомендация:**
-Реструктурировать build_day_cell() так, чтобы tooltip был "сестринским" элементом к кликабельной области дня, а не вложенным:
-
 ```python
-def build_day_cell(...) -> html.Div:
-    clickable_area = html.Div(
-        [day_number, icons, balance],
-        id={"type": "calendar-day", "date": day_date.isoformat()},
-        n_clicks=0,
-        className="calendar-day-content",
-    )
-
-    tooltip = _build_day_tooltip(...) if transactions else None
-
-    # Tooltip и clickable area на одном уровне, не вложенные
-    return html.Div(
-        [clickable_area, tooltip],
-        className=" ".join(css_classes),
-    )
+from datetime import date, timedelta
 ```
 
-CSS:
-```css
-.calendar-day {
-    position: relative;
-}
+---
 
-.calendar-day-content {
-    cursor: pointer;
-    /* ... existing styles ... */
-}
+### 2. CalendarService не обрабатывает SAVINGS_RESERVE и SAVINGS_CONTRIBUTION
 
-.calendar-day-tooltip {
-    position: absolute;
-    /* pointer-events работает т.к. tooltip не внутри clickable area */
-}
-```
+**Где:**
+- Файл: `app/services/calendar_service.py`
+- Методы: `_calculate_balance_before_date()`, `_get_daily_changes()`, `_get_recurring_instances_for_period()`
 
-**Альтернативный подход:**
-Использовать единый callback для обоих типов кликов с ctx.triggered_id проверкой:
+**Проблема:**
+Решение указывает что нужно добавить обработку новых типов в CalendarService (Фаза 4, шаги 9-10), но не описывает КАК именно:
 
+1. В `_calculate_balance_before_date()` и `_get_daily_changes()` есть явный фильтр:
 ```python
-@callback(
-    [...outputs...],
-    [
-        Input({"type": "calendar-day", "date": ALL}, "n_clicks"),
-        Input({"type": "tooltip-txn", "date": ALL, ...}, "n_clicks"),
-    ],
+Transaction.transaction_type.in_(
+    [TransactionType.INCOME, TransactionType.EXPENSE, TransactionType.ADJUSTMENT]
 )
-def handle_calendar_clicks(day_clicks, txn_clicks):
-    triggered_id = ctx.triggered_id
+```
+Новые типы будут игнорироваться!
 
-    if triggered_id.get("type") == "tooltip-txn":
-        # Открыть edit-modal, НЕ вызывать calendar-day логику
-        return ...
-    elif triggered_id.get("type") == "calendar-day":
-        # Открыть create-modal
-        return ...
+2. В `_get_recurring_instances_for_period()`:
+```python
+if inst["transaction_type"] == "income":
+    total += inst["amount"]
+elif inst["transaction_type"] == "expense":
+    total -= inst["amount"]
+```
+SAVINGS_RESERVE и SAVINGS_CONTRIBUTION не обрабатываются!
+
+**Почему критично:**
+- Операции "Резерв на цели" НЕ будут влиять на баланс в календаре
+- Нарушает основное требование FR-4: "Влияет на баланс как EXPENSE"
+
+**Рекомендация:**
+Добавить в решение детальное описание изменений CalendarService:
+
+```python
+# В _calculate_balance_before_date и _get_daily_changes:
+Transaction.transaction_type.in_(
+    [
+        TransactionType.INCOME,
+        TransactionType.EXPENSE,
+        TransactionType.ADJUSTMENT,
+        TransactionType.SAVINGS_RESERVE,      # NEW
+        TransactionType.SAVINGS_CONTRIBUTION, # NEW
+    ]
+)
+
+# В case выражении добавить:
+(TransactionType.SAVINGS_RESERVE, -Transaction.amount),
+(TransactionType.SAVINGS_CONTRIBUTION, -Transaction.amount),
+
+# В _get_recurring_instances_for_period добавить:
+elif inst["transaction_type"] in ("savings_reserve", "savings_contribution"):
+    total -= inst["amount"]
+```
+
+---
+
+### 3. Не описана связь GoalContribution с Transaction
+
+**Где:**
+- Brief FR-5: "Связь с GoalContribution через description или FK"
+- Solution: Не адресовано
+
+**Проблема:**
+При создании операции "Взнос: {цель}" в режиме "from_balance" создаются две записи:
+1. Transaction (SAVINGS_CONTRIBUTION)
+2. GoalContribution
+
+Между ними нет связи! Если пользователь отредактирует сумму в Transaction, GoalContribution останется с старой суммой.
+
+**Почему критично:**
+- Inconsistency данных: Goal.current_amount != SUM(SAVINGS_CONTRIBUTION)
+- Непонятно как синхронизировать при edit/delete
+
+**Рекомендация:**
+Добавить FK в GoalContribution:
+
+```python
+class GoalContribution(Base):
+    ...
+    transaction_id = Column(
+        Integer,
+        ForeignKey("transactions.id", ondelete="SET NULL"),
+        nullable=True  # NULL для режима "fixed_date" и legacy
+    )
+```
+
+Или использовать description как soft link (менее надежно):
+```python
+# При создании
+description = f"tx:{transaction.id}"  # машинно-парсимый формат
 ```
 
 ---
 
 ## 🟡 Важные проблемы (Should Fix)
 
-### 2. dcc.Store для expand state не масштабируется
+### 4. Не обработан edge case: изменение monthly_savings_budget
 
 **Где:**
-- Секция "Callbacks (calendar.py)" в solution-v1.md
-- План реализации, Шаг 4
+- `GoalService.update_savings_budget()`
+- `BudgetReservationService._create_reserve_template()`
 
 **Проблема:**
-Предлагается создать dcc.Store "tooltip-expanded-{date}" для каждой даты. При отображении месяца это ~35 Store компонентов. При навигации между месяцами:
-- Старые Stores остаются в DOM
-- Новые создаются
-- Memory leak в долгой сессии
+Если пользователь изменит `monthly_savings_budget` после создания recurring шаблона "Резерв на цели":
+1. Шаблон сохранит старую сумму
+2. Новые экземпляры будут генерироваться со старой суммой
 
-**Почему важно:**
-- Performance degradation при продолжительном использовании
-- Увеличивает размер callback context
-- Противоречит best practices Dash
+**Сценарий:**
+```
+1. User.monthly_savings_budget = 30000
+2. Создан шаблон SAVINGS_RESERVE с amount=30000
+3. Пользователь изменяет бюджет на 50000
+4. В календаре по-прежнему показывается 30000
+```
 
 **Рекомендация:**
-Вариант A (рекомендуемый): CSS-only expand через hidden checkbox hack:
-```html
-<input type="checkbox" id="expand-{date}" class="tooltip-expand-checkbox">
-<label for="expand-{date}" class="tooltip-expand-btn">ещё 5...</label>
-<div class="tooltip-hidden-txns">...</div>
-```
-```css
-.tooltip-expand-checkbox { display: none; }
-.tooltip-expand-checkbox:checked ~ .tooltip-hidden-txns { display: block; }
-.tooltip-expand-checkbox:checked ~ .tooltip-expand-btn { display: none; }
-```
+Добавить в `GoalService.update_savings_budget()` или создать хук:
 
-Вариант B: Один глобальный Store с expanded date:
 ```python
-dcc.Store(id="tooltip-expanded-date", data=None)  # Хранит одну дату
+def update_savings_budget(self, user_id: int, budget: Decimal) -> None:
+    # ... existing logic ...
+
+    # Обновить сумму recurring шаблона если есть
+    if user.reservation_mode == "fixed_date":
+        template = self._get_reserve_template(user_id)
+        if template:
+            template.amount = budget
+            self.session.flush()
 ```
 
-### 3. Отсутствует обработка `is_skipped` транзакций в tooltip
+---
+
+### 5. Отсутствует обработка SAVINGS_CONTRIBUTION в UI календаря
 
 **Где:**
-- `_build_day_tooltip()` function signature
-- TransactionInfo TypedDict
+- Решение Фаза 6: "Визуализация SAVINGS_RESERVE"
+- `app/components/calendar.py`
 
 **Проблема:**
-В существующем TransactionInfo нет поля `is_skipped`, но оно используется в `build_day_cell()` для визуализации пропущенных операций. Tooltip должен отображать пропущенные операции отлично от активных (зачеркнутый текст, другой цвет).
-
-Brief (FR3) требует: "иконку категории/типа, описание/название, сумму с цветом". Пропущенные операции должны иметь явную визуальную индикацию.
-
-**Почему важно:**
-- Пользователь не поймет почему операция "в календаре" но не влияет на баланс
-- Несоответствие между визуализацией в ячейке и в tooltip
+План упоминает только визуализацию SAVINGS_RESERVE (шаг 15-16), но не описывает:
+1. Как отображать SAVINGS_CONTRIBUTION
+2. Какая иконка/цвет
+3. Tooltip для "Взнос: {цель}"
+4. Можно ли редактировать (brief говорит "да", но не описано как)
 
 **Рекомендация:**
-Добавить `is_skipped` в TransactionInfo (уже есть в Transaction model) и соответствующую визуализацию:
-```css
-.tooltip-txn-row.skipped {
-    opacity: 0.5;
-    text-decoration: line-through;
-}
+Добавить в Фазу 6:
+```markdown
+### Фаза 6: Calendar UI (4 шага, не 2)
+15. Визуализация SAVINGS_RESERVE (иконка 💼, read-only)
+16. Визуализация SAVINGS_CONTRIBUTION (иконка 🎯, editable)
+17. Tooltip для обоих типов с контекстной информацией
+18. Интеграция edit modal с SAVINGS_CONTRIBUTION (обновление GoalContribution)
 ```
 
-### 4. Нет delay на hide tooltip при уходе мыши
+---
+
+### 6. _create_reserve_template не использует Anchored-алгоритм
 
 **Где:**
-- CSS стили `.calendar-day-tooltip`
-- Секция "Риски и mitigation"
+- `BudgetReservationService._create_reserve_template()`, строки 343-359
 
 **Проблема:**
-В рисках указано "Клик по tooltip закрывает его (mouse leave)" с mitigation "Увеличить padding; добавить delay на hide". Однако в CSS реализации delay отсутствует.
-
-При перемещении мыши от ячейки к tooltip (если есть gap) tooltip исчезнет до того, как пользователь успеет кликнуть.
-
-**Почему важно:**
-- UX friction при попытке кликнуть на операцию
-- Особенно заметно на мобильных с touch events
-
-**Рекомендация:**
-Добавить transition-delay на hide:
-```css
-.calendar-day-tooltip {
-    transition: opacity 0.2s ease 0.15s, transform 0.2s ease 0.15s;
-    /* 0.15s delay перед hide */
-}
-
-.calendar-day:hover .calendar-day-tooltip {
-    transition-delay: 0s; /* Мгновенное появление */
-    opacity: 1;
-}
-```
-
-### 5. TooltipTransactionItem дублирует TransactionInfo
-
-**Где:**
-- `app/schema/calendar_tooltip.py` (предлагаемый)
-- Существующий `calendar_service.py`, TransactionInfo
-
-**Проблема:**
-Решение предлагает создать новый TypedDict `TooltipTransactionItem` с полями, которые уже есть в TransactionInfo. Это нарушает DRY и создает дополнительную maintenance burden.
-
-В solution сказано "(опционально, можно работать напрямую с TransactionInfo)" — рекомендую выбрать именно этот путь.
-
-**Рекомендация:**
-Использовать TransactionInfo напрямую. Для форматирования суммы создать helper function:
+Код вручную вычисляет start_date с учетом коротких месяцев:
 ```python
-def format_amount_for_tooltip(txn: TransactionInfo) -> tuple[str, str]:
-    """Returns (formatted_amount, css_class)."""
-    amount = Decimal(txn["amount"])
-    if txn["transaction_type"] == "income":
-        return f"+{amount:,.0f}".replace(",", " "), "income"
-    else:
-        return f"-{amount:,.0f}".replace(",", " "), "expense"
+from calendar import monthrange
+_, last_day = monthrange(today.year, today.month)
+actual_day = min(day_of_month, last_day)
+```
+
+Но RecurringService уже имеет `_get_anchored_date()` для этого! Дублирование логики.
+
+**Почему важно:**
+- Нарушает DRY
+- При изменении Anchored-алгоритма придется обновлять в двух местах
+- Риск расхождения поведения
+
+**Рекомендация:**
+```python
+def _create_reserve_template(self, user_id: int, day_of_month: int) -> Transaction:
+    today = date.today()
+
+    # Переиспользовать _get_anchored_date
+    start_date = self.recurring_service._get_anchored_date(
+        day_of_month, today.year, today.month
+    )
+
+    # Если дата уже прошла — следующий месяц
+    if start_date < today:
+        next_month = today.month + 1 if today.month < 12 else 1
+        next_year = today.year if today.month < 12 else today.year + 1
+        start_date = self.recurring_service._get_anchored_date(
+            day_of_month, next_year, next_month
+        )
+    ...
+```
+
+---
+
+### 7. Нет валидации режима при add_contribution
+
+**Где:**
+- `GoalService.add_contribution()` (планируемое расширение)
+
+**Проблема:**
+В решении указано что add_contribution будет вызывать `create_contribution_transaction()`, но не описана валидация:
+1. Что если бюджет = 0? (Создавать транзакцию?)
+2. Что если goal уже COMPLETED?
+3. Что если user.reservation_mode изменился между получением формы и submit?
+
+**Рекомендация:**
+Добавить валидацию:
+```python
+def add_contribution(...):
+    # Guard: бюджет не настроен
+    user = self.session.get(User, goal.user_id)
+    if user.monthly_savings_budget == 0:
+        logger.warning("Contribution without budget configured")
+        # Решение: все равно создавать или skip transaction?
+
+    # Guard: цель уже завершена
+    if goal.status == GoalStatus.COMPLETED:
+        raise ValidationError("Невозможно внести взнос в завершенную цель")
+```
+
+---
+
+### 8. Не описана индексация для производительности
+
+**Где:**
+- `app/models/database.py` (планируемые изменения)
+- NFR-1: "Расчет доступного бюджета < 50ms"
+
+**Проблема:**
+Метод `_get_contributions_sum_for_month()` выполняет JOIN между GoalContribution и Goal с фильтром по дате:
+```python
+.filter(
+    Goal.user_id == user_id,
+    GoalContribution.contribution_date >= first_day,
+    GoalContribution.contribution_date <= last_day,
+)
+```
+
+Без индекса на `contribution_date` запрос может быть медленным.
+
+**Рекомендация:**
+Добавить индекс в GoalContribution:
+```python
+class GoalContribution(Base):
+    __table_args__ = (
+        Index("ix_contribution_date", "contribution_date"),
+    )
 ```
 
 ---
 
 ## 🟢 Незначительные замечания (Optional)
 
-### 6. Edge detection через nth-child не учитывает padding days
+### 9. Неконсистентный status в BudgetProgress
 
 **Где:**
-- CSS правила `.calendar-day:nth-child(6)`, `.calendar-day:nth-child(7)`
+- `BudgetProgress.status`: "ok" | "warning" | "danger" | "over"
 
-**Проблема:**
-nth-child считает все дни в неделе, включая дни предыдущего/следующего месяца. Для крайних правых дней edge detection работает корректно. Однако семантически это не совсем точно — лучше использовать nth-child(7n-1) и nth-child(7n).
+**Замечание:**
+В Brief FR-3 указано:
+- 0-70%: зеленый (ok)
+- 70-90%: желтый (warning)
+- 90-100%: оранжевый (???)
+- >100%: красный (danger)
 
-**Рекомендация:**
-```css
-.calendar-day:nth-child(7n-1) .calendar-day-tooltip,
-.calendar-day:nth-child(7n) .calendar-day-tooltip {
-    left: auto;
-    right: 0;
-}
-```
+В решении 90-100% = "danger", >100% = "over".
 
-### 7. Константа MAX_VISIBLE_TRANSACTIONS не определена
-
-**Где:**
-- `_build_day_tooltip()` упоминает MAX_VISIBLE_TRANSACTIONS (5)
-- Нет в констант
+Несоответствие naming conventions. "orange" не маппится на CSS классы Bootstrap.
 
 **Рекомендация:**
-Добавить в начало calendar.py:
 ```python
-MAX_VISIBLE_TRANSACTIONS = 5
+status: Literal["success", "warning", "danger", "over"]
+# или использовать числовой progress для CSS решения в UI
 ```
 
-### 8. Нет aria-атрибутов для accessibility
+---
+
+### 10. Docstrings на английском вместо русского
 
 **Где:**
-- Tooltip HTML structure
+- `BudgetReservationService` и TypedDicts
+
+**Замечание:**
+CLAUDE.md указывает "Docstrings in Russian", но решение использует смешанный подход.
 
 **Рекомендация:**
-Добавить ARIA для screen readers:
-```python
-html.Div(
-    [tooltip_content],
-    role="tooltip",
-    aria_label=f"Операции на {day_date.strftime('%d.%m.%Y')}",
-    className="calendar-day-tooltip",
-)
-```
+Перевести на русский для consistency.
+
+---
+
+### 11. Нет fallback для category_id в операциях
+
+**Где:**
+- `create_contribution_transaction()`
+
+**Замечание:**
+Операция создается без category_id. Brief указывает что это нормально (аналогично ADJUSTMENT), но стоит явно указать в коде и документации.
 
 ---
 
@@ -306,164 +387,155 @@ html.Div(
 
 ### Аспект 1: Соответствие требованиям
 
-**Статус:** Частично
+**Статус:** ⚠️ Частично
 
-**Детали:**
-- FR1 (tooltip только для дней с операциями): Покрыт (возврат None)
-- FR2 (содержимое: баланс + до 5 операций): Покрыт
-- FR3 (отображение операции): Частично (is_skipped не учтен)
-- FR4 (кнопка "ещё N..."): Покрыт в дизайне
-- FR5 (раскрытие в том же tooltip): Покрыт, но архитектура Store проблемная
-- FR6 (клик открывает edit-modal): КРИТИЧНО - bubbling проблема
-- FR7 (recurring открывает scope-modal): Покрыт в дизайне
-- NFR1-NFR5: В основном покрыты
-
-**Комментарий:**
-Большинство требований учтено, но критичная проблема с click handlers блокирует FR6/FR7.
+| Requirement | Статус | Комментарий |
+|-------------|--------|-------------|
+| FR-1: Два режима | ✅ | Полностью покрыто |
+| FR-2: Динамический бюджет | ✅ | get_budget_progress() реализован |
+| FR-3: Визуализация | ⚠️ | Status naming не соответствует brief |
+| FR-4: SAVINGS_RESERVE | ⚠️ | Не описана интеграция с CalendarService |
+| FR-5: SAVINGS_CONTRIBUTION | ⚠️ | Нет связи с GoalContribution |
+| FR-6: Переключение режимов | ✅ | set_mode() обрабатывает |
+| FR-7: Anchored-алгоритм | ⚠️ | Дублирование вместо переиспользования |
+| NFR-1: <50ms | ⚠️ | Нет индексов |
+| NFR-2: Совместимость | ✅ | Покрыто |
+| NFR-3: Type Safety | ✅ | TypedDicts созданы |
 
 ### Аспект 2: Архитектурное качество
 
-**Статус:** Хорошо
+**Статус:** ✅ Хорошо
 
-**Детали:**
-- SOLID: SRP соблюдается (отдельные функции для tooltip, row)
-- Coupling: Низкий, использует существующие интерфейсы
-- Cohesion: Высокая, логика tooltip сгруппирована
-- Совместимость с архитектурой: Да (ADR-003, Pattern-Matching)
+- **SOLID**: В целом соблюдается
+  - SRP: BudgetReservationService имеет одну ответственность
+  - OCP: Расширение через новые типы, не модификация
+  - LSP: N/A
+  - ISP: TypedDicts минимальны
+  - DIP: Зависимость от Session (абстракция)
 
-**Проблемы:**
-- DRY violation с TooltipTransactionItem (важно)
-- Store per date не масштабируется (важно)
+- **Coupling**: Medium - зависимость от RecurringService корректна
+- **Cohesion**: High - связанная функциональность в одном сервисе
+
+**Замечание:** Proxy-методы в GoalService создают coupling, но это осознанный trade-off для удобства API.
 
 ### Аспект 3: Производительность
 
-**Статус:** Хорошо
+**Статус:** ⚠️ Требует внимания
 
-**Детали:**
-- Сложность алгоритмов: O(n) где n = количество транзакций дня
-- Bottlenecks: Нет server round-trip на hover
-- Масштабируемость: Store-per-date проблема при долгих сессиях
+- `_get_contributions_sum_for_month()`: SQL агрегация - OK
+- Отсутствие индекса на `contribution_date` - риск
+- Множественные запросы в `get_budget_progress()` - можно оптимизировать
 
-### Аспект 4: Обработка ошибок и edge cases
+**Рекомендация:** Добавить индексы, рассмотреть кэширование budget_progress.
 
-**Статус:** Хорошо
+### Аспект 4: Обработка ошибок
 
-**Детали:**
-- Покрытие ошибок: 80%
-- Edge cases: Пустой tooltip, >5 операций, виртуальные — покрыты
-- Fallback стратегии: fallback emoji, None return
+**Статус:** ✅ Хорошо
 
-**Пропущено:**
-- is_skipped транзакции
-- Очень длинные description (text-overflow есть, но не протестировано)
+- ValidationError используется корректно
+- Проверка user existence
+- Guard clauses в set_mode()
+
+**Пробел:** Нет обработки concurrent modification (два табы, один user)
 
 ### Аспект 5: Безопасность
 
-**Статус:** Нет проблем
+**Статус:** ✅ Хорошо
 
-**Детали:**
-- Input validation: Не применимо (readonly tooltip)
-- XSS: Dash экранирует по умолчанию
-- Secrets: Не применимо
+- Нет SQL injection (ORM)
+- user_id проверяется
+- Нет секретов в коде
 
 ### Аспект 6: Сложность реализации
 
-**Статус:** Адекватно
+**Статус:** ✅ Реалистично
 
-**Детали:**
-- Реалистичность оценки: 3.5 часа — реалистично при отсутствии критичной проблемы
-- Скрытая сложность: Click handler conflict потребует рефакторинга build_day_cell
-- Зависимости: Не требуются новые
+- 17 шагов / 4-5 батчей - реалистичная оценка
+- Нет новых зависимостей
+- Переиспользование существующих сервисов
+
+**Риск:** UI часть (Фаза 5-6) может занять больше времени из-за callbacks.
 
 ### Аспект 7: Альтернативные подходы
 
-**Статус:** Частично
+**Статус:** ⚠️ Не рассмотрены
 
-**Детали:**
-- Рассмотрены CSS-only vs callback-based: Да
-- Обоснование выбора: Да (нет server round-trip)
-- Альтернатива для expand: Упомянута но не детализирована
+Решение не обсуждает альтернативы. Предлагаю:
+
+**Альтернатива A: Использовать существующие типы**
+- SAVINGS_RESERVE = EXPENSE с специальной категорией "Накопления"
+- Плюсы: Меньше изменений в CalendarService
+- Минусы: Семантически неверно, путаница с реальными расходами
+
+**Альтернатива B: Отдельная таблица BudgetReservation**
+- Не Transaction, а отдельная сущность
+- Плюсы: Чистое разделение доменов
+- Минусы: Больше кода, сложнее интеграция с календарем
+
+**Вывод:** Текущий подход (новые TransactionType) оптимален.
 
 ---
 
 ## 🔄 Альтернативные подходы
 
-### Подход A: dcc.Tooltip компонент
+### Подход A: Soft Link через description вместо FK
 
 **Идея:**
-Использовать dash-bootstrap-components dbc.Tooltip вместо кастомного CSS:
+Вместо добавления GoalContribution.transaction_id использовать парсимый description:
 ```python
-dbc.Tooltip(
-    _build_tooltip_content(...),
-    target={"type": "calendar-day", "date": day_date.isoformat()},
-    placement="bottom",
-)
+description = f"contribution:{contribution_id}:{goal_name}"
 ```
 
 **Плюсы:**
-- Автоматическое позиционирование
-- Решает проблему edge detection
-- Меньше CSS кода
+- Нет миграции БД
+- Обратная совместимость
 
 **Минусы:**
-- Требует server callback для content (не CSS-only)
-- Менее кастомизируемый glassmorphism
-- Pattern-Matching targets могут не работать с dbc.Tooltip
+- Ненадежно (можно сломать парсинг)
+- Нет referential integrity
 
-**Рекомендация:**
-Не рекомендуется — текущий CSS-only подход лучше для UX.
-
-### Подход B: Tooltip как отдельный overlay вне calendar grid
-
-**Идея:**
-Один глобальный tooltip div, позиционируемый через JavaScript при hover:
-```python
-html.Div(id="global-calendar-tooltip", className="calendar-tooltip-overlay")
-```
-
-**Плюсы:**
-- Нет проблем с bubbling (tooltip вне calendar-day)
-- Один Store для всех данных
-- Проще z-index management
-
-**Минусы:**
-- Требует clientside_callback для позиционирования
-- Сложнее синхронизация с hover state
-- Менее "Dash-native"
-
-**Рекомендация:**
-Не рекомендуется — добавляет сложность без существенных преимуществ.
+**Рекомендация:** Использовать FK (текущий подход лучше).
 
 ---
 
 ## ❓ Вопросы для архитектора
 
-1. **Click handler priority**: Предусмотрен ли в Dash механизм stopPropagation для Pattern-Matching callbacks? Или единственное решение — restructuring DOM?
+1. **Связь Transaction-GoalContribution**: Как синхронизировать при редактировании суммы в календаре? Обновлять GoalContribution автоматически или запрещать edit?
 
-2. **Store cleanup**: Планируется ли очистка Stores при навигации между месяцами? Если да — какой механизм?
+2. **Изменение бюджета**: При изменении `monthly_savings_budget` обновлять сумму шаблона автоматически или создавать новый шаблон?
 
-3. **Mobile UX**: Brief говорит "Tooltip появляется ТОЛЬКО при наведении" — на мобильных нет hover. Планируется ли fallback (tap → tooltip) или tooltip отключен на mobile (как в CSS)?
+3. **Delete SAVINGS_CONTRIBUTION**: Если пользователь удалит операцию в календаре, что делать с GoalContribution? Удалять каскадно или запретить удаление?
 
-4. **Edit recurring flow**: При клике на виртуальную recurring операцию должен открываться recurring-edit-scope-modal. Но в tooltip нет визуального отличия recurring от обычных. Нужна ли индикация?
+4. **Режим по умолчанию**: Brief указывает "from_balance" как default. Это корректно? Большинство пользователей ожидают "fixed_date"?
+
+5. **Recurring template для SAVINGS_RESERVE**: Использовать ли EOM anchor (recurring_anchor_eom) для 31-го числа?
 
 ---
 
 ## 📋 Рекомендации для следующей итерации
 
 ### Обязательно:
-1. **Исправить click handler conflict** — реструктурировать DOM так, чтобы tooltip не был вложен в кликабельную область дня, или использовать единый callback с ctx.triggered_id routing
+1. **Исправить import timedelta** в `_stop_reserve_template()`
+2. **Описать изменения CalendarService** с конкретным кодом обработки новых типов
+3. **Определить связь Transaction-GoalContribution** (FK или soft link)
 
 ### Желательно:
-2. **Заменить Store-per-date на CSS-only expand** — использовать checkbox hack или один глобальный Store
-3. **Добавить is_skipped визуализацию** — транзакции is_skipped должны отображаться зачеркнутыми
-4. **Добавить transition-delay на hide** — улучшит UX при перемещении мыши к tooltip
+4. Переиспользовать `_get_anchored_date()` вместо дублирования логики
+5. Добавить индекс на `GoalContribution.contribution_date`
+6. Описать обработку edge case "изменение monthly_savings_budget"
+7. Расширить Фазу 6 для SAVINGS_CONTRIBUTION UI
 
 ### Опционально:
-5. **Использовать TransactionInfo напрямую** — убрать TooltipTransactionItem
-6. **Исправить nth-child селекторы** — использовать 7n-1, 7n для корректности
-7. **Добавить ARIA атрибуты** — улучшит accessibility
+8. Унифицировать status naming с CSS классами Bootstrap
+9. Перевести docstrings на русский
+10. Добавить fallback handling для budget=0
 
 ---
 
-## 🔄 Изменения с предыдущей итерации
-(N/A - это первая итерация)
+## 💭 Заметки критика
+
+Решение в целом хорошее и следует паттернам проекта. Основная проблема - неполная спецификация интеграции с CalendarService, которая является ключевой для функциональности. Также важно определить data model для связи Transaction-GoalContribution до начала кодирования.
+
+Оценка 4/5 означает готовность к кодированию после исправления 3 критичных проблем (все fixable без architectural changes).
+
+Время на исправление: ~1-2 часа документации.
