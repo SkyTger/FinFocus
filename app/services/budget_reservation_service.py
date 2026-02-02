@@ -572,3 +572,90 @@ class BudgetReservationService:
             )
 
         return True
+
+    def adjust_reserve_for_contribution(
+        self,
+        user_id: int,
+        contribution_date: date,
+        contribution_amount: Decimal,
+    ) -> None:
+        """Корректирует сумму резерва при досрочном взносе (режим fixed_date).
+
+        Создаёт/обновляет Exception для recurring шаблона резервирования.
+        Вызывается из GoalService.add_contribution() если:
+        - Режим = fixed_date
+        - contribution_date < reservation_day текущего месяца
+
+        Args:
+            user_id: ID пользователя.
+            contribution_date: Дата взноса.
+            contribution_amount: Сумма взноса (для логирования).
+        """
+        # 1. Получить настройки
+        settings = self.get_settings(user_id)
+
+        # 2. Guard: только для fixed_date режима
+        if settings["mode"] != "fixed_date":
+            return
+
+        # 3. Определить дату резерва текущего месяца
+        reserve_day = settings["day_of_month"]
+        if reserve_day is None:
+            return
+
+        # Дата резерва в текущем месяце (учитываем короткие месяцы)
+        _, last_day = monthrange(contribution_date.year, contribution_date.month)
+        reserve_date = date(
+            contribution_date.year,
+            contribution_date.month,
+            min(reserve_day, last_day),
+        )
+
+        # 4. Guard: взнос после резерва — не корректируем
+        if contribution_date >= reserve_date:
+            return
+
+        # 5. Получить шаблон резерва
+        template = self._get_reserve_template(user_id)
+        if not template:
+            return
+
+        # 6. Посчитать сумму взносов до даты резерва в текущем месяце
+        month_start = date(contribution_date.year, contribution_date.month, 1)
+        contributions_sum = (
+            self.session.query(func.coalesce(func.sum(GoalContribution.amount), 0))
+            .join(Goal, Goal.id == GoalContribution.goal_id)
+            .filter(
+                Goal.user_id == user_id,
+                GoalContribution.contribution_date >= month_start,
+                GoalContribution.contribution_date < reserve_date,
+            )
+            .scalar()
+        )
+        contributions_sum = Decimal(str(contributions_sum))
+
+        # 7. Рассчитать новую сумму
+        budget = settings["monthly_budget"]
+        new_amount = max(budget - contributions_sum, Decimal("0"))
+
+        # 8. Определить description
+        if new_amount == 0:
+            description = f"{RESERVE_DESCRIPTION} (внесено досрочно)"
+        else:
+            description = RESERVE_DESCRIPTION
+
+        # 9. Создать/обновить Exception
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(self.session)
+        recurring_service.create_exception(
+            template_id=template.id,
+            instance_date=reserve_date,
+            amount=new_amount,
+            description=description,
+        )
+
+        logger.info(
+            f"User {user_id}: adjusted reserve for {reserve_date}, "
+            f"contribution={contribution_amount}, new_amount={new_amount}"
+        )

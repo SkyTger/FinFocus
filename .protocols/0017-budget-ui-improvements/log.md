@@ -30,8 +30,14 @@ Restore context: protocol-0017#ctx-1
 - Удалён неиспользуемый импорт `BudgetProgress`
 - Итого удалено: ~130 строк кода
 
-### Step 3 — Update Summary (commit: pending)
+### Step 3 — Update Summary (commit: fa13a27)
 - Добавлен параметр `budget_progress: BudgetProgress` в `_build_summary_section()`
 - Добавлен импорт BudgetProgress
 - Обновлена секция "Бюджет накоплений": формат "used / total" с подписью "В текущем месяце"
 - В `_recalculate_and_render()` добавлен вызов BudgetReservationService.get_budget_progress()
+
+### Step 4 — Fixed Date Mechanism (commit: pending)
+- Добавлен метод `adjust_reserve_for_contribution()` в BudgetReservationService (~70 строк)
+- Логика: взнос ДО даты резерва → создать Exception с уменьшенной суммой
+- Если сумма взносов >= бюджета → description "(внесено досрочно)"
+- Использует RecurringService.create_exception() для создания Exception
