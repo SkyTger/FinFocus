@@ -36,8 +36,20 @@ Restore context: protocol-0017#ctx-1
 - Обновлена секция "Бюджет накоплений": формат "used / total" с подписью "В текущем месяце"
 - В `_recalculate_and_render()` добавлен вызов BudgetReservationService.get_budget_progress()
 
-### Step 4 — Fixed Date Mechanism (commit: pending)
+### Step 4 — Fixed Date Mechanism (commit: 5d5074d)
 - Добавлен метод `adjust_reserve_for_contribution()` в BudgetReservationService (~70 строк)
 - Логика: взнос ДО даты резерва → создать Exception с уменьшенной суммой
 - Если сумма взносов >= бюджета → description "(внесено досрочно)"
 - Использует RecurringService.create_exception() для создания Exception
+
+### Step 5 — Integration Tests (commit: pending)
+- Интеграция: вызов adjust_reserve_for_contribution() добавлен в GoalService.add_contribution()
+- Исправлен вызов RecurringService.create_exception() (правильные аргументы: original_date, new_amount, new_description)
+- 6 unit тестов для TestAdjustReserveForContribution:
+  - test_from_balance_mode_no_action
+  - test_contribution_after_reserve_date_no_exception
+  - test_contribution_before_reserve_date_creates_exception
+  - test_contribution_equals_budget_zero_amount
+  - test_contribution_exceeds_budget_zero_amount
+  - test_no_template_no_action
+- Все 402 теста проходят

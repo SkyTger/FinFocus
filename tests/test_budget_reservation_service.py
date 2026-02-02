@@ -583,3 +583,235 @@ class TestSyncTemplateAmount:
         result = service.sync_template_amount(test_user.id)
 
         assert result is False
+
+
+class TestAdjustReserveForContribution:
+    """Тесты для adjust_reserve_for_contribution()."""
+
+    def test_from_balance_mode_no_action(self, db_session, test_user):
+        """В режиме from_balance метод ничего не делает."""
+        test_user.monthly_savings_budget = Decimal("50000")
+        test_user.reservation_mode = "from_balance"
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+
+        # Не должно быть exception
+        service.adjust_reserve_for_contribution(
+            user_id=test_user.id,
+            contribution_date=date(2026, 2, 5),
+            contribution_amount=Decimal("10000"),
+        )
+
+        # Проверяем что никаких шаблонов/exceptions не создано
+        templates = (
+            db_session.query(Transaction)
+            .filter(Transaction.transaction_type == TransactionType.SAVINGS_RESERVE)
+            .all()
+        )
+        assert len(templates) == 0
+
+    def test_contribution_after_reserve_date_no_exception(self, db_session, test_user):
+        """Взнос после даты резерва не создаёт Exception."""
+        test_user.monthly_savings_budget = Decimal("50000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        # Создать шаблон: резерв 15-го числа
+        service.set_mode(test_user.id, "fixed_date", 15)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        # Взнос 20-го числа (после резерва)
+        service.adjust_reserve_for_contribution(
+            user_id=test_user.id,
+            contribution_date=date(2026, 2, 20),
+            contribution_amount=Decimal("10000"),
+        )
+        db_session.commit()
+
+        # Проверяем что exception не создан
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(db_session)
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 0
+
+    def test_contribution_before_reserve_date_creates_exception(
+        self, db_session, test_user
+    ):
+        """Взнос до даты резерва создаёт Exception с уменьшенной суммой."""
+        test_user.monthly_savings_budget = Decimal("50000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        # Создать шаблон: резерв 15-го числа
+        service.set_mode(test_user.id, "fixed_date", 15)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        # Создать цель и взнос
+        goal = Goal(
+            user_id=test_user.id,
+            name="Test Goal",
+            target_amount=Decimal("100000"),
+            current_amount=Decimal("0"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+            priority=1,
+        )
+        db_session.add(goal)
+        db_session.flush()
+
+        # Создать contribution (5-е число, 10000₽)
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("10000"),
+            contribution_date=date(2026, 2, 5),
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        # Вызов метода
+        service.adjust_reserve_for_contribution(
+            user_id=test_user.id,
+            contribution_date=date(2026, 2, 5),
+            contribution_amount=Decimal("10000"),
+        )
+        db_session.commit()
+
+        # Проверяем что exception создан с суммой 40000 (50000 - 10000)
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(db_session)
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 1
+        exc = exceptions[0]
+        assert exc.amount == Decimal("40000")
+
+    def test_contribution_equals_budget_zero_amount(self, db_session, test_user):
+        """Если взносы = бюджету, Exception с суммой 0."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", 15)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        # Создать цель и взнос на всю сумму бюджета
+        goal = Goal(
+            user_id=test_user.id,
+            name="Test Goal",
+            target_amount=Decimal("100000"),
+            current_amount=Decimal("0"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+            priority=1,
+        )
+        db_session.add(goal)
+        db_session.flush()
+
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("10000"),
+            contribution_date=date(2026, 2, 5),
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        service.adjust_reserve_for_contribution(
+            user_id=test_user.id,
+            contribution_date=date(2026, 2, 5),
+            contribution_amount=Decimal("10000"),
+        )
+        db_session.commit()
+
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(db_session)
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 1
+        exc = exceptions[0]
+        assert exc.amount == Decimal("0")
+        assert "(внесено досрочно)" in exc.description
+
+    def test_contribution_exceeds_budget_zero_amount(self, db_session, test_user):
+        """Если взносы > бюджета, Exception с суммой 0 (не отрицательной)."""
+        test_user.monthly_savings_budget = Decimal("10000")
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+        service.set_mode(test_user.id, "fixed_date", 15)
+        db_session.commit()
+
+        settings = service.get_settings(test_user.id)
+        template_id = settings["template_id"]
+
+        goal = Goal(
+            user_id=test_user.id,
+            name="Test Goal",
+            target_amount=Decimal("100000"),
+            current_amount=Decimal("0"),
+            target_date=date(2026, 12, 31),
+            status=GoalStatus.ACTIVE,
+            priority=1,
+        )
+        db_session.add(goal)
+        db_session.flush()
+
+        # Взнос больше бюджета
+        contribution = GoalContribution(
+            goal_id=goal.id,
+            amount=Decimal("20000"),
+            contribution_date=date(2026, 2, 5),
+        )
+        db_session.add(contribution)
+        db_session.commit()
+
+        service.adjust_reserve_for_contribution(
+            user_id=test_user.id,
+            contribution_date=date(2026, 2, 5),
+            contribution_amount=Decimal("20000"),
+        )
+        db_session.commit()
+
+        from app.services import RecurringService
+
+        recurring_service = RecurringService(db_session)
+        exceptions = recurring_service.get_exceptions_for_template(template_id)
+        assert len(exceptions) == 1
+        exc = exceptions[0]
+        assert exc.amount == Decimal("0")  # Не отрицательная!
+        assert "(внесено досрочно)" in exc.description
+
+    def test_no_template_no_action(self, db_session, test_user):
+        """Если нет шаблона, метод ничего не делает."""
+        test_user.monthly_savings_budget = Decimal("50000")
+        test_user.reservation_mode = "fixed_date"
+        test_user.reservation_day = 15
+        db_session.commit()
+
+        service = BudgetReservationService(db_session)
+
+        # Не создаём шаблон через set_mode, просто устанавливаем режим вручную
+        # Метод должен корректно обработать отсутствие шаблона
+        service.adjust_reserve_for_contribution(
+            user_id=test_user.id,
+            contribution_date=date(2026, 2, 5),
+            contribution_amount=Decimal("10000"),
+        )
+
+        # Никаких ошибок и изменений
+        templates = (
+            db_session.query(Transaction)
+            .filter(Transaction.transaction_type == TransactionType.SAVINGS_RESERVE)
+            .all()
+        )
+        assert len(templates) == 0

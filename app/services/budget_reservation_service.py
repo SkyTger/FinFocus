@@ -650,9 +650,9 @@ class BudgetReservationService:
         recurring_service = RecurringService(self.session)
         recurring_service.create_exception(
             template_id=template.id,
-            instance_date=reserve_date,
-            amount=new_amount,
-            description=description,
+            original_date=reserve_date,
+            new_amount=new_amount,
+            new_description=description,
         )
 
         logger.info(
