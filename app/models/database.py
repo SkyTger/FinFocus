@@ -35,6 +35,8 @@ class TransactionType(PyEnum):
     EXPENSE = "expense"  # Расход
     TRANSFER = "transfer"  # Перевод
     ADJUSTMENT = "adjustment"  # Корректировка сверки
+    SAVINGS_RESERVE = "savings_reserve"  # Резерв на цели (recurring)
+    SAVINGS_CONTRIBUTION = "savings_contribution"  # Взнос в цель
 
 
 class GoalStatus(PyEnum):
@@ -106,6 +108,12 @@ class User(Base):
 
     # Онбординг
     first_launch = Column(Boolean, default=True, nullable=False)
+
+    # Режим резервирования на цели (см. solution-v2.md)
+    # "from_balance" — взносы из остатка при каждом вкладе
+    # "fixed_date" — recurring резерв в фиксированный день месяца
+    reservation_mode = Column(String(20), default="from_balance", nullable=False)
+    reservation_day = Column(Integer, nullable=True)  # 1-31 для fixed_date режима
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -308,9 +316,15 @@ class Goal(Base):
 
 
 class GoalContribution(Base):
-    """Модель взноса в накопительную цель."""
+    """Модель взноса в накопительную цель.
+
+    Attributes:
+        transaction_id: Связь с транзакцией в календаре (для режима from_balance).
+            NULL для взносов до интеграции или в режиме fixed_date.
+    """
 
     __tablename__ = "goal_contributions"
+    __table_args__ = (Index("ix_contribution_date", "contribution_date"),)
 
     id = Column(Integer, primary_key=True)
     goal_id = Column(Integer, ForeignKey("goals.id"), nullable=False)
@@ -320,11 +334,19 @@ class GoalContribution(Base):
     contribution_date = Column(Date, nullable=False)
     description = Column(String(500))
 
+    # Связь с транзакцией (для интеграции с календарём)
+    transaction_id = Column(
+        Integer,
+        ForeignKey("transactions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Метаданные
     created_at = Column(DateTime, default=func.now())
 
     # Связи
     goal = relationship("Goal", back_populates="contributions")
+    transaction = relationship("Transaction")
 
     def __repr__(self) -> str:
         return (
