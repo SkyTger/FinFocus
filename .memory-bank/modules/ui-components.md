@@ -207,6 +207,67 @@ fig.update_layout(template="plotly_white", showlegend=True)
 - `{"type": "category-chip", "tx_id": tx_id, "cat_id": cat_id}` - chip кнопка категории
 - `{"type": "chip-dropdown", "index": transaction_id}` - overflow dropdown категорий
 
+## Transaction Modals Component (Глобальные модалы CRUD)
+
+**Файл**: `app/components/transaction_modals.py` (~800 строк)
+
+**Layout**:
+- create-modal — форма создания транзакции с recurring секцией
+- edit-modal — форма редактирования транзакции
+- recurring-scope-modal — выбор scope при редактировании recurring операций
+
+**dcc.Stores**:
+- modal-source — источник открытия модала (calendar/transactions/dashboard)
+- global-transaction-trigger — эмиттер обновления страниц после CRUD
+- edit-transaction-id — ID редактируемой транзакции
+- recurring-edit-context — контекст для recurring operations
+
+**Submit Callbacks** (3):
+1. **create_transaction** — создание новой операции
+   - TransactionService.create_transaction()
+   - RecurringService.create_recurring() для recurring операций
+   - emit global-transaction-trigger для refresh страниц
+
+2. **update_transaction** — обновление существующей операции
+   - TransactionService.update_transaction()
+   - Обработка recurring edit через RecurringService
+
+3. **skip_recurring_instance** — пропуск экземпляра recurring операции
+   - RecurringService.skip_instance()
+   - emit global-transaction-trigger
+
+**Recurring Edit Scope Callback** (КРИТИЧНО):
+- **process_recurring_edit_scope()** — обработка выбора scope редактирования (2026/02/02)
+  - Inputs: scope-ok-button.n_clicks, scope-radio.value, recurring-edit-context.data
+  - Outputs: edit-modal, transaction fields, category dropdown
+  - Logic:
+    - scope="all" → редактирование шаблона (template_id)
+    - scope="instance" + transaction_id → редактирование существующего exception
+    - scope="instance" + VIRTUAL op (transaction_id=None) → **AUTO-CREATE EXCEPTION** (commit cae3575)
+  - **Критичный bugfix (cae3575)**:
+    - RecurringService.create_exception() для виртуальных операций перед редактированием
+    - Предотвращает "fully NULL primary key identity" ошибку
+    - Error handling с transaction_error_alert
+  - **Context обновление**: updated_context для кнопки "Пропустить"
+
+**Category Dropdown Callbacks**:
+- load_create_category_options / update_edit_category_options — dynamic dropdown с ICON_TO_EMOJI
+- Guard clause: allow_duplicate=True для update_edit
+
+**Close Callbacks**:
+- close_create_modal / close_edit_modal — глобальные close для Cancel buttons
+
+**Ключевые паттерны**:
+- **Refresh Trigger Pattern** — global-transaction-trigger emit/listen
+- **modal-source Store** — источник открытия для Selective Refresh
+- **Auto-create exception** — виртуальные recurring ops → exception перед edit (cae3575)
+- **Error handling** — try/catch в callbacks с transaction-error-alert UI
+
+**Важно**:
+- Модалы глобальные — доступны с любой страницы
+- RecurringService.create_exception() — idempotent (возвращает существующий exception)
+- Flush/commit contract: сервис flush(), callback commit()
+
 ## Критичные проблемы и решения
 
 **ADR-003**: Pattern-Matching Callbacks auto-trigger issue
@@ -218,6 +279,12 @@ fig.update_layout(template="plotly_white", showlegend=True)
 - **Проблема**: Delete callback срабатывал автоматически после create
 - **Решение**: Проверка `ctx.triggered[0].get('value') is None`
 - **Статус**: Исправлено
+
+**BUG-002**: Edit virtual recurring operations error (2026/02/02)
+- **Проблема**: Клик по виртуальной recurring операции в tooltip → выбор "только этот экземпляр" → SQLAlchemy ошибка "fully NULL primary key identity"
+- **Root Cause**: callback пытался загрузить transaction_id=None для виртуальных операций
+- **Решение**: process_recurring_edit_scope() создаёт exception через RecurringService.create_exception() перед редактированием
+- **Статус**: Исправлено (commit cae3575)
 
 **Упрощение логики**:
 - Использование `ctx.triggered_id["index"]` напрямую вместо поиска в списках

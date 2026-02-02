@@ -7,7 +7,7 @@
 
 **Статус**: Батч 4 (Budget-Calendar Integration + UI Improvements) завершен ✅, Epic-04-Advanced Features в процессе (5/6 фичи)
 
-**Последнее обновление**: 2026-02-02 (после протокола 0018 - Budget Reservation Bugfix)
+**Последнее обновление**: 2026-02-02 (после bugfix: edit virtual recurring operations, commit cae3575)
 
 ## Быстрые ссылки на разделы
 
@@ -217,7 +217,7 @@ memory-bank/
 
 ---
 
-**Версия Memory Bank**: 3.6
+**Версия Memory Bank**: 3.7
 **Дата создания**: 2026-01-17
-**Последнее обновление**: 2026-02-02 (после протокола 0018 - Budget Reservation Bugfix)
+**Последнее обновление**: 2026-02-02 (после bugfix: edit virtual recurring operations, commit cae3575)
 **GitHub**: https://github.com/SkyTger/FinFocus

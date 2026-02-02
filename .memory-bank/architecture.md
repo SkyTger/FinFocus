@@ -106,6 +106,7 @@ def handler(input_value):
 **Критично**: Pattern-Matching Callbacks с `ALL`:
 - Проверять `ctx.triggered[0].get('value') is None` для фильтрации автовызовов
 - Использовать `ctx.triggered_id["index"]` напрямую, избегать поиска в списках
+- **Virtual recurring ops**: при редактировании виртуального экземпляра создавать exception через RecurringService.create_exception() ПЕРЕД загрузкой в edit modal (предотвращает NULL primary key error)
 
 ### Service Layer Pattern
 ```python
@@ -212,6 +213,7 @@ refresh_transactions_table() - updates table
 - ValidationError → понятное сообщение на русском
 - Database errors → rollback + user-friendly message
 - Callbacks → PreventUpdate для пропуска обработки
+- Error Alert UI → transaction-error-alert для пользовательских уведомлений
 
 ## Критичные архитектурные решения
 
