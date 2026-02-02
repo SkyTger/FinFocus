@@ -94,7 +94,9 @@ class TestContributionAffectsCalendar:
 
         assert len(reserve_txs) == 1
         # amount может быть строкой или Decimal — конвертируем для сравнения
-        assert Decimal(str(reserve_txs[0]["amount"])) == Decimal("20000")  # 30000 - 10000
+        assert Decimal(str(reserve_txs[0]["amount"])) == Decimal(
+            "20000"
+        )  # 30000 - 10000
 
     def test_contribution_after_mode_switch_updates_reserve(
         self, db_session, test_user

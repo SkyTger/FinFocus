@@ -152,9 +152,7 @@ class BudgetReservationService:
             user.reservation_day = day_of_month
             self.session.flush()
 
-            logger.info(
-                f"User {user_id}: set mode=fixed_date, day={day_of_month}"
-            )
+            logger.info(f"User {user_id}: set mode=fixed_date, day={day_of_month}")
 
         else:  # from_balance
             # Останавливаем шаблон (exceptions НЕ чистим — пригодятся при возврате)
@@ -263,16 +261,12 @@ class BudgetReservationService:
         # Guard: не пересчитываем прошедшие даты
         # Если reserve_date == today, recurring экземпляр ещё не материализован
         if reserve_date < date.today():
-            logger.debug(
-                f"Reserve date {reserve_date} already passed, skipping recalc"
-            )
+            logger.debug(f"Reserve date {reserve_date} already passed, skipping recalc")
             return False
 
         template = self._get_reserve_template(user_id)
         if not template:
-            logger.warning(
-                f"No active template for user {user_id}, skipping recalc"
-            )
+            logger.warning(f"No active template for user {user_id}, skipping recalc")
             return False
 
         # Считаем взносы ДО даты резерва (< reserve_date)
@@ -438,8 +432,8 @@ class BudgetReservationService:
         Args:
             user_id: ID пользователя.
             reference_date: Дата в целевом месяце.
-            before_date: Если указано, считает взносы строго ДО этой даты (< before_date).
-                         Используется для расчёта досрочных взносов до даты резерва.
+            before_date: Если указано, считает взносы строго ДО этой даты.
+                         Используется для расчёта досрочных взносов до резерва.
 
         Returns:
             Decimal: Сумма взносов.
@@ -645,9 +639,7 @@ class BudgetReservationService:
                 f"Cleaned up {count} orphan exception(s) for template {template_id}"
             )
         else:
-            logger.debug(
-                f"No orphan exceptions to clean up for template {template_id}"
-            )
+            logger.debug(f"No orphan exceptions to clean up for template {template_id}")
 
         return count
 
