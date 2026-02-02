@@ -23,10 +23,17 @@
 - Основа: solution-v3.md (5/5 в critique)
 - Ключевые изменения: lazy import, reference_date переименование, логирование, integration тесты
 
-### Step 1 — Helper методы (commit: pending)
+### Step 1 — Helper методы (commit: 644bef6)
 - Добавлены 4 helper метода в BudgetReservationService:
   - `_find_any_reserve_template()` — поиск любого шаблона (включая остановленный)
   - `_get_template_day()` — извлечение дня из шаблона (EOM → 31)
   - `_get_reserve_date_for_month()` — дата резерва с учётом коротких месяцев
   - `_delete_exception_for_date()` — удаление exception для даты
+- py_compile: OK
+
+### Step 2 — recalculate метод (commit: pending)
+- Добавлен `recalculate_current_month_exception(user_id, reference_date)`
+- Расширен `_get_contributions_sum_for_month` параметром `before_date`
+- Логика: нет взносов → удалить exception, есть → создать/обновить с уменьшенной суммой
+- Lazy import для RecurringService (как в adjust_reserve_for_contribution)
 - py_compile: OK

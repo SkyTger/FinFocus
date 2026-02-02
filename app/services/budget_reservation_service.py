@@ -198,6 +198,92 @@ class BudgetReservationService:
             mode_text=mode_text,
         )
 
+    def recalculate_current_month_exception(
+        self,
+        user_id: int,
+        reference_date: date | None = None,
+    ) -> bool:
+        """Пересчитывает exception резерва для месяца на основе взносов.
+
+        Вызывается при:
+        - Добавлении взноса (GoalService.add_contribution)
+        - Удалении взноса
+        - Изменении суммы взноса
+
+        Логика:
+        - Если взносов нет → удаляем exception (резерв = полный бюджет)
+        - Если есть взносы → создаём/обновляем exception с уменьшенной суммой
+
+        Args:
+            user_id: ID пользователя.
+            reference_date: Дата в целевом месяце. По умолчанию — сегодня.
+                           Используется для определения месяца и даты резерва.
+
+        Returns:
+            bool: True если exception был изменён/удалён, False если не применимо.
+        """
+        if reference_date is None:
+            reference_date = date.today()
+
+        settings = self.get_settings(user_id)
+
+        # Guard: только fixed_date режим
+        if settings["mode"] != "fixed_date":
+            return False
+
+        reserve_date = self._get_reserve_date_for_month(user_id, reference_date)
+        if reserve_date is None:
+            return False
+
+        # Guard: не пересчитываем прошедшие даты
+        # Если reserve_date == today, recurring экземпляр ещё не материализован
+        if reserve_date < date.today():
+            logger.debug(
+                f"Reserve date {reserve_date} already passed, skipping recalc"
+            )
+            return False
+
+        template = self._get_reserve_template(user_id)
+        if not template:
+            logger.warning(
+                f"No active template for user {user_id}, skipping recalc"
+            )
+            return False
+
+        # Считаем взносы ДО даты резерва (< reserve_date)
+        contributions_sum = self._get_contributions_sum_for_month(
+            user_id, reference_date, before_date=reserve_date
+        )
+
+        budget = settings["monthly_budget"]
+        new_reserve = budget - contributions_sum
+
+        if new_reserve == budget:
+            # Нет взносов — удаляем exception (резерв = полный бюджет)
+            deleted = self._delete_exception_for_date(template.id, reserve_date)
+            if deleted:
+                logger.info(
+                    f"User {user_id}: removed exception for {reserve_date}, "
+                    f"reserve = full budget {budget}"
+                )
+            return deleted
+        else:
+            # Создаём/обновляем exception с уменьшенной суммой
+            from app.services import RecurringService
+
+            recurring_service = RecurringService(self.session)
+            recurring_service.create_exception(
+                template_id=template.id,
+                original_date=reserve_date,
+                new_amount=max(new_reserve, Decimal("0")),
+            )
+
+            logger.info(
+                f"User {user_id}: updated exception for {reserve_date}, "
+                f"contributions={contributions_sum}, new_reserve={new_reserve}"
+            )
+            return True
+
     # === Private helpers ===
 
     def _get_reserve_template(self, user_id: int) -> Transaction | None:
@@ -320,19 +406,29 @@ class BudgetReservationService:
         self,
         user_id: int,
         reference_date: date,
+        before_date: date | None = None,
     ) -> Decimal:
         """Суммирует взносы пользователя за месяц.
 
         Args:
             user_id: ID пользователя.
             reference_date: Дата в целевом месяце.
+            before_date: Если указано, считает взносы строго ДО этой даты (< before_date).
+                         Используется для расчёта досрочных взносов до даты резерва.
 
         Returns:
             Decimal: Сумма взносов.
         """
         start_of_month = date(reference_date.year, reference_date.month, 1)
-        _, last_day = monthrange(reference_date.year, reference_date.month)
-        end_of_month = date(reference_date.year, reference_date.month, last_day)
+
+        if before_date is not None:
+            # Взносы строго ДО указанной даты (< before_date)
+            end_filter = GoalContribution.contribution_date < before_date
+        else:
+            # Весь месяц включительно
+            _, last_day = monthrange(reference_date.year, reference_date.month)
+            end_of_month = date(reference_date.year, reference_date.month, last_day)
+            end_filter = GoalContribution.contribution_date <= end_of_month
 
         # Join через Goal для фильтрации по user_id
         result = (
@@ -341,7 +437,7 @@ class BudgetReservationService:
             .filter(
                 Goal.user_id == user_id,
                 GoalContribution.contribution_date >= start_of_month,
-                GoalContribution.contribution_date <= end_of_month,
+                end_filter,
             )
             .scalar()
         )
