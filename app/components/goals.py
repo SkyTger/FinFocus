@@ -1205,7 +1205,59 @@ def _build_budget_modal() -> dbc.Modal:
                     ),
                     html.P(
                         "Укажите сумму, которую вы планируете откладывать ежемесячно на все цели.",  # noqa: E501
+                        className="text-muted small mb-4",
+                    ),
+                    html.Hr(),
+                    dbc.Row(
+                        [
+                            dbc.Label(
+                                "Режим резервирования", width=12, className="mb-2"
+                            ),
+                            dbc.Col(
+                                dbc.RadioItems(
+                                    id="reservation-mode-radio",
+                                    options=[
+                                        {
+                                            "label": "Из остатка — взносы создаются при каждом вкладе в цель",  # noqa: E501
+                                            "value": "from_balance",
+                                        },
+                                        {
+                                            "label": "Фиксированная дата — recurring операция в календаре",  # noqa: E501
+                                            "value": "fixed_date",
+                                        },
+                                    ],
+                                    value="from_balance",
+                                    inline=False,
+                                ),
+                                width=12,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    dbc.Row(
+                        [
+                            dbc.Label("День месяца для резервирования", width=4),
+                            dbc.Col(
+                                dbc.Input(
+                                    id="reservation-day-input",
+                                    type="number",
+                                    min=1,
+                                    max=28,
+                                    placeholder="15",
+                                    value=15,
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        id="reservation-day-row",
+                        className="mb-3",
+                        style={"display": "none"},  # Hidden by default
+                    ),
+                    html.P(
+                        "Для фиксированной даты операция 'Резерв на цели' будет создана в указанный день месяца.",  # noqa: E501
+                        id="reservation-day-help",
                         className="text-muted small",
+                        style={"display": "none"},  # Hidden by default
                     ),
                 ]
             ),
@@ -2755,34 +2807,67 @@ def toggle_goal_status(n_clicks_list, budget, savings_mode):
     [
         Output("budget-modal", "is_open"),
         Output("budget-input", "value"),
+        Output("reservation-mode-radio", "value"),
+        Output("reservation-day-input", "value"),
     ],
     Input("open-budget-modal-btn", "n_clicks"),
     State("goals-budget-store", "data"),
     prevent_initial_call=True,
 )
 def open_budget_modal(n_clicks, current_budget):
-    """Открывает модал настройки бюджета с текущим значением.
+    """Открывает модал настройки бюджета с текущими значениями.
 
     Args:
         n_clicks: Количество кликов на кнопку открытия
         current_budget: Текущий бюджет из Store (может быть None)
 
     Returns:
-        Tuple[is_open, budget_value]
+        Tuple[is_open, budget_value, mode, day_of_month]
     """
     if not n_clicks:
         raise PreventUpdate
 
-    # Загружаем текущий бюджет из БД если не в Store
-    if current_budget is None:
-        with get_db_session() as session:
-            service = GoalService(session)
-            current_budget = service.get_savings_budget(DEFAULT_USER_ID)
+    with get_db_session() as session:
+        # Загружаем настройки резервирования
+        reservation_service = BudgetReservationService(session)
+        settings = reservation_service.get_settings(DEFAULT_USER_ID)
+
+        # Загружаем текущий бюджет из БД если не в Store
+        if current_budget is None:
+            goal_service = GoalService(session)
+            current_budget = goal_service.get_savings_budget(DEFAULT_USER_ID)
 
     # Конвертируем Decimal в float для Input
     budget_value = float(current_budget) if current_budget else None
 
-    return True, budget_value
+    # Значения из settings
+    mode = settings["mode"]
+    day_of_month = settings["day_of_month"] if settings["day_of_month"] else 15
+
+    return True, budget_value, mode, day_of_month
+
+
+@callback(
+    [
+        Output("reservation-day-row", "style"),
+        Output("reservation-day-help", "style"),
+    ],
+    Input("reservation-mode-radio", "value"),
+    prevent_initial_call=False,
+)
+def toggle_reservation_day_visibility(mode):
+    """Переключает видимость поля дня месяца в зависимости от режима.
+
+    Args:
+        mode: Выбранный режим резервирования
+
+    Returns:
+        Tuple[row_style, help_style]
+    """
+    if mode == "fixed_date":
+        return {"display": "flex"}, {"display": "block"}
+    else:
+        return {"display": "none"}, {"display": "none"}
 
 
 @callback(
@@ -2820,16 +2905,21 @@ def close_budget_modal(n_clicks):
     Input("save-budget-btn", "n_clicks"),
     [
         State("budget-input", "value"),
+        State("reservation-mode-radio", "value"),
+        State("reservation-day-input", "value"),
         State("goals-savings-mode-store", "data"),
     ],
     prevent_initial_call=True,
 )
-def save_budget(n_clicks, budget_value, savings_mode):
-    """Сохраняет бюджет и пересчитывает allocation для всех целей.
+def save_budget(n_clicks, budget_value, reservation_mode, day_of_month, savings_mode):
+    """Сохраняет бюджет и режим резервирования, пересчитывает allocation.
 
     Args:
         n_clicks: Количество кликов на кнопку Сохранить
         budget_value: Значение бюджета из Input
+        reservation_mode: Режим резервирования (from_balance/fixed_date)
+        day_of_month: День месяца для fixed_date режима
+        savings_mode: Режим накоплений (free/medium/strict)
 
     Returns:
         Tuple[is_open, budget_store, allocation_store, goals_container, error_msg, error_open]  # noqa: E501
@@ -2837,7 +2927,7 @@ def save_budget(n_clicks, budget_value, savings_mode):
     if not n_clicks:
         raise PreventUpdate
 
-    # Валидация
+    # Валидация бюджета
     if budget_value is None or budget_value < 0:
         return (
             True,  # keep modal open
@@ -2848,14 +2938,35 @@ def save_budget(n_clicks, budget_value, savings_mode):
             True,
         )
 
+    # Валидация дня месяца для fixed_date режима
+    if reservation_mode == "fixed_date":
+        if day_of_month is None or day_of_month < 1 or day_of_month > 28:
+            return (
+                True,  # keep modal open
+                no_update,
+                no_update,
+                no_update,
+                "День месяца должен быть от 1 до 28",
+                True,
+            )
+
     budget = Decimal(str(budget_value))
 
     try:
         with get_db_session() as session:
-            service = GoalService(session)
+            goal_service = GoalService(session)
+            reservation_service = BudgetReservationService(session)
 
             # Сохраняем бюджет в БД
-            service.update_savings_budget(DEFAULT_USER_ID, budget)
+            goal_service.update_savings_budget(DEFAULT_USER_ID, budget)
+
+            # Сохраняем режим резервирования
+            reservation_service.set_mode(
+                user_id=DEFAULT_USER_ID,
+                mode=reservation_mode,
+                day_of_month=day_of_month if reservation_mode == "fixed_date" else None,
+            )
+
             session.commit()
 
             # Пересчитываем allocation и строим UI
@@ -2863,7 +2974,9 @@ def save_budget(n_clicks, budget_value, savings_mode):
                 session, DEFAULT_USER_ID, budget, savings_mode=savings_mode or "free"
             )
 
-            logger.info(f"Бюджет накоплений обновлен: {budget}")
+            logger.info(
+                f"Бюджет обновлен: {budget}, режим: {reservation_mode}, день: {day_of_month}"
+            )
 
             return (
                 False,  # close modal
