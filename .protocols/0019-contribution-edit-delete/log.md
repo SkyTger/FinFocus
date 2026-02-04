@@ -38,7 +38,16 @@ Restore context: protocol-0019#ctx-1
 - Добавлены imports: Literal, Transaction, ContributionInfo, ContributionUpdateResult
 - 418 тестов проходят
 
-### Step 03 — Calendar Guard #6 (commit: pending)
+### Step 04 — Goals UI (commit: pending)
+- Расширена _build_contributions_table(): колонка "Действия" с Edit/Delete кнопками
+- Создан _build_edit_contribution_modal(): inline alert, amount/date/description поля
+- Создан _build_delete_contribution_confirm_modal(): confirmation с суммой/датой
+- 4 callbacks: open_edit, submit_edit, open_delete, confirm_delete
+- ADR-003 guard clauses во всех callbacks
+- Detached state protection: скалярные данные до commit()
+- 418 тестов проходят
+
+### Step 03 — Calendar Guard #6 (commit: de9531f)
 - Добавлен Guard #6 в open_edit_from_tooltip(): блокирует SAVINGS_CONTRIBUTION
 - SAVINGS_CONTRIBUTION помечен как readonly в tooltip UI (аналогично SAVINGS_RESERVE)
 - Обновлен тест test_savings_contribution_is_not_readonly → test_savings_contribution_is_readonly
