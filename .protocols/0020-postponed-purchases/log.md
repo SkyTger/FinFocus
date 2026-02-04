@@ -35,6 +35,15 @@
 - Создан `scripts/migrate_006_wishlist.py`: idempotent CREATE TABLE + index
 - py_compile OK, pytest 441 passed
 
+### Step 06 — Dashboard + Main интеграция
+- `app/components/dashboard.py`: добавлен build_wishlist_widget() в правую колонку
+- `app/main.py`:
+  - create_wishlist_modal() в layout
+  - dcc.Store wishlist-active-item
+  - Единый handle_calendar_query_params() для ?open_recon=1 и ?wishlist_item=ID
+  - Заменен handle_open_recon_query_param → handle_calendar_query_params
+- py_compile OK, pytest 483 passed
+
 ### Step 05 — Wishlist UI (виджет + модал)
 - Создан `app/components/wishlist.py` (~500 строк):
   - build_wishlist_widget() — Dashboard карточка с 5 фокусными покупками

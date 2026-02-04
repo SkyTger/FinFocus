@@ -19,6 +19,7 @@ from app.components.goals import create_goals_layout  # Потом goals
 from app.components.transaction_modals import create_transaction_modals
 from app.components.analytics import create_analytics_layout  # Аналитика
 from app.components.onboarding_wizard import create_onboarding_wizard
+from app.components.wishlist import create_wishlist_modal
 
 # Загружаем переменные окружения
 load_dotenv()
@@ -78,39 +79,63 @@ app.layout = dbc.Container(
         ),  # Убираем отступы между колонками
         # Глобальные модалы транзакций (доступны на всех страницах)
         create_transaction_modals(),
+        # Wishlist модал (отложенные покупки)
+        create_wishlist_modal(),
         # Onboarding wizard (blocking modal при first_launch)
         create_onboarding_wizard(),
         # Глобальный store для toast dismissal (до перезагрузки)
         dcc.Store(id="balance-toast-dismissed", data=False),
         # Trigger для автооткрытия reconciliation modal (timestamp-based)
         dcc.Store(id="open-recon-trigger", data=None),
+        # Wishlist: ID активного элемента для планирования в календаре
+        dcc.Store(id="wishlist-active-item", data=None),
     ],
     fluid=True,
     className="p-0",
 )
 
 
-# Callback для обработки ?open_recon=1 query param
+# Единый callback для обработки query params (?open_recon=1, ?wishlist_item=ID)
 @callback(
-    [Output("open-recon-trigger", "data"), Output("url", "search")],
+    [
+        Output("open-recon-trigger", "data"),
+        Output("wishlist-active-item", "data"),
+        Output("url", "search"),
+    ],
     Input("url", "search"),
     State("url", "pathname"),
     prevent_initial_call=True,
 )
-def handle_open_recon_query_param(url_search: str | None, pathname: str | None):
-    """Обрабатывает ?open_recon=1 и устанавливает trigger для calendar.
+def handle_calendar_query_params(url_search: str | None, pathname: str | None):
+    """Обрабатывает query params и устанавливает triggers.
 
-    Использует timestamp вместо boolean для надежного срабатывания
-    при повторных переходах.
+    - ?open_recon=1 → open-recon-trigger (timestamp)
+    - ?wishlist_item=ID → wishlist-active-item (int)
+    Очищает url.search после обработки.
     """
     if not url_search:
         raise PreventUpdate
 
-    if pathname == "/calendar" and "open_recon=1" in url_search:
-        # Timestamp гарантирует уникальное значение при каждом переходе
-        return int(time.time() * 1000), ""
+    from urllib.parse import parse_qs
 
-    raise PreventUpdate
+    params = parse_qs(url_search.lstrip("?"))
+    recon_trigger = None
+    wishlist_item = None
+
+    if pathname == "/calendar":
+        if "open_recon" in params:
+            recon_trigger = int(time.time() * 1000)
+
+        if "wishlist_item" in params:
+            try:
+                wishlist_item = int(params["wishlist_item"][0])
+            except (ValueError, IndexError):
+                pass
+
+    if recon_trigger is None and wishlist_item is None:
+        raise PreventUpdate
+
+    return recon_trigger, wishlist_item, ""
 
 
 # Callback для роутинга страниц
