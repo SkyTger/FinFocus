@@ -2,12 +2,14 @@
 
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Literal
 
 from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.core import ValidationError
-from app.models.database import Goal, GoalContribution, GoalStatus, User
+from app.models.database import Goal, GoalContribution, GoalStatus, Transaction, User
+from app.schema.goals import ContributionInfo, ContributionUpdateResult
 
 # Допустимые значения для User.savings_mode
 VALID_SAVINGS_MODES = {"free", "medium", "strict"}
@@ -553,53 +555,237 @@ class GoalService:
 
         logger.info(f"Обновлен режим накоплений для user {user_id}: {mode}")
 
-    def delete_contribution(self, contribution_id: int) -> bool:
-        """Удаляет взнос и пересчитывает exception резерва.
+    def update_contribution(
+        self,
+        contribution_id: int,
+        amount: Decimal | None = None,
+        contribution_date: date | None = None,
+        description: str | None = None,
+    ) -> ContributionUpdateResult:
+        """Редактирует взнос с каскадным обновлением связанных сущностей.
 
-        Алгоритм:
-        1. Находит GoalContribution по ID
-        2. Если есть transaction_id — удаляет через BudgetReservationService
-        3. Иначе — удаляет напрямую
-        4. Обновляет Goal.current_amount
-        5. Вызывает recalculate_current_month_exception()
+        Обработка параметров:
+        - amount: None = не изменять, >0 = установить, <=0 = ошибка
+        - contribution_date: None = не изменять, date = установить
+          (не в прошлом месяце, не далее текущий+1 месяц)
+        - description: None = не изменять, "" = очистить, непустая = установить
+        """
+        # Guard #1: Валидация amount > 0
+        if amount is not None and amount <= Decimal("0"):
+            return ContributionUpdateResult(
+                success=False,
+                goal=None,
+                status_changed=False,
+                new_status=None,
+                error="Сумма взноса должна быть больше 0",
+                contribution_info=None,
+            )
 
-        Args:
-            contribution_id: ID взноса GoalContribution.
+        # Guard #2: Валидация даты
+        if contribution_date is not None:
+            today = date.today()
+            # Guard #2a: нижняя граница — не в прошлом месяце
+            if (contribution_date.year, contribution_date.month) < (
+                today.year,
+                today.month,
+            ):
+                return ContributionUpdateResult(
+                    success=False,
+                    goal=None,
+                    status_changed=False,
+                    new_status=None,
+                    error="Дата взноса не может быть в прошлом месяце",
+                    contribution_info=None,
+                )
+
+            # Guard #2b: верхняя граница — не далее текущий месяц + 1
+            if today.month < 12:
+                max_year, max_month = today.year, today.month + 1
+            else:
+                max_year, max_month = today.year + 1, 1
+
+            if (contribution_date.year, contribution_date.month) > (
+                max_year,
+                max_month,
+            ):
+                return ContributionUpdateResult(
+                    success=False,
+                    goal=None,
+                    status_changed=False,
+                    new_status=None,
+                    error="Дата взноса не может быть более чем через месяц",
+                    contribution_info=None,
+                )
+
+        # Guard #3: Взнос не найден
+        contribution = self.session.get(GoalContribution, contribution_id)
+        if not contribution:
+            return ContributionUpdateResult(
+                success=False,
+                goal=None,
+                status_changed=False,
+                new_status=None,
+                error="Взнос не найден",
+                contribution_info=None,
+            )
+
+        goal = contribution.goal
+        old_amount = contribution.amount
+        old_date = contribution.contribution_date
+
+        # Обновить поля GoalContribution
+        if amount is not None:
+            contribution.amount = amount
+        if contribution_date is not None:
+            contribution.contribution_date = contribution_date
+        if description is not None:
+            contribution.description = description if description else None
+
+        # Delta calculation
+        new_amount = contribution.amount
+        delta = new_amount - old_amount
+
+        # Update Goal.current_amount
+        goal.current_amount += delta
+        if goal.current_amount < Decimal("0"):
+            goal.current_amount = Decimal("0")
+
+        # Sync Transaction если есть
+        if contribution.transaction_id:
+            txn = self.session.get(Transaction, contribution.transaction_id)
+            if txn:
+                txn.amount = new_amount
+                txn.transaction_date = contribution.contribution_date
+                if description is not None:
+                    txn.description = (
+                        description if description else f"Взнос: {goal.name}"
+                    )
+
+        # Пересчет Exception — ТОЛЬКО если дата передана И отличается от старой
+        if contribution_date is not None and contribution_date != old_date:
+            budget_service = self._get_budget_service()
+            budget_service.recalculate_current_month_exception(
+                goal.user_id, old_date
+            )
+            budget_service.recalculate_current_month_exception(
+                goal.user_id, contribution_date
+            )
+
+        # Check status change
+        was_completed = goal.status == GoalStatus.COMPLETED
+        is_completed_now = goal.is_completed
+
+        status_changed = False
+        new_status: Literal["active", "completed"] | None = None
+
+        if was_completed and not is_completed_now:
+            goal.status = GoalStatus.ACTIVE
+            status_changed = True
+            new_status = "active"
+            logger.info(
+                f"Goal {goal.id} reverted to ACTIVE after contribution update"
+            )
+        elif not was_completed and is_completed_now:
+            goal.status = GoalStatus.COMPLETED
+            status_changed = True
+            new_status = "completed"
+            logger.info(
+                f"Goal {goal.id} marked COMPLETED after contribution update"
+            )
+
+        self.session.flush()
+
+        return ContributionUpdateResult(
+            success=True,
+            goal=goal,
+            status_changed=status_changed,
+            new_status=new_status,
+            error=None,
+            contribution_info=None,
+        )
+
+    def delete_contribution(
+        self,
+        contribution_id: int,
+    ) -> ContributionUpdateResult:
+        """Удаляет взнос с откатом состояния цели.
+
+        Вариант A: удаляем Transaction и GoalContribution напрямую,
+        НЕ вызывая BudgetReservationService.delete_contribution_transaction()
+        чтобы избежать двойного уменьшения Goal.current_amount.
 
         Returns:
-            bool: True если взнос удалён, False если не найден.
+            ContributionUpdateResult с результатом операции и флагами статуса.
         """
         contribution = self.session.get(GoalContribution, contribution_id)
         if not contribution:
-            return False
+            return ContributionUpdateResult(
+                success=False,
+                goal=None,
+                status_changed=False,
+                new_status=None,
+                error="Взнос не найден",
+                contribution_info=None,
+            )
 
         goal = contribution.goal
         user_id = goal.user_id
         amount = contribution.amount
         contribution_date = contribution.contribution_date
 
-        budget_service = self._get_budget_service()
+        # Сохраняем goal_name ДО любых операций (защита от detached state)
+        goal_name = goal.name
 
-        # Удаляем транзакцию если есть
+        # Сохраняем info для confirmation UI
+        contribution_info = ContributionInfo(
+            contribution_id=contribution_id,
+            amount=amount,
+            contribution_date=contribution_date,
+            goal_name=goal_name,
+        )
+
+        # --- Удаление напрямую (Вариант A) ---
         if contribution.transaction_id:
-            budget_service.delete_contribution_transaction(contribution.transaction_id)
-        else:
-            self.session.delete(contribution)
+            txn = self.session.get(Transaction, contribution.transaction_id)
+            if txn:
+                self.session.delete(txn)
+        self.session.delete(contribution)
 
-        # Обновляем current_amount
+        # --- Единственное место обновления current_amount ---
         goal.current_amount -= amount
         if goal.current_amount < Decimal("0"):
             goal.current_amount = Decimal("0")
 
-        # Пересчитываем exception для месяца взноса
+        # Пересчитываем exception
+        budget_service = self._get_budget_service()
         budget_service.recalculate_current_month_exception(
             user_id=user_id,
             reference_date=contribution_date,
         )
 
+        # Откат статуса COMPLETED -> ACTIVE
+        status_changed = False
+        new_status: Literal["active", "completed"] | None = None
+
+        if goal.status == GoalStatus.COMPLETED and not goal.is_completed:
+            goal.status = GoalStatus.ACTIVE
+            status_changed = True
+            new_status = "active"
+            logger.info(
+                f"Goal {goal.id} reverted to ACTIVE after contribution delete"
+            )
+
         self.session.flush()
         logger.info(
             f"Deleted contribution {contribution_id} for goal {goal.id}, "
-            f"amount={amount}, recalculated exception"
+            f"amount={amount}, status_changed={status_changed}"
         )
-        return True
+
+        return ContributionUpdateResult(
+            success=True,
+            goal=goal,
+            status_changed=status_changed,
+            new_status=new_status,
+            error=None,
+            contribution_info=contribution_info,
+        )

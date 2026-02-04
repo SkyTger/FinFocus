@@ -1,9 +1,9 @@
 # Protocol Context: 0019-contribution-edit-delete
 
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action**: Шаг 1 — Schema и GoalService helpers завершен
-- **Next Action**: Шаг 2 — update_contribution() и fix delete_contribution()
+- **Last Action**: Шаг 2 — update_contribution() и fix delete_contribution() завершен
+- **Next Action**: Шаг 3 — Calendar Guard #6
 - **Git Branch**: `0019-contribution-edit-delete`
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0019-contribution-edit-delete`
