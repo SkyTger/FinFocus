@@ -34,3 +34,14 @@
   - Добавлен `wishlist_items` relationship в User
 - Создан `scripts/migrate_006_wishlist.py`: idempotent CREATE TABLE + index
 - py_compile OK, pytest 441 passed
+
+### Step 02 — WishlistService
+- Создан `app/services/wishlist_service.py` (~270 строк):
+  - CRUD: create_item, get_all, get_focus, get_by_id, update_item, delete_item
+  - Planning: mark_as_planned, reset_planned
+  - Utility: check_orphaned_planned, to_data
+  - Валидация: name (1-100), amount > 0, priority in {1,2}
+  - Planned guard: status="planned" → только name, priority
+- Обновлен `app/services/__init__.py`: экспорт WishlistService
+- Использован существующий `app.core.ValidationError`
+- py_compile OK, pytest 441 passed

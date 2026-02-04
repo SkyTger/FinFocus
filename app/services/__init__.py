@@ -50,6 +50,7 @@ from .budget_reservation_service import (
     RESERVE_DESCRIPTION,
     STATUS_THRESHOLDS,
 )
+from .wishlist_service import WishlistService, VALID_PRIORITIES
 
 __all__ = [
     # Allocation
@@ -103,6 +104,9 @@ __all__ = [
     "BudgetReservationService",
     "RESERVE_DESCRIPTION",
     "STATUS_THRESHOLDS",
+    # Wishlist
+    "WishlistService",
+    "VALID_PRIORITIES",
     # Core
     "ValidationError",
 ]
