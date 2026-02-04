@@ -23,3 +23,14 @@
 - Worktree: /home/skytiger/PycharmProjects/worktrees/0020-postponed-purchases
 - План: 11 шагов (0-11), основан на solution-v3.md
 - Источники: brief.md, solution-v3.md (учтены critique v1-v3)
+
+### Step 01 — Schema + Model + Migration
+- Создан `app/schema/wishlist.py`: WishlistItemData, SafeDateInfo, HoverBalances TypedDicts
+- Обновлен `app/schema/__init__.py`: экспорт 3 новых TypedDicts
+- Добавлен WishlistItem ORM в `app/models/database.py`:
+  - FK: user_id, category_id (nullable), planned_transaction_id (ON DELETE SET NULL)
+  - Поля: name, amount, priority (1=фокус), status ("new"|"planned"), planned_date
+  - Relationships: user, category_rel, planned_transaction
+  - Добавлен `wishlist_items` relationship в User
+- Создан `scripts/migrate_006_wishlist.py`: idempotent CREATE TABLE + index
+- py_compile OK, pytest 441 passed
