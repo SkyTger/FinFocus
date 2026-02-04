@@ -13,7 +13,6 @@ from app.services import (
     TransactionService,
     WishlistService,
 )
-from app.utils.formatters import format_amount
 
 # Константы
 DEFAULT_USER_ID = 1
@@ -47,9 +46,7 @@ def build_wishlist_widget() -> dbc.Card:
             ),
         ]
     else:
-        body_content = [
-            _build_widget_item(item) for item in items_data
-        ]
+        body_content = [_build_widget_item(item) for item in items_data]
 
     return dbc.Card(
         [
@@ -85,7 +82,9 @@ def _build_widget_item(item: dict) -> html.Div:
     status_badge = None
     if item["status"] == "planned":
         status_badge = dbc.Badge(
-            f"Запланировано: {item['planned_date']}" if item["planned_date"] else "Запланировано",
+            f"Запланировано: {item['planned_date']}"
+            if item["planned_date"]
+            else "Запланировано",
             color="success",
             className="ms-2",
         )
@@ -107,7 +106,10 @@ def _build_widget_item(item: dict) -> html.Div:
                 className="text-nowrap fw-bold",
             ),
         ],
-        className="d-flex justify-content-between align-items-center py-2 border-bottom wishlist-widget-item",
+        className=(
+            "d-flex justify-content-between align-items-center"
+            " py-2 border-bottom wishlist-widget-item"
+        ),
     )
 
 
@@ -268,9 +270,7 @@ def _build_items_list(items_data: list[dict]) -> html.Div:
                 [
                     html.H6(
                         [
-                            html.Span(
-                                "", className="wishlist-priority-dot focus me-2"
-                            ),
+                            html.Span("", className="wishlist-priority-dot focus me-2"),
                             "Фокусные покупки",
                         ],
                         className="mb-2",
@@ -287,9 +287,7 @@ def _build_items_list(items_data: list[dict]) -> html.Div:
                 [
                     html.H6(
                         [
-                            html.Span(
-                                "", className="wishlist-priority-dot later me-2"
-                            ),
+                            html.Span("", className="wishlist-priority-dot later me-2"),
                             "Отложенные",
                         ],
                         className="mb-2",
@@ -696,8 +694,6 @@ def mark_wishlist_planned_after_create(trigger_data, wishlist_item_id):
         raise PreventUpdate
 
     try:
-        from app.utils.formatters import parse_date_safe
-
         with get_db_session() as session:
             svc = WishlistService(session)
             txn_svc = TransactionService(session)

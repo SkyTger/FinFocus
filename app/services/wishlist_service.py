@@ -158,7 +158,9 @@ class WishlistService:
             raise ValidationError("Покупка не найдена")
 
         # Определяем разрешённые поля по статусу
-        allowed = _ALLOWED_FIELDS_PLANNED if item.status == "planned" else _ALLOWED_FIELDS_NEW
+        allowed = (
+            _ALLOWED_FIELDS_PLANNED if item.status == "planned" else _ALLOWED_FIELDS_NEW
+        )
         forbidden = set(updates.keys()) - allowed
         if forbidden:
             raise ValidationError(

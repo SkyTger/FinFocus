@@ -29,4 +29,6 @@ class HoverBalances(TypedDict):
     """Предрассчитанные балансы для JS hover в календаре."""
 
     base_balances: dict[str, str]  # date_iso -> balance_str
-    by_candidate: dict[str, dict[str, str]]  # candidate_date_iso -> {day_iso: balance_str}
+    by_candidate: dict[
+        str, dict[str, str]
+    ]  # candidate_date_iso -> {day_iso: balance_str}

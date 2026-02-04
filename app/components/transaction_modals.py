@@ -278,13 +278,13 @@ def _build_create_modal() -> dbc.Modal:
                                             dbc.Col(
                                                 [
                                                     dbc.Checkbox(
-                                                        id="create-recurring-anchor-eom",
+                                                        id="create-recurring-anchor-eom",  # noqa: E501
                                                         label="Последний день месяца",
                                                         value=False,
                                                     ),
                                                     html.Small(
-                                                        "Операция будет генерироваться "
-                                                        "всегда в последний день месяца",
+                                                        "Будет генерироваться "
+                                                        "в последний день месяца",
                                                         className="text-muted",
                                                     ),
                                                 ],
@@ -722,12 +722,28 @@ def set_preselection_on_modal_open(
         tuple: (category, type, amount, date, description, alert_text, alert_open)
     """
     if not is_open:
-        return no_update, no_update, no_update, no_update, no_update, no_update, no_update
+        return (
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+        )
 
     if modal_source == "quick-add":
         category_value = preselected_category if preselected_category else no_update
         type_value = preselected_type if preselected_type else no_update
-        return category_value, type_value, no_update, no_update, no_update, no_update, no_update
+        return (
+            category_value,
+            type_value,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+        )
 
     if modal_source == "wishlist":
         category_value = preselected_category if preselected_category else no_update
@@ -737,7 +753,15 @@ def set_preselection_on_modal_open(
         desc_value = preselected_description if preselected_description else no_update
         alert_text = preselected_risk_warning or ""
         alert_open = bool(preselected_risk_warning)
-        return category_value, type_value, amount_value, date_value, desc_value, alert_text, alert_open
+        return (
+            category_value,
+            type_value,
+            amount_value,
+            date_value,
+            desc_value,
+            alert_text,
+            alert_open,
+        )
 
     return no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
@@ -865,12 +889,24 @@ def create_transaction(
     if not transaction_date:
         return (
             True,  # Модал остаётся открытым
-            no_update, no_update, no_update, no_update, no_update,
-            no_update, no_update, no_update, no_update, no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
             "Неверный формат даты",
             True,  # Показать Alert
-            no_update, no_update,  # preselected-category, type
-            no_update, no_update, no_update, no_update,  # amount, date, desc, risk
+            no_update,
+            no_update,  # preselected-category, type
+            no_update,
+            no_update,
+            no_update,
+            no_update,  # amount, date, desc, risk
         )
 
     # Парсинг даты окончания recurring (если указана)
@@ -937,12 +973,24 @@ def create_transaction(
         logger.warning(f"Ошибка валидации при создании: {e}")
         return (
             True,  # Модал остаётся открытым
-            no_update, no_update, no_update, no_update, no_update,
-            no_update, no_update, no_update, no_update, no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
             str(e),  # Текст ошибки
             True,  # Показать Alert
-            no_update, no_update,  # preselected-category, type
-            no_update, no_update, no_update, no_update,  # amount, date, desc, risk
+            no_update,
+            no_update,  # preselected-category, type
+            no_update,
+            no_update,
+            no_update,
+            no_update,  # amount, date, desc, risk
         )
 
 

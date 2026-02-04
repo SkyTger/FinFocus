@@ -372,9 +372,7 @@ class WishlistItem(Base):
     """
 
     __tablename__ = "wishlist_items"
-    __table_args__ = (
-        Index("ix_wishlist_user_priority", "user_id", "priority"),
-    )
+    __table_args__ = (Index("ix_wishlist_user_priority", "user_id", "priority"),)
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)

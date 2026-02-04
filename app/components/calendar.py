@@ -918,12 +918,16 @@ def load_and_navigate_calendar(
 
                         rec_svc = PurchaseRecommendationService(ws_session)
                         safe_map = rec_svc.get_safe_dates_map(
-                            DEFAULT_USER_ID, item.amount,
-                            current_year, current_month,
+                            DEFAULT_USER_ID,
+                            item.amount,
+                            current_year,
+                            current_month,
                         )
                         hover = rec_svc.precalculate_hover_data(
-                            DEFAULT_USER_ID, item.amount,
-                            current_year, current_month,
+                            DEFAULT_USER_ID,
+                            item.amount,
+                            current_year,
+                            current_month,
                         )
 
                         overlay = build_wishlist_overlay_banner(
@@ -933,8 +937,11 @@ def load_and_navigate_calendar(
                         hover_data = hover
 
                         grid = build_wishlist_calendar_grid(
-                            current_month, current_year,
-                            balances, transactions_by_date, safe_map,
+                            current_month,
+                            current_year,
+                            balances,
+                            transactions_by_date,
+                            safe_map,
                         )
             except Exception as we:
                 logger.error(f"Wishlist mode error: {we}")
@@ -1120,7 +1127,7 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
             "instance_date": txn_date,
             "source": "tooltip",
         }
-        # Возвращаем no_update для полей формы — они заполнятся в process_recurring_edit_scope
+        # no_update для полей — заполнятся в process_recurring_edit_scope
         return (
             no_update,  # edit-modal
             no_update,  # edit-transaction-id
@@ -1166,7 +1173,8 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
             ]
 
             logger.debug(
-                f"Tooltip: открытие edit modal для транзакции {txn_id} (type={txn_type})"
+                f"Tooltip: edit modal txn {txn_id}"
+                f" (type={txn_type})"
             )
 
             return (

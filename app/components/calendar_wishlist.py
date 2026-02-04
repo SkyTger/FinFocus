@@ -9,13 +9,13 @@ from datetime import date
 from decimal import Decimal
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ctx, no_update, ALL
+from dash import html, callback, Input, Output, State, ctx, ALL
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
 from app.core import get_db_session
 from app.schema.wishlist import SafeDateInfo
-from app.services import CalendarService, TransactionInfo, WishlistService
+from app.services import TransactionInfo, WishlistService
 from app.utils.formatters import format_amount
 
 
@@ -62,18 +62,14 @@ def build_wishlist_overlay_banner(
                 [
                     html.Span(
                         [
-                            html.Span(
-                                "", className="wishlist-marker safe me-1"
-                            ),
+                            html.Span("", className="wishlist-marker safe me-1"),
                             "Безопасно",
                         ],
                         className="me-3",
                     ),
                     html.Span(
                         [
-                            html.Span(
-                                "", className="wishlist-marker unsafe me-1"
-                            ),
+                            html.Span("", className="wishlist-marker unsafe me-1"),
                             "Риск",
                         ],
                         className="me-3",
@@ -154,8 +150,14 @@ def build_wishlist_day_cell(
     # Транзакции дня (иконки)
     txn_icons = []
     for txn in transactions[:3]:
-        icon_class = "bi-arrow-up-circle text-success" if txn.get("type") == "income" else "bi-arrow-down-circle text-danger"
-        txn_icons.append(html.I(className=f"{icon_class} me-1", style={"fontSize": "0.7rem"}))
+        icon_class = (
+            "bi-arrow-up-circle text-success"
+            if txn.get("type") == "income"
+            else "bi-arrow-down-circle text-danger"
+        )
+        txn_icons.append(
+            html.I(className=f"{icon_class} me-1", style={"fontSize": "0.7rem"})
+        )
 
     cell_content = [
         html.Div(
@@ -166,9 +168,7 @@ def build_wishlist_day_cell(
     ]
 
     if txn_icons:
-        cell_content.append(
-            html.Div(txn_icons, className="calendar-day-icons")
-        )
+        cell_content.append(html.Div(txn_icons, className="calendar-day-icons"))
 
     return html.Div(
         cell_content,
@@ -202,10 +202,7 @@ def build_wishlist_calendar_grid(
     # Заголовок дней недели
     weekday_names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     weekday_header = html.Div(
-        [
-            html.Div(name, className="calendar-weekday-header")
-            for name in weekday_names
-        ],
+        [html.Div(name, className="calendar-weekday-header") for name in weekday_names],
         className="calendar-weekday-row",
     )
 
@@ -221,9 +218,7 @@ def build_wishlist_calendar_grid(
 
     # Заполняем пустые ячейки до первого дня
     for _ in range(start_weekday):
-        current_week.append(
-            html.Div(className="calendar-day calendar-day-empty")
-        )
+        current_week.append(html.Div(className="calendar-day calendar-day-empty"))
 
     for day_num in range(1, last_day_num + 1):
         d = date(year, month, day_num)
@@ -248,16 +243,12 @@ def build_wishlist_calendar_grid(
         current_week.append(cell)
 
         if len(current_week) == 7:
-            weeks.append(
-                html.Div(current_week, className="calendar-week-row")
-            )
+            weeks.append(html.Div(current_week, className="calendar-week-row"))
             current_week = []
 
     # Заполняем оставшиеся ячейки
     while len(current_week) > 0 and len(current_week) < 7:
-        current_week.append(
-            html.Div(className="calendar-day calendar-day-empty")
-        )
+        current_week.append(html.Div(className="calendar-day calendar-day-empty"))
 
     if current_week:
         weeks.append(html.Div(current_week, className="calendar-week-row"))

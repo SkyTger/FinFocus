@@ -80,7 +80,9 @@ def test_safe_dates_past_days_excluded(mock_date, service, test_user):
 
 
 @patch("app.services.purchase_recommendation_service.date")
-def test_safe_dates_negative_balance(mock_date, service, test_user_zero_balance, db_session):
+def test_safe_dates_negative_balance(
+    mock_date, service, test_user_zero_balance, db_session
+):
     """Обнаружение отрицательного баланса."""
     mock_date.today.return_value = date(2026, 3, 1)
     mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
@@ -148,9 +150,7 @@ def test_hover_base_balances(mock_date, service, test_user):
     mock_date.today.return_value = date(2026, 3, 1)
     mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-    result = service.precalculate_hover_data(
-        test_user.id, Decimal("100"), 2026, 3
-    )
+    result = service.precalculate_hover_data(test_user.id, Decimal("100"), 2026, 3)
 
     assert len(result["base_balances"]) == 31  # все дни марта
 
@@ -161,9 +161,7 @@ def test_hover_by_candidate_excludes_past(mock_date, service, test_user):
     mock_date.today.return_value = date(2026, 3, 15)
     mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-    result = service.precalculate_hover_data(
-        test_user.id, Decimal("100"), 2026, 3
-    )
+    result = service.precalculate_hover_data(test_user.id, Decimal("100"), 2026, 3)
 
     assert "2026-03-01" not in result["by_candidate"]
     assert "2026-03-14" not in result["by_candidate"]
@@ -177,9 +175,7 @@ def test_hover_candidate_calculation(mock_date, service, test_user):
     mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
     amount = Decimal("1000")
-    result = service.precalculate_hover_data(
-        test_user.id, amount, 2026, 3
-    )
+    result = service.precalculate_hover_data(test_user.id, amount, 2026, 3)
 
     base = result["base_balances"]
     candidate_day5 = result["by_candidate"]["2026-03-05"]
@@ -200,14 +196,10 @@ def test_hover_all_candidates_have_all_days(mock_date, service, test_user):
     mock_date.today.return_value = date(2026, 3, 28)
     mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
 
-    result = service.precalculate_hover_data(
-        test_user.id, Decimal("100"), 2026, 3
-    )
+    result = service.precalculate_hover_data(test_user.id, Decimal("100"), 2026, 3)
 
     for candidate_date, adjusted in result["by_candidate"].items():
-        assert len(adjusted) == 31, (
-            f"Candidate {candidate_date} should have 31 entries"
-        )
+        assert len(adjusted) == 31, f"Candidate {candidate_date} should have 31 entries"
 
 
 @patch("app.services.purchase_recommendation_service.date")

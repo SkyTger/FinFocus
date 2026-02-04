@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from app.core import ValidationError
-from app.models.database import Category, WishlistItem
+from app.models.database import Category
 from app.services.wishlist_service import WishlistService
 
 
