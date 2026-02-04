@@ -85,6 +85,12 @@
 - Итого: 483 теста (было 441, +42)
 - Все тесты pass
 
+### Step 11 — Финализация
+- Black: 8 файлов переформатировано
+- Flake8: 5 F401 + 3 E501 исправлены (goals.py:3072 — pre-existing, не тронут)
+- Pytest: 483 tests passed
+- PR перевести в Ready
+
 ### Step 10 — Preselection + mark_planned + orphan detection
 - `app/components/transaction_modals.py`:
   - +4 dcc.Stores: preselected-amount, -date, -description, -risk-warning
