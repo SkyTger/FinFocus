@@ -69,6 +69,11 @@ def create_transaction_modals() -> html.Div:
             # Quick-add preselection stores
             dcc.Store(id="preselected-category", data=None),
             dcc.Store(id="preselected-type", data=None),
+            # Wishlist preselection stores
+            dcc.Store(id="preselected-amount", data=None),
+            dcc.Store(id="preselected-date", data=None),
+            dcc.Store(id="preselected-description", data=None),
+            dcc.Store(id="preselected-risk-warning", data=None),
         ],
         id="global-transaction-modals-container",
     )
@@ -273,13 +278,13 @@ def _build_create_modal() -> dbc.Modal:
                                             dbc.Col(
                                                 [
                                                     dbc.Checkbox(
-                                                        id="create-recurring-anchor-eom",
+                                                        id="create-recurring-anchor-eom",  # noqa: E501
                                                         label="Последний день месяца",
                                                         value=False,
                                                     ),
                                                     html.Small(
-                                                        "Операция будет генерироваться "
-                                                        "всегда в последний день месяца",
+                                                        "Будет генерироваться "
+                                                        "в последний день месяца",
                                                         className="text-muted",
                                                     ),
                                                 ],
@@ -629,6 +634,10 @@ def toggle_eom_checkbox_visibility(is_recurring, period, date_str):
         Output("modal-source", "data", allow_duplicate=True),
         Output("preselected-category", "data", allow_duplicate=True),
         Output("preselected-type", "data", allow_duplicate=True),
+        Output("preselected-amount", "data", allow_duplicate=True),
+        Output("preselected-date", "data", allow_duplicate=True),
+        Output("preselected-description", "data", allow_duplicate=True),
+        Output("preselected-risk-warning", "data", allow_duplicate=True),
         Output("create-category-dropdown", "value", allow_duplicate=True),
         Output("create-type-select", "value", allow_duplicate=True),
     ],
@@ -638,13 +647,14 @@ def toggle_eom_checkbox_visibility(is_recurring, period, date_str):
 def close_create_modal(n_clicks):
     """Закрывает модал создания при нажатии Отмена.
 
-    Сбрасывает preselection и форму от Quick-add chips.
+    Сбрасывает все preselection stores.
     """
     if not n_clicks:
         raise PreventUpdate
     # is_open, modal-source, preselected-category, preselected-type,
-    # category-dropdown, type-select
-    return False, None, None, None, None, "EXPENSE"
+    # preselected-amount, preselected-date, preselected-description,
+    # preselected-risk-warning, category-dropdown, type-select
+    return False, None, None, None, None, None, None, None, None, "EXPENSE"
 
 
 @callback(
@@ -666,43 +676,94 @@ def close_edit_modal(n_clicks):
     [
         Output("create-category-dropdown", "value", allow_duplicate=True),
         Output("create-type-select", "value", allow_duplicate=True),
+        Output("create-amount-input", "value", allow_duplicate=True),
+        Output("create-date-picker", "date", allow_duplicate=True),
+        Output("create-description-input", "value", allow_duplicate=True),
+        Output("transaction-error-alert", "children", allow_duplicate=True),
+        Output("transaction-error-alert", "is_open", allow_duplicate=True),
     ],
     Input("create-modal", "is_open"),
     [
         State("preselected-category", "data"),
         State("preselected-type", "data"),
+        State("preselected-amount", "data"),
+        State("preselected-date", "data"),
+        State("preselected-description", "data"),
+        State("preselected-risk-warning", "data"),
         State("modal-source", "data"),
     ],
     prevent_initial_call=True,
 )
 def set_preselection_on_modal_open(
-    is_open, preselected_category, preselected_type, modal_source
+    is_open,
+    preselected_category,
+    preselected_type,
+    preselected_amount,
+    preselected_date,
+    preselected_description,
+    preselected_risk_warning,
+    modal_source,
 ):
     """Устанавливает предвыбранные значения при открытии модала создания.
 
-    Применяет preselection из Quick-add chips ТОЛЬКО если источник = "quick-add".
+    Применяет preselection из Quick-add chips или Wishlist.
 
     Args:
         is_open: Состояние модала
         preselected_category: ID предвыбранной категории или None
         preselected_type: Предвыбранный тип ("EXPENSE"|"INCOME") или None
+        preselected_amount: Сумма из wishlist или None
+        preselected_date: Дата ISO из wishlist или None
+        preselected_description: Описание из wishlist или None
+        preselected_risk_warning: Текст предупреждения о риске или None
         modal_source: Источник открытия модала
 
     Returns:
-        tuple: (category_value, type_value)
+        tuple: (category, type, amount, date, description, alert_text, alert_open)
     """
     if not is_open:
-        return no_update, no_update
+        return (
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+        )
 
-    # Применяем preselection ТОЛЬКО если открыто через Quick-add
-    if modal_source != "quick-add":
-        return no_update, no_update
+    if modal_source == "quick-add":
+        category_value = preselected_category if preselected_category else no_update
+        type_value = preselected_type if preselected_type else no_update
+        return (
+            category_value,
+            type_value,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+            no_update,
+        )
 
-    # Применяем preselection если есть, иначе no_update
-    category_value = preselected_category if preselected_category else no_update
-    type_value = preselected_type if preselected_type else no_update
+    if modal_source == "wishlist":
+        category_value = preselected_category if preselected_category else no_update
+        type_value = preselected_type if preselected_type else no_update
+        amount_value = preselected_amount if preselected_amount else no_update
+        date_value = preselected_date if preselected_date else no_update
+        desc_value = preselected_description if preselected_description else no_update
+        alert_text = preselected_risk_warning or ""
+        alert_open = bool(preselected_risk_warning)
+        return (
+            category_value,
+            type_value,
+            amount_value,
+            date_value,
+            desc_value,
+            alert_text,
+            alert_open,
+        )
 
-    return category_value, type_value
+    return no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
 
 @callback(
@@ -784,6 +845,10 @@ def update_edit_category_options(transaction_type: str | None, is_open: bool):
         Output("transaction-error-alert", "is_open", allow_duplicate=True),
         Output("preselected-category", "data", allow_duplicate=True),
         Output("preselected-type", "data", allow_duplicate=True),
+        Output("preselected-amount", "data", allow_duplicate=True),
+        Output("preselected-date", "data", allow_duplicate=True),
+        Output("preselected-description", "data", allow_duplicate=True),
+        Output("preselected-risk-warning", "data", allow_duplicate=True),
     ],
     Input("create-submit-btn", "n_clicks"),
     [
@@ -797,6 +862,7 @@ def update_edit_category_options(transaction_type: str | None, is_open: bool):
         State("create-recurring-end-date", "value"),
         State("create-recurring-anchor-eom", "value"),
         State("modal-source", "data"),
+        State("wishlist-active-item", "data"),
     ],
     prevent_initial_call=True,
 )
@@ -812,6 +878,7 @@ def create_transaction(
     recurring_end_date,
     anchor_eom,
     modal_source,
+    wishlist_item_id,
 ):
     """Создает новую транзакцию или шаблон recurring через TransactionService."""
     if not n_clicks or not amount:
@@ -834,8 +901,12 @@ def create_transaction(
             no_update,
             "Неверный формат даты",
             True,  # Показать Alert
-            no_update,  # preselected-category
-            no_update,  # preselected-type
+            no_update,
+            no_update,  # preselected-category, type
+            no_update,
+            no_update,
+            no_update,
+            no_update,  # amount, date, desc, risk
         )
 
     # Парсинг даты окончания recurring (если указана)
@@ -872,6 +943,9 @@ def create_transaction(
                 "source": modal_source,
                 "transaction_id": new_tx.id,
             }
+            # Добавляем wishlist_item_id если source=wishlist
+            if modal_source == "wishlist" and wishlist_item_id:
+                trigger_data["wishlist_item_id"] = wishlist_item_id
 
             # Успех: закрываем модал, очищаем форму, emit trigger
             return (
@@ -890,6 +964,10 @@ def create_transaction(
                 False,  # alert is_open
                 None,  # preselected-category reset
                 None,  # preselected-type reset
+                None,  # preselected-amount reset
+                None,  # preselected-date reset
+                None,  # preselected-description reset
+                None,  # preselected-risk-warning reset
             )
     except ValidationError as e:
         logger.warning(f"Ошибка валидации при создании: {e}")
@@ -907,8 +985,12 @@ def create_transaction(
             no_update,
             str(e),  # Текст ошибки
             True,  # Показать Alert
-            no_update,  # preselected-category
-            no_update,  # preselected-type
+            no_update,
+            no_update,  # preselected-category, type
+            no_update,
+            no_update,
+            no_update,
+            no_update,  # amount, date, desc, risk
         )
 
 

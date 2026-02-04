@@ -123,6 +123,9 @@ class User(Base):
         "Transaction", back_populates="user", cascade="all, delete-orphan"
     )
     goals = relationship("Goal", back_populates="user", cascade="all, delete-orphan")
+    wishlist_items = relationship(
+        "WishlistItem", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Transaction(Base):
@@ -352,4 +355,54 @@ class GoalContribution(Base):
         return (
             f"<GoalContribution(id={self.id}, "
             f"amount={self.amount}, date={self.contribution_date})>"
+        )
+
+
+class WishlistItem(Base):
+    """Модель элемента списка покупок (отложенные покупки).
+
+    Attributes:
+        name: Название покупки (до 100 символов).
+        amount: Стоимость покупки.
+        priority: Приоритет (1 = фокус, 2 = обычная). По умолчанию 1.
+        status: Статус ("new" или "planned"). По умолчанию "new".
+        planned_date: Запланированная дата покупки (после выбора в календаре).
+        planned_transaction_id: FK на транзакцию, созданную при планировании.
+            ON DELETE SET NULL — удаление транзакции не удаляет хотелку.
+    """
+
+    __tablename__ = "wishlist_items"
+    __table_args__ = (Index("ix_wishlist_user_priority", "user_id", "priority"),)
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Основные поля
+    name = Column(String(100), nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    priority = Column(Integer, default=1)  # 1 = фокус, 2 = обычная
+    status = Column(String(20), default="new", nullable=False)  # "new" | "planned"
+    planned_date = Column(Date, nullable=True)
+
+    # Связь с транзакцией планирования
+    planned_transaction_id = Column(
+        Integer,
+        ForeignKey("transactions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    # Метаданные
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Связи
+    user = relationship("User", back_populates="wishlist_items")
+    category_rel = relationship("Category")
+    planned_transaction = relationship("Transaction")
+
+    def __repr__(self) -> str:
+        return (
+            f"<WishlistItem(id={self.id}, "
+            f"name='{self.name}', status='{self.status}')>"
         )

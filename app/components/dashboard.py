@@ -8,6 +8,7 @@ from dash.exceptions import PreventUpdate
 from loguru import logger
 
 from app.core.database import get_db_session
+from app.components.wishlist import build_wishlist_widget
 from app.services import (
     DashboardService,
     OverviewMetrics,
@@ -101,6 +102,7 @@ def create_dashboard_layout():
                     ),
                     dbc.Col(
                         [
+                            build_wishlist_widget(),
                             create_ai_assistant_card(),
                             html.Div(style={"height": "20px"}),
                             html.Div(id="dashboard-statistics-card"),

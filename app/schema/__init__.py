@@ -34,6 +34,11 @@ from app.schema.budget_reservation import (
     BudgetProgress,
     ContributionRecord,
 )
+from app.schema.wishlist import (
+    WishlistItemData,
+    SafeDateInfo,
+    HoverBalances,
+)
 
 __all__ = [
     # Analytics
@@ -67,4 +72,8 @@ __all__ = [
     "BudgetReservationSettings",
     "BudgetProgress",
     "ContributionRecord",
+    # Wishlist
+    "WishlistItemData",
+    "SafeDateInfo",
+    "HoverBalances",
 ]
