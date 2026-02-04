@@ -14,6 +14,12 @@
 - **Действие**: Закоммитил context.md → Step 1
 - **Последний коммит**: 80d1ad2 chore(context): update to step 1
 
+### Restore context: protocol-0020#ctx-2
+- **Время**: 2026-02-04
+- **Диагноз**: A — Чисто (Step 8 complete, Step 9 next)
+- **Действие**: Resume from Step 9 — JS hover asset
+- **Последний коммит**: 236228e feat(wishlist): calendar extension + CSS [protocol-0020/08]
+
 ---
 
 ## Step Log
@@ -78,6 +84,20 @@
 - Создан `tests/test_purchase_recommendation.py`: 11 тестов (safe dates, hover data, edge cases)
 - Итого: 483 теста (было 441, +42)
 - Все тесты pass
+
+### Step 09 — JS hover asset
+- Создан `app/assets/wishlist_hover.js` (~145 строк):
+  - IIFE pattern с 'use strict'
+  - rubleFormatter: Intl.NumberFormat('ru-RU') + ' ₽'
+  - getHoverData() — JSON.parse из #wishlist-hover-data (dcc.Store DOM)
+  - applyHoverBalances() — подмена .calendar-day-balance[data-date] из by_candidate
+  - restoreBaseBalances() — восстановление из base_balances
+  - attachHoverListeners() — mouseenter/mouseleave на .calendar-day:not(.past-day-wishlist)
+  - data-hover-attached guard против повторного подключения
+  - observeContainer() — MutationObserver на .calendar-container для обнаружения .wishlist-mode
+  - init() — поиск контейнера с fallback через body MutationObserver
+  - DOMContentLoaded / readyState check
+- node --check OK, pytest 483 passed
 
 ### Step 02 — WishlistService (inline, see below)
 
