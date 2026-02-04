@@ -24,6 +24,19 @@ class GoalService:
         """
         self.session = session
 
+    def _get_budget_service(self):
+        """Возвращает BudgetReservationService с текущей сессией.
+
+        Lazy import для избежания circular dependency
+        (GoalService <-> BudgetReservationService).
+
+        Returns:
+            BudgetReservationService: Инстанс с self.session.
+        """
+        from app.services.budget_reservation_service import BudgetReservationService
+
+        return BudgetReservationService(self.session)
+
     def get_next_priority(self, user_id: int) -> int:
         """Возвращает следующий приоритет для новой цели.
 
@@ -151,9 +164,7 @@ class GoalService:
             logger.warning(f"Взнос {amount} в цель {goal_id} без настроенного бюджета")
 
         # Создать транзакцию через BudgetReservationService (если from_balance)
-        from app.services.budget_reservation_service import BudgetReservationService
-
-        budget_service = BudgetReservationService(self.session)
+        budget_service = self._get_budget_service()
         actual_date = contribution_date or date.today()
         transaction = budget_service.create_contribution_transaction(
             user_id=goal.user_id,
@@ -303,6 +314,10 @@ class GoalService:
         logger.info(f"Удалена цель {goal_id}")
 
         return True
+
+    def get_contribution_by_id(self, contribution_id: int) -> GoalContribution | None:
+        """Получает взнос по ID для предзаполнения формы редактирования."""
+        return self.session.get(GoalContribution, contribution_id)
 
     def get_contributions(
         self,
@@ -483,9 +498,7 @@ class GoalService:
         self.session.flush()
 
         # Синхронизировать recurring шаблон если режим fixed_date
-        from app.services.budget_reservation_service import BudgetReservationService
-
-        budget_service = BudgetReservationService(self.session)
+        budget_service = self._get_budget_service()
         budget_service.sync_template_amount(user_id)
 
         logger.info(f"Обновлен бюджет накоплений для user {user_id}: {budget}")
@@ -565,10 +578,7 @@ class GoalService:
         amount = contribution.amount
         contribution_date = contribution.contribution_date
 
-        # Lazy import для избежания circular dependency
-        from app.services.budget_reservation_service import BudgetReservationService
-
-        budget_service = BudgetReservationService(self.session)
+        budget_service = self._get_budget_service()
 
         # Удаляем транзакцию если есть
         if contribution.transaction_id:
