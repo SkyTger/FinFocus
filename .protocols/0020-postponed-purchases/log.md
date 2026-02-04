@@ -35,6 +35,17 @@
 - Создан `scripts/migrate_006_wishlist.py`: idempotent CREATE TABLE + index
 - py_compile OK, pytest 441 passed
 
+### Step 05 — Wishlist UI (виджет + модал)
+- Создан `app/components/wishlist.py` (~500 строк):
+  - build_wishlist_widget() — Dashboard карточка с 5 фокусными покупками
+  - create_wishlist_modal() — модал с inline-формой, секции Focus/Later
+  - _build_replan_confirm_modal() — confirm dialog перепланирования
+  - 9 callbacks: open/add/delete/edit(priority toggle)/replan flow/plan navigate
+  - ADR-003 guard clauses
+- Создан `app/assets/wishlist.css` (~75 строк)
+- Обновлен `app/components/__init__.py`
+- py_compile OK, pytest 483 passed
+
 ### Step 04 — Unit тесты сервисов
 - Создан `tests/test_wishlist_service.py`: 31 тест (CRUD, validation, guards, to_data)
 - Создан `tests/test_purchase_recommendation.py`: 11 тестов (safe dates, hover data, edge cases)
