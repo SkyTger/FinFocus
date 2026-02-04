@@ -1,8 +1,8 @@
 # Protocol Context: 0020-postponed-purchases
 
-- **Current Step**: 0
-- **Status**: Setup
-- **Last Action**: Создание артефактов протокола
+- **Current Step**: 1
+- **Status**: In Progress
+- **Last Action**: Шаг 0 — Setup завершен, PR создан
 - **Next Action**: Шаг 1 — Schema + Model + Migration
 - **Git Branch**: `0020-postponed-purchases`
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
