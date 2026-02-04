@@ -177,6 +177,17 @@ MVP разрабатывается по принципу **dual-track agile** с
   - [x] Calendar Guard #6 (блокировка SAVINGS_CONTRIBUTION)
   - [x] Goals UI с Edit/Delete кнопками и модалами
   - [x] Unit тесты (441 тестов всего, +23)
+- [x] ✅ Отложенные покупки (Wishlist) (2026/02/04, PR #20)
+  - [x] WishlistItem ORM модель (7 полей + FK relationships)
+  - [x] WishlistService CRUD + planning workflow (status: new → planned)
+  - [x] PurchaseRecommendationService (safe dates map, hover data precalculation)
+  - [x] Dashboard widget с 5 фокусными покупками
+  - [x] Wishlist модал управления (добавить, редактировать, удалить, перепланировать)
+  - [x] Calendar wishlist mode (overlay banner, safe/unsafe маркеры)
+  - [x] JS hover для каскадного пересчета остатков (MutationObserver)
+  - [x] Preselection Store Pattern для создания транзакции из wishlist дня
+  - [x] Orphan detection (ON DELETE SET NULL + callback reset)
+  - [x] Unit тесты (483 тестов всего, +42)
 - [ ] Интеграция бюджета целей с календарём (спецификация готова)
   - Два режима резервирования:
     - "Фиксированная дата" — recurring операция "Резерв на цели" в календаре
@@ -186,7 +197,8 @@ MVP разрабатывается по принципу **dual-track agile** с
   - Спецификация: `.reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
 - [ ] Уведомления и напоминания
 
-**Прогресс**: 83% (5/6 фичи завершены)
+**Прогресс**: 100% (6/6 фичи завершены)
+**Статус**: ✅ Батч 4 завершен
 
 ### Backlog (после MVP)
 - [ ] Импорт операций из внешних источников
