@@ -423,15 +423,87 @@ def recalculate_current_month_exception(user_id, reference_date):
 
 ---
 
+## D006: Редактирование и удаление взносов — Вариант A в delete_contribution
+
+**Дата**: 2026-02-04
+**Статус**: Утверждено и реализовано (Протокол 0019)
+
+### Контекст
+
+GoalContribution можно только создавать — нет возможности отредактировать или удалить взнос. Существующий `delete_contribution()` содержит баг: не откатывает статус COMPLETED для `fixed_date` режима. SAVINGS_CONTRIBUTION кликабелен в calendar tooltip, что приводит к рассинхронизации данных.
+
+### Решение
+
+**Расширить GoalService полноценным CRUD для взносов:**
+
+1. **update_contribution()** — обновление суммы/даты/описания с каскадной синхронизацией:
+   - Contribution → Transaction (amount, date, description)
+   - Goal.current_amount пересчитывается (delta = new - old)
+   - Exception пересчитывается для `fixed_date` режима
+
+2. **Переписать delete_contribution()** — исправление бага и упрощение логики:
+   - Вариант A: прямое удаление без вызова `delete_contribution_transaction()`
+   - Откат статуса COMPLETED → ACTIVE
+   - Удаление Exception для `fixed_date` режима
+
+3. **Calendar Guard #6** — блокировка SAVINGS_CONTRIBUTION в tooltip (аналогично SAVINGS_RESERVE)
+
+### Обоснование
+
+1. **Вариант A vs B** в `delete_contribution()`:
+   - **Вариант A** (выбран): прямое удаление → проще, избегает дублирования логики `current_amount`
+   - **Вариант B** (отклонён): делегировать в `BudgetReservationService.delete_contribution_transaction()` → дублирование логики, circular dependency
+
+2. **Lazy import pattern** для `_get_budget_service()`:
+   - Избегает circular dependency (GoalService → BudgetReservationService → GoalService)
+   - Инициализация сервиса только при вызове
+
+3. **Guard #6 критичен**:
+   - Без него пользователь может отредактировать SAVINGS_CONTRIBUTION через calendar tooltip
+   - Приводит к рассинхронизации: Transaction изменён, но Goal.current_amount и Exception не обновлены
+
+### Критичные детали
+
+- **ContributionInfo detachment** — данные сохраняются до `flush()` для защиты от detached state
+- **Guards в update_contribution()**:
+  - Guard #1: contribution not found → ValueError
+  - Guard #2a: goal завершена → ValueError (кроме уменьшения суммы)
+  - Guard #2b: уменьшение суммы у завершённой цели → откат COMPLETED → ACTIVE
+  - Guard #3: description override если не передан
+- **Exception recalculation** — только для `fixed_date` режима, только если Exception существует
+
+### Реализация
+
+**Протокол 0019 (6 шагов)**:
+1. Schema + Helpers (_get_budget_service, get_contribution_by_id)
+2. Service Methods (update_contribution, delete_contribution rewrite)
+3. Calendar Guard #6
+4. Goals UI (таблица, модалы, callbacks)
+5. 23 unit тестов
+6. Финализация (441 тестов passed)
+
+### Альтернативы (отвергнуты)
+
+- **Вариант B** в delete_contribution — делегирование в BudgetReservationService (дублирование логики)
+- **Soft delete для Contribution** — overcomplicated для MVP (нет истории редактирования)
+- **Блокировка edit UI в Goals** — UX проблема, пользователь не может исправить ошибку
+
+### Связь с другими решениями
+
+- D005: Исправление багов fixed_date (recalculate_current_month_exception используется в update_contribution)
+- D004: Интеграция бюджета с календарём (SAVINGS_CONTRIBUTION тип)
+
+---
+
 ## Backlog решений (для будущих батчей)
 
-### D005: Импорт CSV — маппинг колонок
+### D007: Импорт CSV — маппинг колонок
 - TBD после завершения Budget-Calendar Integration
 
-### D006: Уведомления — каналы и периодичность
+### D008: Уведомления — каналы и периодичность
 - TBD после завершения Импорта
 
 ---
 
 **Дата создания**: 2026-01-25
-**Последнее обновление**: 2026-02-02
+**Последнее обновление**: 2026-02-04

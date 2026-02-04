@@ -1,11 +1,86 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Батч 4 — Onboarding Wizard — ✅ ЗАВЕРШЕН
+## 📊 Общий статус проекта: Батч 4 — Contribution Edit/Delete — ✅ ЗАВЕРШЕН
 
-**Последнее обновление**: 2026/01/31
-**Текущий этап**: Onboarding Wizard — MERGED
-**Прогресс Epic-04**: 3/6 фичи (Quick-Add Chips + Safety Cushion + Onboarding complete)
+**Последнее обновление**: 2026/02/04
+**Текущий этап**: Contribution Edit/Delete — MERGED
+**Прогресс Epic-04**: 5/6 фичи (Quick-Add Chips + Safety Cushion + Onboarding + Tooltip + Contribution Edit/Delete complete)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## ✅ Батч 14: Contribution Edit/Delete (2026-02-04) — MERGED
+
+**Дата**: 2026/02/04
+**Протокол**: 0019-contribution-edit-delete
+**PR**: https://github.com/SkyTger/FinFocus/pull/19
+**Статус**: ✅ Merged в main
+
+### 🎯 Цель батча:
+Реализовать полноценное CRUD для GoalContribution с каскадной синхронизацией (Contribution ↔ Transaction ↔ Goal.current_amount ↔ Exception) и блокировкой SAVINGS_CONTRIBUTION в calendar tooltip.
+
+### ✅ Выполненные задачи:
+
+1. **Schema + Helpers** (commit: 8b0648c)
+   - ContributionInfo и ContributionUpdateResult TypedDicts
+   - _get_budget_service() для lazy import (избегание circular dependency)
+   - get_contribution_by_id() метод
+
+2. **Service Methods** (commit: 9089dc5)
+   - update_contribution() с Guards #1-3, каскадная синхронизация (Contribution → Transaction → current_amount → Exception)
+   - Переписан delete_contribution() по Варианту A (прямое удаление, без delete_contribution_transaction())
+   - Откат статуса COMPLETED → ACTIVE в обоих методах
+
+3. **Calendar Guard #6** (commit: de9531f)
+   - Блокировка SAVINGS_CONTRIBUTION в tooltip (аналогично SAVINGS_RESERVE)
+   - Обновлен тест test_savings_contribution_is_readonly
+
+4. **Goals UI** (commit: 28b02b4)
+   - Таблица взносов с кнопками Edit/Delete
+   - Модалы: edit_contribution_modal, delete_contribution_confirm_modal
+   - 4 callbacks с ADR-003 guard clauses
+
+5. **Unit Tests** (commit: d557f2c)
+   - 23 новых тестов (17 update, 5 delete, 1 not_found)
+   - Mock scope fix для across_months теста
+
+6. **Финализация** (commit: edc2195)
+   - Black: 3 файла переформатированы
+   - Flake8: 1 unused import исправлен
+   - Pytest: 441 tests passed (было 418, +23)
+
+### 📊 Результат:
+- ✅ 441 unit и integration тестов (было 418, +23)
+- ✅ Полный lifecycle для GoalContribution (CRUD complete)
+- ✅ Каскадная синхронизация 4 уровней (Contribution → Transaction → Goal → Exception)
+- ✅ Защита от data corruption через calendar
+- ✅ Black + Flake8 OK
+- ✅ PR #19 Merged
+
+### 💡 Ключевые решения:
+
+1. **Вариант A в delete_contribution** — прямое удаление без вызова delete_contribution_transaction() для избежания дублирования логики current_amount
+2. **Lazy import для circular dependency** — _get_budget_service() в GoalService
+3. **ContributionInfo detachment** — сохранение данных до flush() для защиты от detached state
+4. **Guard #6 в calendar** — блокировка SAVINGS_CONTRIBUTION для предотвращения рассинхронизации
+
+### 🔧 Технические детали:
+
+**Новые файлы:**
+- `tests/test_contribution_edit_delete.py` — 23 unit тестов
+
+**Модифицированные файлы:**
+- `app/schema/goals.py` — +2 TypedDicts (ContributionInfo, ContributionUpdateResult)
+- `app/services/goal_service.py` — +3 методы (_get_budget_service, get_contribution_by_id, update_contribution), переписан delete_contribution
+- `app/components/calendar.py` — +Guard #6, обновлен tooltip readonly
+- `app/components/goals.py` — +таблица actions, +2 модала, +4 callbacks
+
+### 🚀 Следующие шаги:
+
+**Epic-04 продолжение**:
+- Интеграция бюджета целей с календарём (осталась 1 фича)
+- Импорт операций из банков (Backlog)
+- Уведомления и напоминания (Backlog)
 
 ---
 
