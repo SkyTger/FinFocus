@@ -35,6 +35,17 @@
 - Создан `scripts/migrate_006_wishlist.py`: idempotent CREATE TABLE + index
 - py_compile OK, pytest 441 passed
 
+### Step 02 — WishlistService (inline, see below)
+
+### Step 03 — PurchaseRecommendationService
+- Создан `app/services/purchase_recommendation_service.py` (~160 строк):
+  - get_safe_dates_map() — карта безопасности дат (negative_balance, cushion reasons)
+  - precalculate_hover_data() — base_balances + by_candidate для JS hover
+  - Зависимости: CalendarService.calculate_daily_balances(), CushionService.get_settings()
+  - Формула: min(balance[d:end] - amount) для проверки safe
+- Обновлен `app/services/__init__.py`: экспорт PurchaseRecommendationService
+- py_compile OK, pytest 441 passed
+
 ### Step 02 — WishlistService
 - Создан `app/services/wishlist_service.py` (~270 строк):
   - CRUD: create_item, get_all, get_focus, get_by_id, update_item, delete_item

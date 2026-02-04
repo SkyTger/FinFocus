@@ -51,6 +51,7 @@ from .budget_reservation_service import (
     STATUS_THRESHOLDS,
 )
 from .wishlist_service import WishlistService, VALID_PRIORITIES
+from .purchase_recommendation_service import PurchaseRecommendationService
 
 __all__ = [
     # Allocation
@@ -107,6 +108,7 @@ __all__ = [
     # Wishlist
     "WishlistService",
     "VALID_PRIORITIES",
+    "PurchaseRecommendationService",
     # Core
     "ValidationError",
 ]
