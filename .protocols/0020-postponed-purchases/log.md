@@ -35,6 +35,12 @@
 - Создан `scripts/migrate_006_wishlist.py`: idempotent CREATE TABLE + index
 - py_compile OK, pytest 441 passed
 
+### Step 04 — Unit тесты сервисов
+- Создан `tests/test_wishlist_service.py`: 31 тест (CRUD, validation, guards, to_data)
+- Создан `tests/test_purchase_recommendation.py`: 11 тестов (safe dates, hover data, edge cases)
+- Итого: 483 теста (было 441, +42)
+- Все тесты pass
+
 ### Step 02 — WishlistService (inline, see below)
 
 ### Step 03 — PurchaseRecommendationService
