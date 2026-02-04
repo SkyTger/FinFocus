@@ -35,6 +35,14 @@
 - Создан `scripts/migrate_006_wishlist.py`: idempotent CREATE TABLE + index
 - py_compile OK, pytest 441 passed
 
+### Step 07 — Calendar wishlist module
+- Создан `app/components/calendar_wishlist.py` (~280 строк):
+  - build_wishlist_overlay_banner() — баннер с названием, суммой, легендой, счетчиком
+  - build_wishlist_day_cell() — ячейка с safe/unsafe маркерами, data-date, reasons tooltip
+  - build_wishlist_calendar_grid() — полная сетка с .wishlist-mode CSS
+  - cancel_wishlist_mode callback
+- py_compile OK, pytest 483 passed
+
 ### Step 06 — Dashboard + Main интеграция
 - `app/components/dashboard.py`: добавлен build_wishlist_widget() в правую колонку
 - `app/main.py`:
