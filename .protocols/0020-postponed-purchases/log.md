@@ -8,6 +8,12 @@
 
 <!-- Записи вида: Restore context: protocol-0020#ctx-N -->
 
+### Restore context: protocol-0020#ctx-1
+- **Время**: 2026-02-04
+- **Диагноз**: B — Прервано (незакоммиченный context.md)
+- **Действие**: Закоммитил context.md → Step 1
+- **Последний коммит**: 80d1ad2 chore(context): update to step 1
+
 ---
 
 ## Step Log
