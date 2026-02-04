@@ -225,11 +225,16 @@ def create_calendar_layout() -> html.Div:
             ),
             # Триггер обновления календаря после сверки
             dcc.Store(id="calendar-refresh-trigger", data=None),
+            # Wishlist mode stores
+            dcc.Store(id="wishlist-safe-dates", data=None),
+            dcc.Store(id="wishlist-hover-data", data=None),
             # Заголовок с навигацией (с начальными кнопками)
             html.Div(
                 id="calendar-header",
                 children=build_calendar_header(today.month, today.year),
             ),
+            # Wishlist overlay баннер (пустой, заполняется при wishlist-mode)
+            html.Div(id="wishlist-overlay"),
             # Карточки статистики (загрузка...)
             html.Div(
                 id="calendar-stats",
@@ -665,10 +670,11 @@ def build_day_cell(
             )
             if icons
             else None,
-            # Баланс
+            # Баланс (data-date для JS hover в wishlist-mode)
             html.Div(
                 f"{balance_text} ₽",
                 className=f"calendar-day-balance {balance_class}",
+                **{"data-date": day_date.isoformat()},
             )
             if is_current_month
             else None,
@@ -783,12 +789,16 @@ DEFAULT_USER_ID = 1
         Output("calendar-stats", "children"),
         Output("calendar-grid", "children"),
         Output("calendar-state", "data"),
+        Output("wishlist-overlay", "children"),
+        Output("wishlist-safe-dates", "data"),
+        Output("wishlist-hover-data", "data"),
     ],
     [
         Input("url", "pathname"),
         Input("prev-month-btn", "n_clicks"),
         Input("next-month-btn", "n_clicks"),
         Input("today-btn", "n_clicks"),
+        Input("wishlist-active-item", "data"),
     ],
     [State("calendar-state", "data")],
 )
@@ -797,6 +807,7 @@ def load_and_navigate_calendar(
     prev_clicks: int | None,
     next_clicks: int | None,
     today_clicks: int | None,
+    wishlist_item_id: int | None,
     state: dict | None,
 ):
     """Загружает календарь и обрабатывает навигацию между месяцами.
@@ -884,9 +895,54 @@ def load_and_navigate_calendar(
         # Строим UI компоненты
         header = build_calendar_header(current_month, current_year)
         stats = build_stats_cards(summary)
-        grid = build_calendar_grid(
-            current_month, current_year, balances, transactions_by_date
-        )
+
+        # Wishlist-mode: используем wishlist grid и overlay
+        overlay = None
+        safe_dates_data = None
+        hover_data = None
+
+        if wishlist_item_id:
+            try:
+                from app.services import WishlistService, PurchaseRecommendationService
+
+                with get_db_session() as ws_session:
+                    ws_svc = WishlistService(ws_session)
+                    item = ws_svc.get_by_id(wishlist_item_id)
+
+                    if item:
+                        from app.components.calendar_wishlist import (
+                            build_wishlist_overlay_banner,
+                            build_wishlist_calendar_grid,
+                        )
+                        from app.utils.formatters import format_amount as fmt_amt
+
+                        rec_svc = PurchaseRecommendationService(ws_session)
+                        safe_map = rec_svc.get_safe_dates_map(
+                            DEFAULT_USER_ID, item.amount,
+                            current_year, current_month,
+                        )
+                        hover = rec_svc.precalculate_hover_data(
+                            DEFAULT_USER_ID, item.amount,
+                            current_year, current_month,
+                        )
+
+                        overlay = build_wishlist_overlay_banner(
+                            item.name, fmt_amt(item.amount), safe_map
+                        )
+                        safe_dates_data = safe_map
+                        hover_data = hover
+
+                        grid = build_wishlist_calendar_grid(
+                            current_month, current_year,
+                            balances, transactions_by_date, safe_map,
+                        )
+            except Exception as we:
+                logger.error(f"Wishlist mode error: {we}")
+
+        if not wishlist_item_id or overlay is None:
+            grid = build_calendar_grid(
+                current_month, current_year, balances, transactions_by_date
+            )
 
         # Обновляем state
         new_state = {
@@ -895,7 +951,7 @@ def load_and_navigate_calendar(
             "balances": serialize_balances(balances),
         }
 
-        return header, stats, grid, new_state
+        return header, stats, grid, new_state, overlay, safe_dates_data, hover_data
 
     except Exception as e:
         logger.error(f"Ошибка загрузки календаря: {e}")
@@ -904,6 +960,9 @@ def load_and_navigate_calendar(
             dbc.Alert("Не удалось загрузить данные", color="danger"),
             html.Div(),
             state,
+            None,
+            None,
+            None,
         )
 
 

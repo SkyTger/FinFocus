@@ -35,6 +35,16 @@
 - Создан `scripts/migrate_006_wishlist.py`: idempotent CREATE TABLE + index
 - py_compile OK, pytest 441 passed
 
+### Step 08 — Calendar.py расширение
+- `app/components/calendar.py`:
+  - data-date атрибут на .calendar-day-balance
+  - dcc.Stores: wishlist-safe-dates, wishlist-hover-data
+  - wishlist-overlay div в layout
+  - load_and_navigate_calendar расширен: +Input wishlist-active-item, +3 Outputs
+  - Wishlist mode: PurchaseRecommendationService + wishlist grid
+- `app/assets/wishlist.css`: +55 строк (overlay, markers, safe/unsafe, hover, past-day)
+- py_compile OK, pytest 483 passed
+
 ### Step 07 — Calendar wishlist module
 - Создан `app/components/calendar_wishlist.py` (~280 строк):
   - build_wishlist_overlay_banner() — баннер с названием, суммой, легендой, счетчиком

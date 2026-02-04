@@ -49,6 +49,60 @@
     border: 1px dashed #dee2e6;
 }
 
+/* === Calendar Wishlist Mode === */
+
+.wishlist-overlay-banner {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    border-left: 4px solid #198754;
+}
+
+.wishlist-marker {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+.wishlist-marker.safe {
+    background-color: #198754;
+}
+
+.wishlist-marker.unsafe {
+    background-color: #dc3545;
+}
+
+/* Safe/unsafe day cells */
+.wishlist-day-safe {
+    border-left: 3px solid #198754 !important;
+}
+
+.wishlist-day-unsafe {
+    border-left: 3px solid #dc3545 !important;
+}
+
+.past-day-wishlist {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+/* Hover recalculated balances */
+.hover-recalculated {
+    color: #0d6efd !important;
+    font-weight: bold;
+}
+
+/* Disable tooltip in wishlist mode */
+.wishlist-mode .day-tooltip {
+    display: none !important;
+}
+
+/* Wishlist legend */
+.wishlist-legend {
+    font-size: 0.85rem;
+}
+
 /* === Responsive === */
 
 @media (max-width: 768px) {
