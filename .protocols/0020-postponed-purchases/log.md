@@ -85,6 +85,21 @@
 - Итого: 483 теста (было 441, +42)
 - Все тесты pass
 
+### Step 10 — Preselection + mark_planned + orphan detection
+- `app/components/transaction_modals.py`:
+  - +4 dcc.Stores: preselected-amount, -date, -description, -risk-warning
+  - set_preselection_on_modal_open(): расширен для source="wishlist" (7 outputs)
+  - create_transaction: +wishlist_item_id State, trigger_data["wishlist_item_id"], +4 reset stores (19 outputs)
+  - close_create_modal: +4 resets (10 outputs)
+- `app/components/calendar_wishlist.py`:
+  - open_create_from_wishlist_day(): клик на wishlist-day-cell → create-modal с preselection
+  - ADR-003 guard clauses #1-#4
+  - Risk warning из safe_dates
+- `app/components/wishlist.py`:
+  - mark_wishlist_planned_after_create(): trigger source="wishlist" → mark_as_planned()
+  - detect_orphaned_wishlist(): trigger action="delete" → check_orphaned_planned() → reset_planned()
+- py_compile OK, pytest 483 passed
+
 ### Step 09 — JS hover asset
 - Создан `app/assets/wishlist_hover.js` (~145 строк):
   - IIFE pattern с 'use strict'

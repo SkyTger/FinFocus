@@ -9,12 +9,13 @@ from datetime import date
 from decimal import Decimal
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, no_update
+from dash import html, dcc, callback, Input, Output, State, ctx, no_update, ALL
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
+from app.core import get_db_session
 from app.schema.wishlist import SafeDateInfo
-from app.services import CalendarService, TransactionInfo
+from app.services import CalendarService, TransactionInfo, WishlistService
 from app.utils.formatters import format_amount
 
 
@@ -280,3 +281,98 @@ def cancel_wishlist_mode(n_clicks):
     if not n_clicks:
         raise PreventUpdate
     return None
+
+
+@callback(
+    [
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
+        Output("preselected-category", "data", allow_duplicate=True),
+        Output("preselected-type", "data", allow_duplicate=True),
+        Output("preselected-amount", "data", allow_duplicate=True),
+        Output("preselected-date", "data", allow_duplicate=True),
+        Output("preselected-description", "data", allow_duplicate=True),
+        Output("preselected-risk-warning", "data", allow_duplicate=True),
+    ],
+    Input({"type": "wishlist-day-cell", "date": ALL}, "n_clicks"),
+    [
+        State("wishlist-active-item", "data"),
+        State("wishlist-safe-dates", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def open_create_from_wishlist_day(n_clicks_list, wishlist_item_id, safe_dates):
+    """Открывает create-modal при клике на день в wishlist-mode.
+
+    Заполняет preselection stores из данных wishlist item.
+
+    ADR-003 Guard Clauses:
+    - Guard #1: ctx.triggered_id existence
+    - Guard #2: isinstance(triggered_id, dict)
+    - Guard #3: triggered_id["type"] == "wishlist-day-cell"
+    - Guard #4: real click check
+    """
+    # Guard #1
+    triggered_id = ctx.triggered_id
+    if not triggered_id:
+        raise PreventUpdate
+
+    # Guard #2
+    if not isinstance(triggered_id, dict):
+        raise PreventUpdate
+
+    # Guard #3
+    if triggered_id.get("type") != "wishlist-day-cell":
+        raise PreventUpdate
+
+    # Guard #4: all clicks None = initial call
+    if not n_clicks_list or not any(n_clicks_list):
+        raise PreventUpdate
+
+    clicked_date = triggered_id.get("date")
+    if not clicked_date:
+        raise PreventUpdate
+
+    if not wishlist_item_id:
+        raise PreventUpdate
+
+    # Загружаем данные wishlist item
+    try:
+        with get_db_session() as session:
+            svc = WishlistService(session)
+            item = svc.get_by_id(wishlist_item_id)
+            if not item:
+                raise PreventUpdate
+
+            description = f"Покупка: {item.name}"
+            amount = float(item.amount)
+            category_id = item.category_id
+
+            # Risk warning
+            risk_warning = None
+            if safe_dates and clicked_date in safe_dates:
+                info = safe_dates[clicked_date]
+                if not info.get("safe", True):
+                    reasons = info.get("reasons", [])
+                    warnings = []
+                    for r in reasons:
+                        if r == "negative_balance":
+                            warnings.append("Баланс уйдет в минус")
+                        elif r == "cushion":
+                            warnings.append("Ниже порога подушки")
+                    risk_warning = "Внимание: " + "; ".join(warnings)
+
+    except Exception as e:
+        logger.error(f"Error loading wishlist item for preselection: {e}")
+        raise PreventUpdate
+
+    return (
+        True,  # create-modal is_open
+        "wishlist",  # modal-source
+        category_id,  # preselected-category
+        "EXPENSE",  # preselected-type
+        amount,  # preselected-amount
+        clicked_date,  # preselected-date
+        description,  # preselected-description
+        risk_warning,  # preselected-risk-warning
+    )
