@@ -3966,7 +3966,10 @@ def open_edit_contribution_modal(edit_clicks_list, cancel_clicks):
         return False, None, None, None, "", False
 
     # Edit button clicked
-    if isinstance(triggered_id, dict) and triggered_id.get("type") == "contribution-edit-btn":
+    if (
+        isinstance(triggered_id, dict)
+        and triggered_id.get("type") == "contribution-edit-btn"
+    ):
         contribution_id = triggered_id["contribution_id"]
         try:
             with get_db_session() as session:
@@ -4013,7 +4016,14 @@ def open_edit_contribution_modal(edit_clicks_list, cancel_clicks):
     prevent_initial_call=True,
 )
 def submit_edit_contribution(
-    n_clicks, contribution_id, amount, date_str, description, goal_id, budget, savings_mode
+    n_clicks,
+    contribution_id,
+    amount,
+    date_str,
+    description,
+    goal_id,
+    budget,
+    savings_mode,
 ):
     """Сохраняет изменения взноса."""
     # Guard: ADR-003
@@ -4023,9 +4033,14 @@ def submit_edit_contribution(
     # Client-side validation
     if not amount or amount <= 0:
         return (
-            True, no_update, no_update, no_update,
-            "Укажите положительную сумму", True,
-            no_update, no_update,
+            True,
+            no_update,
+            no_update,
+            no_update,
+            "Укажите положительную сумму",
+            True,
+            no_update,
+            no_update,
         )
 
     parsed_date = parse_date_safe(date_str) if date_str else None
@@ -4043,9 +4058,14 @@ def submit_edit_contribution(
 
             if not result["success"]:
                 return (
-                    True, no_update, no_update, no_update,
-                    result["error"], True,
-                    no_update, no_update,
+                    True,
+                    no_update,
+                    no_update,
+                    no_update,
+                    result["error"],
+                    True,
+                    no_update,
+                    no_update,
                 )
 
             # Сохраняем скалярные данные ДО commit (detached state protection)
@@ -4105,9 +4125,14 @@ def submit_edit_contribution(
     except Exception as e:
         logger.error(f"submit_edit_contribution: ошибка: {e}")
         return (
-            True, no_update, no_update, no_update,
-            f"Ошибка: {e}", True,
-            no_update, no_update,
+            True,
+            no_update,
+            no_update,
+            no_update,
+            f"Ошибка: {e}",
+            True,
+            no_update,
+            no_update,
         )
 
 
@@ -4136,7 +4161,10 @@ def open_delete_contribution_modal(delete_clicks_list, cancel_clicks):
         return False, None, ""
 
     # Delete button clicked
-    if isinstance(triggered_id, dict) and triggered_id.get("type") == "contribution-delete-btn":
+    if (
+        isinstance(triggered_id, dict)
+        and triggered_id.get("type") == "contribution-delete-btn"
+    ):
         contribution_id = triggered_id["contribution_id"]
         try:
             with get_db_session() as session:
@@ -4173,7 +4201,9 @@ def open_delete_contribution_modal(delete_clicks_list, cancel_clicks):
     ],
     prevent_initial_call=True,
 )
-def confirm_delete_contribution(n_clicks, contribution_id, goal_id, budget, savings_mode):
+def confirm_delete_contribution(
+    n_clicks, contribution_id, goal_id, budget, savings_mode
+):
     """Подтверждает удаление взноса."""
     # Guard: ADR-003
     if not n_clicks or not contribution_id:
@@ -4187,8 +4217,12 @@ def confirm_delete_contribution(n_clicks, contribution_id, goal_id, budget, savi
 
             if not result["success"]:
                 return (
-                    False, no_update, no_update, no_update,
-                    result["error"], True,
+                    False,
+                    no_update,
+                    no_update,
+                    no_update,
+                    result["error"],
+                    True,
                 )
 
             # Сохраняем скалярные данные ДО commit (detached state protection)
@@ -4246,6 +4280,10 @@ def confirm_delete_contribution(n_clicks, contribution_id, goal_id, budget, savi
     except Exception as e:
         logger.error(f"confirm_delete_contribution: ошибка: {e}")
         return (
-            False, no_update, no_update, no_update,
-            f"Ошибка при удалении: {e}", True,
+            False,
+            no_update,
+            no_update,
+            no_update,
+            f"Ошибка при удалении: {e}",
+            True,
         )

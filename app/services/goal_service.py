@@ -664,9 +664,7 @@ class GoalService:
         # Пересчет Exception — ТОЛЬКО если дата передана И отличается от старой
         if contribution_date is not None and contribution_date != old_date:
             budget_service = self._get_budget_service()
-            budget_service.recalculate_current_month_exception(
-                goal.user_id, old_date
-            )
+            budget_service.recalculate_current_month_exception(goal.user_id, old_date)
             budget_service.recalculate_current_month_exception(
                 goal.user_id, contribution_date
             )
@@ -682,16 +680,12 @@ class GoalService:
             goal.status = GoalStatus.ACTIVE
             status_changed = True
             new_status = "active"
-            logger.info(
-                f"Goal {goal.id} reverted to ACTIVE after contribution update"
-            )
+            logger.info(f"Goal {goal.id} reverted to ACTIVE after contribution update")
         elif not was_completed and is_completed_now:
             goal.status = GoalStatus.COMPLETED
             status_changed = True
             new_status = "completed"
-            logger.info(
-                f"Goal {goal.id} marked COMPLETED after contribution update"
-            )
+            logger.info(f"Goal {goal.id} marked COMPLETED after contribution update")
 
         self.session.flush()
 
@@ -771,9 +765,7 @@ class GoalService:
             goal.status = GoalStatus.ACTIVE
             status_changed = True
             new_status = "active"
-            logger.info(
-                f"Goal {goal.id} reverted to ACTIVE after contribution delete"
-            )
+            logger.info(f"Goal {goal.id} reverted to ACTIVE after contribution delete")
 
         self.session.flush()
         logger.info(

@@ -6,15 +6,20 @@ from unittest.mock import patch
 
 import pytest
 
-from app.models.database import GoalContribution, GoalStatus, Transaction, TransactionType
+from app.models.database import GoalContribution, GoalStatus, Transaction
 from app.services.goal_service import GoalService
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
+
 def _create_goal_with_contribution(
-    db_session, test_user, amount=Decimal("5000"), target=Decimal("50000"),
-    contribution_date=None, description="Тестовый взнос",
+    db_session,
+    test_user,
+    amount=Decimal("5000"),
+    target=Decimal("50000"),
+    contribution_date=None,
+    description="Тестовый взнос",
 ):
     """Создает цель и один взнос, возвращает (goal, contribution)."""
     service = GoalService(db_session)
@@ -107,7 +112,9 @@ class TestUpdateContributionDate:
         """Смена даты в рамках текущего месяца → success."""
         today = date.today()
         goal, contrib = _create_goal_with_contribution(
-            db_session, test_user, contribution_date=today,
+            db_session,
+            test_user,
+            contribution_date=today,
         )
         service = GoalService(db_session)
 
@@ -127,7 +134,9 @@ class TestUpdateContributionDate:
         """Смена даты между месяцами → recalculate для обоих месяцев."""
         today = date.today()
         goal, contrib = _create_goal_with_contribution(
-            db_session, test_user, contribution_date=today,
+            db_session,
+            test_user,
+            contribution_date=today,
         )
         service = GoalService(db_session)
 
@@ -292,8 +301,10 @@ class TestUpdateContributionStatus:
     ):
         """Уменьшение суммы → COMPLETED→ACTIVE."""
         goal, contrib = _create_goal_with_contribution(
-            db_session, test_user,
-            amount=Decimal("10000"), target=Decimal("10000"),
+            db_session,
+            test_user,
+            amount=Decimal("10000"),
+            target=Decimal("10000"),
         )
         assert goal.status == GoalStatus.COMPLETED
 
@@ -313,8 +324,10 @@ class TestUpdateContributionStatus:
     ):
         """Увеличение до target → ACTIVE→COMPLETED."""
         goal, contrib = _create_goal_with_contribution(
-            db_session, test_user,
-            amount=Decimal("5000"), target=Decimal("10000"),
+            db_session,
+            test_user,
+            amount=Decimal("5000"),
+            target=Decimal("10000"),
         )
         assert goal.status == GoalStatus.ACTIVE
 
@@ -332,8 +345,10 @@ class TestUpdateContributionStatus:
     def test_update_contribution_exact_boundary_active(self, db_session, test_user):
         """Сумма точно на границе (current == target) → completed."""
         goal, contrib = _create_goal_with_contribution(
-            db_session, test_user,
-            amount=Decimal("5000"), target=Decimal("10000"),
+            db_session,
+            test_user,
+            amount=Decimal("5000"),
+            target=Decimal("10000"),
         )
         service = GoalService(db_session)
 
@@ -378,8 +393,10 @@ class TestDeleteContribution:
     ):
         """Удаление с transaction_id → COMPLETED→ACTIVE."""
         goal, contrib = _create_goal_with_contribution(
-            db_session, test_user,
-            amount=Decimal("10000"), target=Decimal("10000"),
+            db_session,
+            test_user,
+            amount=Decimal("10000"),
+            target=Decimal("10000"),
         )
         assert goal.status == GoalStatus.COMPLETED
         # Might have transaction_id depending on mode
@@ -425,13 +442,12 @@ class TestDeleteContribution:
         assert result["status_changed"] is True
         assert result["new_status"] == "active"
 
-    def test_delete_contribution_returns_contribution_info(
-        self, db_session, test_user
-    ):
+    def test_delete_contribution_returns_contribution_info(self, db_session, test_user):
         """Проверяет ВСЕ 4 поля ContributionInfo."""
         today = date.today()
         goal, contrib = _create_goal_with_contribution(
-            db_session, test_user,
+            db_session,
+            test_user,
             amount=Decimal("5000"),
             contribution_date=today,
         )
@@ -465,8 +481,10 @@ class TestDeleteContribution:
     ):
         """Вариант A: current_amount уменьшается ровно на сумму взноса (не x2)."""
         goal, contrib = _create_goal_with_contribution(
-            db_session, test_user,
-            amount=Decimal("3000"), target=Decimal("50000"),
+            db_session,
+            test_user,
+            amount=Decimal("3000"),
+            target=Decimal("50000"),
         )
         initial_amount = goal.current_amount
         assert initial_amount == Decimal("3000")
