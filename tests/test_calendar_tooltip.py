@@ -244,14 +244,14 @@ class TestSavingsTransactionRows:
         result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
         assert "readonly" in result.className
 
-    def test_savings_contribution_is_not_readonly(self):
-        """SAVINGS_CONTRIBUTION НЕ должен иметь класс readonly."""
+    def test_savings_contribution_is_readonly(self):
+        """SAVINGS_CONTRIBUTION должен иметь класс readonly (edit через Goals UI)."""
         txn = self._make_txn(
             transaction_type="savings_contribution",
             description="Взнос: Отпуск",
         )
         result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
-        assert "readonly" not in result.className
+        assert "readonly" in result.className
 
     def test_savings_reserve_has_auto_suffix(self):
         """SAVINGS_RESERVE должен иметь суффикс '(авто)' в описании."""

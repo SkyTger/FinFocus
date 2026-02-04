@@ -473,7 +473,7 @@ def _build_tooltip_transaction_row(
         row_class += " skipped"
 
     # SAVINGS_RESERVE — read-only (системная), без клика
-    if txn_type == "savings_reserve":
+    if txn_type in ("savings_reserve", "savings_contribution"):
         row_class += " readonly"
 
     # Описание: fallback на category_name если description пустой
@@ -1041,6 +1041,11 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
     # Guard #5: SAVINGS_RESERVE — read-only, игнорируем клики
     if txn_type == "savings_reserve":
         logger.debug("Tooltip: клик на SAVINGS_RESERVE ignored (read-only)")
+        raise PreventUpdate
+
+    # Guard #6: SAVINGS_CONTRIBUTION — редактирование через Goals UI
+    if txn_type == "savings_contribution":
+        logger.debug("Tooltip: клик на SAVINGS_CONTRIBUTION ignored (use Goals UI)")
         raise PreventUpdate
 
     if is_virtual:

@@ -900,6 +900,7 @@ def _build_contributions_table(
                 html.Th("Дата"),
                 html.Th("Сумма"),
                 html.Th("Описание"),
+                html.Th("Действия", className="text-end"),
             ]
         )
     )
@@ -918,6 +919,35 @@ def _build_contributions_table(
                     html.Td(
                         contrib["description"] or "-",
                         className="text-muted",
+                    ),
+                    html.Td(
+                        html.Div(
+                            [
+                                dbc.Button(
+                                    html.I(className="bi bi-pencil"),
+                                    id={
+                                        "type": "contribution-edit-btn",
+                                        "contribution_id": contrib["id"],
+                                    },
+                                    color="outline-primary",
+                                    size="sm",
+                                    className="me-1",
+                                    title="Редактировать",
+                                ),
+                                dbc.Button(
+                                    html.I(className="bi bi-trash"),
+                                    id={
+                                        "type": "contribution-delete-btn",
+                                        "contribution_id": contrib["id"],
+                                    },
+                                    color="outline-danger",
+                                    size="sm",
+                                    title="Удалить",
+                                ),
+                            ],
+                            className="d-flex justify-content-end",
+                        ),
+                        className="text-end",
                     ),
                 ]
             )
@@ -1847,6 +1877,125 @@ def _recalculate_and_render(
     )
 
 
+def _build_edit_contribution_modal() -> dbc.Modal:
+    """Модал редактирования взноса с inline alert для ошибок."""
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Редактировать взнос")),
+            dbc.ModalBody(
+                [
+                    dbc.Alert(
+                        id="edit-contribution-error-alert",
+                        is_open=False,
+                        color="danger",
+                        dismissable=True,
+                    ),
+                    dbc.Row(
+                        [
+                            dbc.Label("Сумма взноса", width=4),
+                            dbc.Col(
+                                dbc.InputGroup(
+                                    [
+                                        dbc.Input(
+                                            id="edit-contribution-amount",
+                                            type="number",
+                                            min=0.01,
+                                            step=0.01,
+                                            required=True,
+                                        ),
+                                        dbc.InputGroupText("₽"),
+                                    ]
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    dbc.Row(
+                        [
+                            dbc.Label("Дата взноса", width=4),
+                            dbc.Col(
+                                dcc.DatePickerSingle(
+                                    id="edit-contribution-date",
+                                    display_format="DD.MM.YYYY",
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                    dbc.Row(
+                        [
+                            dbc.Label("Описание", width=4),
+                            dbc.Col(
+                                dbc.Textarea(
+                                    id="edit-contribution-description",
+                                    placeholder="Необязательно",
+                                    rows=2,
+                                ),
+                                width=8,
+                            ),
+                        ],
+                        className="mb-3",
+                    ),
+                ]
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "Отмена",
+                        id="edit-contribution-cancel-btn",
+                        color="secondary",
+                        outline=True,
+                    ),
+                    dbc.Button(
+                        "Сохранить",
+                        id="edit-contribution-submit-btn",
+                        color="success",
+                    ),
+                ]
+            ),
+        ],
+        id="edit-contribution-modal",
+        is_open=False,
+    )
+
+
+def _build_delete_contribution_confirm_modal() -> dbc.Modal:
+    """Модал подтверждения удаления взноса."""
+    return dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Удалить взнос?")),
+            dbc.ModalBody(
+                [
+                    html.P(id="delete-contribution-message"),
+                    html.P(
+                        "Это действие нельзя отменить.",
+                        className="text-muted small",
+                    ),
+                ]
+            ),
+            dbc.ModalFooter(
+                [
+                    dbc.Button(
+                        "Отмена",
+                        id="delete-contribution-cancel-btn",
+                        color="secondary",
+                        outline=True,
+                    ),
+                    dbc.Button(
+                        "Удалить",
+                        id="delete-contribution-confirm-btn",
+                        color="danger",
+                    ),
+                ]
+            ),
+        ],
+        id="delete-contribution-modal",
+        is_open=False,
+    )
+
+
 def create_goals_layout() -> html.Div:
     """Создает layout страницы накопительных целей.
 
@@ -1902,6 +2051,8 @@ def create_goals_layout() -> html.Div:
             _build_create_goal_modal(),
             _build_edit_goal_modal(),
             _build_contribution_modal(),
+            _build_edit_contribution_modal(),
+            _build_delete_contribution_confirm_modal(),
             _build_redistribution_modal(),
             # Confirm Dialog для удаления
             dcc.ConfirmDialog(
@@ -1911,6 +2062,9 @@ def create_goals_layout() -> html.Div:
             ),
             # Store для ID текущей цели
             dcc.Store(id="current-goal-id", data=None),
+            # Stores для edit/delete contribution
+            dcc.Store(id="edit-contribution-id", data=None),
+            dcc.Store(id="delete-contribution-id", data=None),
             # Store для бюджета накоплений
             dcc.Store(id="goals-budget-store", data=None),
             # Store для результатов allocation
@@ -3779,3 +3933,357 @@ def reset_cushion_settings(n_clicks: int | None, current_trigger: int):
     except Exception as e:
         logger.error(f"reset_cushion_settings: ошибка сброса: {e}")
         raise PreventUpdate
+
+
+# ─── Contribution Edit/Delete Callbacks ──────────────────────────────────────
+
+
+@callback(
+    [
+        Output("edit-contribution-modal", "is_open"),
+        Output("edit-contribution-id", "data"),
+        Output("edit-contribution-amount", "value"),
+        Output("edit-contribution-date", "date"),
+        Output("edit-contribution-description", "value"),
+        Output("edit-contribution-error-alert", "is_open", allow_duplicate=True),
+    ],
+    [
+        Input({"type": "contribution-edit-btn", "contribution_id": ALL}, "n_clicks"),
+        Input("edit-contribution-cancel-btn", "n_clicks"),
+    ],
+    prevent_initial_call=True,
+)
+def open_edit_contribution_modal(edit_clicks_list, cancel_clicks):
+    """Открывает модал редактирования взноса с prefill данными."""
+    # Guard: ADR-003
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+
+    # Cancel
+    if triggered_id == "edit-contribution-cancel-btn":
+        return False, None, None, None, "", False
+
+    # Edit button clicked
+    if (
+        isinstance(triggered_id, dict)
+        and triggered_id.get("type") == "contribution-edit-btn"
+    ):
+        contribution_id = triggered_id["contribution_id"]
+        try:
+            with get_db_session() as session:
+                service = GoalService(session)
+                contrib = service.get_contribution_by_id(contribution_id)
+                if not contrib:
+                    raise PreventUpdate
+                return (
+                    True,
+                    contribution_id,
+                    float(contrib.amount),
+                    contrib.contribution_date.isoformat(),
+                    contrib.description or "",
+                    False,
+                )
+        except Exception as e:
+            logger.error(f"open_edit_contribution_modal: ошибка: {e}")
+            raise PreventUpdate
+
+    raise PreventUpdate
+
+
+@callback(
+    [
+        Output("edit-contribution-modal", "is_open", allow_duplicate=True),
+        Output("contributions-table-container", "children", allow_duplicate=True),
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
+        Output("edit-contribution-error-alert", "children"),
+        Output("edit-contribution-error-alert", "is_open"),
+        Output("goal-error-alert", "children", allow_duplicate=True),
+        Output("goal-error-alert", "is_open", allow_duplicate=True),
+    ],
+    Input("edit-contribution-submit-btn", "n_clicks"),
+    [
+        State("edit-contribution-id", "data"),
+        State("edit-contribution-amount", "value"),
+        State("edit-contribution-date", "date"),
+        State("edit-contribution-description", "value"),
+        State("current-goal-id", "data"),
+        State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def submit_edit_contribution(
+    n_clicks,
+    contribution_id,
+    amount,
+    date_str,
+    description,
+    goal_id,
+    budget,
+    savings_mode,
+):
+    """Сохраняет изменения взноса."""
+    # Guard: ADR-003
+    if not n_clicks or not contribution_id:
+        raise PreventUpdate
+
+    # Client-side validation
+    if not amount or amount <= 0:
+        return (
+            True,
+            no_update,
+            no_update,
+            no_update,
+            "Укажите положительную сумму",
+            True,
+            no_update,
+            no_update,
+        )
+
+    parsed_date = parse_date_safe(date_str) if date_str else None
+
+    try:
+        with get_db_session() as session:
+            service = GoalService(session)
+
+            result = service.update_contribution(
+                contribution_id=contribution_id,
+                amount=Decimal(str(amount)),
+                contribution_date=parsed_date,
+                description=description,
+            )
+
+            if not result["success"]:
+                return (
+                    True,
+                    no_update,
+                    no_update,
+                    no_update,
+                    result["error"],
+                    True,
+                    no_update,
+                    no_update,
+                )
+
+            # Сохраняем скалярные данные ДО commit (detached state protection)
+            status_changed = result["status_changed"]
+            new_status = result["new_status"]
+            goal_name = result["goal"].name if result["goal"] else ""
+            active_goal_id = result["goal"].id if result["goal"] else goal_id
+
+            # Rebuild contributions table
+            contributions = service.get_contributions(active_goal_id, limit=10)
+            contrib_data = [
+                ContributionDisplayData(
+                    id=c.id,
+                    amount=c.amount,
+                    contribution_date=c.contribution_date,
+                    description=c.description,
+                )
+                for c in contributions
+            ]
+            contributions_table = _build_contributions_table(contrib_data)
+
+            # Recalculate allocation
+            effective_budget = Decimal(str(budget)) if budget else Decimal("0")
+            effective_mode = savings_mode or "free"
+            goals_children, allocation_data, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, effective_budget, effective_mode
+            )
+
+            session.commit()
+
+        # Toast message for status change
+        toast_msg = ""
+        show_toast = False
+        if status_changed:
+            if new_status == "active":
+                toast_msg = f'Цель "{goal_name}" снова активна'
+                show_toast = True
+            elif new_status == "completed":
+                toast_msg = f'Цель "{goal_name}" достигнута!'
+                show_toast = True
+
+        allocation_store = (
+            serialize_allocation_summary(allocation_data) if allocation_data else None
+        )
+
+        return (
+            False,
+            contributions_table,
+            goals_children,
+            allocation_store,
+            "",
+            False,
+            toast_msg if show_toast else no_update,
+            show_toast if show_toast else no_update,
+        )
+
+    except Exception as e:
+        logger.error(f"submit_edit_contribution: ошибка: {e}")
+        return (
+            True,
+            no_update,
+            no_update,
+            no_update,
+            f"Ошибка: {e}",
+            True,
+            no_update,
+            no_update,
+        )
+
+
+@callback(
+    [
+        Output("delete-contribution-modal", "is_open"),
+        Output("delete-contribution-id", "data"),
+        Output("delete-contribution-message", "children"),
+    ],
+    [
+        Input({"type": "contribution-delete-btn", "contribution_id": ALL}, "n_clicks"),
+        Input("delete-contribution-cancel-btn", "n_clicks"),
+    ],
+    prevent_initial_call=True,
+)
+def open_delete_contribution_modal(delete_clicks_list, cancel_clicks):
+    """Открывает модал подтверждения удаления взноса."""
+    # Guard: ADR-003
+    if ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    triggered_id = ctx.triggered_id
+
+    # Cancel
+    if triggered_id == "delete-contribution-cancel-btn":
+        return False, None, ""
+
+    # Delete button clicked
+    if (
+        isinstance(triggered_id, dict)
+        and triggered_id.get("type") == "contribution-delete-btn"
+    ):
+        contribution_id = triggered_id["contribution_id"]
+        try:
+            with get_db_session() as session:
+                service = GoalService(session)
+                contrib = service.get_contribution_by_id(contribution_id)
+                if not contrib:
+                    raise PreventUpdate
+                amount_str = format_amount(contrib.amount)
+                date_str = format_date(contrib.contribution_date)
+                message = f"Удалить взнос {amount_str} от {date_str}?"
+                return True, contribution_id, message
+        except Exception as e:
+            logger.error(f"open_delete_contribution_modal: ошибка: {e}")
+            raise PreventUpdate
+
+    raise PreventUpdate
+
+
+@callback(
+    [
+        Output("delete-contribution-modal", "is_open", allow_duplicate=True),
+        Output("contributions-table-container", "children", allow_duplicate=True),
+        Output("goal-card-container", "children", allow_duplicate=True),
+        Output("goals-allocation-store", "data", allow_duplicate=True),
+        Output("goal-error-alert", "children", allow_duplicate=True),
+        Output("goal-error-alert", "is_open", allow_duplicate=True),
+    ],
+    Input("delete-contribution-confirm-btn", "n_clicks"),
+    [
+        State("delete-contribution-id", "data"),
+        State("current-goal-id", "data"),
+        State("goals-budget-store", "data"),
+        State("goals-savings-mode-store", "data"),
+    ],
+    prevent_initial_call=True,
+)
+def confirm_delete_contribution(
+    n_clicks, contribution_id, goal_id, budget, savings_mode
+):
+    """Подтверждает удаление взноса."""
+    # Guard: ADR-003
+    if not n_clicks or not contribution_id:
+        raise PreventUpdate
+
+    try:
+        with get_db_session() as session:
+            service = GoalService(session)
+
+            result = service.delete_contribution(contribution_id)
+
+            if not result["success"]:
+                return (
+                    False,
+                    no_update,
+                    no_update,
+                    no_update,
+                    result["error"],
+                    True,
+                )
+
+            # Сохраняем скалярные данные ДО commit (detached state protection)
+            status_changed = result["status_changed"]
+            new_status = result["new_status"]
+            goal_name = (
+                result["contribution_info"]["goal_name"]
+                if result["contribution_info"]
+                else ""
+            )
+            active_goal_id = result["goal"].id if result["goal"] else goal_id
+
+            # Rebuild contributions table
+            contributions = service.get_contributions(active_goal_id, limit=10)
+            contrib_data = [
+                ContributionDisplayData(
+                    id=c.id,
+                    amount=c.amount,
+                    contribution_date=c.contribution_date,
+                    description=c.description,
+                )
+                for c in contributions
+            ]
+            contributions_table = _build_contributions_table(contrib_data)
+
+            # Recalculate allocation
+            effective_budget = Decimal(str(budget)) if budget else Decimal("0")
+            effective_mode = savings_mode or "free"
+            goals_children, allocation_data, _ = _recalculate_and_render(
+                session, DEFAULT_USER_ID, effective_budget, effective_mode
+            )
+
+            session.commit()
+
+        # Toast message for status change
+        toast_msg = no_update
+        show_toast = no_update
+        if status_changed and new_status == "active":
+            toast_msg = f'Цель "{goal_name}" снова активна'
+            show_toast = True
+
+        allocation_store = (
+            serialize_allocation_summary(allocation_data) if allocation_data else None
+        )
+
+        return (
+            False,
+            contributions_table,
+            goals_children,
+            allocation_store,
+            toast_msg,
+            show_toast,
+        )
+
+    except Exception as e:
+        logger.error(f"confirm_delete_contribution: ошибка: {e}")
+        return (
+            False,
+            no_update,
+            no_update,
+            no_update,
+            f"Ошибка при удалении: {e}",
+            True,
+        )

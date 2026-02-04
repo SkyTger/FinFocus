@@ -6,6 +6,8 @@ from app.schema.analytics import (
 from app.schema.goals import (
     AllocationResult,
     AllocationSummary,
+    ContributionInfo,
+    ContributionUpdateResult,
     GoalDisplayData,
     GoalsSummary,
     RedistributionEvent,
@@ -40,6 +42,8 @@ __all__ = [
     # Goals
     "AllocationResult",
     "AllocationSummary",
+    "ContributionInfo",
+    "ContributionUpdateResult",
     "GoalDisplayData",
     "GoalsSummary",
     "RedistributionEvent",

@@ -1,7 +1,9 @@
 """TypedDicts для типизации данных накопительных целей."""
 from datetime import date
 from decimal import Decimal
-from typing import TypedDict
+from typing import Literal, TypedDict
+
+from app.models.database import Goal
 
 
 class AllocationResult(TypedDict):
@@ -172,3 +174,23 @@ class RedistributionEvent(TypedDict):
     remaining_goals_count: int
     action: str  # "confirmed" | "declined"
     new_allocation_summary: dict | None
+
+
+class ContributionInfo(TypedDict):
+    """Информация о взносе для confirmation modal."""
+
+    contribution_id: int
+    amount: Decimal
+    contribution_date: date
+    goal_name: str
+
+
+class ContributionUpdateResult(TypedDict):
+    """Результат операции обновления/удаления взноса."""
+
+    success: bool
+    goal: Goal | None
+    status_changed: bool
+    new_status: Literal["active", "completed"] | None
+    error: str | None
+    contribution_info: ContributionInfo | None
