@@ -1172,10 +1172,7 @@ def open_edit_from_tooltip(n_clicks_list: list[int | None]):
                 for opt in category_options
             ]
 
-            logger.debug(
-                f"Tooltip: edit modal txn {txn_id}"
-                f" (type={txn_type})"
-            )
+            logger.debug(f"Tooltip: edit modal txn {txn_id}" f" (type={txn_type})")
 
             return (
                 True,  # edit-modal is_open
