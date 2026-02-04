@@ -38,7 +38,15 @@ Restore context: protocol-0019#ctx-1
 - Добавлены imports: Literal, Transaction, ContributionInfo, ContributionUpdateResult
 - 418 тестов проходят
 
-### Step 04 — Goals UI (commit: pending)
+### Step 05 — Unit тесты (commit: pending)
+- 23 новых тестов в tests/test_contribution_edit_delete.py
+- update_contribution: 17 тестов (amount, date, description, status, error)
+- delete_contribution: 5 тестов (transaction_id, no_transaction, info, recalculate, no_double_decrement)
+- delete not found: 1 тест
+- Исправлен mock scope для across_months теста (patch.object вместо @patch)
+- 441 тестов проходят (418 + 23)
+
+### Step 04 — Goals UI (commit: 28b02b4)
 - Расширена _build_contributions_table(): колонка "Действия" с Edit/Delete кнопками
 - Создан _build_edit_contribution_modal(): inline alert, amount/date/description поля
 - Создан _build_delete_contribution_confirm_modal(): confirmation с суммой/датой
