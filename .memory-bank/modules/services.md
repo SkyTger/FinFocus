@@ -1028,4 +1028,164 @@ with get_db_session() as session:
 
 ---
 
+## WishlistService (Протокол 0020 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/wishlist_service.py` (~270 строк)
+
+**Инициализация**: `WishlistService(session)` - принимает SQLAlchemy session
+
+**CRUD методы**:
+- `create_item(user_id, name, amount, category_id=None, priority=1)` → `WishlistItem`
+  - Валидация: name (1-100 chars), amount > 0, priority in {1, 2}
+- `get_all(user_id)` → `list[WishlistItem]`
+  - Сортировка: priority ASC, created_at DESC
+- `get_focus(user_id, limit=5)` → `list[WishlistItem]`
+  - Только фокусные (priority=1), sorted, limit для Dashboard виджета
+- `get_by_id(item_id)` → `WishlistItem | None`
+- `update_item(item_id, **updates)` → `WishlistItem`
+  - Planned guard: статус "planned" → можно менять только name, priority
+- `delete_item(item_id)` → `bool`
+
+**Planning workflow**:
+- `mark_as_planned(item_id, planned_date, transaction_id)` → `WishlistItem`
+  - status → "planned", сохраняет дату и FK
+- `reset_planned(item_id)` → `WishlistItem`
+  - status → "new", обнуляет planned_date, planned_transaction_id
+- `check_orphaned_planned(user_id)` → `list[WishlistItem]`
+  - Поиск хотелок со статусом "planned" и planned_transaction_id=NULL (orphan)
+
+**Utility**:
+- `to_data(item)` → `WishlistItemData`
+  - Конвертация ORM → TypedDict для Dash UI
+
+**Пример использования**:
+```python
+from app.services import WishlistService
+
+with get_db_session() as session:
+    service = WishlistService(session)
+
+    # Создать хотелку
+    item = service.create_item(
+        user_id=1,
+        name="Аккумулятор",
+        amount=Decimal("3500"),
+        category_id=5,
+        priority=1
+    )
+
+    # Получить фокусные для Dashboard
+    focus = service.get_focus(user_id=1, limit=5)
+
+    # Запланировать
+    service.mark_as_planned(
+        item_id=item.id,
+        planned_date=date(2026, 2, 15),
+        transaction_id=123
+    )
+
+    # Обнаружить orphan (после удаления транзакции)
+    orphans = service.check_orphaned_planned(user_id=1)
+    for orphan in orphans:
+        service.reset_planned(orphan.id)
+
+    session.commit()
+```
+
+**Критичные детали**:
+- **Planned guard**: статус "planned" блокирует изменение amount, category_id, status напрямую
+- **Orphan detection**: check_orphaned_planned() для очистки после удаления транзакций
+- **Priority constraint**: check(priority IN (1, 2)) на уровне БД
+- **to_data()**: сериализация Decimal → string для JSON Store
+
+**Unit тесты**: 31 тест в `tests/test_wishlist_service.py`
+- TestCRUD: 9 тестов (create, get_all, get_focus, get_by_id, update, delete)
+- TestValidation: 5 тестов (name length, amount, priority, planned guard)
+- TestPlanning: 4 теста (mark_as_planned, reset_planned, check_orphaned)
+- TestToData: 2 теста (serialization, null handling)
+
+---
+
+## PurchaseRecommendationService (Протокол 0020 — ЗАВЕРШЕН)
+
+**Файл**: `app/services/purchase_recommendation_service.py` (~160 строк)
+
+**Инициализация**: `PurchaseRecommendationService(session)` - принимает SQLAlchemy session
+
+**Константы**:
+```python
+VALID_REASONS = {"negative_balance", "cushion"}
+```
+
+**Методы**:
+- `get_safe_dates_map(user_id, amount, year, month)` → `dict[date, SafeDateInfo]`
+  - Карта безопасности для каждого дня месяца
+  - safe=True если покупка не нарушает threshold подушки И баланс ≥ 0
+  - reasons: list["cushion" | "negative_balance"]
+  - Формула: min(balance[d:end_month] - amount) для каждого кандидата
+- `precalculate_hover_data(user_id, amount, year, month)` → `dict[str, dict[str, str]]`
+  - Предрассчет балансов для JS hover (каскадный пересчет)
+  - Структура: {candidate_date_iso: {day_iso: balance_str, ...}, ...}
+  - base_balances: {day_iso: balance_str} — исходные балансы для восстановления
+  - by_candidate: {candidate_date_iso: {day_iso: adjusted_balance_str}}
+  - ~960 значений (~30KB) для dcc.Store
+
+**TypedDicts** (app/schema/wishlist.py):
+```python
+class SafeDateInfo(TypedDict):
+    safe: bool
+    reasons: list[str]  # ["cushion"] | ["negative_balance"] | обе
+
+class HoverBalances(TypedDict):
+    base_balances: dict[str, str]          # Исходные балансы
+    by_candidate: dict[str, dict[str, str]] # Каскадный пересчет
+```
+
+**Пример использования**:
+```python
+from app.services import PurchaseRecommendationService
+
+with get_db_session() as session:
+    service = PurchaseRecommendationService(session)
+
+    # Карта безопасности дней
+    safe_dates = service.get_safe_dates_map(
+        user_id=1,
+        amount=Decimal("3500"),
+        year=2026,
+        month=2
+    )
+    # {date(2026,2,1): {safe: True, reasons: []}, date(2026,2,12): {safe: False, reasons: ["cushion"]}, ...}
+
+    # Данные для hover
+    hover_data = service.precalculate_hover_data(
+        user_id=1,
+        amount=Decimal("3500"),
+        year=2026,
+        month=2
+    )
+    # {base_balances: {"2026-02-01": "50000.00", ...}, by_candidate: {"2026-02-05": {"2026-02-05": "46500.00", ...}}}
+```
+
+**Внутренние методы**:
+- `_is_safe_date(balances, amount, candidate_date, threshold_amount)` — проверка безопасности
+- `_get_reasons(balances, amount, candidate_date, threshold_amount)` — список причин
+
+**Интеграция**:
+- CalendarService.calculate_daily_balances() — базовые балансы месяца
+- CushionService.get_settings() — threshold_amount для проверки подушки
+
+**Критичные детали**:
+- **Каскадная проверка**: min(balance[d:end_month]) для всех дней от кандидата до конца месяца
+- **Два критерия**: подушка (cushion) И отрицательный баланс (negative_balance)
+- **Предрассчет hover**: ~200ms при открытии режима, hover < 1ms на клиенте (clientside JS)
+- **Decimal serialization**: все балансы → string для JSON Store
+
+**Unit тесты**: 11 тестов в `tests/test_purchase_recommendation.py`
+- TestSafeDatesMap: 5 тестов (safe day, cushion violation, negative balance, both, cushion disabled)
+- TestPrecalculateHoverData: 4 теста (structure, base_balances, by_candidate, empty month)
+- TestEdgeCases: 2 теста (EOM dates, leap year)
+
+---
+
 Детали: `architecture.md` (Service Layer Pattern), `code-style.md` (Session Management Pattern), `schema.md` (TypedDicts)

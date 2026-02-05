@@ -485,7 +485,115 @@
 
 ---
 
-### 14. Импорт операций 🔄
+### 14. Отложенные покупки (Wishlist) ✅
+**Статус**: Завершена (Протокол 0020, PR #20)
+
+**Возможности**:
+- Управление списком желаемых покупок (Wishlist):
+  - CRUD операции (создание, редактирование, удаление хотелок)
+  - Два уровня приоритета: 1=фокус (срочные), 2=потом (отложенные)
+  - Категория опциональна (наследуется в транзакцию при планировании)
+  - Статусы: "new" (новая) / "planned" (запланирована с датой)
+- Dashboard виджет "Отложенные покупки":
+  - До 5 фокусных хотелок (priority=1)
+  - Название, сумма, статус (новая / запланирована + дата)
+  - Клик на виджет → открывает модал
+- Wishlist модал:
+  - Полный список (фокусные + отложенные)
+  - Inline-форма добавления
+  - Кнопки: Редактировать, Удалить, Запланировать
+  - Confirm modal для перепланирования
+- Календарь wishlist mode (`/calendar?wishlist_item=ID`):
+  - Overlay-баннер: название, сумма, легенда, счетчик дней, кнопка "Отмена"
+  - Визуализация safe/unsafe дней:
+    - Safe дни: зеленая подсветка (.safe-day)
+    - Unsafe дни: оранжевый маркер (подушка), красный минус (касса < 0)
+  - JS hover для каскадного пересчета остатков:
+    - При наведении на день — все балансы месяца пересчитываются "после покупки в этот день"
+    - Каскадный эффект: день покупки + все последующие дни до конца месяца
+    - Маркеры safe/unsafe остаются статичными (pre-calculated map)
+    - Реализация: wishlist_hover.js (IIFE, MutationObserver, Intl.NumberFormat)
+  - Клик по дню → create-modal с предзаполнением:
+    - Дата, сумма, описание "Отложенная покупка: {название}"
+    - Категория из хотелки (если задана)
+    - Risk warning для unsafe дней (не блокирует сохранение)
+- Preselection Store Pattern:
+  - 4 новых Store: preselected-amount, -date, -description, -risk-warning
+  - source="wishlist" для trigger mark_planned
+- Mark planned workflow:
+  - После создания транзакции → статус хотелки "planned"
+  - FK связь: WishlistItem.planned_transaction_id → Transaction.id (ON DELETE SET NULL)
+  - Orphan detection: callback detect_orphaned_wishlist() сбрасывает статус при удалении транзакции
+
+**Технические детали**:
+- WishlistService (~270 строк):
+  - CRUD: create_item, get_all, get_focus, get_by_id, update_item, delete_item
+  - Planning: mark_as_planned, reset_planned, check_orphaned_planned
+  - Planned guard: статус "planned" → можно менять только name, priority
+  - Валидация: name (1-100), amount > 0, priority in {1, 2}
+- PurchaseRecommendationService (~160 строк):
+  - get_safe_dates_map() — карта безопасности дней (cushion + negative_balance checks)
+  - precalculate_hover_data() — предрассчет ~960 балансов для JS hover (~30KB Store)
+  - Каскадная проверка: min(balance[d:end_month] - amount) для всех дней от кандидата
+  - Два критерия: подушка (CushionService.threshold_amount) + баланс ≥ 0
+- Calendar wishlist module (calendar_wishlist.py, ~280 строк):
+  - build_wishlist_overlay_banner() — баннер с легендой и счетчиком
+  - build_wishlist_day_cell() — ячейка с safe/unsafe маркерами, reasons tooltip
+  - build_wishlist_calendar_grid() — полная сетка с .wishlist-mode CSS
+  - cancel_wishlist_mode callback
+- Wishlist hover JS (app/assets/wishlist_hover.js, ~145 строк):
+  - IIFE pattern, MutationObserver для обнаружения .wishlist-mode
+  - getHoverData() — JSON.parse из #wishlist-hover-data (dcc.Store DOM)
+  - applyHoverBalances() / restoreBaseBalances() — подмена балансов
+  - attachHoverListeners() — mouseenter/mouseleave на .calendar-day:not(.past-day-wishlist)
+  - data-hover-attached guard против повторного подключения
+  - Intl.NumberFormat('ru-RU') для форматирования сумм
+- TypedDicts (app/schema/wishlist.py):
+  - WishlistItemData — для UI serialization (Decimal → string)
+  - SafeDateInfo — {safe: bool, reasons: list[str]}
+  - HoverBalances — {base_balances: dict, by_candidate: dict}
+
+**Файлы**:
+- `app/models/database.py` — WishlistItem ORM (+7 полей)
+- `app/services/wishlist_service.py` — WishlistService (~270 строк)
+- `app/services/purchase_recommendation_service.py` — PurchaseRecommendationService (~160 строк)
+- `app/schema/wishlist.py` — 3 TypedDicts (~50 строк)
+- `app/components/wishlist.py` — Wishlist UI + modal + callbacks (~500 строк)
+- `app/components/calendar_wishlist.py` — Calendar wishlist grid + overlay (~280 строк)
+- `app/components/dashboard.py` — +wishlist виджет (~70 строк)
+- `app/components/calendar.py` — +wishlist mode integration (~100 строк изменено)
+- `app/components/transaction_modals.py` — +4 preselection Stores (~40 строк)
+- `app/assets/wishlist.css` — стили overlay, markers, safe/unsafe (~130 строк)
+- `app/assets/wishlist_hover.js` — JS hover logic (~145 строк)
+- `tests/test_wishlist_service.py` — 31 unit тест
+- `tests/test_purchase_recommendation.py` — 11 unit тестов
+- `scripts/migrate_006_wishlist.py` — idempotent migration
+
+**Ключевые паттерны**:
+- **Preselection Store Pattern** — передача данных между модалами (amount, date, description, risk_warning)
+- **Orphan Detection** — check_orphaned_planned() для очистки после delete Transaction
+- **Clientside JS hover** — zero server calls, предрассчет в Store + MutationObserver
+- **Lazy import pattern** — _get_budget_service() для избежания circular dependency (как в 0018)
+- **Guard #6 в calendar** — блокировка SAVINGS_CONTRIBUTION в tooltip (аналогично SAVINGS_RESERVE)
+- **Calendar query param** — ?wishlist_item=ID для активации wishlist mode (как ?open_recon=1)
+
+**Критичные детали**:
+- **Каскадный hover**: пересчет балансов от выбранного дня до конца месяца (не только день покупки)
+- **Статическая карта**: маркеры safe/unsafe pre-calculated, не меняются при hover
+- **Orphan protection**: ON DELETE SET NULL + callback для автосброса статуса
+- **Planned guard**: статус "planned" блокирует изменение суммы и категории (только name, priority)
+- **Performance**: предрассчет ~200ms (открытие режима), hover < 1ms (clientside)
+- **Tolerance**: покупка "проходит" если min(balance) >= threshold (не строго >)
+
+**Следующие шаги** (B-фазы):
+- Проверка бюджета целей (AllocationService) — фиолетовый маркер "бюджет нарушен"
+- Планирование нескольких хотелок с учетом взаимного влияния
+- Статус "archived" и отдельная страница `/wishlist` с фильтрацией
+- Тач/мобильное поведение (тап=preview, повторный тап=select)
+
+---
+
+### 15. Импорт операций 🔄
 **Статус**: Планируется
 
 **Планируемые возможности**:

@@ -114,6 +114,29 @@ transaction_id: Integer   # FK к Transaction (nullable, SET NULL) — связ�
 
 **Протокол 0016**: User.reservation_mode/reservation_day, TransactionType +SAVINGS_RESERVE/+SAVINGS_CONTRIBUTION, GoalContribution.transaction_id FK
 
+**Протокол 0020**: WishlistItem модель для отложенных покупок
+
+### WishlistItem (Протокол 0020)
+```python
+name: String(100)           # Название покупки (обязательно)
+amount: Decimal             # Сумма (обязательно, > 0)
+category_id: Integer        # FK к Category (nullable)
+priority: Integer           # 1=фокус, 2=потом (default=1, check constraint)
+status: String(20)          # "new" | "planned" (default="new")
+planned_date: Date          # Дата запланирована (nullable)
+planned_transaction_id: Integer  # FK к Transaction (nullable, ON DELETE SET NULL)
+```
+
+**Relationships**:
+- user (N:1)
+- category_rel (N:1, nullable)
+- planned_transaction (N:1, nullable, ondelete=SET NULL)
+
+**Indexes**:
+- ix_wishlist_user_priority на (user_id, priority, status) для фильтрации
+
+**Orphan Detection**: При удалении Transaction → planned_transaction_id становится NULL, callback сбрасывает статус
+
 ---
 
 Детали: `architecture.md`, `tech-stack.md` (SQLAlchemy 2.0.23)

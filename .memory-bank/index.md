@@ -5,9 +5,9 @@
 
 **Уникальная ценность**: Кассовое планирование с прогнозом остатков по дням + автоматическое распределение бюджета между множественными накопительными целями с приоритетами.
 
-**Статус**: Батч 4 (Budget-Calendar Integration + UI Improvements) завершен ✅, Epic-04-Advanced Features в процессе (5/6 фичи)
+**Статус**: Батч 4 (Postponed Purchases) в финализации, Epic-04-Advanced Features в процессе (6/7 фичи)
 
-**Последнее обновление**: 2026-02-02 (после bugfix: edit virtual recurring operations, commit cae3575)
+**Последнее обновление**: 2026-02-04 (после протокол 0020: postponed purchases, 483 теста)
 
 ## Быстрые ссылки на разделы
 
@@ -88,7 +88,7 @@
   - CSV export с UTF-8 BOM для Excel
   - 13 новых тестов для _pluralize_operations helper
 
-**Epic-04-Advanced Features** (Батч 4, 67% завершено):
+**Epic-04-Advanced Features** (Батч 4, 86% завершено):
 - ✅ Quick-Add Chips для быстрого создания операций (завершена, PR #12, протокол 0012)
   - 7 hardcoded chips с предвыбранными категориями
   - Сокращение шагов создания: 6 → 3-4
@@ -124,12 +124,30 @@
   - Переиспользование шаблонов при переключении режимов (протокол 0018)
   - recalculate_current_month_exception() для пересчёта при изменениях (протокол 0018)
   - 72 новых unit тестов (всего 418)
+- ✅ Редактирование и удаление взносов в целях (завершена, PR #19, протокол 0019)
+  - update_contribution() и переписан delete_contribution() в GoalService
+  - Каскадная синхронизация (Contribution → Transaction → Goal → Exception)
+  - Calendar Guard #6 (блокировка SAVINGS_CONTRIBUTION)
+  - Goals UI с Edit/Delete кнопками и модалами
+  - 23 новых unit тестов (всего 441)
+- ✅ Отложенные покупки (Wishlist) (завершена, протокол 0020, в финализации)
+  - WishlistItem ORM модель + WishlistService (CRUD + planning)
+  - PurchaseRecommendationService для расчета safe dates + hover data
+  - Dashboard виджет (5 фокусных хотелок)
+  - Wishlist модал (CRUD + кнопки "Запланировать")
+  - Calendar wishlist mode (?wishlist_item=ID):
+    - Overlay-баннер с легендой, счетчиком, кнопкой "Отмена"
+    - Safe/unsafe дни (зеленая подсветка + маркеры)
+    - JS hover для каскадного пересчета остатков (wishlist_hover.js)
+  - Preselection Store Pattern (4 новых Stores)
+  - Orphan detection callback
+  - 42 новых unit тестов (всего 483)
 - Импорт операций из банков (планируется)
-- Уведомления и напоминания (планируется)
 
 **Ближайшие задачи**:
-1. Продолжить Epic-04: Импорт операций из банков
-2. Уведомления и напоминания
+1. Финализировать протокол 0020 (Black, Flake8, PR merge)
+2. Продолжить Epic-04: Импорт операций из банков
+3. Уведомления и напоминания
 
 ## Критичные детали
 

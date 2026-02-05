@@ -8,6 +8,159 @@
 
 ## Завершенные протоколы
 
+### Протокол 0020: Postponed Purchases (Wishlist) (2026-02-04)
+**Статус**: ✅ ЗАВЕРШЕН (в процессе финализации)
+**Батч**: Epic-04-Advanced Features (Batch 4, Postponed Purchases)
+**Worktree**: `/worktrees/0020-postponed-purchases`
+
+**Контекст**:
+- Пользователю нужен инструмент для управления списком желаемых покупок (wishlist) с подбором безопасной даты на основе кассового календаря
+- Проблема: пользователь не знает "когда безопасно купить", чтобы не опускать баланс ниже порога подушки безопасности
+- Решение: виджет на Dashboard + модал управления + календарь с overlay для выбора даты + JS hover для каскадного пересчета остатков
+
+**Решения**:
+- WishlistItem ORM модель (7 полей: name, amount, category_id, priority, status, planned_date, planned_transaction_id)
+- WishlistService для CRUD + planning workflow (mark_as_planned, reset_planned, check_orphaned_planned)
+- PurchaseRecommendationService для расчета safe dates и предрассчета hover data
+- Dashboard виджет с фокусными покупками (priority=1, до 5)
+- Wishlist модал с CRUD + кнопками "Запланировать"
+- Calendar wishlist mode через query param ?wishlist_item=ID
+- Overlay-баннер с легендой, счетчиком дней, кнопкой "Отмена"
+- JS hover (wishlist_hover.js) для каскадного пересчета балансов без server calls
+- Preselection Store Pattern для передачи данных в create-modal
+- Orphan detection callback для сброса статуса при удалении транзакции
+
+**Реализация** (11 шагов):
+1. **Schema + Model + Migration** (commit: 80d1ad2, 8b28dd4)
+   - WishlistItemData, SafeDateInfo, HoverBalances TypedDicts
+   - WishlistItem ORM: FK user_id, category_id, planned_transaction_id (ON DELETE SET NULL)
+   - scripts/migrate_006_wishlist.py (idempotent)
+
+2. **WishlistService** (commit: a6f0b84)
+   - CRUD: create_item, get_all, get_focus, get_by_id, update_item, delete_item
+   - Planning: mark_as_planned, reset_planned
+   - Utility: check_orphaned_planned, to_data
+   - Валидация: name (1-100), amount > 0, priority in {1, 2}
+   - Planned guard: status="planned" → только name, priority
+
+3. **PurchaseRecommendationService** (commit: ab7f32d)
+   - get_safe_dates_map() — карта безопасности дней (cushion + negative_balance)
+   - precalculate_hover_data() — предрассчет ~960 балансов для JS hover
+   - Зависимости: CalendarService.calculate_daily_balances(), CushionService.get_settings()
+   - Формула: min(balance[d:end] - amount) для проверки safe
+
+4. **Unit тесты сервисов** (commit: a17c82f)
+   - tests/test_wishlist_service.py: 31 тест
+   - tests/test_purchase_recommendation.py: 11 тестов
+   - Всего: 483 теста (было 441, +42)
+
+5. **Wishlist UI (виджет + модал)** (commit: ae3e15c)
+   - build_wishlist_widget() — Dashboard карточка с 5 фокусными
+   - create_wishlist_modal() — модал с inline-формой, секции Focus/Later
+   - _build_replan_confirm_modal() — confirm dialog перепланирования
+   - 9 callbacks: open/add/delete/edit/replan flow/plan navigate
+   - ADR-003 guard clauses
+
+6. **Dashboard + Main интеграция** (commit: 8f1e4d7)
+   - Виджет в dashboard.py правая колонка
+   - create_wishlist_modal() в main.py layout
+   - dcc.Store wishlist-active-item
+   - handle_calendar_query_params() для ?wishlist_item=ID
+
+7. **Calendar wishlist module** (commit: 3a5d4b2)
+   - calendar_wishlist.py (~280 строк)
+   - build_wishlist_overlay_banner() — название, сумма, легенда, счетчик
+   - build_wishlist_day_cell() — safe/unsafe маркеры, data-date, reasons tooltip
+   - build_wishlist_calendar_grid() — полная сетка с .wishlist-mode CSS
+   - cancel_wishlist_mode callback
+
+8. **Calendar.py расширение** (commit: 236228e)
+   - data-date атрибут на .calendar-day-balance
+   - dcc.Stores: wishlist-safe-dates, wishlist-hover-data
+   - wishlist-overlay div в layout
+   - load_and_navigate_calendar расширен: +Input wishlist-active-item, +3 Outputs
+   - Wishlist mode: PurchaseRecommendationService + wishlist grid
+   - wishlist.css: +55 строк (overlay, markers, safe/unsafe, hover, past-day)
+
+9. **JS hover asset** (commit: e7a0f3c)
+   - wishlist_hover.js (~145 строк)
+   - IIFE pattern, 'use strict'
+   - rubleFormatter: Intl.NumberFormat('ru-RU')
+   - getHoverData(), applyHoverBalances(), restoreBaseBalances()
+   - attachHoverListeners() — mouseenter/mouseleave, data-hover-attached guard
+   - observeContainer() — MutationObserver для .wishlist-mode
+   - init() с DOMContentLoaded / readyState check
+
+10. **Preselection + mark_planned** (commit: f9c8a41)
+    - transaction_modals.py: +4 Stores (amount, date, description, risk-warning)
+    - set_preselection_on_modal_open() расширен для source="wishlist" (7 outputs)
+    - create_transaction: +wishlist_item_id State, +4 reset stores (19 outputs)
+    - calendar_wishlist.py: open_create_from_wishlist_day() с ADR-003 guards
+    - wishlist.py: mark_wishlist_planned_after_create(), detect_orphaned_wishlist()
+
+11. **Финализация** (commit: TBD)
+    - Black: 8 файлов
+    - Flake8: 5 F401 + 3 E501
+    - Pytest: 483 tests passed
+
+**Результат**:
+- +~1700 строк кода (services + UI + JS)
+- +~280 строк tests
+- +42 unit тестов (483 всего)
+- Полноценный wishlist workflow: add → plan → calendar mode → hover → select → create transaction → mark planned
+- JS hover без server calls (< 1ms vs ~200ms предрассчет)
+- Orphan detection для data integrity
+
+**Критичные детали**:
+- **Каскадный hover**: пересчет балансов от выбранного дня до конца месяца (не только день покупки)
+- **Статическая карта safe/unsafe**: pre-calculated, не меняются при hover (UX clarity)
+- **Orphan detection**: ON DELETE SET NULL + callback detect_orphaned_wishlist()
+- **Planned guard**: статус "planned" блокирует изменение amount, category_id
+- **JS MutationObserver**: обнаружение .wishlist-mode для подключения hover listeners
+- **Preselection 4 Stores**: amount, date, description, risk_warning (7 outputs в set_preselection)
+- **data-hover-attached**: guard против повторного подключения listeners
+
+**Альтернативы** (отвергнуты):
+- Dash clientside_callback для hover — проблемы с _dashprivate_setProps, выбран нативный JS
+- Tooltip + hover одновременно — конфликт, Known Limitation для MVP
+- Отдельная страница /wishlist — модал достаточен для 5-15 хотелок
+
+**Референсы**:
+- План: `.protocols/0020-postponed-purchases/plan.md`
+- Лог: `.protocols/0020-postponed-purchases/log.md`
+- Спецификация: `.reports/epics/epic-04-advanced/postponed-purchases-spec.md`
+- Design brief: `.design/brief.md`
+- Solution v3: `.design/solution-v3.md`
+
+---
+
+### Протокол 0019: Contribution Edit/Delete (2026-02-04)
+**Статус**: ✅ MERGED (PR #19, merge commit 8e48858)
+**Батч**: Epic-04-Advanced Features (Batch 4, Contribution Edit/Delete)
+
+**Контекст**:
+- В Goals UI можно добавлять взносы, но нельзя редактировать или удалять их
+- Нужна полноценная CRUD для GoalContribution с каскадной синхронизацией
+- Требуется блокировка SAVINGS_CONTRIBUTION в calendar tooltip (как SAVINGS_RESERVE)
+
+**Решения**:
+- update_contribution() в GoalService с каскадной синхронизацией (Contribution → Transaction → current_amount → Exception)
+- Переписан delete_contribution() по Варианту A (прямое удаление без delete_contribution_transaction())
+- Calendar Guard #6: блокировка SAVINGS_CONTRIBUTION в tooltip
+- Goals UI: таблица взносов с кнопками Edit/Delete
+
+**Реализация** (6 шагов):
+1. Schema + Helpers: ContributionInfo, ContributionUpdateResult TypedDicts, _get_budget_service()
+2. Service Methods: update_contribution(), переписан delete_contribution()
+3. Calendar Guard #6: блокировка SAVINGS_CONTRIBUTION в tooltip
+4. Goals UI: таблица взносов, модалы edit/delete, 4 callbacks
+5. Unit Tests: 23 новых (441 всего)
+6. Финализация: Black, Flake8, pytest OK
+
+**Результат**: +~300 строк, +23 теста, полный CRUD для GoalContribution
+
+---
+
 ### Протокол 0018: Budget Reservation Bugfix (2026-02-02)
 **Статус**: ✅ MERGED (PR #18, merge commit TBD)
 **Батч**: Epic-04-Advanced Features (Batch 4, Budget-Calendar Integration bugfix)

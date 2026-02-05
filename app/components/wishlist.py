@@ -674,87 +674,70 @@ def navigate_to_calendar_for_planning(n_clicks_list):
     State("wishlist-active-item", "data"),
     prevent_initial_call=True,
 )
-def mark_wishlist_planned_after_create(trigger_data, wishlist_item_id):
-    """Отмечает wishlist item как planned после создания транзакции.
+def handle_wishlist_after_transaction(trigger_data, wishlist_item_id):
+    """Обрабатывает wishlist после создания/удаления транзакции.
 
-    Срабатывает только если source="wishlist" в trigger data.
-    Вызывает WishlistService.mark_as_planned().
-    Очищает wishlist-active-item для выхода из wishlist-mode.
+    Два сценария:
+    1. source="wishlist" → mark_as_planned (создание из wishlist-mode)
+    2. action="delete" → orphan detection (удалена транзакция planned item)
     """
     if not trigger_data or not isinstance(trigger_data, dict):
         raise PreventUpdate
 
-    if trigger_data.get("source") != "wishlist":
-        raise PreventUpdate
+    from datetime import datetime
 
-    item_id = trigger_data.get("wishlist_item_id")
-    transaction_id = trigger_data.get("transaction_id")
+    # Сценарий 1: создание транзакции из wishlist-mode → mark as planned
+    if trigger_data.get("source") == "wishlist":
+        item_id = trigger_data.get("wishlist_item_id")
+        transaction_id = trigger_data.get("transaction_id")
 
-    if not item_id or not transaction_id:
-        raise PreventUpdate
+        if not item_id or not transaction_id:
+            raise PreventUpdate
 
-    try:
-        with get_db_session() as session:
-            svc = WishlistService(session)
-            txn_svc = TransactionService(session)
-            tx = txn_svc.get_by_id(transaction_id)
-            if not tx:
-                logger.warning(
-                    f"mark_wishlist_planned: transaction {transaction_id} not found"
+        try:
+            with get_db_session() as session:
+                svc = WishlistService(session)
+                txn_svc = TransactionService(session)
+                tx = txn_svc.get_by_id(transaction_id)
+                if not tx:
+                    logger.warning(
+                        f"mark_wishlist_planned: transaction {transaction_id} not found"
+                    )
+                    raise PreventUpdate
+
+                svc.mark_as_planned(item_id, tx.transaction_date, transaction_id)
+                session.commit()
+                logger.info(
+                    f"Wishlist item {item_id} marked as planned "
+                    f"(txn={transaction_id}, date={tx.transaction_date})"
                 )
-                raise PreventUpdate
+        except Exception as e:
+            logger.error(f"Error marking wishlist planned: {e}")
+            raise PreventUpdate
 
-            svc.mark_as_planned(item_id, tx.transaction_date, transaction_id)
-            session.commit()
-            logger.info(
-                f"Wishlist item {item_id} marked as planned "
-                f"(txn={transaction_id}, date={tx.transaction_date})"
-            )
-    except Exception as e:
-        logger.error(f"Error marking wishlist planned: {e}")
-        raise PreventUpdate
+        return None, {"timestamp": datetime.now().isoformat()}
 
-    from datetime import datetime
+    # Сценарий 2: удаление транзакции → orphan detection
+    if trigger_data.get("action") == "delete":
+        try:
+            with get_db_session() as session:
+                svc = WishlistService(session)
+                orphans = svc.check_orphaned_planned(DEFAULT_USER_ID)
 
-    return None, {"timestamp": datetime.now().isoformat()}
+                if not orphans:
+                    raise PreventUpdate
 
+                for orphan in orphans:
+                    svc.reset_planned(orphan.id)
+                    logger.info(f"Reset orphaned wishlist item {orphan.id}")
 
-@callback(
-    Output("wishlist-refresh-trigger", "data", allow_duplicate=True),
-    Input("global-transaction-trigger", "data"),
-    prevent_initial_call=True,
-)
-def detect_orphaned_wishlist(trigger_data):
-    """Обнаруживает и сбрасывает осиротевшие planned покупки.
+                session.commit()
+        except PreventUpdate:
+            raise
+        except Exception as e:
+            logger.error(f"Error detecting orphaned wishlist items: {e}")
+            raise PreventUpdate
 
-    Срабатывает при удалении транзакции (action="delete").
-    Проверяет наличие orphaned planned items и сбрасывает их.
-    """
-    if not trigger_data or not isinstance(trigger_data, dict):
-        raise PreventUpdate
+        return no_update, {"timestamp": datetime.now().isoformat()}
 
-    if trigger_data.get("action") != "delete":
-        raise PreventUpdate
-
-    try:
-        with get_db_session() as session:
-            svc = WishlistService(session)
-            orphans = svc.check_orphaned_planned(DEFAULT_USER_ID)
-
-            if not orphans:
-                raise PreventUpdate
-
-            for orphan in orphans:
-                svc.reset_planned(orphan.id)
-                logger.info(f"Reset orphaned wishlist item {orphan.id}")
-
-            session.commit()
-    except PreventUpdate:
-        raise
-    except Exception as e:
-        logger.error(f"Error detecting orphaned wishlist items: {e}")
-        raise PreventUpdate
-
-    from datetime import datetime
-
-    return {"timestamp": datetime.now().isoformat()}
+    raise PreventUpdate
