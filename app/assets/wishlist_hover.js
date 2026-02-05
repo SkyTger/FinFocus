@@ -2,7 +2,7 @@
  * Wishlist Hover — каскадный пересчет остатков при наведении на день
  * в wishlist-mode календаря.
  *
- * Данные берутся из dcc.Store #wishlist-hover-data (HoverBalances):
+ * Данные берутся из hidden div #wishlist-hover-data (HoverBalances JSON):
  *   base_balances: {date_iso: balance_str}
  *   by_candidate:  {candidate_date_iso: {day_iso: balance_str}}
  *
@@ -24,13 +24,15 @@
     }
 
     /**
-     * Читает HoverBalances из DOM (dcc.Store рендерится как hidden div).
+     * Читает HoverBalances из DOM (hidden div с JSON).
      */
     function getHoverData() {
         var el = document.getElementById("wishlist-hover-data");
         if (!el) return null;
         try {
-            return JSON.parse(el.textContent || "null");
+            var raw = el.textContent || "";
+            if (!raw || raw === "null") return null;
+            return JSON.parse(raw);
         } catch (e) {
             return null;
         }
@@ -50,8 +52,13 @@
         balanceEls.forEach(function (el) {
             var d = el.getAttribute("data-date");
             if (adjusted[d] !== undefined) {
-                el.textContent = formatRubles(adjusted[d]);
+                var val = parseFloat(adjusted[d]);
+                el.textContent = formatRubles(val);
                 el.classList.add("hover-recalculated");
+                // Red for negative balances
+                if (val < 0) {
+                    el.classList.add("hover-negative");
+                }
             }
         });
     }
@@ -69,7 +76,7 @@
             var d = el.getAttribute("data-date");
             if (hoverData.base_balances[d] !== undefined) {
                 el.textContent = formatRubles(hoverData.base_balances[d]);
-                el.classList.remove("hover-recalculated");
+                el.classList.remove("hover-recalculated", "hover-negative");
             }
         });
     }
@@ -93,14 +100,28 @@
             var candidateDate = balanceEl.getAttribute("data-date");
             if (!candidateDate) return;
 
+            // Determine if this day is safe or unsafe
+            var isSafe = dayEl.classList.contains("wishlist-day-safe");
+            var isUnsafe = dayEl.classList.contains("wishlist-day-unsafe");
+
             dayEl.addEventListener("mouseenter", function () {
                 var hoverData = getHoverData();
                 applyHoverBalances(hoverData, candidateDate);
+
+                // Group hover effect
+                if (isSafe) {
+                    grid.classList.add("hover-safe");
+                } else if (isUnsafe) {
+                    grid.classList.add("hover-unsafe");
+                }
             });
 
             dayEl.addEventListener("mouseleave", function () {
                 var hoverData = getHoverData();
                 restoreBaseBalances(hoverData);
+
+                // Remove group hover effect
+                grid.classList.remove("hover-safe", "hover-unsafe");
             });
         });
     }

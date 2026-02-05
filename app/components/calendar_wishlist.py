@@ -69,8 +69,21 @@ def build_wishlist_overlay_banner(
                     ),
                     html.Span(
                         [
-                            html.Span("", className="wishlist-marker unsafe me-1"),
-                            "Риск",
+                            html.I(
+                                className="bi bi-shield-exclamation me-1",
+                                style={"color": "#fd7e14"},
+                            ),
+                            "Подушка",
+                        ],
+                        className="me-3",
+                    ),
+                    html.Span(
+                        [
+                            html.I(
+                                className="bi bi-exclamation-circle-fill me-1",
+                                style={"color": "#dc3545"},
+                            ),
+                            "Минус",
                         ],
                         className="me-3",
                     ),
@@ -79,7 +92,7 @@ def build_wishlist_overlay_banner(
                         className="text-muted small",
                     ),
                 ],
-                className="d-flex align-items-center",
+                className="d-flex align-items-center wishlist-legend",
             ),
         ],
         className="wishlist-overlay-banner p-3 mb-3",
@@ -122,22 +135,41 @@ def build_wishlist_day_cell(
     if is_past:
         css_classes.append("past-day-wishlist")
 
-    # Safe/unsafe маркер
+    # Safe/unsafe фон (per spec 5.3)
     if safe_info is not None:
         if safe_info["safe"]:
             css_classes.append("wishlist-day-safe")
         else:
             css_classes.append("wishlist-day-unsafe")
 
-    # Tooltip для unsafe reasons
+    # Reason markers (per spec section 4) + tooltip
+    reason_markers = []
     title = ""
     if safe_info and not safe_info["safe"]:
         reason_texts = []
         for r in safe_info["reasons"]:
             if r == "negative_balance":
                 reason_texts.append("Баланс уйдет в минус")
+                reason_markers.append(
+                    html.I(
+                        className=(
+                            "bi bi-exclamation-circle-fill "
+                            "wishlist-reason-marker wishlist-marker-negative"
+                        ),
+                        title="Касса < 0",
+                    )
+                )
             elif r == "cushion":
                 reason_texts.append("Ниже порога подушки")
+                reason_markers.append(
+                    html.I(
+                        className=(
+                            "bi bi-shield-exclamation "
+                            "wishlist-reason-marker wishlist-marker-cushion"
+                        ),
+                        title="Ниже подушки",
+                    )
+                )
         title = "; ".join(reason_texts)
 
     # Баланс с data-date атрибутом
@@ -159,9 +191,14 @@ def build_wishlist_day_cell(
             html.I(className=f"{icon_class} me-1", style={"fontSize": "0.7rem"})
         )
 
+    # Номер дня + маркеры причин unsafe
+    day_number_content = [str(day_date.day)]
+    if reason_markers:
+        day_number_content.extend(reason_markers)
+
     cell_content = [
         html.Div(
-            str(day_date.day),
+            day_number_content,
             className="calendar-day-number",
         ),
         balance_el,
@@ -202,8 +239,11 @@ def build_wishlist_calendar_grid(
     # Заголовок дней недели
     weekday_names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     weekday_header = html.Div(
-        [html.Div(name, className="calendar-weekday-header") for name in weekday_names],
-        className="calendar-weekday-row",
+        [
+            html.Div(name, className="calendar-weekday text-center")
+            for name in weekday_names
+        ],
+        className="calendar-weekday-row d-flex",
     )
 
     # Строим сетку по неделям
@@ -243,7 +283,7 @@ def build_wishlist_calendar_grid(
         current_week.append(cell)
 
         if len(current_week) == 7:
-            weeks.append(html.Div(current_week, className="calendar-week-row"))
+            weeks.append(html.Div(current_week, className="calendar-week-row d-flex"))
             current_week = []
 
     # Заполняем оставшиеся ячейки
@@ -251,7 +291,7 @@ def build_wishlist_calendar_grid(
         current_week.append(html.Div(className="calendar-day calendar-day-empty"))
 
     if current_week:
-        weeks.append(html.Div(current_week, className="calendar-week-row"))
+        weeks.append(html.Div(current_week, className="calendar-week-row d-flex"))
 
     return html.Div(
         [weekday_header, *weeks],

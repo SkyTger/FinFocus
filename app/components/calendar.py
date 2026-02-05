@@ -1,6 +1,7 @@
 """UI компонент кассового календаря."""
 
 import calendar
+import json
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -227,7 +228,12 @@ def create_calendar_layout() -> html.Div:
             dcc.Store(id="calendar-refresh-trigger", data=None),
             # Wishlist mode stores
             dcc.Store(id="wishlist-safe-dates", data=None),
-            dcc.Store(id="wishlist-hover-data", data=None),
+            # Hidden div for JS to read hover data (dcc.Store not accessible from JS)
+            html.Div(
+                id="wishlist-hover-data",
+                style={"display": "none"},
+                children="null",
+            ),
             # Заголовок с навигацией (с начальными кнопками)
             html.Div(
                 id="calendar-header",
@@ -791,7 +797,7 @@ DEFAULT_USER_ID = 1
         Output("calendar-state", "data"),
         Output("wishlist-overlay", "children"),
         Output("wishlist-safe-dates", "data"),
-        Output("wishlist-hover-data", "data"),
+        Output("wishlist-hover-data", "children"),  # Hidden div, not Store
     ],
     [
         Input("url", "pathname"),
@@ -958,7 +964,10 @@ def load_and_navigate_calendar(
             "balances": serialize_balances(balances),
         }
 
-        return header, stats, grid, new_state, overlay, safe_dates_data, hover_data
+        # Serialize hover_data to JSON string for JS access
+        hover_json = json.dumps(hover_data) if hover_data else "null"
+
+        return header, stats, grid, new_state, overlay, safe_dates_data, hover_json
 
     except Exception as e:
         logger.error(f"Ошибка загрузки календаря: {e}")
@@ -969,7 +978,7 @@ def load_and_navigate_calendar(
             state,
             None,
             None,
-            None,
+            "null",
         )
 
 

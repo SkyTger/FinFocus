@@ -73,13 +73,63 @@
     background-color: #dc3545;
 }
 
-/* Safe/unsafe day cells */
+/* Safe/unsafe day cells — per spec section 5.3 */
 .wishlist-day-safe {
-    border-left: 3px solid #198754 !important;
+    background: linear-gradient(
+        135deg,
+        rgba(25, 135, 84, 0.15) 0%,
+        rgba(25, 135, 84, 0.06) 100%
+    ) !important;
+    box-shadow: inset 0 0 0 1px rgba(25, 135, 84, 0.25);
+    transition: all 0.15s ease;
+}
+
+.wishlist-day-safe:hover {
+    background: linear-gradient(
+        135deg,
+        rgba(25, 135, 84, 0.28) 0%,
+        rgba(25, 135, 84, 0.15) 100%
+    ) !important;
+    box-shadow: inset 0 0 0 2px rgba(25, 135, 84, 0.4),
+                0 0 8px rgba(25, 135, 84, 0.2);
 }
 
 .wishlist-day-unsafe {
-    border-left: 3px solid #dc3545 !important;
+    background-color: rgba(220, 53, 69, 0.06) !important;
+    box-shadow: inset 0 0 0 1px rgba(220, 53, 69, 0.15);
+    transition: all 0.15s ease;
+}
+
+.wishlist-day-unsafe:hover {
+    background-color: rgba(220, 53, 69, 0.12) !important;
+    box-shadow: inset 0 0 0 1px rgba(220, 53, 69, 0.3);
+}
+
+/* Group hover effect — highlight all same-type days */
+.wishlist-mode.hover-safe .wishlist-day-safe {
+    background: linear-gradient(
+        135deg,
+        rgba(25, 135, 84, 0.22) 0%,
+        rgba(25, 135, 84, 0.10) 100%
+    ) !important;
+}
+
+.wishlist-mode.hover-unsafe .wishlist-day-unsafe {
+    background-color: rgba(220, 53, 69, 0.10) !important;
+}
+
+/* Reason markers — per spec section 4 */
+.wishlist-reason-marker {
+    font-size: 0.65rem;
+    margin-left: 2px;
+}
+
+.wishlist-marker-cushion {
+    color: #fd7e14; /* orange — порог подушки */
+}
+
+.wishlist-marker-negative {
+    color: #dc3545; /* red — касса < 0 */
 }
 
 .past-day-wishlist {
@@ -91,6 +141,10 @@
 .hover-recalculated {
     color: #0d6efd !important;
     font-weight: bold;
+}
+
+.hover-recalculated.hover-negative {
+    color: #dc3545 !important;
 }
 
 /* Disable tooltip in wishlist mode */

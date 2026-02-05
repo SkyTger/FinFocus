@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from app.schema.wishlist import HoverBalances, SafeDateInfo
 from app.services.calendar_service import CalendarService
 from app.services.cushion_service import CushionService
-from app.utils.formatters import format_amount
 
 
 class PurchaseRecommendationService:
@@ -144,12 +143,12 @@ class PurchaseRecommendationService:
             user_id, start, end
         )
 
-        # base_balances: все дни месяца
+        # base_balances: все дни месяца (числа как строки для JSON)
         base_balances: dict[str, str] = {}
         for day_num in range(1, last_day + 1):
             d = date(year, month, day_num)
             balance = daily_balances.get(d, Decimal("0"))
-            base_balances[d.isoformat()] = format_amount(balance)
+            base_balances[d.isoformat()] = str(balance)
 
         # by_candidate: для каждого candidate >= today
         by_candidate: dict[str, dict[str, str]] = {}
@@ -164,9 +163,9 @@ class PurchaseRecommendationService:
                 base = daily_balances.get(d, Decimal("0"))
                 # После дня покупки баланс уменьшается на amount
                 if d >= candidate:
-                    adjusted[d.isoformat()] = format_amount(base - amount)
+                    adjusted[d.isoformat()] = str(base - amount)
                 else:
-                    adjusted[d.isoformat()] = format_amount(base)
+                    adjusted[d.isoformat()] = str(base)
 
             by_candidate[candidate.isoformat()] = adjusted
 
