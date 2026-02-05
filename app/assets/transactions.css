@@ -215,3 +215,120 @@
         height: 70px;
     }
 }
+
+/* === Date Filter Section === */
+
+/* Position DatePicker container over the button */
+#filter-date-picker-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+}
+
+#filter-date-picker-container .DateRangePicker {
+    width: 100%;
+    height: 100%;
+}
+
+/* Make input wrapper fill container and be clickable */
+#filter-date-range .DateRangePickerInput {
+    background: transparent;
+    border: none;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+/* Hide text inputs visually but keep clickable */
+#filter-date-range .DateInput {
+    background: transparent;
+    flex: 1;
+    height: 100%;
+}
+
+#filter-date-range .DateInput_input {
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: transparent;
+    caret-color: transparent;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+}
+
+/* Hide arrow and clear button inside DatePicker */
+#filter-date-range .DateRangePickerInput_arrow,
+#filter-date-range .DateRangePickerInput_clearDates {
+    display: none;
+}
+
+/* Calendar dropdown styling */
+.DateRangePicker_picker {
+    z-index: 1060 !important;
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border: 1px solid #dee2e6;
+    margin-top: 8px;
+}
+
+/* Filter card needs higher stacking context */
+.filter-card-elevated {
+    position: relative;
+    z-index: 10;
+    overflow: visible;
+}
+
+.filter-card-elevated .card-body {
+    overflow: visible;
+}
+
+/* Date button is visual only - clicks pass through */
+#filter-date-btn {
+    position: relative;
+    z-index: 1;
+    pointer-events: none;
+}
+
+/* Clear button must be clickable */
+#filter-date-clear {
+    position: relative;
+    z-index: 10;
+    pointer-events: auto;
+}
+
+#filter-date-clear:hover {
+    color: var(--bs-danger) !important;
+}
+
+/* === Sortable Headers === */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sortable-header:hover {
+    color: var(--bs-primary);
+}
+
+.sortable-header:hover .text-muted {
+    color: var(--bs-primary) !important;
+}
+
+/* Responsive filter panel */
+@media (max-width: 768px) {
+    #filter-date-range .DateInput {
+        width: 85px;
+    }
+
+    .filter-date-picker-visible {
+        left: auto;
+        right: 0;
+    }
+}

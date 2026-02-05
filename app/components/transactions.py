@@ -363,10 +363,49 @@ def _build_chips_cell(
     )
 
 
+def _build_sortable_header(
+    label: str, column: str, current_sort: dict, className: str = ""
+) -> html.Th:
+    """Создает кликабельный заголовок столбца с индикатором сортировки.
+
+    Args:
+        label: Текст заголовка
+        column: Имя столбца для сортировки
+        current_sort: Текущая сортировка {"column": str, "direction": str}
+        className: Дополнительные CSS классы
+
+    Returns:
+        html.Th: Заголовок с кнопкой сортировки
+    """
+    is_active = current_sort.get("column") == column
+    direction = current_sort.get("direction", "desc") if is_active else None
+
+    # Иконка сортировки
+    if is_active:
+        icon = "bi-sort-down" if direction == "desc" else "bi-sort-up"
+        icon_class = f"bi {icon} ms-1"
+    else:
+        icon_class = "bi bi-arrow-down-up ms-1 text-muted opacity-50"
+
+    return html.Th(
+        html.Span(
+            [
+                label,
+                html.I(className=icon_class),
+            ],
+            id={"type": "sort-header", "column": column},
+            className="sortable-header",
+            role="button",
+        ),
+        className=className,
+    )
+
+
 def _build_transactions_table(
     transactions: list,
     frequent_categories: dict | None = None,
     all_categories: list | None = None,
+    current_sort: dict | None = None,
 ) -> list:
     """Формирует HTML таблицу транзакций с checkboxes и chips.
 
@@ -374,6 +413,7 @@ def _build_transactions_table(
         transactions: Список объектов Transaction
         frequent_categories: Кеш частых категорий для chips
         all_categories: Полный список категорий для dropdown
+        current_sort: Текущая сортировка {"column": str, "direction": str}
 
     Returns:
         list: [thead, tbody] для dbc.Table
@@ -383,6 +423,8 @@ def _build_transactions_table(
         frequent_categories = {}
     if all_categories is None:
         all_categories = []
+    if current_sort is None:
+        current_sort = {"column": "date", "direction": "desc"}
 
     # Заголовок таблицы с checkbox "Select All"
     table_header = html.Thead(
@@ -393,9 +435,9 @@ def _build_transactions_table(
                         dbc.Checkbox(id="select-all-checkbox", value=False),
                         style={"width": "40px"},
                     ),
-                    html.Th("Дата"),
+                    _build_sortable_header("Дата", "date", current_sort),
                     html.Th("Тип"),
-                    html.Th("Сумма", className="text-end"),
+                    _build_sortable_header("Сумма", "amount", current_sort, "text-end"),
                     html.Th("Категория", style={"minWidth": "200px"}),
                     html.Th("Описание"),
                     html.Th("Действия", className="text-end"),
@@ -511,9 +553,13 @@ def create_transactions_layout():
     """
     return html.Div(
         [
-            # Stores для состояния выбора и кеша категорий
+            # Stores для состояния выбора, кеша категорий и сортировки
             dcc.Store(id="selected-transactions", data=[]),
             dcc.Store(id="frequent-categories", data={}),
+            dcc.Store(
+                id="transactions-sort",
+                data={"column": "date", "direction": "desc"},
+            ),
             # Компонент для скачивания файлов
             dcc.Download(id="export-download"),
             # Заголовок с описанием
@@ -563,15 +609,77 @@ def create_transactions_layout():
             dbc.Card(
                 dbc.CardBody(
                     [
-                        dbc.Checkbox(
-                            id="filter-no-category",
-                            label="Показать только без категории",
-                            value=False,
+                        dbc.Row(
+                            [
+                                # Фильтры по дате
+                                dbc.Col(
+                                    [
+                                        # Кнопка-лейбл (визуальная, клики проходят к DatePicker)
+                                        dbc.Button(
+                                            [
+                                                html.I(
+                                                    className="bi bi-calendar3 me-2"
+                                                ),
+                                                html.Span(
+                                                    "Период",
+                                                    id="filter-date-label",
+                                                ),
+                                            ],
+                                            id="filter-date-btn",
+                                            color="outline-secondary",
+                                            size="sm",
+                                        ),
+                                        # DatePickerRange поверх кнопки (невидимый input)
+                                        html.Div(
+                                            dcc.DatePickerRange(
+                                                id="filter-date-range",
+                                                start_date_placeholder_text="",
+                                                end_date_placeholder_text="",
+                                                display_format="DD.MM.YYYY",
+                                                first_day_of_week=1,
+                                                minimum_nights=0,
+                                            ),
+                                            id="filter-date-picker-container",
+                                        ),
+                                        # Кнопка сброса
+                                        dbc.Button(
+                                            html.I(className="bi bi-x-lg"),
+                                            id="filter-date-clear",
+                                            color="link",
+                                            size="sm",
+                                            className="text-muted p-0 ms-2",
+                                            title="Сбросить период",
+                                            style={"display": "none"},
+                                        ),
+                                    ],
+                                    className="d-flex align-items-center position-relative",
+                                    width="auto",
+                                ),
+                                # Разделитель
+                                dbc.Col(
+                                    html.Div(
+                                        className="vr mx-3",
+                                        style={"height": "24px"},
+                                    ),
+                                    width="auto",
+                                    className="d-flex align-items-center",
+                                ),
+                                # Чекбокс категории
+                                dbc.Col(
+                                    dbc.Checkbox(
+                                        id="filter-no-category",
+                                        label="Показать только без категории",
+                                        value=False,
+                                    ),
+                                    className="d-flex align-items-center",
+                                ),
+                            ],
+                            className="g-0 align-items-center",
                         ),
                     ],
                     className="py-2",
                 ),
-                className="mb-3",
+                className="mb-3 filter-card-elevated",
             ),
             # Таблица операций
             dbc.Card(
@@ -838,21 +946,51 @@ def load_frequent_categories(pathname: str, cached_data: dict | None) -> dict:
     [
         Input("url", "pathname"),
         Input("filter-no-category", "value"),
+        Input("filter-date-range", "start_date"),
+        Input("filter-date-range", "end_date"),
         Input("frequent-categories", "data"),
+        Input("transactions-sort", "data"),
     ],
 )
-def load_transactions(pathname, filter_no_category, frequent_categories):
-    """Загружает список операций из БД с фильтрацией."""
+def load_transactions(
+    pathname, filter_no_category, date_from, date_to, frequent_categories, sort_data
+):
+    """Загружает список операций из БД с фильтрацией и сортировкой."""
+    from datetime import date
+
     if pathname != "/transactions":
         raise PreventUpdate
 
+    # Парсинг дат из строки ISO
+    start_date = date.fromisoformat(date_from) if date_from else None
+    end_date = date.fromisoformat(date_to) if date_to else None
+
+    # Параметры сортировки
+    sort_column = sort_data.get("column", "date") if sort_data else "date"
+    sort_direction = sort_data.get("direction", "desc") if sort_data else "desc"
+    reverse = sort_direction == "desc"
+
     with get_db_session() as session:
         service = TransactionService(session)
-        transactions = service.get_all_by_user(user_id=1)
+        transactions = service.get_all_by_user(
+            user_id=1,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
         # Фильтр по отсутствию категории
         if filter_no_category:
             transactions = [tx for tx in transactions if tx.category_id is None]
+
+        # Сортировка
+        if sort_column == "date":
+            transactions = sorted(
+                transactions, key=lambda tx: tx.transaction_date, reverse=reverse
+            )
+        elif sort_column == "amount":
+            transactions = sorted(
+                transactions, key=lambda tx: tx.amount, reverse=reverse
+            )
 
         # Загружаем все категории для dropdown
         category_service = CategoryService(session)
@@ -863,6 +1001,7 @@ def load_transactions(pathname, filter_no_category, frequent_categories):
             transactions,
             frequent_categories=frequent_categories or {},
             all_categories=all_categories,
+            current_sort=sort_data or {"column": "date", "direction": "desc"},
         )
 
 
@@ -1231,21 +1370,144 @@ def update_selection_state(
         Output("selected-transactions", "data", allow_duplicate=True),
         Output("select-all-checkbox", "value"),
     ],
-    Input("filter-no-category", "value"),
+    [
+        Input("filter-no-category", "value"),
+        Input("filter-date-range", "start_date"),
+        Input("filter-date-range", "end_date"),
+    ],
     prevent_initial_call=True,
 )
-def clear_selection_on_filter_change(filter_value: bool) -> tuple[list, bool]:
-    """Сбрасывает выбор при изменении фильтра.
+def clear_selection_on_filter_change(
+    filter_value: bool, date_from: str | None, date_to: str | None
+) -> tuple[list, bool]:
+    """Сбрасывает выбор при изменении любого фильтра.
 
     Критично для WYSIWYG — выбранные элементы должны быть видны.
 
     Args:
-        filter_value: Новое значение фильтра (не используется)
+        filter_value: Значение фильтра категории (не используется)
+        date_from: Начальная дата (не используется)
+        date_to: Конечная дата (не используется)
 
     Returns:
         tuple: ([], False) — пустой selection и unchecked Select All
     """
     return [], False
+
+
+# ==================== SORTING CALLBACKS ====================
+
+
+@callback(
+    Output("transactions-sort", "data"),
+    Input({"type": "sort-header", "column": ALL}, "n_clicks"),
+    State("transactions-sort", "data"),
+    prevent_initial_call=True,
+)
+def toggle_sort(n_clicks_list, current_sort):
+    """Переключает сортировку при клике на заголовок столбца.
+
+    Args:
+        n_clicks_list: Список кликов по заголовкам
+        current_sort: Текущая сортировка
+
+    Returns:
+        dict: Новая сортировка {"column": str, "direction": str}
+    """
+    # Guard clauses
+    if not ctx.triggered_id:
+        raise PreventUpdate
+    if not isinstance(ctx.triggered_id, dict):
+        raise PreventUpdate
+    if ctx.triggered_id.get("type") != "sort-header":
+        raise PreventUpdate
+    if not ctx.triggered or ctx.triggered[0].get("value") is None:
+        raise PreventUpdate
+
+    clicked_column = ctx.triggered_id["column"]
+    current_column = current_sort.get("column") if current_sort else None
+    current_direction = (
+        current_sort.get("direction", "desc") if current_sort else "desc"
+    )
+
+    # Если кликнули на тот же столбец — меняем направление
+    if clicked_column == current_column:
+        new_direction = "asc" if current_direction == "desc" else "desc"
+    else:
+        # Новый столбец — начинаем с desc
+        new_direction = "desc"
+
+    return {"column": clicked_column, "direction": new_direction}
+
+
+# ==================== DATE PICKER CALLBACKS ====================
+
+
+@callback(
+    [
+        Output("filter-date-label", "children"),
+        Output("filter-date-clear", "style"),
+    ],
+    [
+        Input("filter-date-range", "start_date"),
+        Input("filter-date-range", "end_date"),
+    ],
+    prevent_initial_call=True,
+)
+def update_date_label(start_date, end_date):
+    """Обновляет лейбл кнопки при выборе дат.
+
+    Args:
+        start_date: Начальная дата (ISO)
+        end_date: Конечная дата (ISO)
+
+    Returns:
+        tuple: (label, clear_btn_style)
+    """
+    from datetime import date
+
+    if not start_date and not end_date:
+        return "Период", {"display": "none"}
+
+    # Форматируем даты
+    parts = []
+    if start_date:
+        d = date.fromisoformat(start_date)
+        parts.append(d.strftime("%d.%m.%y"))
+    else:
+        parts.append("...")
+
+    if end_date:
+        d = date.fromisoformat(end_date)
+        parts.append(d.strftime("%d.%m.%y"))
+    else:
+        parts.append("...")
+
+    label = f"{parts[0]} — {parts[1]}"
+
+    return label, {"display": "inline-block"}
+
+
+@callback(
+    [
+        Output("filter-date-range", "start_date"),
+        Output("filter-date-range", "end_date"),
+    ],
+    Input("filter-date-clear", "n_clicks"),
+    prevent_initial_call=True,
+)
+def clear_date_filter(n_clicks):
+    """Сбрасывает фильтр дат.
+
+    Args:
+        n_clicks: Клики по кнопке сброса
+
+    Returns:
+        tuple: (None, None) — пустые даты
+    """
+    if not n_clicks:
+        raise PreventUpdate
+    return None, None
 
 
 @callback(
@@ -1373,15 +1635,26 @@ def bulk_assign_category(
 @callback(
     Output("export-download", "data"),
     Input("export-btn", "n_clicks"),
-    State("filter-no-category", "value"),
+    [
+        State("filter-no-category", "value"),
+        State("filter-date-range", "start_date"),
+        State("filter-date-range", "end_date"),
+    ],
     prevent_initial_call=True,
 )
-def export_transactions(n_clicks: int | None, filter_uncategorized: bool) -> dict:
-    """Экспортирует транзакции в CSV файл.
+def export_transactions(
+    n_clicks: int | None,
+    filter_uncategorized: bool,
+    date_from: str | None,
+    date_to: str | None,
+) -> dict:
+    """Экспортирует транзакции в CSV файл с учетом текущих фильтров.
 
     Args:
         n_clicks: Количество кликов на кнопку экспорта
         filter_uncategorized: Экспортировать только без категории
+        date_from: Начальная дата фильтра (ISO format)
+        date_to: Конечная дата фильтра (ISO format)
 
     Returns:
         dict: Данные для dcc.Download (filename + content)
@@ -1391,10 +1664,16 @@ def export_transactions(n_clicks: int | None, filter_uncategorized: bool) -> dic
     if not n_clicks:
         raise PreventUpdate
 
+    # Парсинг дат
+    start_date = date.fromisoformat(date_from) if date_from else None
+    end_date = date.fromisoformat(date_to) if date_to else None
+
     with get_db_session() as session:
         service = TransactionService(session)
         csv_bytes = service.export_to_csv(
             user_id=1,
+            start_date=start_date,
+            end_date=end_date,
             uncategorized_only=filter_uncategorized,
         )
 
