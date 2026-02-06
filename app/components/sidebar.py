@@ -141,15 +141,13 @@ def create_sidebar():
                         className="text-center p-3",
                     ),
                 ],
-                className="mt-auto",
             ),
         ],
-        className="d-flex flex-column h-100",
     )
 
     return dbc.Card(
         sidebar_content,
-        className="sidebar-card h-100",
+        className="sidebar-card",
     )
 
 

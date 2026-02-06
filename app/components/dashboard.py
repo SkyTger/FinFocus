@@ -3,7 +3,18 @@ Dashboard компонент - главная страница с обзором
 """
 import plotly.graph_objs as go
 import dash_bootstrap_components as dbc
-from dash import callback, ctx, html, dcc, no_update, Input, Output, State
+from dash import (
+    callback,
+    clientside_callback,
+    ClientsideFunction,
+    ctx,
+    html,
+    dcc,
+    no_update,
+    Input,
+    Output,
+    State,
+)
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
@@ -579,7 +590,7 @@ def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
 
     recon_button = dbc.Button(
         [html.I(className="bi bi-check2-square me-1"), "Сверка"],
-        id="open-recon-from-dashboard-btn",
+        id="open-recon-from-dashboard-kpi-btn",
         size="sm",
         color="success",
         outline=True,
@@ -1502,77 +1513,45 @@ def persist_toast_dismissal(is_open: bool, current: bool) -> bool:
     return no_update
 
 
-@callback(
+# Clientside callbacks для динамически рендеренных элементов.
+# JS функции определены в assets/clientside_triggers.js (namespace: triggers).
+# Clientside + prevent_initial_call=True обходит ReferenceError для элементов,
+# которых нет в начальном DOM (KPI карточки, empty state кнопки).
+
+# Кнопка "Сверка" в KPI-карточке → open-recon-trigger
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
     Output("open-recon-trigger", "data", allow_duplicate=True),
-    [
-        Input("open-recon-from-dashboard-btn", "n_clicks"),
-        Input("open-recon-from-dashboard-banner-btn", "n_clicks"),
-    ],
+    Input("open-recon-from-dashboard-kpi-btn", "n_clicks"),
     prevent_initial_call=True,
 )
-def open_recon_from_dashboard(
-    kpi_clicks: int | None,
-    banner_clicks: int | None,
-):
-    """Открывает модал сверки из Dashboard (KPI или баннер).
 
-    Args:
-        kpi_clicks: Клики на кнопку "Сверка" в KPI-карточке
-        banner_clicks: Клики на кнопку "Сверить баланс" в баннере
+# Кнопка "Сверить баланс" в баннере → open-recon-trigger
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
+    Output("open-recon-trigger", "data", allow_duplicate=True),
+    Input("open-recon-from-dashboard-banner-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
 
-    Returns:
-        int: Timestamp для open-recon-trigger
-    """
-    import time
-
-    triggered_id = ctx.triggered_id
-
-    # Guard: проверка реального клика
-    if triggered_id == "open-recon-from-dashboard-btn":
-        if not kpi_clicks or kpi_clicks == 0:
-            raise PreventUpdate
-    elif triggered_id == "open-recon-from-dashboard-banner-btn":
-        if not banner_clicks or banner_clicks == 0:
-            raise PreventUpdate
-    else:
-        raise PreventUpdate
-
-    return int(time.time() * 1000)
-
-
-@callback(
+# Кнопка "Добавить" в пустом "Недавние" → create-modal
+clientside_callback(
+    ClientsideFunction("triggers", "open_create_modal"),
     [
         Output("create-modal", "is_open", allow_duplicate=True),
         Output("modal-source", "data", allow_duplicate=True),
     ],
-    [
-        Input("empty-recent-add-btn", "n_clicks"),
-        Input("empty-upcoming-add-btn", "n_clicks"),
-    ],
+    Input("empty-recent-add-btn", "n_clicks"),
     prevent_initial_call=True,
 )
-def open_create_from_empty(
-    recent_clicks: int | None,
-    upcoming_clicks: int | None,
-):
-    """Открывает модал создания из пустого состояния таблиц.
 
-    Args:
-        recent_clicks: Клики на кнопку в пустом "Недавние"
-        upcoming_clicks: Клики на кнопку в пустом "Предстоящие"
-
-    Returns:
-        tuple: (is_open, modal_source)
-    """
-    triggered_id = ctx.triggered_id
-
-    if triggered_id == "empty-recent-add-btn":
-        if not recent_clicks or recent_clicks == 0:
-            raise PreventUpdate
-    elif triggered_id == "empty-upcoming-add-btn":
-        if not upcoming_clicks or upcoming_clicks == 0:
-            raise PreventUpdate
-    else:
-        raise PreventUpdate
-
-    return True, "dashboard"
+# Кнопка "Добавить" в пустом "Предстоящие" → create-modal
+clientside_callback(
+    ClientsideFunction("triggers", "open_create_modal"),
+    [
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
+    ],
+    Input("empty-upcoming-add-btn", "n_clicks"),
+    prevent_initial_call=True,
+)

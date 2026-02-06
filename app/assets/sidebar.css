@@ -1,9 +1,25 @@
-/* Sidebar Card Container */
+/* Sidebar column — fixed, flex для вертикального центрирования */
+.sidebar-column {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    padding: 1rem;
+}
+
+/* Sidebar Card Container — единый стиль с .kpi-card */
 .sidebar-card {
-    background: white;
-    border: 1px solid var(--color-border, #e5e5e5);
-    border-radius: 0;
-    box-shadow: none;
+    background: var(--color-bg-card, #ffffff);
+    border: none;
+    border-radius: 12px;
+    box-shadow: var(--shadow, 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075));
+    /* Центрирование: если карточка < viewport → по центру,
+       если карточка > viewport → margin схлопывается, начинается сверху */
+    margin-top: auto;
+    margin-bottom: auto;
 }
 
 .sidebar-card .card-body {

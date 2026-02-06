@@ -200,8 +200,8 @@ MVP разрабатывается по принципу **dual-track agile** с
 **Прогресс**: 100% (6/6 фичи завершены)
 **Статус**: ✅ Батч 4 завершен
 
-### Батч 5: Dashboard UI Redesign (Epic-05-UI) 🔄 В ПРОЦЕССЕ
-**Сроки**: Начат 2026/02/05
+### Батч 5: Dashboard UI Redesign (Epic-05-UI) ✅ ЗАВЕРШЕН
+**Сроки**: Начат 2026/02/05, завершён 2026/02/06
 **Цель**: Переделка Dashboard по новой UI/UX спецификации — дневной график, формат ₽, обновлённые KPI-карточки
 
 **Ключевые результаты**:
@@ -212,19 +212,26 @@ MVP разрабатывается по принципу **dual-track agile** с
   - [x] Скрыть AI Assistant и Exchange (TODO для будущего)
   - [x] Типографика по спецификации (9 классов)
   - [x] Unit тесты (492 passed, +10 новых для format_rub)
-- [ ] Батч 5.2: Дневной график (ядро)
-  - [ ] DashboardService.get_daily_cashflow() — дневные данные
-  - [ ] Plotly: grouped bars + линия баланса + маркер минимума
-  - [ ] Hover tooltip, клик → модал, переключатель Month/Year
-- [ ] Батч 5.3: Layout — операции + правая колонна + sidebar
-  - [ ] Split "Недавние/Предстоящие" 50/50
-  - [ ] Wishlist + Safety Cushion в правую колонну
-  - [ ] Sidebar как card-контейнер
-  - [ ] Модал "Сверка" на Dashboard
-  - [ ] Пустые состояния
+- [x] ✅ Батч 5.2: Дневной график (ядро) (2026/02/06, PR #22)
+  - [x] DashboardService.get_daily_cashflow() + get_yearly_cashflow()
+  - [x] CalendarService.get_recurring_income_expense_by_day() публичный API
+  - [x] Plotly: grouped bars + линия баланса + diamond маркер + today line
+  - [x] Hover tooltip (hovermode="x unified"), клик по bar → модал (Month mode)
+  - [x] Переключатель Month/Year через Period Store Pattern
+  - [x] _load_dashboard_components() helper
+  - [x] Unit тесты (508 passed, +16 новых)
+- [x] ✅ Батч 5.3: Layout — операции + правая колонна + sidebar (2026/02/06, PR #23)
+  - [x] format_date_human() форматтер — "5 февраля" для операций
+  - [x] DashboardService.get_upcoming_transactions() — операции после reference_date
+  - [x] Рефакторинг get_recent_transactions() — month range filter
+  - [x] Глобализация reconciliation modal — Calendar + Dashboard
+  - [x] Dashboard layout 8/4 — split таблицы 50/50, cushion + wishlist, empty states
+  - [x] Sidebar card — активный highlight callback, sidebar.css
+  - [x] Transactions URL query params — ?start=&end=
+  - [x] Unit тесты (520 passed, +28 новых: 3 formatters + 9 dashboard_service + 16 старых)
 
-**Прогресс**: 33% (1/3 батчей)
-**Статус**: 🔄 В процессе
+**Прогресс**: 100% (3/3 батчей)
+**Статус**: ✅ Завершён
 **Спецификация**: `.reports/epics/epic-05-ui/dashboard_ui_spec.md`
 
 ### Backlog (после MVP)

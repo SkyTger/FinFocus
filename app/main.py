@@ -54,8 +54,7 @@ app.layout = dbc.Container(
                 dbc.Col(
                     create_sidebar(),
                     width=3,
-                    className="bg-light vh-100 p-0",
-                    style={"position": "fixed", "left": 0, "top": 0, "height": "100vh"},
+                    className="sidebar-column",
                 ),
                 # Основной контент
                 dbc.Col(

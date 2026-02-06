@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ALL, ctx, no_update
+from dash import html, dcc, callback, clientside_callback, ClientsideFunction, Input, Output, State, ALL, ctx, no_update
 from dash.exceptions import PreventUpdate
 from dateutil.relativedelta import relativedelta
 from loguru import logger
@@ -186,7 +186,7 @@ def build_calendar_header(month: int, year: int) -> html.Div:
                     dbc.Col(
                         dbc.Button(
                             [html.I(className="bi bi-calculator me-1"), "Сверка"],
-                            id="open-reconciliation-btn",
+                            id="open-recon-from-calendar-btn",
                             color="outline-secondary",
                             size="sm",
                             n_clicks=0,
@@ -1289,6 +1289,17 @@ def refresh_calendar_after_transaction(
 # ==================== CALLBACKS СВЕРКИ ====================
 
 
+# Clientside callback: кнопка "Сверка" на календаре → open-recon-trigger
+# Календарь не рендерится на /dashboard, поэтому clientside для обхода ReferenceError
+# JS функция определена в assets/clientside_triggers.js
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
+    Output("open-recon-trigger", "data", allow_duplicate=True),
+    Input("open-recon-from-calendar-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+
 @callback(
     [
         Output("reconciliation-modal", "is_open"),
@@ -1298,7 +1309,6 @@ def refresh_calendar_after_transaction(
         Output("reconciliation-message", "children"),
     ],
     [
-        Input("open-reconciliation-btn", "n_clicks"),
         Input("cancel-reconciliation-btn", "n_clicks"),
         Input("reconciliation-date", "date"),
         Input("open-recon-trigger", "data"),
@@ -1307,7 +1317,6 @@ def refresh_calendar_after_transaction(
     prevent_initial_call=True,
 )
 def toggle_reconciliation_modal(
-    open_clicks: int | None,
     cancel_clicks: int | None,
     selected_date: str | None,
     recon_trigger: int | None,
@@ -1316,10 +1325,9 @@ def toggle_reconciliation_modal(
     """Открывает/закрывает модал сверки и загружает расчетный баланс.
 
     Args:
-        open_clicks: Клики на кнопку открытия
         cancel_clicks: Клики на кнопку отмены
         selected_date: Выбранная дата
-        recon_trigger: Timestamp trigger из query param ?open_recon=1
+        recon_trigger: Timestamp trigger из open-recon-trigger Store
         is_open: Текущее состояние модала
 
     Returns:
@@ -1327,7 +1335,7 @@ def toggle_reconciliation_modal(
     """
     triggered_id = ctx.triggered_id
 
-    # Auto-open from query parameter trigger (timestamp-based)
+    # Открытие через Store trigger (Calendar, Dashboard, query param)
     if triggered_id == "open-recon-trigger":
         if not recon_trigger:
             raise PreventUpdate
@@ -1352,19 +1360,12 @@ def toggle_reconciliation_modal(
             raise PreventUpdate
         return False, "", None, "", ""
 
-    # Открытие модала по кнопке — требуем реальный клик
-    if triggered_id == "open-reconciliation-btn":
-        if open_clicks is None or open_clicks == 0:
-            raise PreventUpdate
-
     # Изменение даты — только если модал УЖЕ открыт
     if triggered_id == "reconciliation-date" and not is_open:
         raise PreventUpdate
 
-    # Открытие модала или изменение даты при открытом модале
-    if triggered_id == "open-reconciliation-btn" or (
-        triggered_id == "reconciliation-date" and is_open
-    ):
+    # Изменение даты при открытом модале
+    if triggered_id == "reconciliation-date" and is_open:
         target_date = (
             date.fromisoformat(selected_date) if selected_date else date.today()
         )
@@ -1376,9 +1377,7 @@ def toggle_reconciliation_modal(
                     user_id=DEFAULT_USER_ID, target_date=target_date
                 )
 
-            # При открытии — очищаем поля, при смене даты — оставляем модал открытым
-            should_open = True if triggered_id == "open-reconciliation-btn" else is_open
-            return should_open, format_rub(expected), None, "", ""
+            return is_open, format_rub(expected), None, "", ""
 
         except Exception as e:
             logger.error(f"Ошибка получения баланса для сверки: {e}")
