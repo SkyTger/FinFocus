@@ -34,4 +34,18 @@
 - **Minor non-blocking**: Exchange card has hardcoded $100.00 — card is hidden, Epic-08 will rewrite
 - **Verdict**: PASS — approved for merge
 
+## Step 4-m: Merge
+- User approved merge
+- `git merge --no-ff 0021-dashboard-foundation` — success (ort strategy)
+- `git push origin main` — pushed as 2d5aa16
+- No conflicts
+- **Verdict**: PASS
+
+## Step 5-m: Knowledge Bank Update
+- `/kb-update` subagent completed successfully
+- Updated 4 KB files: modules/utils.md, tech-stack.md, modules/ui-components.md, index.md
+- Documented format_rub(), CSS variables, KPI redesign, test counts
+- Committed as 4149032
+- **Verdict**: PASS
+
 ---

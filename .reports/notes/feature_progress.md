@@ -2,14 +2,14 @@
 
 ## 📊 Общий статус проекта: Epic-05-UI Dashboard Redesign — In Progress
 
-**Последнее обновление**: 2026/02/05
-**Статус**: 🔄 Epic-05-UI в процессе (Батч 5.1 ожидает старта)
-**Прогресс Epic-05**: 0/3 батчей завершено (0%)
+**Последнее обновление**: 2026/02/06
+**Статус**: 🔄 Epic-05-UI в процессе (Батч 5.1 завершён, 5.2 в разработке)
+**Прогресс Epic-05**: 1/3 батчей завершено (33%)
 **GitHub**: https://github.com/SkyTger/FinFocus
 
 ---
 
-## 🔄 Epic-05-UI: Dashboard UI Redesign — ПЛАНИРОВАНИЕ
+## 🔄 Epic-05-UI: Dashboard UI Redesign — IN PROGRESS
 
 **Дата старта**: 2026/02/05
 **Спецификация**: `.reports/epics/epic-05-ui/dashboard_ui_spec.md`
@@ -19,17 +19,112 @@
 Переделка Dashboard по новой UI/UX спецификации — дневной график кассового календаря, обновлённые KPI-карточки, формат денег ₽, split таблиц операций.
 
 ### Батчи:
-- Батч 5.1: Фундамент (цвета + формат ₽ + KPI) — ожидает старта
-- Батч 5.2: Дневной график (ядро) — ожидает батч 5.1
-- Батч 5.3: Layout (операции + правая колонна + sidebar) — ожидает батч 5.2
+- ✅ Батч 5.1: Фундамент (цвета + формат ₽ + KPI) — завершён 2026/02/06, PR #21
+- ⏳ Батч 5.2: Дневной график (ядро) — следующий
+- ⏳ Батч 5.3: Layout (операции + правая колонна + sidebar) — ожидает батч 5.2
 
 ### Ключевые решения:
 1. Тёмная тема — откладывается (Epic-06)
-2. Формат денег — глобальная замена $ → ₽
+2. Формат денег — глобальная замена $ → ₽ (DONE)
 3. Дневной график — отдельный метод (не через CalendarService)
-4. AI Assistant/Exchange — скрыть, не удалять
+4. AI Assistant/Exchange — скрыты (TODO Epic-08)
 5. Сайдбар — обернуть в dbc.Card (без рефакторинга main.py)
 6. Адаптивность — desktop-first
+
+---
+
+## ✅ Батч 16: Dashboard UI Foundation (2026-02-06) — MERGED
+
+**Дата**: 2026/02/06
+**Протокол**: 0021-dashboard-foundation
+**PR**: https://github.com/SkyTger/FinFocus/pull/21
+**Статус**: ✅ Merged в main
+
+### 🎯 Цель батча:
+Обновить цветовую схему, глобальный форматтер денег ($ → ₽), переделать KPI-карточки без градиентов, скрыть AI/Exchange — фундамент для Epic-05-UI Dashboard Redesign.
+
+### ✅ Выполненные задачи:
+
+1. **format_rub() в formatters.py** (Step 01)
+   - Глобальный форматтер: Decimal/float/int/None → "X XXX ₽"
+   - show_sign: True → "+X XXX ₽" / "−X XXX ₽"
+   - MINUS_SIGN константа: U+2212 (типографский минус)
+   - .00 копейки скрываются (15000 → "15 000 ₽")
+   - format_amount() переопределён как alias → 28 callsites покрыты
+   - 10 unit тестов
+
+2. **CSS-переменные + типографика** (Step 02)
+   - 15 новых CSS-переменных (палитра #2ecc71, текст, фон, границы)
+   - Deprecated aliases --primary-green, --light-green для обратной совместимости
+   - 9 типографических классов (kpi-number/title/subtitle, table-amount, link-show-all)
+   - custom.css: 7 замен hardcoded цветов
+   - calendar.css: 6 замен (#28a745 → var(--color-primary/-dark))
+   - transactions.css: 2 замены
+   - onboarding.css: 3 замены
+
+3. **Dashboard.py переработка** (Step 03)
+   - create_metric_card() → _build_kpi_card() (белый фон, border, kpi-* классы)
+   - 12 inline замен на format_rub() (KPI values, cashflow text, transaction amounts)
+   - Кнопка "Сверка" на Total Balance → /calendar?open_recon=1
+   - Русские label: Overview→Обзор, Income→Доходы, Expense→Расходы
+   - AI Assistant и Exchange скрыты (TODO Epic-08)
+   - table-amount.positive/.negative классы для транзакций
+
+4. **Calendar.py обновления** (Step 04)
+   - format_balance() рефакторинг: внутри format_rub(), возвращает с символом ₽
+   - 4 callsite обновлены (убран ручной "₽")
+   - Stats cards: income show_sign=True, expense → format_rub(-amount)
+   - Tooltip balance + 5 amount строк → format_rub()
+   - Reconciliation: 2 expected, 1 diff, 2 adjustment → format_rub()
+   - 2 теста обновлены: "-3 000" → "\u2212" + "3 000" (типографский минус)
+
+5. **Analytics.py обновления** (Step 05)
+   - 2 inline замены: donut center annotation + total H4 → format_rub()
+
+6. **Финализация** (Step 06)
+   - Black: 0 changes (all clean)
+   - Flake8: 0 errors
+   - Pytest: 492 passed (было 483, +10 новых, +1 updated)
+   - 1 pre-existing failure: test_budget_change_updates_allocation (precision)
+
+### 📊 Результат:
+- ✅ 492 unit и integration тестов (было 483, +10 новых для format_rub)
+- ✅ Глобальный формат денег X XXX ₽ (28 callsites format_amount + 12 dashboard + 11 calendar + 2 analytics)
+- ✅ 15 CSS-переменных палитры #2ecc71
+- ✅ 9 типографических классов
+- ✅ KPI-карточки без градиентов (белый фон, border)
+- ✅ AI/Exchange скрыты (TODO Epic-08)
+- ✅ Black + Flake8 OK
+- ✅ PR #21 Merged
+
+### 💡 Ключевые решения:
+
+1. **format_amount() как alias** — 28 существующих callsites покрыты без изменений (обратная совместимость)
+2. **MINUS_SIGN константа** — U+2212 (типографский минус) вместо ASCII "-" (0x2D)
+3. **Deprecated CSS aliases** — --primary-green, --light-green для legacy code (warnings)
+4. **format_balance() внутри format_rub()** — календарь теперь единообразный (4 callsites обновлены)
+5. **AI/Exchange скрыты, не удалены** — код сохранён для Epic-08
+
+### 🔧 Технические детали:
+
+**Модифицированные файлы:**
+- `app/utils/formatters.py` — format_rub() + MINUS_SIGN
+- `app/assets/custom.css` — 15 CSS-переменных + 9 типографических классов
+- `app/assets/calendar.css` — 6 замен цветов
+- `app/assets/transactions.css` — 2 замены
+- `app/assets/onboarding.css` — 3 замены
+- `app/components/dashboard.py` — _build_kpi_card(), 12 format_rub(), AI/Exchange скрыты
+- `app/components/calendar.py` — format_balance() рефакторинг, 11 format_rub()
+- `app/components/analytics.py` — 2 inline замены
+- `tests/test_formatters.py` — 10 unit тестов
+- `tests/test_calendar_service.py` — 2 теста обновлены (типографский минус)
+
+### 🚀 Следующие шаги:
+
+**Батч 5.2: Дневной график (ядро)**:
+- DashboardService.get_daily_cashflow() — дневные данные
+- Plotly: grouped bars + линия баланса + маркер минимума
+- Hover tooltip, клик → модал, переключатель Month/Year
 
 ---
 
@@ -364,72 +459,7 @@
 
 ---
 
-## ✅ Батч 12: Safety Cushion (2026-01-30) — MERGED
-
-**Дата**: 2026/01/30
-**Протокол**: 0013-safety-cushion
-**PR**: https://github.com/SkyTger/FinFocus/pull/13
-**Статус**: ✅ Merged в main
-
-### 🎯 Цель батча:
-Реализовать финансовую подушку безопасности — резервный фонд для непредвиденных расходов с визуализацией прогресса и порога риска.
-
-### ✅ Выполненные задачи:
-
-1. **Schema + Model** (commit: 12ed5a4)
-   - Percent NewType для type safety (0-100)
-   - CushionSettings, CushionScenario TypedDicts
-   - 3 поля в User: cushion_target, cushion_threshold_percent, cushion_threshold_manual
-
-2. **CushionService** (commit: 560da11)
-   - get_settings() — возвращает CushionSettings с вычисляемыми полями
-   - update_settings() — обновляет настройки с валидацией
-   - reset_settings() — сброс к default (target=0, threshold=30%)
-   - calculate_recommendation() — расчёт по сценариям (sum/max_scenario)
-
-3. **Unit Tests** (commit: 38a1817)
-   - 20 unit тестов для CushionService
-   - Покрытие: _validate_percent, get/update/reset settings, calculate_recommendation
-
-4. **Card UI** (commit: f36e0bb)
-   - Карточка подушки на /goals (~180 строк)
-   - 4 цветовых статуса: danger/warning/info/success
-   - Прогресс-бар с маркером порога
-
-5. **Modal UI** (commit: 6a152ee)
-   - Модал настройки (~175 строк)
-   - Калькулятор сценариев (sum/max_scenario режимы)
-   - Кнопки: Сбросить, Отмена, Сохранить
-
-6. **Callbacks** (commit: a31154c)
-   - 12 callbacks с ADR-003 guard clauses (~450 строк)
-   - Pattern-Matching для remove_scenario
-
-7. **CSS стили** (commit: 76c8f96)
-   - Стили .cushion-* (~200 строк)
-   - Responsive breakpoints: 768px, 576px
-
-8. **Финализация** (commit: fd5326f)
-   - Black, Flake8, pytest — все прошли
-   - 292 теста (было 272, +20 для CushionService)
-
-### 📊 Результат:
-- ✅ 292 unit и integration тестов
-- ✅ CushionService с Percent NewType для type safety
-- ✅ Калькулятор сценариев для расчёта целевого размера
-- ✅ Black + Flake8 OK
-- ✅ PR #13 Merged
-
-### 💡 Ключевые решения:
-
-1. **Подушка как поля в User** — не Goal, т.к. подушка не участвует в распределении бюджета
-2. **Percent NewType** — type safety на уровне IDE/type checker
-3. **threshold_manual флаг** — любое изменение порога = manual=True
-4. **Калькулятор сценариев** — sum (сумма) или max_scenario (максимум) режимы
-
----
-
-*Последнее обновление: 2026/02/05*
+*Последнее обновление: 2026/02/06*
 *Формат: Rolling Window (последние 5 батчей)*
 
-> Архив старых батчей: Батч 11 (Quick-Add Chips) и ранее перемещены в feature_progress_archive.md
+> Архив старых батчей: Батч 12 (Safety Cushion) и ранее — см. feature_progress_archive.md
