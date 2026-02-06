@@ -17,11 +17,12 @@ from app.services import (
 )
 from app.services.dashboard_service import MONTH_NAMES_RU_SHORT
 from app.services.onboarding_service import OnboardingService
+from app.services.cushion_service import CushionService
 from app.schema.dashboard import MonthlyCashflowData, YearlyCashflowData
 from datetime import date
 from decimal import Decimal
 
-from app.utils.formatters import format_rub
+from app.utils.formatters import format_rub, format_date_human
 
 DEFAULT_USER_ID = 1
 
@@ -52,14 +53,13 @@ def _build_balance_banner() -> dbc.Alert:
                         "Для точных расчётов укажите текущий остаток на счетах.",
                         className="me-3",
                     ),
-                    dcc.Link(
-                        dbc.Button(
-                            "Сверить баланс",
-                            color="dark",
-                            size="sm",
-                            outline=True,
-                        ),
-                        href="/calendar?open_recon=1",
+                    dbc.Button(
+                        "Сверить баланс",
+                        id="open-recon-from-dashboard-banner-btn",
+                        color="dark",
+                        size="sm",
+                        outline=True,
+                        n_clicks=0,
                     ),
                 ],
                 className="d-flex align-items-center justify-content-center flex-wrap",
@@ -100,42 +100,48 @@ def create_dashboard_layout():
                 ],
                 className="d-flex justify-content-between align-items-center mb-3",
             ),
-            # Верхние карточки (динамические)
+            # KPI карточки
             html.Div(
                 id="dashboard-overview-cards",
                 children=html.Div("Загрузка...", className="text-muted p-4"),
             ),
-            # Строка с графиками
+            # Основная сетка 8/4
             dbc.Row(
                 [
+                    # Левая колонка: график + split таблицы
                     dbc.Col(
-                        [html.Div(id="dashboard-cashflow-chart")],
+                        [
+                            html.Div(id="dashboard-cashflow-chart"),
+                            # Split таблицы 50/50
+                            dbc.Row(
+                                [
+                                    dbc.Col(
+                                        html.Div(id="dashboard-recent-transactions"),
+                                        md=6,
+                                    ),
+                                    dbc.Col(
+                                        html.Div(id="dashboard-upcoming-transactions"),
+                                        md=6,
+                                    ),
+                                ],
+                                className="mt-3",
+                            ),
+                        ],
                         width=8,
                     ),
+                    # Правая колонка: wishlist + cushion + stats
                     dbc.Col(
                         [
                             build_wishlist_widget(),
-                            # TODO: Epic-08 — реализовать AI Assistant
-                            # create_ai_assistant_card(),
-                            html.Div(style={"height": "20px"}),
+                            html.Div(style={"height": "16px"}),
+                            html.Div(id="dashboard-cushion-card"),
+                            html.Div(style={"height": "16px"}),
                             html.Div(id="dashboard-statistics-card"),
                         ],
                         width=4,
                     ),
                 ],
                 className="mb-4",
-            ),
-            # Нижняя строка
-            dbc.Row(
-                [
-                    dbc.Col(
-                        [html.Div(id="dashboard-recent-transactions")],
-                        width=8,
-                    ),
-                    # TODO: Epic-08 — реализовать Exchange
-                    # dbc.Col([create_exchange_card()], width=4),
-                    dbc.Col(width=4),
-                ]
             ),
         ]
     )
@@ -146,6 +152,50 @@ def create_dashboard_layout():
 # =============================================================================
 
 
+def _build_empty_state(
+    icon: str = "bi-inbox",
+    message: str = "Нет данных",
+    button_id: str | None = None,
+    button_text: str = "Добавить операцию",
+) -> html.Div:
+    """Создает пустое состояние для карточки.
+
+    Args:
+        icon: Bootstrap icon class
+        message: Текст сообщения
+        button_id: ID кнопки (если None — кнопка не показывается)
+        button_text: Текст кнопки
+
+    Returns:
+        html.Div с центрированным содержимым
+    """
+    content = [
+        html.I(
+            className=f"bi {icon}",
+            style={"fontSize": "2rem", "color": "#bbb"},
+        ),
+        html.P(message, className="text-muted small mt-2 mb-0"),
+    ]
+
+    if button_id:
+        content.append(
+            dbc.Button(
+                button_text,
+                id=button_id,
+                color="success",
+                outline=True,
+                size="sm",
+                className="mt-2",
+                n_clicks=0,
+            )
+        )
+
+    return html.Div(
+        content,
+        className="text-center py-4",
+    )
+
+
 def _build_kpi_card(
     title: str,
     value: str,
@@ -153,7 +203,7 @@ def _build_kpi_card(
     icon: str = "",
     icon_color: str = "#2c3e50",
     status_border_color: str = "",
-    action_button: html.Div | dcc.Link | None = None,
+    action_button: html.Div | dbc.Button | None = None,
 ) -> html.Div:
     """Создает KPI-карточку в новом дизайне.
 
@@ -200,6 +250,226 @@ def _build_kpi_card(
         card_content.append(html.Div(action_button, className="mt-2"))
 
     return html.Div(card_content, className="kpi-card h-100", style=style)
+
+
+def _build_transactions_split_table(
+    transactions: list[RecentTransaction],
+    title: str,
+    empty_message: str,
+    link_text: str,
+    link_href: str,
+    empty_btn_id: str | None = None,
+) -> dbc.Card:
+    """Создает карточку со списком операций (Recent или Upcoming).
+
+    Args:
+        transactions: Список операций
+        title: Заголовок ("Недавние операции" / "Предстоящие операции")
+        empty_message: Сообщение при пустом списке
+        link_text: Текст ссылки внизу
+        link_href: URL ссылки
+        empty_btn_id: ID кнопки для пустого состояния
+
+    Returns:
+        dbc.Card с таблицей операций
+    """
+    if not transactions:
+        return dbc.Card(
+            dbc.CardBody(
+                [
+                    html.H6(title, className="card-title mb-3"),
+                    _build_empty_state(
+                        icon="bi-inbox",
+                        message=empty_message,
+                        button_id=empty_btn_id,
+                    ),
+                ]
+            ),
+            className="shadow-sm h-100",
+        )
+
+    rows = []
+    for tx in transactions:
+        # Дата
+        tx_date_str = tx.get("date", "")
+        try:
+            tx_date = date.fromisoformat(tx_date_str)
+            date_display = format_date_human(tx_date)
+        except (ValueError, TypeError):
+            date_display = tx_date_str
+
+        # Сумма
+        tx_type = tx["transaction_type"]
+        amount = tx["amount"]
+        if tx_type == "income":
+            amount_str = format_rub(amount, show_sign=True)
+            amount_class = "table-amount positive"
+        elif tx_type == "expense":
+            amount_str = format_rub(-Decimal(str(amount)))
+            amount_class = "table-amount negative"
+        else:
+            amount_str = format_rub(amount)
+            amount_class = "table-amount"
+
+        # Recurring icon
+        recurring_icon = ""
+        if tx.get("is_recurring_instance"):
+            recurring_icon = "🔁 "
+
+        # Описание + категория
+        description = tx.get("description") or "Без описания"
+        category = tx.get("category_name") or "Без категории"
+
+        row = html.Tr(
+            [
+                html.Td(
+                    [
+                        html.Div(
+                            f"{recurring_icon}{description}",
+                            className="fw-semibold small",
+                        ),
+                        html.Div(category, className="small text-muted"),
+                    ]
+                ),
+                html.Td(date_display, className="text-muted small text-nowrap"),
+                html.Td(amount_str, className=f"{amount_class} text-end"),
+            ]
+        )
+        rows.append(row)
+
+    return dbc.Card(
+        dbc.CardBody(
+            [
+                html.H6(title, className="card-title mb-3"),
+                dbc.Table(
+                    [html.Tbody(rows)],
+                    borderless=True,
+                    hover=True,
+                    size="sm",
+                ),
+                dcc.Link(
+                    html.Span(
+                        [link_text, " →"],
+                        className="link-show-all",
+                    ),
+                    href=link_href,
+                ),
+            ]
+        ),
+        className="shadow-sm h-100",
+    )
+
+
+def _build_cushion_card_readonly(user_id: int) -> dbc.Card:
+    """Создает readonly карточку подушки безопасности для Dashboard.
+
+    Args:
+        user_id: ID пользователя
+
+    Returns:
+        dbc.Card с информацией о подушке
+    """
+    try:
+        with get_db_session() as session:
+            service = CushionService(session)
+            settings = service.get_settings(user_id)
+    except Exception as e:
+        logger.error(f"Ошибка загрузки подушки: {e}")
+        return dbc.Card(
+            dbc.CardBody(html.P("Ошибка загрузки", className="text-muted small")),
+            className="shadow-sm",
+        )
+
+    if not settings["is_configured"]:
+        return dbc.Card(
+            dbc.CardBody(
+                [
+                    html.H6(
+                        [
+                            html.I(className="bi bi-shield me-2"),
+                            "Подушка безопасности",
+                        ],
+                        className="card-title mb-3",
+                    ),
+                    html.P(
+                        "Подушка не настроена",
+                        className="text-muted small mb-2",
+                    ),
+                    dcc.Link(
+                        "Настроить →",
+                        href="/goals",
+                        className="link-show-all",
+                    ),
+                ]
+            ),
+            className="shadow-sm",
+        )
+
+    # Настроена — показываем прогресс
+    target = settings["target"]
+    current = settings["current_amount"]
+    progress = settings["progress"]
+    threshold_percent = settings["threshold_percent"]
+
+    # Статус
+    if current < 0:
+        progress_color = "danger"
+        status_text = "Отрицательный баланс"
+    elif progress < threshold_percent:
+        progress_color = "warning"
+        status_text = "Ниже порога"
+    elif progress < 100:
+        progress_color = "info"
+        status_text = "Накопление"
+    else:
+        progress_color = "success"
+        status_text = "Цель достигнута"
+
+    return dbc.Card(
+        dbc.CardBody(
+            [
+                html.Div(
+                    [
+                        html.H6(
+                            [
+                                html.I(className="bi bi-shield-check me-2"),
+                                "Подушка",
+                            ],
+                            className="card-title mb-0",
+                        ),
+                        dbc.Badge(
+                            status_text,
+                            color=progress_color,
+                            className="ms-auto",
+                        ),
+                    ],
+                    className="d-flex align-items-center mb-2",
+                ),
+                html.Div(
+                    [
+                        html.Span(format_rub(current), className="fw-bold"),
+                        html.Span(
+                            f" из {format_rub(target)}",
+                            className="text-muted small",
+                        ),
+                    ],
+                    className="mb-2",
+                ),
+                dbc.Progress(
+                    value=min(progress, 100),
+                    color=progress_color,
+                    style={"height": "8px"},
+                    className="mb-2",
+                ),
+                dcc.Link(
+                    "Настройки →",
+                    href="/goals",
+                    className="link-show-all",
+                ),
+            ]
+        ),
+        className="shadow-sm",
+    )
 
 
 def create_ai_assistant_card() -> dbc.Card:
@@ -307,14 +577,13 @@ def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
 
     period_label = "За месяц" if period == "month" else "За год"
 
-    recon_button = dcc.Link(
-        dbc.Button(
-            [html.I(className="bi bi-check2-square me-1"), "Сверка"],
-            size="sm",
-            color="success",
-            outline=True,
-        ),
-        href="/calendar?open_recon=1",
+    recon_button = dbc.Button(
+        [html.I(className="bi bi-check2-square me-1"), "Сверка"],
+        id="open-recon-from-dashboard-btn",
+        size="sm",
+        color="success",
+        outline=True,
+        n_clicks=0,
     )
 
     cards = [
@@ -973,7 +1242,7 @@ def _load_dashboard_components(
         period_state: Данные из dcc.Store (year, month)
 
     Returns:
-        Tuple: (cards, chart, stats, transactions)
+        Tuple: (cards, chart, stats, recent, upcoming, cushion)
     """
     today = date.today()
     year = today.year
@@ -1010,12 +1279,34 @@ def _load_dashboard_components(
             user_id=DEFAULT_USER_ID,
             limit=5,
         )
+        upcoming_transactions = service.get_upcoming_transactions(
+            user_id=DEFAULT_USER_ID,
+            limit=5,
+        )
 
     cards = build_overview_cards(metrics, period)
     stats = build_statistics_card(metrics, period)
-    transactions = build_recent_transactions_card(recent_transactions, period)
 
-    return cards, chart, stats, transactions
+    recent = _build_transactions_split_table(
+        transactions=recent_transactions,
+        title="Недавние операции",
+        empty_message="Нет операций за период",
+        link_text="Все операции",
+        link_href="/transactions",
+        empty_btn_id="empty-recent-add-btn",
+    )
+    upcoming = _build_transactions_split_table(
+        transactions=upcoming_transactions,
+        title="Предстоящие операции",
+        empty_message="Нет запланированных операций",
+        link_text="Все операции",
+        link_href="/transactions",
+        empty_btn_id="empty-upcoming-add-btn",
+    )
+
+    cushion = _build_cushion_card_readonly(DEFAULT_USER_ID)
+
+    return cards, chart, stats, recent, upcoming, cushion
 
 
 # =============================================================================
@@ -1029,6 +1320,8 @@ def _load_dashboard_components(
         Output("dashboard-cashflow-chart", "children"),
         Output("dashboard-statistics-card", "children"),
         Output("dashboard-recent-transactions", "children"),
+        Output("dashboard-upcoming-transactions", "children"),
+        Output("dashboard-cushion-card", "children"),
     ],
     [
         Input("url", "pathname"),
@@ -1062,7 +1355,7 @@ def load_dashboard_data(
             "Не удалось загрузить данные. Попробуйте обновить страницу.",
             color="danger",
         )
-        return error_alert, error_alert, error_alert, error_alert
+        return (error_alert,) * 6
 
 
 @callback(
@@ -1085,6 +1378,8 @@ def update_period_state(period_value: str):
         Output("dashboard-cashflow-chart", "children", allow_duplicate=True),
         Output("dashboard-statistics-card", "children", allow_duplicate=True),
         Output("dashboard-recent-transactions", "children", allow_duplicate=True),
+        Output("dashboard-upcoming-transactions", "children", allow_duplicate=True),
+        Output("dashboard-cushion-card", "children", allow_duplicate=True),
     ],
     Input("global-transaction-trigger", "data"),
     [State("dashboard-period", "data"), State("url", "pathname")],
@@ -1205,3 +1500,79 @@ def persist_toast_dismissal(is_open: bool, current: bool) -> bool:
     if not is_open and not current:
         return True
     return no_update
+
+
+@callback(
+    Output("open-recon-trigger", "data", allow_duplicate=True),
+    [
+        Input("open-recon-from-dashboard-btn", "n_clicks"),
+        Input("open-recon-from-dashboard-banner-btn", "n_clicks"),
+    ],
+    prevent_initial_call=True,
+)
+def open_recon_from_dashboard(
+    kpi_clicks: int | None,
+    banner_clicks: int | None,
+):
+    """Открывает модал сверки из Dashboard (KPI или баннер).
+
+    Args:
+        kpi_clicks: Клики на кнопку "Сверка" в KPI-карточке
+        banner_clicks: Клики на кнопку "Сверить баланс" в баннере
+
+    Returns:
+        int: Timestamp для open-recon-trigger
+    """
+    import time
+
+    triggered_id = ctx.triggered_id
+
+    # Guard: проверка реального клика
+    if triggered_id == "open-recon-from-dashboard-btn":
+        if not kpi_clicks or kpi_clicks == 0:
+            raise PreventUpdate
+    elif triggered_id == "open-recon-from-dashboard-banner-btn":
+        if not banner_clicks or banner_clicks == 0:
+            raise PreventUpdate
+    else:
+        raise PreventUpdate
+
+    return int(time.time() * 1000)
+
+
+@callback(
+    [
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
+    ],
+    [
+        Input("empty-recent-add-btn", "n_clicks"),
+        Input("empty-upcoming-add-btn", "n_clicks"),
+    ],
+    prevent_initial_call=True,
+)
+def open_create_from_empty(
+    recent_clicks: int | None,
+    upcoming_clicks: int | None,
+):
+    """Открывает модал создания из пустого состояния таблиц.
+
+    Args:
+        recent_clicks: Клики на кнопку в пустом "Недавние"
+        upcoming_clicks: Клики на кнопку в пустом "Предстоящие"
+
+    Returns:
+        tuple: (is_open, modal_source)
+    """
+    triggered_id = ctx.triggered_id
+
+    if triggered_id == "empty-recent-add-btn":
+        if not recent_clicks or recent_clicks == 0:
+            raise PreventUpdate
+    elif triggered_id == "empty-upcoming-add-btn":
+        if not upcoming_clicks or upcoming_clicks == 0:
+            raise PreventUpdate
+    else:
+        raise PreventUpdate
+
+    return True, "dashboard"

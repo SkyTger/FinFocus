@@ -14,7 +14,10 @@ from app.components.sidebar import create_sidebar
 from app.components.transactions import (
     create_transactions_layout,
 )  # Сначала transactions
-from app.components.calendar import create_calendar_layout  # Потом calendar
+from app.components.calendar import (
+    create_calendar_layout,
+    create_reconciliation_modal,
+)  # Потом calendar
 from app.components.goals import create_goals_layout  # Потом goals
 from app.components.transaction_modals import create_transaction_modals
 from app.components.analytics import create_analytics_layout  # Аналитика
@@ -81,6 +84,8 @@ app.layout = dbc.Container(
         create_transaction_modals(),
         # Wishlist модал (отложенные покупки)
         create_wishlist_modal(),
+        # Reconciliation модал (глобальный — доступен с Calendar и Dashboard)
+        create_reconciliation_modal(),
         # Onboarding wizard (blocking modal при first_launch)
         create_onboarding_wizard(),
         # Глобальный store для toast dismissal (до перезагрузки)

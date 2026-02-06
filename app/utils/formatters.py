@@ -8,6 +8,22 @@ from loguru import logger
 # Типографский минус (U+2212) вместо дефиса-минуса (U+002D)
 MINUS_SIGN = "\u2212"
 
+# Русские названия месяцев в родительном падеже (для format_date_human)
+MONTH_NAMES_RU_GENITIVE: dict[int, str] = {
+    1: "января",
+    2: "февраля",
+    3: "марта",
+    4: "апреля",
+    5: "мая",
+    6: "июня",
+    7: "июля",
+    8: "августа",
+    9: "сентября",
+    10: "октября",
+    11: "ноября",
+    12: "декабря",
+}
+
 # Маппинг Bootstrap Icons на эмодзи для dropdown категорий
 # Используется в transaction_modals.py и других компонентах
 ICON_TO_EMOJI: dict[str, str] = {
@@ -98,6 +114,18 @@ def format_date(date_obj: date) -> str:
         str: Дата в формате DD.MM.YYYY
     """
     return date_obj.strftime("%d.%m.%Y")
+
+
+def format_date_human(date_obj: date) -> str:
+    """Форматирует дату в человекочитаемый формат.
+
+    Args:
+        date_obj: Объект даты
+
+    Returns:
+        str: Дата в формате "5 февраля"
+    """
+    return f"{date_obj.day} {MONTH_NAMES_RU_GENITIVE[date_obj.month]}"
 
 
 def format_days_remaining(days: int) -> str:

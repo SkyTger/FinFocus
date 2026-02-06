@@ -294,3 +294,24 @@ body {
 .transaction-row:hover {
     border-left-color: var(--primary-green);
 }
+
+/* === EMPTY STATE (Dashboard) === */
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.empty-state .bi {
+    font-size: 2.5rem;
+    color: var(--color-text-muted);
+}
+
+/* === DASHBOARD SPLIT TABLE === */
+.dashboard-split-table .table td {
+    padding: 0.5rem 0.4rem;
+    vertical-align: middle;
+}
+
+.dashboard-split-table .table tr:hover {
+    background-color: rgba(46, 204, 113, 0.04);
+}

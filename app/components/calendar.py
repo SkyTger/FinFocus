@@ -224,8 +224,6 @@ def create_calendar_layout() -> html.Div:
                     "balances": {},
                 },
             ),
-            # Триггер обновления календаря после сверки
-            dcc.Store(id="calendar-refresh-trigger", data=None),
             # Wishlist mode stores
             dcc.Store(id="wishlist-safe-dates", data=None),
             # Hidden div for JS to read hover data (dcc.Store not accessible from JS)
@@ -252,8 +250,6 @@ def create_calendar_layout() -> html.Div:
                 id="calendar-grid",
                 children=html.Div("Загрузка календаря...", className="text-muted"),
             ),
-            # Модал сверки баланса
-            create_reconciliation_modal(),
         ],
         className="calendar-container",
     )
@@ -1469,7 +1465,7 @@ def update_reconciliation_preview(
     [
         Output("reconciliation-message", "children", allow_duplicate=True),
         Output("reconciliation-modal", "is_open", allow_duplicate=True),
-        Output("calendar-refresh-trigger", "data"),
+        Output("global-transaction-trigger", "data", allow_duplicate=True),
     ],
     [Input("apply-reconciliation-btn", "n_clicks")],
     [
@@ -1525,17 +1521,18 @@ def apply_reconciliation(
                 )
 
             adj_fmt = format_rub(adjustment.amount, show_sign=True)
-            logger.info(
-                f"Создана корректировка: {adj_fmt} "
-                f"на {target_date}"
-            )
+            logger.info(f"Создана корректировка: {adj_fmt} " f"на {target_date}")
             return (
                 dbc.Alert(
                     f"Корректировка на {adj_fmt} создана",
                     color="success",
                 ),
                 False,  # Закрыть модал
-                {"timestamp": datetime.now().isoformat()},  # Триггер обновления
+                {
+                    "source": "reconciliation",
+                    "action": "create",
+                    "timestamp": datetime.now().isoformat(),
+                },  # Триггер обновления
             )
 
     except ValidationError as e:
@@ -1543,83 +1540,3 @@ def apply_reconciliation(
     except Exception as e:
         logger.error(f"Ошибка создания корректировки: {e}")
         return dbc.Alert(f"Ошибка: {e}", color="danger"), True, no_update
-
-
-@callback(
-    [
-        Output("calendar-grid", "children", allow_duplicate=True),
-        Output("calendar-stats", "children", allow_duplicate=True),
-        Output("calendar-state", "data", allow_duplicate=True),
-    ],
-    [Input("calendar-refresh-trigger", "data")],
-    [State("calendar-state", "data")],
-    prevent_initial_call=True,
-)
-def refresh_calendar_after_reconciliation(
-    trigger: dict | None,
-    state: dict,
-):
-    """Обновляет календарь после применения сверки.
-
-    Args:
-        trigger: Данные триггера с timestamp
-        state: Текущее состояние календаря
-
-    Returns:
-        tuple: (grid, stats, updated_state)
-    """
-    if not trigger:
-        raise PreventUpdate
-
-    # Получаем текущий месяц из state
-    today = date.today()
-    current_month = state.get("current_month", today.month)
-    current_year = state.get("current_year", today.year)
-
-    try:
-        # Вычисляем диапазон дат для месяца
-        start_date = date(current_year, current_month, 1)
-        if current_month == 12:
-            end_date = date(current_year, 12, 31)
-        else:
-            end_date = date(current_year, current_month + 1, 1) - timedelta(days=1)
-
-        with get_db_session() as session:
-            service = CalendarService(session)
-
-            balances = service.calculate_daily_balances(
-                user_id=DEFAULT_USER_ID,
-                start_date=start_date,
-                end_date=end_date,
-            )
-            transactions_by_date = service.get_all_transactions_for_period(
-                user_id=DEFAULT_USER_ID,
-                start_date=start_date,
-                end_date=end_date,
-                include_recurring=True,
-            )
-            summary = service.get_month_summary(
-                user_id=DEFAULT_USER_ID,
-                year=current_year,
-                month=current_month,
-            )
-
-        # Строим обновленные компоненты
-        grid = build_calendar_grid(
-            current_month, current_year, balances, transactions_by_date
-        )
-        stats = build_stats_cards(summary)
-
-        # Обновляем state
-        new_state = {
-            "current_month": current_month,
-            "current_year": current_year,
-            "balances": serialize_balances(balances),
-        }
-
-        logger.debug("Календарь обновлен после сверки")
-        return grid, stats, new_state
-
-    except Exception as e:
-        logger.error(f"Ошибка обновления календаря после сверки: {e}")
-        raise PreventUpdate
