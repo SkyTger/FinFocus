@@ -1,11 +1,35 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Batches 0-4 Epic-04 Complete — 100% MVP Features
+## 📊 Общий статус проекта: Epic-05-UI Dashboard Redesign — In Progress
 
-**Последнее обновление**: 2026/02/04
-**Статус**: ✅ Все батчи MVP завершены
-**Прогресс Epic-04**: 6/6 фичи завершены (100%)
+**Последнее обновление**: 2026/02/05
+**Статус**: 🔄 Epic-05-UI в процессе (Батч 5.1 ожидает старта)
+**Прогресс Epic-05**: 0/3 батчей завершено (0%)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## 🔄 Epic-05-UI: Dashboard UI Redesign — ПЛАНИРОВАНИЕ
+
+**Дата старта**: 2026/02/05
+**Спецификация**: `.reports/epics/epic-05-ui/dashboard_ui_spec.md`
+**План**: `.reports/epics/epic-05-ui/plan.md`
+
+### Цель:
+Переделка Dashboard по новой UI/UX спецификации — дневной график кассового календаря, обновлённые KPI-карточки, формат денег ₽, split таблиц операций.
+
+### Батчи:
+- Батч 5.1: Фундамент (цвета + формат ₽ + KPI) — ожидает старта
+- Батч 5.2: Дневной график (ядро) — ожидает батч 5.1
+- Батч 5.3: Layout (операции + правая колонна + sidebar) — ожидает батч 5.2
+
+### Ключевые решения:
+1. Тёмная тема — откладывается (Epic-06)
+2. Формат денег — глобальная замена $ → ₽
+3. Дневной график — отдельный метод (не через CalendarService)
+4. AI Assistant/Exchange — скрыть, не удалять
+5. Сайдбар — обернуть в dbc.Card (без рефакторинга main.py)
+6. Адаптивность — desktop-first
 
 ---
 
@@ -405,96 +429,7 @@
 
 ---
 
-## ✅ Батч 11: Quick-Add Chips (2026-01-25) — ЗАВЕРШЕН
-
-**Дата**: 2026/01/25
-**Протокол**: 0012-quick-add-chips
-**PR**: https://github.com/SkyTger/FinFocus/pull/12
-**Статус**: ✅ Полностью завершен (Ready for Review)
-
-### 🎯 Цель батча:
-Реализовать Quick-add chips для быстрого создания операций — сокращение процесса ввода с 6 шагов до 3-4 через предвыбранные категории.
-
-### ✅ Выполненные задачи:
-
-1. **Schema и константы** (Шаг 1, commit: ffb88d3)
-   - TypedDict QuickAddChipData в `app/schema/quick_add.py`
-   - DEFAULT_QUICK_ADD_CHIP_NAMES — 7 hardcoded чипов (5 expense + 2 income)
-   - _get_quick_add_chips() — lookup по имени с warning при mismatch
-
-2. **UI секция Quick-add** (Шаг 2, commit: 76be290)
-   - _build_quick_add_chip() — вертикальный layout (иконка + название)
-   - _build_quick_add_section() — группировка expense/income + кнопки "Ещё"
-   - Интеграция в transactions.py между header и фильтрами
-   - Pattern-Matching IDs: {"type": "qa-chip", ...}, {"type": "qa-more-btn", ...}
-
-3. **Модал "Ещё..."** (Шаг 3, commit: 2fdcaec)
-   - _build_category_more_modal() — dbc.Modal с Tabs (expense/income)
-   - load_more_modal_categories() callback — динамическая загрузка при открытии
-   - Pattern-Matching ID: {"type": "qa-more-category", ...}
-
-4. **Preselection механизм** (Шаг 4, commit: b500451)
-   - dcc.Store: preselected-category, preselected-type в transaction_modals.py
-   - set_preselection_on_modal_open() callback — применение при открытии
-   - create_transaction обновлен — reset preselection после создания
-
-5. **Callbacks Quick-add** (Шаг 5, commit: 69f7837)
-   - open_create_from_quick_add() — клик на chip → модал с preselection
-   - open_more_modal() — клик на "Ещё..." → модал категорий
-   - select_from_more_modal() — выбор → закрытие + открытие create
-   - ADR-003 guard clauses во всех 3 callbacks
-
-6. **CSS стили** (Шаг 6, commit: 0f1b945)
-   - Стили .qa-* в transactions.css (~100 строк)
-   - Chips: vertical layout, hover transform, ellipsis
-   - Responsive: horizontal scroll на 768px, уменьшенные размеры на 576px
-
-7. **Unit тесты** (Шаг 7, commit: b325864)
-   - test_quick_add_chips.py — 13 тестов
-   - Покрытие: TypedDict, _get_quick_add_chips(), константы, UI функции
-   - 272 теста проекта проходят
-
-8. **Финализация** (Шаг 8, commit: 55b334c)
-   - Black: 1 файл переформатирован
-   - Flake8: 3 unused imports исправлены
-   - pytest: 272 tests passed
-   - PR #12 Ready for Review
-
-### 📊 Результат:
-- ✅ 272 unit и integration тестов (было 246)
-- ✅ 7 hardcoded quick-add chips (5 расходов + 2 доходов)
-- ✅ Сокращение шагов создания операции: 6 → 3-4
-- ✅ Black + Flake8 OK
-- ✅ PR #12 Ready for Review
-
-### 💡 Ключевые уроки:
-
-1. **Lookup по имени** — защищает от ID mismatch между dev/prod окружениями
-2. **Preselection Store Pattern** — чистая передача состояния между модалами
-3. **Hardcoded список** — достаточен для MVP, кастомизация в следующем этапе (Протокол B: Шаблоны операций)
-4. **Pattern-Matching для chips** — масштабируемо для будущих кастомных чипов
-5. **Вертикальный layout** — иконка над названием экономит горизонтальное пространство
-
-### 🔧 Технические детали:
-
-**Новые файлы:**
-- `app/schema/quick_add.py` — QuickAddChipData TypedDict
-- `tests/test_quick_add_chips.py` — 13 unit тестов
-
-**Модифицированные файлы:**
-- `app/components/transactions.py` — +3 UI функции, +3 callbacks
-- `app/components/transaction_modals.py` — +2 Stores, +1 callback, update create_transaction
-- `app/assets/transactions.css` — +100 строк стилей .qa-*
-- `app/schema/__init__.py` — экспорт QuickAddChipData
-
-### 🚀 Следующие шаги:
-
-**Протокол B: Шаблоны операций** (запланировано):
-- Кастомизация quick-add chips пользователем
-- Частые операции → автоматическое создание шаблонов
-- Редактирование/удаление шаблонов
-
----
-
-*Последнее обновление: 2026/02/04*
+*Последнее обновление: 2026/02/05*
 *Формат: Rolling Window (последние 5 батчей)*
+
+> Архив старых батчей: Батч 11 (Quick-Add Chips) и ранее перемещены в feature_progress_archive.md

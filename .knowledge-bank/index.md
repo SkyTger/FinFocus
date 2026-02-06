@@ -5,9 +5,9 @@
 
 **Уникальная ценность**: Кассовое планирование с прогнозом остатков по дням + автоматическое распределение бюджета между множественными накопительными целями с приоритетами.
 
-**Статус**: Батч 4 (Postponed Purchases) в финализации, Epic-04-Advanced Features в процессе (6/7 фичи)
+**Статус**: Epic-05-UI (Dashboard UI Redesign) начат, Батч 5.1 ожидает старта
 
-**Последнее обновление**: 2026-02-04 (после протокол 0020: postponed purchases, 483 теста)
+**Последнее обновление**: 2026-02-05 (после завершения Epic-04, 483 теста)
 
 ## Быстрые ссылки на разделы
 
@@ -69,85 +69,37 @@
 
 ## Текущие приоритеты (из ROADMAP.md)
 
-**Epic-02-EnhancedPlanning** (Батч 2, 100% завершено):
-- ✅ Повторяющиеся операции (завершена, PR #5)
-- ✅ Множественные цели с приоритетами (завершена, PR #6)
-- ✅ Три режима накоплений (завершена, PR #7)
-- ✅ Перераспределение средств между целями (завершена, PR #8)
+**Epic-04-Advanced Features** (Батч 4, ✅ 100% завершено):
+- ✅ Quick-Add Chips для быстрого создания операций (PR #12, протокол 0012)
+- ✅ Финансовая подушка безопасности (PR #13, протокол 0013)
+- ✅ Онбординг новых пользователей (PR #14, протокол 0014)
+- ✅ Tooltip для дней календаря (PR #15, протокол 0015)
+- ✅ Интеграция бюджета целей с календарём (PR #16-18, протокол 0016-0018)
+- ✅ Редактирование и удаление взносов в целях (PR #19, протокол 0019)
+- ✅ Отложенные покупки (Wishlist) (PR #20, протокол 0020)
 
-**Epic-03-Analytics** (Батч 3, 100% завершено):
-- ✅ Категоризация + Сверка (завершена, PR #9)
-- ✅ UX улучшения + Аналитика (завершена, PR #10)
-  - Chips UI для быстрой категоризации некатегоризированных операций
-  - Bulk actions для массового назначения категорий
-  - CSV экспорт с UTF-8 BOM
-  - Страница /analytics с donut и bar charts
-- ✅ Восстановление UI компонентов (протокол 0011, PR #11)
-  - Chips UI восстановлен после merge conflict
-  - Bulk selection с multi-select checkboxes
-  - CSV export с UTF-8 BOM для Excel
-  - 13 новых тестов для _pluralize_operations helper
-
-**Epic-04-Advanced Features** (Батч 4, 86% завершено):
-- ✅ Quick-Add Chips для быстрого создания операций (завершена, PR #12, протокол 0012)
-  - 7 hardcoded chips с предвыбранными категориями
-  - Сокращение шагов создания: 6 → 3-4
-  - Preselection Store Pattern
-  - Модал "Ещё..." для выбора из всех категорий
-- ✅ Финансовая подушка безопасности (завершена, PR #13, протокол 0013)
-  - 3 поля в User: cushion_target, cushion_threshold_percent, cushion_threshold_manual
-  - CushionService с Percent NewType для type safety
-  - Карточка и модал настройки на /goals
-  - Калькулятор сценариев (sum/max_scenario режимы)
-  - 12 callbacks с ADR-003 guard clauses
-- ✅ Онбординг новых пользователей (завершена, PR #14, протокол 0014)
-  - User.first_launch для отслеживания первичных пользователей
-  - OnboardingService (get_status, complete_with_balance, skip)
-  - Blocking modal wizard с backdrop="static"
-  - Dashboard toast для напоминания о нулевом балансе
-  - Calendar query param ?open_recon=1 для автооткрытия модала сверки
-  - 8 новых unit тестов (всего 300)
-- ✅ Tooltip для дней календаря (завершена, PR #15, протокол 0015)
-  - CSS-only hover tooltip с glassmorphism стилем
-  - Отображение баланса и списка операций дня
-  - Expand/collapse через CSS checkbox hack (max 5 visible)
-  - Клик по операции в tooltip → edit modal
-  - is_skipped и category_icon в TransactionInfo
-  - 43 новых unit тестов (всего 343)
-- ✅ Интеграция бюджета целей с календарём (завершена, PR #16-18, протокол 0016-0018)
-  - BudgetReservationService с двумя режимами резервирования
-  - "fixed_date" — recurring операция "Резервирование бюджета" на указанную дату
-  - "from_balance" — операции "Взнос: цель" при каждом взносе
-  - Сводка по целям объединяет бюджет и активные цели (протокол 0017)
-  - Визуализация SAVINGS операций в календаре
-  - adjust_reserve_for_contribution() для досрочных взносов (протокол 0017)
-  - Переиспользование шаблонов при переключении режимов (протокол 0018)
-  - recalculate_current_month_exception() для пересчёта при изменениях (протокол 0018)
-  - 72 новых unit тестов (всего 418)
-- ✅ Редактирование и удаление взносов в целях (завершена, PR #19, протокол 0019)
-  - update_contribution() и переписан delete_contribution() в GoalService
-  - Каскадная синхронизация (Contribution → Transaction → Goal → Exception)
-  - Calendar Guard #6 (блокировка SAVINGS_CONTRIBUTION)
-  - Goals UI с Edit/Delete кнопками и модалами
-  - 23 новых unit тестов (всего 441)
-- ✅ Отложенные покупки (Wishlist) (завершена, протокол 0020, в финализации)
-  - WishlistItem ORM модель + WishlistService (CRUD + planning)
-  - PurchaseRecommendationService для расчета safe dates + hover data
-  - Dashboard виджет (5 фокусных хотелок)
-  - Wishlist модал (CRUD + кнопки "Запланировать")
-  - Calendar wishlist mode (?wishlist_item=ID):
-    - Overlay-баннер с легендой, счетчиком, кнопкой "Отмена"
-    - Safe/unsafe дни (зеленая подсветка + маркеры)
-    - JS hover для каскадного пересчета остатков (wishlist_hover.js)
-  - Preselection Store Pattern (4 новых Stores)
-  - Orphan detection callback
-  - 42 новых unit тестов (всего 483)
-- Импорт операций из банков (планируется)
+**Epic-05-UI** (Dashboard UI Redesign, 🔄 В процессе):
+- [ ] Батч 5.1: Фундамент — цвета + формат ₽ + KPI-карточки
+  - Новые CSS-переменные (#2ecc71 палитра)
+  - Глобальный форматтер format_rub() (замена $X,XXX.XX → X XXX ₽)
+  - Переделка 4 KPI-карточек (без градиентов, кнопка "Сверка")
+  - Скрыть AI Assistant и Exchange (TODO для будущего)
+  - Типографика по спецификации
+- [ ] Батч 5.2: Дневной график (ядро)
+  - DashboardService.get_daily_cashflow() — дневные данные
+  - Plotly: grouped bars + линия баланса + маркер минимума
+  - Hover tooltip, клик → модал, переключатель Month/Year
+- [ ] Батч 5.3: Layout — операции + правая колонна + sidebar
+  - Split "Недавние/Предстоящие" 50/50
+  - Wishlist + Safety Cushion в правую колонну
+  - Sidebar как card-контейнер
+  - Модал "Сверка" на Dashboard
+  - Пустые состояния
 
 **Ближайшие задачи**:
-1. Финализировать протокол 0020 (Black, Flake8, PR merge)
-2. Продолжить Epic-04: Импорт операций из банков
-3. Уведомления и напоминания
+1. Запустить Батч 5.1 (протокол 0021-dashboard-foundation)
+2. После Epic-05: Импорт операций из банков (Backlog)
+3. Уведомления и напоминания (Backlog)
 
 ## Критичные детали
 
