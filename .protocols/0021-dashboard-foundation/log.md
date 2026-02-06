@@ -30,3 +30,12 @@ Restore context: protocol-0021#ctx-1
 - calendar.css: 6 замен (#28a745 → var(--color-primary/-dark), #17a2b8 → var(--color-secondary))
 - transactions.css: 2 замены
 - onboarding.css: 3 замены
+
+### Step 03 — Dashboard.py переработка
+- create_metric_card() → _build_kpi_card() (белый фон, border, kpi-number/title/subtitle классы)
+- 12 inline замен на format_rub() (KPI values, cashflow text, transaction amounts)
+- Кнопка "Сверка" на карточку Total Balance → /calendar?open_recon=1
+- Русские label: Overview→Обзор, Income→Доходы, Expense→Расходы, etc.
+- AI Assistant и Exchange скрыты (TODO Epic-08)
+- Python hardcoded colors: #28a745→#27ae60, #17a2b8→#e74c3c
+- table-amount.positive/.negative классы для транзакций
