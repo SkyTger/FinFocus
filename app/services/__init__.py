@@ -7,6 +7,16 @@ from app.schema.goals import (
     GoalDisplayData,
     GoalsSummary,
 )
+from app.schema.dashboard import (
+    BalanceStatus,
+    BALANCE_RISK_THRESHOLD,
+    BALANCE_ATTENTION_THRESHOLD,
+    DailyCashflow,
+    DailyBalancePoint,
+    MonthlyCashflowData,
+    MonthlyCashflow,
+    YearlyCashflowData,
+)
 
 from .allocation_service import AllocationService
 from .analytics_service import AnalyticsService, MIN_PERCENTAGE_THRESHOLD
@@ -109,6 +119,15 @@ __all__ = [
     "WishlistService",
     "VALID_PRIORITIES",
     "PurchaseRecommendationService",
+    # Dashboard cashflow schema
+    "BalanceStatus",
+    "BALANCE_RISK_THRESHOLD",
+    "BALANCE_ATTENTION_THRESHOLD",
+    "DailyCashflow",
+    "DailyBalancePoint",
+    "MonthlyCashflowData",
+    "MonthlyCashflow",
+    "YearlyCashflowData",
     # Core
     "ValidationError",
 ]
