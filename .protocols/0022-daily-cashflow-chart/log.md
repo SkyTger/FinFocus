@@ -56,3 +56,10 @@ Restore context: protocol-0022#ctx-2
 - hovermode="x unified" с customdata + format_rub() для tooltip
 - Единый Graph ID "daily-cashflow-chart" для обоих режимов
 - 508 тестов пройдено (1 pre-existing failure в allocation precision)
+
+### Step 05 — Finalization (commit: TBD)
+- Black: 3 файла переформатированы (dashboard_service.py, test_dashboard_service.py, +1)
+- Flake8: 2 ошибки исправлены (F841 unused cashflow_data, F401 unused defaultdict import)
+- Удалён неиспользуемый вызов get_cashflow_data() из _load_dashboard_components
+- Pytest: 508 passed (1 deselected pre-existing)
+- Context.md → Status: Completed
