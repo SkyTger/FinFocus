@@ -1,9 +1,9 @@
 # Protocol Context: 0021-dashboard-foundation
 
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action**: format_rub() + 10 unit тестов
-- **Next Action**: Шаг 2 — CSS-переменные + типографика
+- **Last Action**: CSS-переменные + типографика (18 замен в 4 CSS файлах)
+- **Next Action**: Шаг 3 — Dashboard.py переработка
 - **Git Branch**: `0021-dashboard-foundation`
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0021-dashboard-foundation`

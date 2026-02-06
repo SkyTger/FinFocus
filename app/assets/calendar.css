@@ -141,7 +141,7 @@
 /* ==================== ЦВЕТА БАЛАНСА ==================== */
 
 .balance-positive {
-    color: #28a745;
+    color: var(--color-primary-dark);
 }
 
 .balance-negative {
@@ -195,7 +195,7 @@
 /* ==================== RECURRING INDICATORS ==================== */
 
 .recurring-indicator {
-    color: #28a745;
+    color: var(--color-primary);
     font-size: 0.75rem;
     margin-left: 4px;
 }
@@ -213,7 +213,7 @@
 
 /* Virtual transaction styling */
 .calendar-day.has-virtual {
-    border-left: 2px solid #28a745;
+    border-left: 2px solid var(--color-primary);
 }
 
 /* ==================== TOOLTIP ==================== */
@@ -327,7 +327,7 @@
 }
 
 .tooltip-balance-value.positive {
-    color: #28a745;
+    color: var(--color-primary-dark);
 }
 
 .tooltip-balance-value.negative {
@@ -370,7 +370,7 @@
 }
 
 .tooltip-txn-amount.income {
-    color: #28a745;
+    color: var(--color-primary-dark);
 }
 
 .tooltip-txn-amount.expense {
@@ -382,7 +382,7 @@
 }
 
 .tooltip-txn-amount.adjustment {
-    color: #17a2b8;
+    color: var(--color-secondary);
 }
 
 .tooltip-txn-amount.savings {

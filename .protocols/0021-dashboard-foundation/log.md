@@ -21,3 +21,12 @@ Restore context: protocol-0021#ctx-1
 - .00 копейки скрываются (15000 → "15 000 ₽", не "15 000.00 ₽")
 - 10 unit тестов PASS, 492 total PASS (1 pre-existing failure в allocation precision)
 - format_rub добавлен в __init__.py экспорт
+
+### Step 02 — CSS-переменные + типографика
+- 15 новых CSS-переменных (палитра #2ecc71, текст, фон, границы)
+- Deprecated aliases --primary-green, --light-green для обратной совместимости
+- 9 типографических классов (kpi-number/title/subtitle, table-amount, link-show-all, kpi-card)
+- custom.css: 7 замен hardcoded цветов
+- calendar.css: 6 замен (#28a745 → var(--color-primary/-dark), #17a2b8 → var(--color-secondary))
+- transactions.css: 2 замены
+- onboarding.css: 3 замены
