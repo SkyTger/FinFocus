@@ -16,6 +16,9 @@ from app.services import (
     RecentTransaction,
 )
 from app.services.onboarding_service import OnboardingService
+from decimal import Decimal
+
+from app.utils.formatters import format_rub
 
 DEFAULT_USER_ID = 1
 
@@ -71,12 +74,12 @@ def create_dashboard_layout():
             # КРИТИЧНО: должен быть в статическом layout
             html.Div(
                 [
-                    html.H5("Overview", className="mb-0"),
+                    html.H5("Обзор", className="mb-0"),
                     dbc.RadioItems(
                         id="period-switcher",
                         options=[
-                            {"label": "Month", "value": "month"},
-                            {"label": "Year", "value": "year"},
+                            {"label": "Месяц", "value": "month"},
+                            {"label": "Год", "value": "year"},
                         ],
                         value="month",
                         inline=True,
@@ -103,7 +106,8 @@ def create_dashboard_layout():
                     dbc.Col(
                         [
                             build_wishlist_widget(),
-                            create_ai_assistant_card(),
+                            # TODO: Epic-08 — реализовать AI Assistant
+                            # create_ai_assistant_card(),
                             html.Div(style={"height": "20px"}),
                             html.Div(id="dashboard-statistics-card"),
                         ],
@@ -119,7 +123,9 @@ def create_dashboard_layout():
                         [html.Div(id="dashboard-recent-transactions")],
                         width=8,
                     ),
-                    dbc.Col([create_exchange_card()], width=4),
+                    # TODO: Epic-08 — реализовать Exchange
+                    # dbc.Col([create_exchange_card()], width=4),
+                    dbc.Col(width=4),
                 ]
             ),
         ]
@@ -131,71 +137,60 @@ def create_dashboard_layout():
 # =============================================================================
 
 
-def create_metric_card(data: dict) -> dbc.Card:
-    """Создает карточку с метрикой.
+def _build_kpi_card(
+    title: str,
+    value: str,
+    subtitle: str = "",
+    icon: str = "",
+    icon_color: str = "#2c3e50",
+    status_border_color: str = "",
+    action_button: html.Div | dcc.Link | None = None,
+) -> html.Div:
+    """Создает KPI-карточку в новом дизайне.
 
     Args:
-        data: Словарь с параметрами карточки
+        title: Заголовок карточки
+        value: Основное значение (уже отформатированное)
+        subtitle: Подпись под значением
+        icon: Bootstrap icon class (например "bi-wallet2")
+        icon_color: Цвет иконки
+        status_border_color: Цвет верхней границы (опционально)
+        action_button: CTA кнопка (опционально)
 
     Returns:
-        dbc.Card с метрикой
+        html.Div с KPI-карточкой
     """
-    # Стиль карточки
-    card_style = {}
-    if data.get("gradient"):
-        card_style = {
-            "background": "linear-gradient(135deg, #28a745 0%, #20c997 100%)",
-            "color": "white",
-        }
+    style: dict = {}
+    if status_border_color:
+        style["borderTop"] = f"3px solid {status_border_color}"
 
-    # Действия (кнопки)
-    actions = []
-    if data.get("actions"):
-        for action in data["actions"]:
-            btn = dbc.Button(
-                [html.I(className=f"bi {action['icon']} me-1"), action["label"]],
-                size="sm",
-                color="light" if data.get("gradient") else "primary",
-                outline=not data.get("gradient"),
-                className="me-2",
-            )
-            actions.append(btn)
-
-    # Иконка
-    icon = None
-    if data.get("icon"):
-        icon_color = data.get("icon_color", "primary")
-        icon = html.Div(
-            [
-                html.I(
-                    className=f"bi {data['icon']}",
-                    style={
-                        "fontSize": "1.5rem",
-                        "color": f"var(--bs-{icon_color})",
-                    },
-                )
-            ],
-            className="mb-2",
+    icon_el = None
+    if icon:
+        icon_el = html.I(
+            className=f"bi {icon}",
+            style={"fontSize": "1.5rem", "color": icon_color},
         )
 
     card_content = [
-        icon,
-        html.H6(data["title"], className="card-subtitle mb-2"),
-        html.H3(data["value"], className="card-title mb-1"),
-        (
-            html.Small(data.get("subtitle", ""), className="text-muted")
-            if data.get("subtitle")
-            else None
-        ),
-        html.Div(actions, className="mt-3") if actions else None,
+        html.Div(
+            [
+                icon_el,
+                html.Div(title, className="kpi-title"),
+            ],
+            className="d-flex align-items-center gap-2 mb-2",
+        )
+        if icon_el
+        else html.Div(title, className="kpi-title mb-2"),
+        html.Div(value, className="kpi-number mb-1"),
     ]
 
-    return dbc.Card(
-        [dbc.CardBody(card_content)],
-        color=data.get("color", "white"),
-        style=card_style,
-        className="h-100 shadow-sm",
-    )
+    if subtitle:
+        card_content.append(html.Div(subtitle, className="kpi-subtitle"))
+
+    if action_button:
+        card_content.append(html.Div(action_button, className="mt-2"))
+
+    return html.Div(card_content, className="kpi-card h-100", style=style)
 
 
 def create_ai_assistant_card() -> dbc.Card:
@@ -287,59 +282,74 @@ def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
         dbc.Row с 4 карточками метрик
     """
     # Форматирование
-    total_balance = f"${metrics['total_balance']:,.2f}"
-    period_income = f"${metrics['period_income']:,.2f}"
-    period_expense = f"${metrics['period_expense']:,.2f}"
+    total_balance = format_rub(metrics["total_balance"])
+    period_income = format_rub(metrics["period_income"])
+    period_expense = format_rub(metrics["period_expense"])
 
     if metrics["savings_name"] != "Нет целей":
-        savings_value = f"${metrics['savings_current']:,.2f}"
+        savings_value = format_rub(metrics["savings_current"])
         savings_subtitle = (
-            f"{metrics['savings_progress']:.0f}% of "
-            f"${metrics['savings_target']:,.2f}"
+            f"{metrics['savings_progress']:.0f}% из "
+            f"{format_rub(metrics['savings_target'])}"
         )
     else:
-        savings_value = "$0.00"
+        savings_value = format_rub(0)
         savings_subtitle = "Нет активных целей"
 
-    period_label = "This Month" if period == "month" else "This Year"
+    period_label = "За месяц" if period == "month" else "За год"
 
-    cards_data = [
-        {
-            "title": "Total Balance",
-            "value": total_balance,
-            "subtitle": "USD",
-            "color": "success",
-            "gradient": True,
-            "actions": [
-                {"label": "Deposit", "icon": "bi-plus"},
-                {"label": "Send", "icon": "bi-arrow-up-right"},
-            ],
-        },
-        {
-            "title": f"Income ({period_label})",
-            "value": period_income,
-            "color": "light",
-            "icon": "bi-arrow-down-left",
-            "icon_color": "success",
-        },
-        {
-            "title": f"Expense ({period_label})",
-            "value": period_expense,
-            "color": "light",
-            "icon": "bi-arrow-up-right",
-            "icon_color": "danger",
-        },
-        {
-            "title": "Savings",
-            "value": savings_value,
-            "subtitle": savings_subtitle,
-            "color": "light",
-            "icon": "bi-piggy-bank",
-            "icon_color": "primary",
-        },
+    recon_button = dcc.Link(
+        dbc.Button(
+            [html.I(className="bi bi-check2-square me-1"), "Сверка"],
+            size="sm",
+            color="success",
+            outline=True,
+        ),
+        href="/calendar?open_recon=1",
+    )
+
+    cards = [
+        dbc.Col(
+            _build_kpi_card(
+                title="Общий баланс",
+                value=total_balance,
+                icon="bi-wallet2",
+                icon_color="#27ae60",
+                status_border_color="#2ecc71",
+                action_button=recon_button,
+            ),
+            width=3,
+        ),
+        dbc.Col(
+            _build_kpi_card(
+                title=f"Доходы ({period_label})",
+                value=period_income,
+                icon="bi-arrow-down-left",
+                icon_color="#27ae60",
+            ),
+            width=3,
+        ),
+        dbc.Col(
+            _build_kpi_card(
+                title=f"Расходы ({period_label})",
+                value=period_expense,
+                icon="bi-arrow-up-right",
+                icon_color="#e74c3c",
+            ),
+            width=3,
+        ),
+        dbc.Col(
+            _build_kpi_card(
+                title="Накопления",
+                value=savings_value,
+                subtitle=savings_subtitle,
+                icon="bi-piggy-bank",
+                icon_color="#3498db",
+            ),
+            width=3,
+        ),
     ]
 
-    cards = [dbc.Col(create_metric_card(data), width=3) for data in cards_data]
     return dbc.Row(cards, className="mb-4")
 
 
@@ -365,8 +375,8 @@ def build_cashflow_chart(
         go.Bar(
             x=labels,
             y=income_values,
-            name="Income",
-            marker_color="#28a745",
+            name="Доходы",
+            marker_color="#27ae60",
             opacity=0.8,
         )
     )
@@ -374,8 +384,8 @@ def build_cashflow_chart(
         go.Bar(
             x=labels,
             y=expense_values,
-            name="Expense",
-            marker_color="#17a2b8",
+            name="Расходы",
+            marker_color="#e74c3c",
             opacity=0.8,
         )
     )
@@ -402,7 +412,7 @@ def build_cashflow_chart(
             dbc.CardBody(
                 [
                     # Заголовок (period-switcher вынесен в статический layout)
-                    html.H5("Cashflow", className="card-title mb-3"),
+                    html.H5("Денежный поток", className="card-title mb-3"),
                     dcc.Graph(figure=fig, config={"displayModeBar": False}),
                 ]
             )
@@ -430,12 +440,12 @@ def build_statistics_card(metrics: OverviewMetrics, period: str) -> dbc.Card:
         colors = ["#e9ecef", "#e9ecef"]
     else:
         values = [income, expense]
-        colors = ["#28a745", "#17a2b8"]
+        colors = ["#27ae60", "#e74c3c"]
 
     fig = go.Figure(
         data=[
             go.Pie(
-                labels=["Income", "Expense"],
+                labels=["Доходы", "Расходы"],
                 values=values,
                 hole=0.6,
                 marker_colors=colors,
@@ -450,13 +460,13 @@ def build_statistics_card(metrics: OverviewMetrics, period: str) -> dbc.Card:
         paper_bgcolor="white",
     )
 
-    period_label = "This Month" if period == "month" else "This Year"
+    period_label = "За месяц" if period == "month" else "За год"
 
     return dbc.Card(
         [
             dbc.CardBody(
                 [
-                    html.H6("Statistic", className="card-title mb-3"),
+                    html.H6("Статистика", className="card-title mb-3"),
                     html.Div(period_label, className="small text-muted mb-2"),
                     dcc.Graph(figure=fig, config={"displayModeBar": False}),
                     html.Div(
@@ -468,12 +478,12 @@ def build_statistics_card(metrics: OverviewMetrics, period: str) -> dbc.Card:
                                         style={
                                             "width": "10px",
                                             "height": "10px",
-                                            "backgroundColor": "#28a745",
+                                            "backgroundColor": "#27ae60",
                                         },
                                     ),
-                                    html.Span("Income ", className="small"),
+                                    html.Span("Доходы ", className="small"),
                                     html.Span(
-                                        f"${metrics['period_income']:,.0f}",
+                                        format_rub(metrics["period_income"]),
                                         className="fw-bold",
                                     ),
                                 ],
@@ -486,12 +496,12 @@ def build_statistics_card(metrics: OverviewMetrics, period: str) -> dbc.Card:
                                         style={
                                             "width": "10px",
                                             "height": "10px",
-                                            "backgroundColor": "#17a2b8",
+                                            "backgroundColor": "#e74c3c",
                                         },
                                     ),
-                                    html.Span("Expense ", className="small"),
+                                    html.Span("Расходы ", className="small"),
                                     html.Span(
-                                        f"${metrics['period_expense']:,.0f}",
+                                        format_rub(metrics["period_expense"]),
                                         className="fw-bold",
                                     ),
                                 ]
@@ -518,7 +528,7 @@ def build_recent_transactions_card(
     Returns:
         dbc.Card с таблицей транзакций
     """
-    period_label = "This Month" if period == "month" else "This Year"
+    period_label = "За месяц" if period == "month" else "За год"
 
     if not transactions:
         return dbc.Card(
@@ -528,7 +538,7 @@ def build_recent_transactions_card(
                         html.Div(
                             [
                                 html.H5(
-                                    "Recent Transactions",
+                                    "Недавние операции",
                                     className="card-title mb-0",
                                 ),
                                 dbc.Button(period_label, size="sm", color="light"),
@@ -538,7 +548,7 @@ def build_recent_transactions_card(
                                 "align-items-center mb-3"
                             ),
                         ),
-                        html.P("No transactions yet", className="text-muted"),
+                        html.P("Нет операций", className="text-muted"),
                     ]
                 )
             ],
@@ -549,14 +559,14 @@ def build_recent_transactions_card(
     for tx in transactions:
         # Форматирование суммы
         if tx["transaction_type"] == "income":
-            amount_str = f"+${tx['amount']:,.2f}"
-            amount_class = "fw-bold text-success"
+            amount_str = format_rub(tx["amount"], show_sign=True)
+            amount_class = "table-amount positive"
         elif tx["transaction_type"] == "expense":
-            amount_str = f"-${tx['amount']:,.2f}"
-            amount_class = "fw-bold text-danger"
+            amount_str = format_rub(-Decimal(str(tx["amount"])))
+            amount_class = "table-amount negative"
         else:  # transfer
-            amount_str = f"${tx['amount']:,.2f}"
-            amount_class = "fw-bold text-muted"
+            amount_str = format_rub(tx["amount"])
+            amount_class = "table-amount"
 
         row = html.Tr(
             [
@@ -594,7 +604,7 @@ def build_recent_transactions_card(
                     html.Div(
                         [
                             html.H5(
-                                "Recent Transactions",
+                                "Недавние операции",
                                 className="card-title mb-0",
                             ),
                             dbc.Button(period_label, size="sm", color="light"),

@@ -8,6 +8,7 @@ from dash.exceptions import PreventUpdate
 
 from app.core.database import get_db_session
 from app.services.analytics_service import AnalyticsService
+from app.utils.formatters import format_rub
 
 
 # Цветовая палитра для категорий
@@ -166,7 +167,7 @@ def _build_donut_chart(data: list) -> go.Figure:
     # Center text with total
     total = sum(values)
     fig.add_annotation(
-        text=f"<b>{total:,.0f}</b><br>₽",
+        text=f"<b>{format_rub(total)}</b>",
         x=0.5,
         y=0.5,
         font=dict(size=14),
@@ -283,7 +284,7 @@ def _build_summary_cards(data: list, uncategorized_count: int) -> list:
                     dbc.CardBody(
                         [
                             html.H6("Всего расходов", className="text-muted"),
-                            html.H4(f"{total:,.0f} ₽"),
+                            html.H4(format_rub(total)),
                         ]
                     ),
                 ]

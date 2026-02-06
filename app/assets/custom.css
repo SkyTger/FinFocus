@@ -2,8 +2,30 @@
 
 /* === ОБЩИЕ СТИЛИ === */
 :root {
-    --primary-green: #28a745;
-    --light-green: #20c997;
+    /* Основная палитра */
+    --color-primary: #2ecc71;
+    --color-primary-dark: #27ae60;
+    --color-secondary: #3498db;
+    --color-danger: #e74c3c;
+    --color-warning: #f39c12;
+    --color-success: #2ecc71;
+    --color-info: #3498db;
+
+    /* Текст */
+    --color-text-primary: #2c3e50;
+    --color-text-secondary: #7f8c8d;
+    --color-text-muted: #95a5a6;
+
+    /* Фон и границы */
+    --color-bg-card: #ffffff;
+    --color-bg-page: #f8f9fa;
+    --color-border: #bdc3c7;
+    --color-border-light: #ecf0f1;
+    --color-separator: #dfe6e9;
+
+    /* Deprecated aliases (обратная совместимость) */
+    --primary-green: var(--color-primary);
+    --light-green: var(--color-primary-dark);
     --bg-light: #f8f9fa;
     --text-muted: #6c757d;
     --border-color: #dee2e6;
@@ -25,7 +47,7 @@ body {
 }
 
 .sidebar-nav .nav-link:hover {
-    background-color: rgba(40, 167, 69, 0.1) !important;
+    background-color: rgba(46, 204, 113, 0.1) !important;
     color: var(--primary-green) !important;
 }
 
@@ -97,14 +119,67 @@ body {
 }
 
 .btn-success:hover {
-    background-color: #1e7e34;
-    border-color: #1c7430;
+    background-color: var(--color-primary-dark);
+    border-color: #1e8449;
     transform: translateY(-1px);
 }
 
 /* === БЕЙДЖИ === */
 .badge {
     font-weight: 500;
+}
+
+/* === ТИПОГРАФИКА KPI === */
+.kpi-card {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    padding: 20px;
+}
+
+.kpi-number {
+    font-size: 40px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    line-height: 1.1;
+}
+
+.kpi-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+
+.kpi-subtitle {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+.table-amount {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.table-amount.positive {
+    color: var(--color-success);
+}
+
+.table-amount.negative {
+    color: var(--color-danger);
+}
+
+.table-description {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--color-text-secondary);
+}
+
+.link-show-all {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-secondary);
 }
 
 /* === АНИМАЦИИ === */
@@ -163,7 +238,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #1e7e34;
+    background: var(--color-primary-dark);
 }
 
 /* === ЗАГРУЗОЧНЫЕ СОСТОЯНИЯ === */
@@ -184,7 +259,7 @@ body {
 /* === ФОКУС И ДОСТУПНОСТЬ === */
 .btn:focus,
 .nav-link:focus {
-    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+    box-shadow: 0 0 0 0.2rem rgba(46, 204, 113, 0.25);
 }
 
 /* Улучшаем контрастность для доступности */

@@ -4,6 +4,7 @@ from app.utils.formatters import (
     format_amount,
     format_date,
     format_days_remaining,
+    format_rub,
     parse_date_safe,
 )
 from app.utils.serializers import (
@@ -17,6 +18,7 @@ __all__ = [
     "format_amount",
     "format_date",
     "format_days_remaining",
+    "format_rub",
     "parse_date_safe",
     "serialize_allocation_summary",
     "serialize_redistribution_preview",

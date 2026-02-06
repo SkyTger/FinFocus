@@ -19,7 +19,7 @@ from app.services.calendar_service import CalendarService, TransactionInfo
 from app.services.category_service import CategoryService
 from app.services.reconciliation_service import ReconciliationService
 from app.services.transaction_service import TransactionService
-from app.utils.formatters import ICON_TO_EMOJI
+from app.utils.formatters import ICON_TO_EMOJI, format_rub
 
 
 # ==================== КОНСТАНТЫ ====================
@@ -92,7 +92,7 @@ def format_balance(balance: Decimal) -> tuple[str, str]:
     Returns:
         tuple: (отформатированная строка, CSS класс)
     """
-    formatted = f"{balance:,.0f}".replace(",", " ")
+    formatted = format_rub(balance)
 
     if balance < 0:
         return formatted, "balance-negative"
@@ -279,8 +279,8 @@ def build_stats_cards(summary: dict[str, Any]) -> dbc.Row:
     total_expense = summary.get("total_expense", Decimal("0"))
     end_balance = summary.get("end_balance", Decimal("0"))
 
-    income_formatted, _ = format_balance(total_income)
-    expense_formatted, _ = format_balance(total_expense)
+    income_formatted = format_rub(total_income, show_sign=True)
+    expense_formatted = format_rub(-total_expense)
     balance_formatted, balance_class = format_balance(end_balance)
 
     return dbc.Row(
@@ -291,7 +291,7 @@ def build_stats_cards(summary: dict[str, Any]) -> dbc.Row:
                         [
                             html.P("Доходы", className="text-muted mb-1"),
                             html.H5(
-                                f"+{income_formatted} ₽",
+                                income_formatted,
                                 className="text-success mb-0",
                             ),
                         ]
@@ -306,7 +306,7 @@ def build_stats_cards(summary: dict[str, Any]) -> dbc.Row:
                         [
                             html.P("Расходы", className="text-muted mb-1"),
                             html.H5(
-                                f"-{expense_formatted} ₽",
+                                expense_formatted,
                                 className="text-danger mb-0",
                             ),
                         ]
@@ -321,7 +321,7 @@ def build_stats_cards(summary: dict[str, Any]) -> dbc.Row:
                         [
                             html.P("Баланс на конец", className="text-muted mb-1"),
                             html.H5(
-                                f"{balance_formatted} ₽",
+                                balance_formatted,
                                 className=f"{balance_class} mb-0",
                             ),
                         ]
@@ -416,7 +416,7 @@ def _build_tooltip_balance(balance: Decimal) -> html.Div:
     Returns:
         html.Div: Header с форматированным балансом
     """
-    balance_text = f"{balance:,.0f}".replace(",", " ") + " ₽"
+    balance_text = format_rub(balance)
     balance_class = "positive" if balance >= 0 else "negative"
 
     return html.Div(
@@ -462,20 +462,20 @@ def _build_tooltip_transaction_row(
     amount = Decimal(txn["amount"])
 
     if txn_type == "income":
-        amount_text = f"+{amount:,.0f}".replace(",", " ")
+        amount_text = format_rub(amount, show_sign=True)
         amount_class = "income"
     elif txn_type == "adjustment":
-        amount_text = f"{amount:+,.0f}".replace(",", " ")
+        amount_text = format_rub(amount, show_sign=True)
         amount_class = "adjustment"
     elif txn_type == "transfer":
-        amount_text = f"{amount:,.0f}".replace(",", " ")
+        amount_text = format_rub(amount)
         amount_class = "transfer"
     elif txn_type in ("savings_reserve", "savings_contribution"):
         # Savings уменьшают баланс как расход
-        amount_text = f"-{amount:,.0f}".replace(",", " ")
+        amount_text = format_rub(-amount)
         amount_class = "savings"
     else:  # expense
-        amount_text = f"-{amount:,.0f}".replace(",", " ")
+        amount_text = format_rub(-amount)
         amount_class = "expense"
 
     # CSS класс для skipped
@@ -678,7 +678,7 @@ def build_day_cell(
             else None,
             # Баланс (data-date для JS hover в wishlist-mode)
             html.Div(
-                f"{balance_text} ₽",
+                balance_text,
                 className=f"calendar-day-balance {balance_class}",
                 **{"data-date": day_date.isoformat()},
             )
@@ -1344,7 +1344,7 @@ def toggle_reconciliation_modal(
                 expected = service.get_expected_balance(
                     user_id=DEFAULT_USER_ID, target_date=target_date
                 )
-            return True, f"{expected:,.2f} ₽", None, "", ""
+            return True, format_rub(expected), None, "", ""
 
         except Exception as e:
             logger.error(f"Ошибка auto-open reconciliation: {e}")
@@ -1382,7 +1382,7 @@ def toggle_reconciliation_modal(
 
             # При открытии — очищаем поля, при смене даты — оставляем модал открытым
             should_open = True if triggered_id == "open-reconciliation-btn" else is_open
-            return should_open, f"{expected:,.2f} ₽", None, "", ""
+            return should_open, format_rub(expected), None, "", ""
 
         except Exception as e:
             logger.error(f"Ошибка получения баланса для сверки: {e}")
@@ -1449,7 +1449,10 @@ def update_reconciliation_preview(
         return dbc.Alert(
             [
                 html.I(className=f"bi {icon} me-2"),
-                html.Strong(f"Разница: {diff:+,.2f} ₽", className=text_class),
+                html.Strong(
+                    f"Разница: {format_rub(diff, show_sign=True)}",
+                    className=text_class,
+                ),
                 html.Br(),
                 html.Small(preview["explanation"]),
             ],
@@ -1521,13 +1524,14 @@ def apply_reconciliation(
                     no_update,
                 )
 
+            adj_fmt = format_rub(adjustment.amount, show_sign=True)
             logger.info(
-                f"Создана корректировка: {adjustment.amount:+,.2f} ₽ "
+                f"Создана корректировка: {adj_fmt} "
                 f"на {target_date}"
             )
             return (
                 dbc.Alert(
-                    f"Корректировка на {adjustment.amount:+,.2f} ₽ создана",
+                    f"Корректировка на {adj_fmt} создана",
                     color="success",
                 ),
                 False,  # Закрыть модал
