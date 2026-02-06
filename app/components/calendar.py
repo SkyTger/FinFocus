@@ -1524,13 +1524,14 @@ def apply_reconciliation(
                     no_update,
                 )
 
+            adj_fmt = format_rub(adjustment.amount, show_sign=True)
             logger.info(
-                f"Создана корректировка: {format_rub(adjustment.amount, show_sign=True)} "
+                f"Создана корректировка: {adj_fmt} "
                 f"на {target_date}"
             )
             return (
                 dbc.Alert(
-                    f"Корректировка на {format_rub(adjustment.amount, show_sign=True)} создана",
+                    f"Корректировка на {adj_fmt} создана",
                     color="success",
                 ),
                 False,  # Закрыть модал
