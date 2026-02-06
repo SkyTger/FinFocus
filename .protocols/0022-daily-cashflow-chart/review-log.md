@@ -32,3 +32,18 @@
 - ADR-003 guard clauses: present in all callbacks
 - Docstrings: Russian, all public methods covered
 - Type annotations: Python 3.10+ syntax throughout
+
+### Step 4-m — Merge
+- User approved merge
+- `git merge --no-ff 0022-daily-cashflow-chart` → success (ort strategy)
+- `git push origin main` → b396c9e..0ca4227
+- No conflicts
+- PR #22 auto-closed
+
+### Step 5-m — Knowledge Bank Update
+- knowledge-bank-keeper subagent executed
+- Updated: `.knowledge-bank/modules/{schema,services,ui-components}.md`
+- Created: `.knowledge-bank/patterns/{plotly-charts,callbacks}.md`
+- Updated: `.knowledge-bank/index.md` (status, version)
+- Commit 244761b: `docs(knowledge-bank): update after 0022-daily-cashflow-chart`
+- All KB changes already in main

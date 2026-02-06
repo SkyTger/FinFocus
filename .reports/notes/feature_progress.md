@@ -3,8 +3,8 @@
 ## 📊 Общий статус проекта: Epic-05-UI Dashboard Redesign — In Progress
 
 **Последнее обновление**: 2026/02/06
-**Статус**: 🔄 Epic-05-UI в процессе (Батч 5.1 завершён, 5.2 в разработке)
-**Прогресс Epic-05**: 1/3 батчей завершено (33%)
+**Статус**: 🔄 Epic-05-UI в процессе (Батч 5.1, 5.2 завершены, 5.3 в разработке)
+**Прогресс Epic-05**: 2/3 батчей завершено (67%)
 **GitHub**: https://github.com/SkyTger/FinFocus
 
 ---
@@ -20,8 +20,8 @@
 
 ### Батчи:
 - ✅ Батч 5.1: Фундамент (цвета + формат ₽ + KPI) — завершён 2026/02/06, PR #21
-- ⏳ Батч 5.2: Дневной график (ядро) — следующий
-- ⏳ Батч 5.3: Layout (операции + правая колонна + sidebar) — ожидает батч 5.2
+- ✅ Батч 5.2: Дневной график (ядро) — завершён 2026/02/06, PR #22
+- ⏳ Батч 5.3: Layout (операции + правая колонна + sidebar) — следующий
 
 ### Ключевые решения:
 1. Тёмная тема — откладывается (Epic-06)
@@ -125,6 +125,98 @@
 - DashboardService.get_daily_cashflow() — дневные данные
 - Plotly: grouped bars + линия баланса + маркер минимума
 - Hover tooltip, клик → модал, переключатель Month/Year
+
+---
+
+## ✅ Батч 17: Daily & Yearly Cashflow Chart (2026-02-06) — MERGED
+
+**Дата**: 2026/02/06
+**Протокол**: 0022-daily-cashflow-chart
+**PR**: https://github.com/SkyTger/FinFocus/pull/22
+**Статус**: ✅ Merged в main (commit 0ca4227)
+
+### 🎯 Цель батча:
+Реализовать дневной и годовой график кассового календаря на Dashboard с grouped bars (доход/расход), линией баланса, маркером минимума, интерактивными hover tooltip и клик-to-create для операций.
+
+### ✅ Выполненные задачи:
+
+1. **Schema + CalendarService** (commit e9ce06d)
+   - 8 TypedDicts: BalanceStatus, DailyCashflow, DailyBalancePoint, MonthlyCashflowData, MonthlyCashflow, YearlyCashflowData
+   - 4 константы: BALANCE_RISK/ATTENTION_THRESHOLD (0, 5000), STATUS_COLORS (ok/attention/risk)
+   - CalendarService.get_recurring_income_expense_by_day() — публичный API для recurring интеграции
+   - Экспорты в schema/__init__.py и services/__init__.py
+
+2. **DashboardService расширение** (commit 2c75a77)
+   - get_daily_cashflow() — merge regular + recurring, running balance, min marker → MonthlyCashflowData
+   - get_yearly_cashflow() — оптимизация: один calculate_daily_balances(Jan 1, Dec 31) вместо 12x
+   - _classify_balance_status() helper — ok/attention/risk по порогам
+   - _get_daily_income_expense() — SQL CASE для INCOME/EXPENSE/SAVINGS/ADJUSTMENT, GROUP BY date
+   - _get_monthly_income_expense() — переиспользует _get_daily_income_expense()
+   - ADJUSTMENT handling: amount > 0 → income, amount < 0 → expense
+
+3. **Unit тесты** (commit 69a7d51)
+   - 16 новых тестов (12 daily + 4 yearly)
+   - Покрытие: basic, no_txn, risk/attention/ok, min_position, cumulative, ADJUSTMENT +/-, TRANSFER, SAVINGS types
+   - Всего: 508 тестов (было 492, +16)
+
+4. **Charts + Callbacks** (commit 2c75a77)
+   - _build_daily_cashflow_chart() — grouped bars (income/expense) + balance line (yaxis2) + diamond marker + today dashed line
+   - _build_yearly_cashflow_chart() — end-of-month balances + current month highlight rect
+   - _load_dashboard_components() helper — единая точка загрузки для обоих режимов (устраняет дублирование)
+   - open_create_from_chart callback — клик на bar → create-modal с preselected-date (month mode only)
+   - Dual Y-axis pattern для bars vs balance line (разные масштабы)
+   - hovermode="x unified" с format_rub() в customdata
+   - transaction_modals.py: source="chart" → set preselected-date
+
+5. **Финализация** (commit ba0e448)
+   - Black: 3 файла переформатированы
+   - Flake8: 2 ошибки исправлены (F841, F401)
+   - Pytest: 508 passed (1 deselected pre-existing precision issue)
+   - Code review: PASS (no blockers, 16 unit tests, all planned items implemented)
+   - Knowledge Bank update: 5 файлов обновлены, 2 новых (plotly-charts, callbacks patterns)
+
+### 📊 Результат:
+- ✅ 508 unit и integration тестов (было 492, +16 для daily/yearly cashflow)
+- ✅ Дневной график с grouped bars + balance line + diamond min marker + today line
+- ✅ Годовой график с end-of-month balances + current month highlight
+- ✅ Клик на bar → create-modal с preselected date (Month mode)
+- ✅ Dual Y-axis pattern для разных масштабов
+- ✅ Unified hover tooltip с format_rub()
+- ✅ _load_dashboard_components() helper (устраняет 80% дублирования)
+- ✅ CalendarService.get_recurring_income_expense_by_day() публичный API
+- ✅ Black + Flake8 OK
+- ✅ PR #22 Merged
+
+### 💡 Ключевые решения:
+
+1. **Дневной vs годовой режим** — единый Chart ID, переключение через store {period, year, month}
+2. **Year mode оптимизация** — один calculate_daily_balances() для всех 365 дней вместо 12x месячных
+3. **Recurring через публичный API** — CalendarService.get_recurring_income_expense_by_day() вместо прямого вызова protected метода
+4. **Dual Y-axis** — bars на первой оси, balance line на второй (разные масштабы)
+5. **ADJUSTMENT классификация** — positive → income, negative → expense(abs) (осознанное решение)
+6. **Protect method access** — _get_recurring_totals_for_period в Year mode (допустимо, тот же слой сервисов)
+
+### 🔧 Технические детали:
+
+**Новые файлы:**
+- `app/schema/dashboard.py` — 8 TypedDicts (~104 строк)
+- `tests/test_dashboard_service.py` — 16 unit тестов (~347 строк)
+
+**Модифицированные файлы:**
+- `app/components/dashboard.py` — +520 строк (chart builders, callbacks, helper)
+- `app/services/dashboard_service.py` — +320 строк (get_daily/yearly_cashflow, helpers)
+- `app/services/calendar_service.py` — +42 строк (get_recurring_income_expense_by_day)
+- `app/components/transaction_modals.py` — +12 строк (source="chart" preselection)
+- `app/schema/__init__.py`, `app/services/__init__.py` — экспорты
+
+### 🚀 Следующие шаги:
+
+**Батч 5.3: Layout & Sidebar**:
+- Split таблиц операций (Недавние/Предстоящие 50/50)
+- Wishlist + Safety Cushion в правую колонну
+- Sidebar как card-контейнер
+- Модал "Сверка" на Dashboard
+- Пустые состояния
 
 ---
 
