@@ -39,3 +39,11 @@ Restore context: protocol-0021#ctx-1
 - AI Assistant и Exchange скрыты (TODO Epic-08)
 - Python hardcoded colors: #28a745→#27ae60, #17a2b8→#e74c3c
 - table-amount.positive/.negative классы для транзакций
+
+### Step 04 — Calendar.py обновления
+- format_balance() рефакторинг: внутри использует format_rub() (возвращает С символом ₽)
+- 4 callsite format_balance обновлены (убран ручной "₽")
+- Stats cards: income → format_rub(show_sign=True), expense → format_rub(-amount)
+- Tooltip balance и 5 amount строк → format_rub()
+- Reconciliation: 2 expected, 1 diff, 2 adjustment → format_rub()
+- 2 теста обновлены: "-3 000" → "\u2212" + "3 000" (типографский минус)

@@ -134,7 +134,8 @@ class TestBuildTooltipTransactionRow:
         txn = self._make_txn(transaction_type="expense", amount="3000")
         result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
         amount_span = result.children[2]
-        assert "-3 000" in amount_span.children
+        assert "3 000" in amount_span.children
+        assert "\u2212" in amount_span.children  # типографский минус
         assert "expense" in amount_span.className
 
     def test_skipped_row_has_skipped_class(self):
@@ -301,7 +302,8 @@ class TestSavingsTransactionRows:
             )
             result = _build_tooltip_transaction_row(txn, date(2026, 1, 15))
             amount_span = result.children[2]
-            assert "-5 000" in amount_span.children
+            assert "5 000" in amount_span.children
+            assert "\u2212" in amount_span.children  # типографский минус
 
     def test_savings_reserve_no_recurring_icon(self):
         """SAVINGS_RESERVE не добавляет 🔁 иконку (он всегда recurring)."""
