@@ -1,0 +1,18 @@
+/* Sidebar Card Container */
+.sidebar-card {
+    background: white;
+    border: 1px solid var(--color-border, #e5e5e5);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.sidebar-card .card-body {
+    padding: 0;
+}
+
+/* Active nav item highlight */
+.sidebar-nav-item-active {
+    border-left: 4px solid var(--color-primary, #2ecc71) !important;
+    background-color: rgba(46, 204, 113, 0.05);
+    font-weight: 600;
+}

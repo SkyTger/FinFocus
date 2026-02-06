@@ -52,3 +52,12 @@ Restore context: protocol-0023#ctx-1
 - Новый callback open_create_from_empty(): 2 Inputs (empty-recent-add-btn, empty-upcoming-add-btn) → create-modal
 - Import CushionService + format_date_human
 - py_compile OK
+
+### Step 04 — Sidebar + Transactions (commit: pending)
+- sidebar.py: обернут в dbc.Card(className="sidebar-card h-100"), убран static active=True
+- sidebar.py: MAIN_NAV_ITEMS + ADDITIONAL_NAV_ITEMS константы, _build_nav_links() helper
+- sidebar.py: callback highlight_active_sidebar(): Input url.pathname → Output sidebar-nav.children
+- sidebar.css: НОВЫЙ файл — .sidebar-card (белый, border, no shadow), .sidebar-nav-item-active (border-left 4px green)
+- transactions.py: callback apply_url_date_filter(): Input url.search → Output filter-date-range dates
+  - parse_qs + date.fromisoformat() с try/except для невалидных дат
+- py_compile OK оба файла

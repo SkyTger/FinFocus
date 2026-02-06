@@ -1512,6 +1512,59 @@ def clear_date_filter(n_clicks):
 
 @callback(
     [
+        Output("filter-date-range", "start_date", allow_duplicate=True),
+        Output("filter-date-range", "end_date", allow_duplicate=True),
+    ],
+    Input("url", "search"),
+    State("url", "pathname"),
+    prevent_initial_call=True,
+)
+def apply_url_date_filter(url_search: str | None, pathname: str | None):
+    """Применяет фильтр дат из query params URL.
+
+    Обрабатывает ?start=YYYY-MM-DD&end=YYYY-MM-DD из ссылок Dashboard.
+
+    Args:
+        url_search: Query string из URL
+        pathname: Текущий путь
+
+    Returns:
+        tuple: (start_date, end_date) или PreventUpdate
+    """
+    if pathname != "/transactions":
+        raise PreventUpdate
+
+    if not url_search:
+        raise PreventUpdate
+
+    from urllib.parse import parse_qs
+    from datetime import date
+
+    params = parse_qs(url_search.lstrip("?"))
+
+    start_date = None
+    end_date = None
+
+    if "start" in params:
+        try:
+            start_date = date.fromisoformat(params["start"][0]).isoformat()
+        except (ValueError, IndexError):
+            pass
+
+    if "end" in params:
+        try:
+            end_date = date.fromisoformat(params["end"][0]).isoformat()
+        except (ValueError, IndexError):
+            pass
+
+    if start_date is None and end_date is None:
+        raise PreventUpdate
+
+    return start_date, end_date
+
+
+@callback(
+    [
         Output("bulk-actions-panel", "style"),
         Output("bulk-selected-count", "children"),
     ],
