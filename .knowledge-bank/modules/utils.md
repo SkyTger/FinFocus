@@ -9,22 +9,54 @@
 
 ## Форматирование для отображения
 
-**Создан в**: Протокол 0004 (Goals UI)
+**Создан в**: Протокол 0004 (Goals UI), переработан в Протокол 0021 (Dashboard Foundation)
 
-**Причина**: Избежать дублирования кода форматирования между transactions.py и goals.py
+**Причина**: Избежать дублирования кода форматирования между компонентами, единый формат денег
 
-### format_amount(amount: Decimal) → str
-Форматирует сумму для отображения.
+### format_rub(amount: Decimal | float | int | None, show_sign: bool = False) → str
+**Главный форматтер валют** (протокол 0021, Epic-05-UI).
+
+Форматирует сумму в российском формате: X XXX ₽
 
 ```python
-format_amount(Decimal('15000.00'))
-# → "15 000.00 ₽"
+format_rub(Decimal('15000'))
+# → "15 000 ₽"
+
+format_rub(Decimal('15000.50'))
+# → "15 000.50 ₽"
+
+format_rub(Decimal('5000'), show_sign=True)
+# → "+5 000 ₽"
+
+format_rub(Decimal('-3000'))
+# → "−3 000 ₽"  # типографский минус U+2212
+
+format_rub(None)
+# → "0 ₽"
 ```
 
 **Детали**:
-- Разделитель тысяч: пробел
-- 2 знака после запятой
+- Разделитель тысяч: пробел (U+00A0 non-breaking space)
+- Копейки: скрываются если .00 (15000.00 → "15 000 ₽", 15000.50 → "15 000.50 ₽")
 - Символ рубля в конце
+- Типографский минус U+2212 (не дефис)
+- show_sign: добавляет "+" для положительных сумм
+- None → "0 ₽"
+
+**Константы**:
+- `MINUS_SIGN = "\u2212"` — типографский минус для правильной визуализации
+
+### format_amount(amount: Decimal) → str
+**Alias для format_rub()** (обратная совместимость).
+
+Перенаправляет на format_rub() без show_sign.
+
+```python
+format_amount(Decimal('15000.00'))
+# → "15 000 ₽"  # (через format_rub)
+```
+
+**Причина alias**: 28+ callsites в кодовой базе, избежание масштабного рефакторинга
 
 ### format_date(date_obj: date) → str
 Форматирует дату для отображения.
@@ -137,10 +169,12 @@ preview = deserialize_redistribution_preview(serialized)
 
 ## Где используются
 
-**format_amount**:
+**format_rub / format_amount**:
+- `app/components/dashboard.py` - KPI карточки, cashflow text, транзакции (протокол 0021: 12 inline замен)
 - `app/components/transactions.py` - таблица транзакций
-- `app/components/goals.py` - карточки целей, прогресс
-- `app/components/calendar.py` - балансы в ячейках
+- `app/components/goals.py` - карточки целей, прогресс, взносы
+- `app/components/calendar.py` - балансы в ячейках, stats cards, tooltip (протокол 0021: 11 замен через format_balance)
+- `app/components/analytics.py` - donut center, total H4 (протокол 0021: 2 inline замены)
 
 **format_date**:
 - `app/components/transactions.py` - даты операций
@@ -165,6 +199,14 @@ preview = deserialize_redistribution_preview(serialized)
 **Протокол 0008**: Добавлен модуль serializers.py для сериализации RedistributionPreview в dcc.Store
 
 **Decimal сериализация**: str (не float) для сохранения точности при roundtrip
+
+**Протокол 0021 (Epic-05-UI Dashboard Foundation)**:
+- format_rub() как главный форматтер (вместо format_amount)
+- format_amount() переопределён как alias для обратной совместимости (28+ callsites)
+- Типографский минус U+2212 вместо дефиса
+- Скрытие .00 копеек (15000.00 → "15 000 ₽", не "15 000.00 ₽")
+- show_sign параметр для знака "+" на положительных суммах
+- Глобальная замена формата: $X,XXX.XX → X XXX ₽ во всех компонентах
 
 ---
 

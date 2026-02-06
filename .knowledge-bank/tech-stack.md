@@ -166,6 +166,63 @@ logger.debug("Отладка")
 - ERROR: Ошибки (исключения, сбои)
 - DEBUG: Отладка (session management, queries)
 
+## CSS Framework & Styling
+
+### Bootstrap 5 (через dash-bootstrap-components)
+**Назначение**: UI framework для layouts и components
+- Grid system (Container, Row, Col)
+- Utility classes (text-muted, bg-light, etc.)
+- Components (Modal, Table, Card, Button)
+
+### Custom CSS Variables (Epic-05-UI, Протокол 0021)
+**Файл**: `app/assets/custom.css`
+
+**Цветовая палитра #2ecc71** (green theme):
+```css
+:root {
+  /* Primary Colors */
+  --color-primary: #2ecc71;        /* Основной зеленый */
+  --color-primary-dark: #27ae60;   /* Темный зеленый */
+  --color-primary-light: #a8e6cf;  /* Светлый зеленый */
+
+  /* Secondary Colors */
+  --color-secondary: #e74c3c;      /* Красный (расходы) */
+  --color-secondary-dark: #c0392b; /* Темный красный */
+
+  /* Text Colors */
+  --color-text-primary: #2c3e50;   /* Основной текст */
+  --color-text-muted: #7f8c8d;     /* Приглушенный текст */
+  --color-text-light: #ecf0f1;     /* Светлый текст */
+
+  /* Background Colors */
+  --color-bg-light: #f8f9fa;       /* Светлый фон */
+  --color-bg-card: #ffffff;        /* Фон карточек */
+
+  /* Border Colors */
+  --color-border: #dee2e6;         /* Границы */
+  --color-border-light: #e9ecef;   /* Светлые границы */
+
+  /* DEPRECATED (обратная совместимость) */
+  --primary-green: var(--color-primary);
+  --light-green: var(--color-primary-light);
+}
+```
+
+**Типографические классы** (Epic-05-UI):
+- `.kpi-number` — числа в KPI-карточках (2.5rem, bold)
+- `.kpi-title` — заголовки KPI (0.875rem, uppercase, muted)
+- `.kpi-subtitle` — подзаголовки KPI (0.75rem, muted)
+- `.table-amount` — суммы в таблицах
+- `.table-amount.positive` — положительные суммы (зеленый)
+- `.table-amount.negative` — отрицательные суммы (красный)
+- `.link-show-all` — ссылки "Посмотреть все" (decoration: none)
+- `.kpi-card` — стиль карточек KPI (border, border-radius, transition)
+
+**Migration Strategy** (Протокол 0021):
+- Новые переменные с префиксом `--color-*`
+- Deprecated aliases `--primary-green`, `--light-green` для обратной совместимости
+- Постепенная замена hardcoded цветов (#28a745, #17a2b8) на переменные
+
 ## Utilities
 
 ### python-dotenv 1.0.0

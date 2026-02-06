@@ -386,17 +386,23 @@ if ctx.triggered[0].get('value') is None:
 - **Mobile disabled** — tooltip скрыт на < 768px (нет hover)
 - **Placeholder -1** — template_id=-1 вместо None для Dash Pattern-Matching (None не поддерживается)
 
-## Dashboard Component (Фаза 4 — ЗАВЕРШЕНА)
+## Dashboard Component (Фаза 4 — ЗАВЕРШЕНА, Epic-05-UI Протокол 0021 — ЧАСТИЧНО)
 
 **Файлы**:
 - `app/components/dashboard.py` — UI + callbacks (~685 строк)
 - `app/assets/dashboard.css` — стили
 
-**Layout**:
-- 4 metric cards (Balance, Income, Expense, Goals) с реальными данными
+**Layout** (обновлено в протоколе 0021):
+- 4 KPI cards (Total Balance, Income, Expense, Goals) с новым дизайном:
+  - Белый фон вместо градиентов
+  - Border и border-radius
+  - Типографика: .kpi-number, .kpi-title, .kpi-subtitle
+  - Русские label: "Обзор", "Доходы", "Расходы", "Накопления"
+  - Кнопка "Сверка" на Total Balance → /calendar?open_recon=1
 - Cashflow bar chart (Plotly) — последние 12 месяцев или 5 лет
-- Recent transactions table — последние 5 транзакций
+- Recent transactions table — последние 5 транзакций с .table-amount классами
 - Period switcher (month/year) через RadioItems
+- AI Assistant и Exchange cards — **скрыты** (TODO Epic-08)
 
 **Callbacks**:
 - `load_dashboard_data()` — загрузка данных из DashboardService при открытии страницы
@@ -406,15 +412,29 @@ if ctx.triggered[0].get('value') is None:
 **State Management**:
 - `dcc.Store(id="dashboard-period-store")` — хранит текущий период (month/year)
 
-**Build Functions**:
-- `build_metric_cards()` — динамическая генерация карточек из OverviewMetrics
+**Build Functions** (обновлено в протоколе 0021):
+- `_build_kpi_card()` — новая функция для KPI-карточек (вместо create_metric_card)
 - `build_cashflow_chart()` — Plotly график из CashflowDataPoint[]
 - `build_recent_transactions()` — таблица из RecentTransaction[]
+
+**Форматирование** (протокол 0021):
+- 12 inline замен на format_rub():
+  - KPI values (Total Balance, Income, Expense, Goals)
+  - Cashflow текст под графиком
+  - Transaction amounts в таблице
+- Python hardcoded colors: #28a745 → #27ae60, #17a2b8 → #e74c3c
+- .table-amount.positive / .negative классы для цветовой индикации
 
 **Интеграция**:
 - DashboardService для данных
 - CalendarService для балансов
 - GoalService для savings (агрегация по всем ACTIVE целям)
+- format_rub() для форматирования всех денежных сумм
+
+**Критичные изменения** (протокол 0021):
+- Новый формат денег: $X,XXX.XX → X XXX ₽ (глобально)
+- CSS-переменные: --color-primary (#2ecc71), --color-secondary (#e74c3c)
+- AI Assistant/Exchange скрыты, НЕ удалены (будущий Epic-08)
 
 ## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
 
