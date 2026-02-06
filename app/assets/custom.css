@@ -132,9 +132,16 @@ body {
 /* === ТИПОГРАФИКА KPI === */
 .kpi-card {
     background: var(--color-bg-card);
-    border: 1px solid var(--color-border);
-    border-radius: 10px;
+    border: none;
+    border-radius: 12px;
     padding: 20px;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover) !important;
 }
 
 .kpi-number {

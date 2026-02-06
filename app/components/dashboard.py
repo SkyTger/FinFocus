@@ -179,7 +179,7 @@ def _build_kpi_card(
             ],
             className="d-flex align-items-center gap-2 mb-2",
         )
-        if icon_el
+        if icon_el is not None
         else html.Div(title, className="kpi-title mb-2"),
         html.Div(value, className="kpi-number mb-1"),
     ]
