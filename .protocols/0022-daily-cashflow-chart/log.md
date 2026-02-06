@@ -28,3 +28,12 @@ Restore context: protocol-0022#ctx-1
 - Обновлены экспорты в `app/schema/__init__.py` и `app/services/__init__.py`
 - Решение: defaultdict с lambda для tuple(Decimal, Decimal) — чтобы дни без recurring не попадали в результат (consistent API)
 - Guard comment для ADJUSTMENT recurring (практически невозможен)
+
+### Step 02 — DashboardService (commit: TBD)
+- Добавлен `_classify_balance_status()` module-level helper (ok/attention/risk по порогам)
+- Добавлен `_get_daily_income_expense()` — SQL CASE для INCOME/EXPENSE/SAVINGS/ADJUSTMENT, GROUP BY date
+- Добавлен `get_daily_cashflow()` — merge regular + recurring, running balance, min marker → MonthlyCashflowData
+- Добавлен `_get_monthly_income_expense()` — переиспользует _get_daily_income_expense() (рекомендация critique)
+- Добавлен `get_yearly_cashflow()` — оптимизация: один calculate_daily_balances(Jan 1, Dec 31) вместо 12x
+- ADJUSTMENT: amount > 0 → income, amount < 0 → expense(abs) — сознательное решение, documented в docstring
+- Используется protected `_get_recurring_totals_for_period` для Year mode recurring (допустимо — тот же сервисный слой)
