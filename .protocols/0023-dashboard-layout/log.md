@@ -61,3 +61,10 @@ Restore context: protocol-0023#ctx-1
 - transactions.py: callback apply_url_date_filter(): Input url.search → Output filter-date-range dates
   - parse_qs + date.fromisoformat() с try/except для невалидных дат
 - py_compile OK оба файла
+
+### Step 05 — Finalize (commit: pending)
+- CSS: .empty-state, .dashboard-split-table в custom.css
+- Black: 3 файла переформатированы (calendar, dashboard, dashboard_service)
+- Flake8: 2 F841 исправлены (start_param, end_param unused), остальные E501 pre-existing
+- Pytest: 520 passed, 1 failed (pre-existing precision issue)
+- PR создан как draft
