@@ -350,7 +350,9 @@ class TestGetRecentTransactions:
         service = DashboardService(db_session)
 
         # Act
-        result = service.get_recent_transactions(test_user.id, limit=5)
+        result = service.get_recent_transactions(
+            test_user.id, limit=5, reference_date=date(2026, 1, 20)
+        )
 
         # Assert - более поздняя дата первой
         assert len(result) == 2
@@ -374,7 +376,9 @@ class TestGetRecentTransactions:
         service = DashboardService(db_session)
 
         # Act
-        result = service.get_recent_transactions(test_user.id, limit=5)
+        result = service.get_recent_transactions(
+            test_user.id, limit=5, reference_date=date(2026, 1, 31)
+        )
 
         # Assert
         assert len(result) == 5
@@ -383,7 +387,9 @@ class TestGetRecentTransactions:
         """Возвращает пустой список если нет транзакций."""
         service = DashboardService(db_session)
 
-        result = service.get_recent_transactions(test_user.id, limit=5)
+        result = service.get_recent_transactions(
+            test_user.id, limit=5, reference_date=date(2026, 1, 15)
+        )
 
         assert result == []
 
@@ -462,11 +468,278 @@ class TestDashboardServiceCategoryFields:
         db_session.commit()
 
         service = DashboardService(db_session)
-        recent = service.get_recent_transactions(test_user.id, limit=10)
+        recent = service.get_recent_transactions(
+            test_user.id, limit=10, reference_date=date.today()
+        )
 
         # Должна быть только обычная транзакция
         assert len(recent) == 1
         assert recent[0]["description"] == "Обычная"
+
+
+class TestGetRecentTransactionsRefactored:
+    """Тесты рефакторинга get_recent_transactions (month range filter)."""
+
+    def test_month_range_filter(self, db_session, test_user):
+        """Возвращает только транзакции текущего месяца."""
+        # Транзакция в январе
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("100.00"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 15),
+                description="Январь",
+            )
+        )
+        # Транзакция в феврале
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("200.00"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 2, 10),
+                description="Февраль",
+            )
+        )
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_recent_transactions(
+            test_user.id, limit=10, reference_date=date(2026, 2, 15)
+        )
+
+        # Только февральская транзакция
+        assert len(result) == 1
+        assert result[0]["description"] == "Февраль"
+
+    def test_sorting_desc_with_reference_date(self, db_session, test_user):
+        """Сортировка по дате DESC, id DESC в рамках месяца."""
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("100.00"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 1, 5),
+                    description="Ранняя",
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("200.00"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=date(2026, 1, 15),
+                    description="Поздняя",
+                ),
+            ]
+        )
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_recent_transactions(
+            test_user.id, limit=5, reference_date=date(2026, 1, 20)
+        )
+
+        assert len(result) == 2
+        assert result[0]["description"] == "Поздняя"
+        assert result[1]["description"] == "Ранняя"
+
+    def test_includes_recurring_instances(self, db_session, test_user):
+        """Recurring instances (parent_id != None) включаются."""
+        # Шаблон recurring
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 1),
+            description="Шаблон",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.flush()
+
+        # Instance recurring
+        instance = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+            description="Экземпляр зарплаты",
+            is_recurring=True,
+            recurring_parent_id=template.id,
+        )
+        db_session.add(instance)
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_recent_transactions(
+            test_user.id, limit=10, reference_date=date(2026, 1, 20)
+        )
+
+        # Только instance, шаблон исключен
+        assert len(result) == 1
+        assert result[0]["description"] == "Экземпляр зарплаты"
+        assert result[0]["is_recurring_instance"] is True
+
+
+class TestGetUpcomingTransactions:
+    """Тесты для get_upcoming_transactions()."""
+
+    def test_basic_upcoming(self, db_session, test_user):
+        """Базовый тест: возвращает транзакции после reference_date."""
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("1000.00"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=date(2026, 1, 20),
+                    description="Будущая",
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("500.00"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 1, 10),
+                    description="Прошлая",
+                ),
+            ]
+        )
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_upcoming_transactions(
+            test_user.id, limit=5, reference_date=date(2026, 1, 15)
+        )
+
+        assert len(result) == 1
+        assert result[0]["description"] == "Будущая"
+
+    def test_empty_upcoming(self, db_session, test_user):
+        """Пустой список если нет предстоящих транзакций."""
+        service = DashboardService(db_session)
+        result = service.get_upcoming_transactions(
+            test_user.id, limit=5, reference_date=date(2026, 1, 15)
+        )
+
+        assert result == []
+
+    def test_respects_limit(self, db_session, test_user):
+        """Ограничение количества работает."""
+        for i in range(10):
+            db_session.add(
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("100.00"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 1, 20 + i % 10),
+                    description=f"Txn {i}",
+                )
+            )
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_upcoming_transactions(
+            test_user.id, limit=3, reference_date=date(2026, 1, 15)
+        )
+
+        assert len(result) == 3
+
+    def test_sorting_asc(self, db_session, test_user):
+        """Сортировка по дате ASC."""
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("100.00"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=date(2026, 1, 25),
+                    description="Позже",
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("200.00"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 1, 20),
+                    description="Раньше",
+                ),
+            ]
+        )
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_upcoming_transactions(
+            test_user.id, limit=5, reference_date=date(2026, 1, 15)
+        )
+
+        assert len(result) == 2
+        assert result[0]["description"] == "Раньше"
+        assert result[1]["description"] == "Позже"
+
+    def test_excludes_templates(self, db_session, test_user):
+        """Recurring шаблоны исключаются."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 20),
+            description="Шаблон",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        regular = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("300.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 22),
+            description="Обычная",
+        )
+        db_session.add_all([template, regular])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_upcoming_transactions(
+            test_user.id, limit=10, reference_date=date(2026, 1, 15)
+        )
+
+        assert len(result) == 1
+        assert result[0]["description"] == "Обычная"
+
+    def test_includes_recurring_instances(self, db_session, test_user):
+        """Recurring instances включаются с is_recurring_instance=True."""
+        template = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 1),
+            description="Шаблон",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.flush()
+
+        instance = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 25),
+            description="Экземпляр",
+            is_recurring=True,
+            recurring_parent_id=template.id,
+        )
+        db_session.add(instance)
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_upcoming_transactions(
+            test_user.id, limit=10, reference_date=date(2026, 1, 15)
+        )
+
+        assert len(result) == 1
+        assert result[0]["description"] == "Экземпляр"
+        assert result[0]["is_recurring_instance"] is True
 
 
 class TestDashboardServiceAdjustmentExclusion:

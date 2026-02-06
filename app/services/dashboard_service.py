@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Literal, TypedDict
 
 from dateutil.relativedelta import relativedelta
-from sqlalchemy import case, desc, func
+from sqlalchemy import asc, case, desc, func
 from sqlalchemy.orm import Session
 
 from app.models.database import GoalStatus, Transaction, TransactionType
@@ -88,6 +88,7 @@ class RecentTransaction(TypedDict):
     date: str
     amount: Decimal
     transaction_type: str
+    is_recurring_instance: bool  # True если recurring_parent_id != None
 
 
 class DashboardService:
@@ -362,31 +363,102 @@ class DashboardService:
         self,
         user_id: int,
         limit: int = 5,
+        reference_date: date | None = None,
     ) -> list[RecentTransaction]:
-        """Получает последние транзакции с информацией о категории.
+        """Получает недавние операции (1 число месяца..reference_date).
+
+        INTENTIONAL SEMANTIC CHANGE: предыдущая версия возвращала последние N
+        транзакций за все время. Новая версия фильтрует по текущему месяцу
+        (first_of_month..reference_date). При отсутствии данных — пустой список.
+
+        Фильтрация:
+        - Исключает recurring шаблоны (is_recurring=True AND recurring_parent_id IS NULL)
+        - Включает recurring instances (recurring_parent_id IS NOT NULL)
+        - Включает обычные транзакции (is_recurring=False)
 
         Args:
             user_id: ID пользователя
             limit: Максимальное количество (по умолчанию 5)
+            reference_date: Дата отсчета (по умолчанию сегодня)
 
         Returns:
-            list[RecentTransaction]: последние транзакции
-                с category_name и category_icon
-
-        Note:
-            - Исключает recurring шаблоны (is_recurring=True без parent)
-            - Сортировка: transaction_date DESC, id DESC (для стабильности)
+            list[RecentTransaction]: транзакции, сортировка date DESC, id DESC
         """
+        if reference_date is None:
+            reference_date = date.today()
+
+        first_of_month = reference_date.replace(day=1)
+
         transactions = (
             self.session.query(Transaction)
-            .filter(Transaction.user_id == user_id)
-            .filter(Transaction.is_recurring == False)  # noqa: E712
-            .filter(Transaction.recurring_parent_id == None)  # noqa: E711
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.transaction_date >= first_of_month,
+                Transaction.transaction_date <= reference_date,
+                # Исключить только шаблоны recurring
+                ~(
+                    (Transaction.is_recurring == True)  # noqa: E712
+                    & (Transaction.recurring_parent_id == None)  # noqa: E711
+                ),
+            )
             .order_by(desc(Transaction.transaction_date), desc(Transaction.id))
             .limit(limit)
             .all()
         )
 
+        return self._map_transactions(transactions)
+
+    def get_upcoming_transactions(
+        self,
+        user_id: int,
+        limit: int = 5,
+        reference_date: date | None = None,
+    ) -> list[RecentTransaction]:
+        """Получает предстоящие операции (reference_date..конец месяца).
+
+        Фильтрация идентична get_recent_transactions():
+        - Исключает recurring шаблоны (is_recurring=True AND recurring_parent_id IS NULL)
+        - Включает recurring instances (recurring_parent_id IS NOT NULL)
+
+        Args:
+            user_id: ID пользователя
+            limit: Максимальное количество (по умолчанию 5)
+            reference_date: Дата отсчета (по умолчанию сегодня)
+
+        Returns:
+            list[RecentTransaction]: предстоящие операции, сортировка date ASC, id ASC
+        """
+        if reference_date is None:
+            reference_date = date.today()
+
+        _, last_day_num = monthrange(reference_date.year, reference_date.month)
+        end_of_month = date(
+            reference_date.year, reference_date.month, last_day_num
+        )
+
+        transactions = (
+            self.session.query(Transaction)
+            .filter(
+                Transaction.user_id == user_id,
+                Transaction.transaction_date >= reference_date,
+                Transaction.transaction_date <= end_of_month,
+                # Исключить только шаблоны recurring
+                ~(
+                    (Transaction.is_recurring == True)  # noqa: E712
+                    & (Transaction.recurring_parent_id == None)  # noqa: E711
+                ),
+            )
+            .order_by(asc(Transaction.transaction_date), asc(Transaction.id))
+            .limit(limit)
+            .all()
+        )
+
+        return self._map_transactions(transactions)
+
+    def _map_transactions(
+        self, transactions: list[Transaction]
+    ) -> list[RecentTransaction]:
+        """Маппит ORM объекты Transaction в RecentTransaction TypedDict."""
         return [
             RecentTransaction(
                 id=t.id,
@@ -396,6 +468,7 @@ class DashboardService:
                 date=t.transaction_date.isoformat(),
                 amount=t.amount,
                 transaction_type=t.transaction_type.value,
+                is_recurring_instance=t.recurring_parent_id is not None,
             )
             for t in transactions
         ]
