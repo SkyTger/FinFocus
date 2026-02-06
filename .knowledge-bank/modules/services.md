@@ -182,6 +182,10 @@ raise ValidationError("Сумма должна быть больше 0", field="
   - Все транзакции + виртуальные recurring экземпляры за период
   - **КРИТИЧНО**: исключает recurring шаблоны (is_recurring=True, recurring_parent_id=None)
   - **NEW**: Возвращает TransactionInfo с полями is_skipped, category_icon для tooltip UI
+- `get_recurring_income_expense_by_day(user_id, start_date, end_date)` → `dict[date, tuple[Decimal, Decimal]]` **(Протокол 0022 — PUBLIC)**
+  - Публичная обёртка над _get_recurring_instances_for_period()
+  - Возвращает (income, expense) по дням только для recurring операций
+  - Guard: ADJUSTMENT recurring практически невозможен (защита от некорректных данных)
 
 **TypedDict**:
 ```python
@@ -333,9 +337,9 @@ with get_db_session() as session:
 **Unit тесты**: 28 тестов в `tests/test_recurring_service.py`
 - Покрытие: generate, exceptions, skip, stop, delete, anchored edge cases
 
-## DashboardService (Фаза 4 — ЗАВЕРШЕНА)
+## DashboardService (Фаза 4 + Протокол 0022 — ЗАВЕРШЕНА)
 
-**Файл**: `app/services/dashboard_service.py` (~290 строк)
+**Файл**: `app/services/dashboard_service.py` (~640 строк после протокола 0022)
 
 **Инициализация**: `DashboardService(session)` - принимает SQLAlchemy session
 
@@ -350,6 +354,16 @@ with get_db_session() as session:
   - Один SQL-запрос с GROUP BY (оптимизация)
 - `get_recent_transactions(user_id, limit)` → `list[RecentTransaction]`
   - Последние N транзакций, отсортированных по дате DESC
+- `get_daily_cashflow(user_id, year, month)` → `MonthlyCashflowData` **(Протокол 0022)**
+  - Дневной cashflow с running balance для одного месяца
+  - Merge regular + recurring операций по дням
+  - Расчет min_balance и min_balance_date для маркера на графике
+  - Классификация статуса баланса (ok/attention/risk)
+- `get_yearly_cashflow(user_id, year)` → `YearlyCashflowData` **(Протокол 0022)**
+  - Cashflow по месяцам за год с end-of-month балансами
+  - **Оптимизация**: один calculate_daily_balances(Jan 1, Dec 31) вместо 12x
+  - Агрегация recurring через protected _get_recurring_totals_for_period()
+  - Классификация статуса для каждого месяца
 
 **TypedDicts**:
 ```python
@@ -371,6 +385,9 @@ class RecentTransaction(TypedDict):
     description: str | None
     amount: Decimal
     type: str
+
+# Протокол 0022: новые TypedDicts см. schema.md
+# MonthlyCashflowData, YearlyCashflowData, DailyCashflow, DailyBalancePoint, MonthlyCashflow
 ```
 
 **Пример использования**:
@@ -385,15 +402,38 @@ with get_db_session() as session:
         user_id=1, period="month", reference_date=date.today()
     )
 
-    # Cashflow за последние 12 месяцев
-    cashflow = service.get_cashflow_data(
-        user_id=1, period="month", reference_date=date.today()
-    )
+    # Дневной cashflow за январь 2026 (Протокол 0022)
+    daily = service.get_daily_cashflow(user_id=1, year=2026, month=1)
+    # {"month": "2026-01", "daily_cashflow": [...], "min_balance": "12500.00", ...}
+
+    # Годовой cashflow за 2026 (Протокол 0022)
+    yearly = service.get_yearly_cashflow(user_id=1, year=2026)
+    # {"year": 2026, "monthly_data": [12 месяцев], "min_balance": "8000.00", ...}
 ```
+
+**Внутренние методы** (Протокол 0022):
+- `_classify_balance_status(balance)` → `BalanceStatus`
+  - Классификация по порогам BALANCE_RISK/ATTENTION_THRESHOLD
+  - "risk" < 5000, "attention" 5000-15000, "ok" ≥ 15000
+- `_get_daily_income_expense(user_id, start_date, end_date)` → `dict[date, tuple[Decimal, Decimal]]`
+  - SQL агрегация с CASE для INCOME/EXPENSE/SAVINGS/ADJUSTMENT
+  - GROUP BY transaction_date
+  - **ADJUSTMENT logic**: amount > 0 → income, amount < 0 → expense(abs)
+- `_get_monthly_income_expense(user_id, year, month)` → `tuple[Decimal, Decimal]`
+  - Переиспользует _get_daily_income_expense() с sum() (рекомендация critique)
 
 **Composition Pattern**: DashboardService содержит CalendarService и GoalService
 
-**Unit тесты**: 12 тестов в `tests/test_dashboard_service.py`
+**Критичные детали** (Протокол 0022):
+- **ADJUSTMENT классификация**: положительная корректировка → income, отрицательная → expense (documented в docstring)
+- **Year mode оптимизация**: один SQL расчет балансов (Jan 1 - Dec 31) вместо 12 отдельных запросов
+- **Protected access допустим**: _get_recurring_totals_for_period() из CalendarService (тот же сервисный слой)
+- **Min balance tracking**: сквозной поиск минимального баланса для diamond marker на графике
+- **End-of-month балансы**: для Year mode берется balance[last_day_of_month] из calculate_daily_balances()
+
+**Unit тесты**: 35 тестов в `tests/test_dashboard_service.py` (19 старых + 16 новых для протокола 0022)
+- TestGetDailyCashflow: 12 тестов (basic, no txn, status classification, min tracking, cumulative, adjustment/transfer/savings)
+- TestGetYearlyCashflow: 4 теста (12 months, income/expense, end balance, min year)
 
 ## AllocationService (Батч 2 — ЗАВЕРШЕН)
 

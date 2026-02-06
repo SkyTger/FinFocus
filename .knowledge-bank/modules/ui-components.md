@@ -386,35 +386,65 @@ if ctx.triggered[0].get('value') is None:
 - **Mobile disabled** — tooltip скрыт на < 768px (нет hover)
 - **Placeholder -1** — template_id=-1 вместо None для Dash Pattern-Matching (None не поддерживается)
 
-## Dashboard Component (Фаза 4 — ЗАВЕРШЕНА, Epic-05-UI Протокол 0021 — ЧАСТИЧНО)
+## Dashboard Component (Фаза 4 + Epic-05-UI Протокол 0021-0022 — ЗАВЕРШЕНА)
 
 **Файлы**:
-- `app/components/dashboard.py` — UI + callbacks (~685 строк)
+- `app/components/dashboard.py` — UI + callbacks (~950 строк после протокола 0022)
 - `app/assets/dashboard.css` — стили
 
-**Layout** (обновлено в протоколе 0021):
+**Layout** (обновлено в протоколе 0021-0022):
 - 4 KPI cards (Total Balance, Income, Expense, Goals) с новым дизайном:
   - Белый фон вместо градиентов
   - Border и border-radius
   - Типографика: .kpi-number, .kpi-title, .kpi-subtitle
   - Русские label: "Обзор", "Доходы", "Расходы", "Накопления"
   - Кнопка "Сверка" на Total Balance → /calendar?open_recon=1
-- Cashflow bar chart (Plotly) — последние 12 месяцев или 5 лет
+- **Daily/Yearly cashflow chart (Plotly)** — дневной график для Month mode, месячный для Year mode (Протокол 0022):
+  - Grouped bars (доходы/расходы) + линия running balance
+  - Diamond маркер минимального баланса
+  - Today вертикальная линия (только Month mode)
+  - Current month highlight rect (только Year mode)
+  - Dual Y-axis (bars слева, balance справа)
+  - hovermode="x unified" с customdata + format_rub()
+  - Клик по bar → create-modal с preselected date (только Month mode)
 - Recent transactions table — последние 5 транзакций с .table-amount классами
 - Period switcher (month/year) через RadioItems
 - AI Assistant и Exchange cards — **скрыты** (TODO Epic-08)
 
-**Callbacks**:
+**Callbacks** (протокол 0022):
 - `load_dashboard_data()` — загрузка данных из DashboardService при открытии страницы
+  - **Рефакторинг**: использует _load_dashboard_components() helper
+- `refresh_dashboard_after_crud()` — обновление после CRUD операций
+  - **Рефакторинг**: использует _load_dashboard_components() helper (устраняет дублирование)
 - `update_period_state()` — обновление dcc.Store при смене периода
-- Использует guard clauses (ADR-003) для безопасности
+  - **NEW**: Store теперь хранит {period, year, month} вместо просто period
+- `open_create_from_chart()` — Pattern-Matching callback для клика по bar (Протокол 0022)
+  - Inputs: {"type": "cashflow-bar", "date": ALL}.n_clicks, period-store, preselection Stores
+  - Outputs: create-modal is_open, preselected-date, 4x preselection resets
+  - **Только Month mode**: Year mode не поддерживает клик (guard clause)
+  - ADR-003 guard clauses #1-4 (triggered_id, type, n_clicks, period)
 
 **State Management**:
-- `dcc.Store(id="dashboard-period-store")` — хранит текущий период (month/year)
+- `dcc.Store(id="dashboard-period-store")` — хранит {period, year, month}
+- Preselection Stores (интеграция с transaction_modals.py):
+  - preselected-date, preselected-amount, preselected-description, preselected-risk-warning
 
-**Build Functions** (обновлено в протоколе 0021):
+**Build Functions** (протокол 0021-0022):
 - `_build_kpi_card()` — новая функция для KPI-карточек (вместо create_metric_card)
-- `build_cashflow_chart()` — Plotly график из CashflowDataPoint[]
+- `_build_daily_cashflow_chart()` — дневной график для Month mode (Протокол 0022)
+  - Grouped bars (go.Bar) для income/expense (yaxis)
+  - Balance line (go.Scatter) с yaxis2 (dual Y-axis)
+  - Diamond marker для минимального баланса (go.Scatter)
+  - Today вертикальная линия (go.Scatter vline)
+  - Hover customdata: (date_iso, income_str, expense_str, balance_str, status)
+  - Pattern-Matching IDs для bar clickable: {"type": "cashflow-bar", "date": date_iso}
+- `_build_yearly_cashflow_chart()` — годовой график для Year mode (Протокол 0022)
+  - Аналогичная структура, X=месяцы вместо дней
+  - Current month highlight rect (go.Scatter fill)
+  - Bars НЕ clickable (guard в callback)
+- `_load_dashboard_components()` — helper для устранения дублирования (Протокол 0022)
+  - Единая точка загрузки: KPI, chart, transactions
+  - Используется в load_dashboard_data И refresh_dashboard_after_crud
 - `build_recent_transactions()` — таблица из RecentTransaction[]
 
 **Форматирование** (протокол 0021):
@@ -425,16 +455,50 @@ if ctx.triggered[0].get('value') is None:
 - Python hardcoded colors: #28a745 → #27ae60, #17a2b8 → #e74c3c
 - .table-amount.positive / .negative классы для цветовой индикации
 
+**Plotly Chart Patterns** (Протокол 0022):
+```python
+# STATUS_COLORS для индикации
+STATUS_COLORS = {
+    "ok": "#2ecc71",       # Зеленый (≥ 15000₽)
+    "attention": "#f39c12", # Оранжевый (5000-15000₽)
+    "risk": "#e74c3c"      # Красный (< 5000₽)
+}
+
+# Dual Y-axis
+fig.update_layout(
+    yaxis=dict(title="Доходы/Расходы (₽)", side="left"),
+    yaxis2=dict(title="Баланс (₽)", side="right", overlaying="y")
+)
+
+# hovermode unified
+fig.update_layout(hovermode="x unified")
+
+# Hover template с customdata
+hovertemplate=(
+    "<b>%{customdata[0]}</b><br>"
+    "Доходы: %{customdata[1]}<br>"
+    "Расходы: %{customdata[2]}<br>"
+    "Баланс: %{customdata[3]}<extra></extra>"
+)
+
+# Pattern-Matching ID для клика
+customdata=[...], ids={"type": "cashflow-bar", "date": date.isoformat()}
+```
+
 **Интеграция**:
-- DashboardService для данных
+- DashboardService для данных (get_daily_cashflow, get_yearly_cashflow)
 - CalendarService для балансов
 - GoalService для savings (агрегация по всем ACTIVE целям)
 - format_rub() для форматирования всех денежных сумм
+- transaction_modals.py — preselection Store Pattern
 
-**Критичные изменения** (протокол 0021):
+**Критичные изменения** (протокол 0021-0022):
 - Новый формат денег: $X,XXX.XX → X XXX ₽ (глобально)
 - CSS-переменные: --color-primary (#2ecc71), --color-secondary (#e74c3c)
 - AI Assistant/Exchange скрыты, НЕ удалены (будущий Epic-08)
+- **_load_dashboard_components() helper** — устраняет дублирование между load и refresh callbacks
+- **Единый Graph ID "daily-cashflow-chart"** — переиспользуется для Month и Year режимов
+- **Preselection Store Pattern** — для передачи даты в create-modal из chart click
 
 ## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
 

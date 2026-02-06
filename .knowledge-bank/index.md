@@ -5,9 +5,9 @@
 
 **Уникальная ценность**: Кассовое планирование с прогнозом остатков по дням + автоматическое распределение бюджета между множественными накопительными целями с приоритетами.
 
-**Статус**: Epic-05-UI (Dashboard UI Redesign) в процессе, Батч 5.1 завершён (протокол 0021)
+**Статус**: Epic-05-UI (Dashboard UI Redesign) в процессе, Батч 5.2 завершён (протокол 0022)
 
-**Последнее обновление**: 2026-02-06 (после протокола 0021, 492 теста)
+**Последнее обновление**: 2026-02-06 (после протокола 0022, 508 тестов)
 
 ## Быстрые ссылки на разделы
 
@@ -29,6 +29,10 @@
 - [modules/routing.md] - URL-based routing, display_page callback
 - [modules/schema.md] - TypedDicts для типизации (app/schema/)
 - [modules/utils.md] - Утилиты форматирования и сериализации (app/utils/)
+
+### Паттерны разработки (NEW, протокол 0022)
+- [patterns/plotly-charts.md] - Plotly chart patterns: dual Y-axis, unified hover, markers, clickable bars, status colors
+- [patterns/callbacks.md] - Dash callback patterns: helper functions, ADR-003 guards, stores, preselection, selective refresh
 
 ### Процессы и инструменты
 - [testing.md] - pytest, coverage, QA workflow
@@ -87,10 +91,15 @@
   - ✅ Типографика по спецификации (9 новых классов)
   - ✅ 10 unit тестов formatters + 2 обновленных calendar
   - ✅ 492 теста pass (1 pre-existing failure в allocation precision)
-- [ ] Батч 5.2: Дневной график (ядро)
-  - DashboardService.get_daily_cashflow() — дневные данные
-  - Plotly: grouped bars + линия баланса + маркер минимума
-  - Hover tooltip, клик → модал, переключатель Month/Year
+- [x] ✅ Батч 5.2: Дневной график (ядро) (протокол 0022, 2026-02-06)
+  - ✅ DashboardService.get_daily_cashflow() + get_yearly_cashflow() — дневные/годовые данные
+  - ✅ CalendarService.get_recurring_income_expense_by_day() — публичный API
+  - ✅ Plotly: grouped bars + линия баланса + diamond маркер минимума + today line + current month highlight
+  - ✅ Hover tooltip (hovermode="x unified"), клик по bar → модал (только Month mode)
+  - ✅ Переключатель Month/Year через Period Store Pattern
+  - ✅ _load_dashboard_components() helper для устранения дублирования
+  - ✅ 16 unit тестов (12 daily + 4 yearly), 508 тестов pass
+  - ✅ Patterns documentation: plotly-charts.md, callbacks.md
 - [ ] Батч 5.3: Layout — операции + правая колонна + sidebar
   - Split "Недавние/Предстоящие" 50/50
   - Wishlist + Safety Cushion в правую колонну
@@ -99,7 +108,7 @@
   - Пустые состояния
 
 **Ближайшие задачи**:
-1. Запустить Батч 5.2 (дневной график кассового календаря)
+1. Запустить Батч 5.3 (Layout — операции + правая колонна + sidebar)
 2. После Epic-05: Импорт операций из банков (Backlog)
 3. Уведомления и напоминания (Backlog)
 
@@ -174,22 +183,25 @@ memory-bank/
 ├── architecture.md       # Архитектура системы (КРИТИЧНО)
 ├── tech-stack.md         # Технологический стек (КРИТИЧНО)
 ├── code-style.md         # Стандарты кода (КРИТИЧНО)
-├── features.md           # Обзор функциональности (NEW)
-├── protocols.md          # История протоколов 0002-0011 (NEW)
+├── features.md           # Обзор функциональности
+├── protocols.md          # История протоколов 0002-0011
 ├── testing.md            # Стратегия тестирования
 ├── deployment.md         # Запуск и деплоймент
-└── modules/              # Модули системы (краткие)
-    ├── database.md       # ORM модели
-    ├── services.md       # Бизнес-логика
-    ├── ui-components.md  # UI компоненты
-    ├── routing.md        # Система роутинга
-    ├── schema.md         # TypedDicts
-    └── utils.md          # Утилиты
+├── modules/              # Модули системы (краткие)
+│   ├── database.md       # ORM модели
+│   ├── services.md       # Бизнес-логика
+│   ├── ui-components.md  # UI компоненты
+│   ├── routing.md        # Система роутинга
+│   ├── schema.md         # TypedDicts
+│   └── utils.md          # Утилиты
+└── patterns/             # Паттерны разработки (NEW, протокол 0022)
+    ├── plotly-charts.md  # Plotly chart patterns
+    └── callbacks.md      # Dash callback patterns
 ```
 
 ---
 
-**Версия Memory Bank**: 3.8
+**Версия Memory Bank**: 3.9
 **Дата создания**: 2026-01-17
-**Последнее обновление**: 2026-02-06 (после протокола 0021: Dashboard Foundation — format_rub, CSS vars, KPI cards)
+**Последнее обновление**: 2026-02-06 (после протокола 0022: Daily Cashflow Chart — DashboardService, CalendarService API, Plotly patterns, callback patterns)
 **GitHub**: https://github.com/SkyTger/FinFocus

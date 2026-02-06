@@ -140,6 +140,84 @@ class RedistributionEvent(TypedDict):
 - `app/utils/serializers.py` — serialize/deserialize для RedistributionPreview
 - `tests/` — для типизации тестовых данных
 
+## TypedDicts для Dashboard (Протокол 0022)
+
+### BalanceStatus
+Status классификатор для баланса.
+
+```python
+BalanceStatus = Literal["ok", "attention", "risk"]
+
+# Константы порогов
+BALANCE_RISK_THRESHOLD = Decimal("5000")      # Критичный порог
+BALANCE_ATTENTION_THRESHOLD = Decimal("15000") # Порог предупреждения
+```
+
+### DailyCashflowData
+Данные одного дня для дневного графика.
+
+```python
+class DailyBalancePoint(TypedDict):
+    date: str              # ISO format
+    balance: str           # Decimal as string
+    status: BalanceStatus  # "ok" | "attention" | "risk"
+
+class DailyCashflow(TypedDict):
+    date: str              # ISO format
+    income: str            # Decimal as string
+    expense: str           # Decimal as string
+    balance_point: DailyBalancePoint
+```
+
+### MonthlyCashflowData
+Агрегированные данные месяца для графика.
+
+```python
+class MonthlyCashflowData(TypedDict):
+    month: str                          # "2026-02"
+    month_label: str                    # "Фев"
+    daily_cashflow: list[DailyCashflow] # Дневные данные
+    start_balance: str                  # Decimal as string
+    end_balance: str                    # Decimal as string
+    min_balance: str                    # Decimal as string
+    min_balance_date: str               # ISO format
+    total_income: str                   # Decimal as string
+    total_expense: str                  # Decimal as string
+```
+
+**Использование**: Возвращается DashboardService.get_daily_cashflow()
+
+### YearlyCashflowData
+Агрегированные данные года для графика.
+
+```python
+class MonthlyCashflow(TypedDict):
+    month: str           # "2026-02"
+    month_label: str     # "Фев"
+    income: str          # Decimal as string (month total)
+    expense: str         # Decimal as string (month total)
+    end_balance: str     # Decimal as string (EOM balance)
+    status: BalanceStatus
+
+class YearlyCashflowData(TypedDict):
+    year: int
+    monthly_data: list[MonthlyCashflow]  # 12 месяцев
+    start_balance: str                   # Decimal as string (Jan 1)
+    end_balance: str                     # Decimal as string (Dec 31)
+    min_balance: str                     # Decimal as string (year minimum)
+    min_balance_date: str                # ISO format
+    total_income: str                    # Decimal as string
+    total_expense: str                   # Decimal as string
+```
+
+**Использование**: Возвращается DashboardService.get_yearly_cashflow()
+
+**Критичные детали**:
+- **BalanceStatus классификация**: ok (≥ 15000), attention (5000-15000), risk (< 5000)
+- **min_balance tracking**: для маркера минимума на графике
+- **end_balance**: для Year mode — баланс на конец месяца (EOM)
+- **Decimal serialization**: все денежные суммы → string для JSON
+
 ## Критичные решения
 
 **Протокол 0006**: Централизация TypedDicts в отдельном модуле для DRY
@@ -148,8 +226,10 @@ class RedistributionEvent(TypedDict):
 
 **Протокол 0008**: Добавлены RedistributionPreview и RedistributionEvent для перераспределения бюджета
 
+**Протокол 0022**: Добавлены Dashboard TypedDicts для дневного/годового cashflow графика
+
 **Serialization**: Decimal → str через `app/utils/serializers.py` для JSON-совместимости
 
 ---
 
-Детали: `services.md` (AllocationService, RedistributionService), `ui-components.md` (Goals Component), `utils.md` (Serializers)
+Детали: `services.md` (DashboardService, AllocationService, RedistributionService), `ui-components.md` (Dashboard Component, Goals Component), `utils.md` (Serializers)
