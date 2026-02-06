@@ -1,17 +1,18 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Epic-05-UI Dashboard Redesign — In Progress
+## 📊 Общий статус проекта: Epic-05-UI Dashboard Redesign — COMPLETED
 
 **Последнее обновление**: 2026/02/06
-**Статус**: 🔄 Epic-05-UI в процессе (Батч 5.1, 5.2 завершены, 5.3 в разработке)
-**Прогресс Epic-05**: 2/3 батчей завершено (67%)
+**Статус**: ✅ Epic-05-UI завершён (Батч 5.1, 5.2, 5.3 все завершены)
+**Прогресс Epic-05**: 3/3 батчей завершено (100%)
 **GitHub**: https://github.com/SkyTger/FinFocus
 
 ---
 
-## 🔄 Epic-05-UI: Dashboard UI Redesign — IN PROGRESS
+## ✅ Epic-05-UI: Dashboard UI Redesign — COMPLETED
 
 **Дата старта**: 2026/02/05
+**Дата завершения**: 2026/02/06
 **Спецификация**: `.reports/epics/epic-05-ui/dashboard_ui_spec.md`
 **План**: `.reports/epics/epic-05-ui/plan.md`
 
@@ -21,7 +22,7 @@
 ### Батчи:
 - ✅ Батч 5.1: Фундамент (цвета + формат ₽ + KPI) — завершён 2026/02/06, PR #21
 - ✅ Батч 5.2: Дневной график (ядро) — завершён 2026/02/06, PR #22
-- ⏳ Батч 5.3: Layout (операции + правая колонна + sidebar) — следующий
+- ✅ Батч 5.3: Layout (операции + правая колонна + sidebar) — завершён 2026/02/06, PR #23
 
 ### Ключевые решения:
 1. Тёмная тема — откладывается (Epic-06)
@@ -211,12 +212,120 @@
 
 ### 🚀 Следующие шаги:
 
-**Батч 5.3: Layout & Sidebar**:
-- Split таблиц операций (Недавние/Предстоящие 50/50)
-- Wishlist + Safety Cushion в правую колонну
-- Sidebar как card-контейнер
-- Модал "Сверка" на Dashboard
-- Пустые состояния
+**Epic-06: Dark Theme**:
+- Тёмная тема по спецификации dashboard_ui_spec.md секция 2
+
+**Epic-07: Mobile Responsive**:
+- Полная адаптивность < 576px
+
+---
+
+## ✅ Батч 18: Dashboard Layout Redesign (2026-02-06) — MERGED
+
+**Дата**: 2026/02/06
+**Протокол**: 0023-dashboard-layout
+**PR**: https://github.com/SkyTger/FinFocus/pull/23
+**Статус**: ✅ Merged в main (commit a0ece8c + b4e6000)
+
+### 🎯 Цель батча:
+Финальная перестройка Dashboard layout: split таблиц операций 50/50, правая колонна с Wishlist + Cushion, sidebar в card, глобализация reconciliation modal, пустые состояния.
+
+### ✅ Выполненные задачи:
+
+1. **Formatters + DashboardService** (Step 01)
+   - format_date_human() — "5 февраля" для операций
+   - MONTH_NAMES_RU_GENITIVE константа
+   - is_recurring_instance: bool в RecentTransaction TypedDict
+   - get_recent_transactions() рефакторинг: reference_date параметр, month range filter (1-го числа..reference_date)
+   - get_upcoming_transactions() NEW: операции после reference_date, ASC sort
+   - _map_transactions() helper для устранения дублирования
+   - 12 unit тестов: 3 formatter + 3 recent refactor + 6 upcoming
+   - 57 тестов DashboardService (13 старых + 44 новых)
+
+2. **Reconciliation глобализация** (Step 02)
+   - calendar.py: удалён calendar-refresh-trigger, удалён create_reconciliation_modal() из layout
+   - calendar.py: apply_reconciliation() Output global-transaction-trigger (allow_duplicate), return data с source/action
+   - main.py: create_reconciliation_modal() перенесён в app.layout после wishlist modal
+   - dashboard.py: KPI recon_button dcc.Link→dbc.Button(id="open-recon-from-dashboard-btn")
+   - dashboard.py: Banner button с ID="open-recon-from-dashboard-banner-btn"
+   - dashboard.py: open_recon_from_dashboard() callback — 2 Inputs → Output open-recon-trigger
+
+3. **Dashboard UI rebuild** (Step 03)
+   - _build_empty_state() — icon, message, button_id для CTA
+   - _build_transactions_split_table() — format_date_human, 🔁 для recurring, ссылка "Все операции"
+   - _build_cushion_card_readonly() — CushionService.get_settings(), readonly прогресс-бар, link→/goals
+   - create_dashboard_layout() перестроен: 8/4 split, recent/upcoming 50/50, cushion + wishlist правая колонна
+   - _load_dashboard_components() расширен: +get_upcoming_transactions(), +cushion, 6 outputs
+   - open_create_from_empty() callback — 2 Inputs (empty buttons) → create-modal
+   - Import CushionService + format_date_human
+
+4. **Sidebar + Transactions** (Step 04)
+   - sidebar.py: dbc.Card(className="sidebar-card h-100"), MAIN_NAV_ITEMS + ADDITIONAL_NAV_ITEMS константы
+   - sidebar.py: _build_nav_links() helper, highlight_active_sidebar() callback — url.pathname → sidebar-nav.children
+   - sidebar.css: НОВЫЙ файл — .sidebar-card, .sidebar-nav-item-active (border-left 4px green)
+   - transactions.py: apply_url_date_filter() callback — url.search → filter-date-range dates (parse_qs + date.fromisoformat)
+
+5. **Финализация** (Step 05)
+   - CSS: .empty-state, .dashboard-split-table в custom.css
+   - Black: 3 файла переформатированы (calendar, dashboard, dashboard_service)
+   - Flake8: 2 F841 исправлены (start_param, end_param unused)
+   - Pytest: 520 passed, 1 failed (pre-existing precision issue)
+   - PR создан как draft
+
+### 📊 Результат:
+- ✅ 520 unit и integration тестов (было 508, +12 новых: 3 formatters + 9 dashboard_service)
+- ✅ format_date_human() — человекочитаемые даты в операциях
+- ✅ get_upcoming_transactions() — предстоящие операции (от reference_date до конца месяца)
+- ✅ Reconciliation modal глобализация — доступ с Dashboard и Calendar
+- ✅ Dashboard layout 8/4 — split tables 50/50, cushion + wishlist в правой колонне
+- ✅ Sidebar card с active highlight callback
+- ✅ Transactions URL query params — ?start=&end=
+- ✅ Empty states с CTA кнопками
+- ✅ Black + Flake8 OK (2 F841 исправлены, остальные E501 pre-existing)
+
+### 💡 Ключевые решения:
+
+1. **Reconciliation globalization через global-transaction-trigger** — календарь теряет calendar-refresh-trigger, замена на global trigger
+2. **Split tables на reference_date** — get_recent (ДО today), get_upcoming (ОТ today)
+3. **format_date_human()** — "5 февраля" вместо "05.02.2026" для лучшей читабельности
+4. **_map_transactions() helper** — устранение дублирования маппинга между recent и upcoming
+5. **Sidebar card без main.py рефакторинга** — обёртка в Card, callback для active highlight (не затрагивает routing)
+6. **Readonly cushion на Dashboard** — CushionService.get_settings(), link→/goals (без дублирования ID)
+7. **Empty states с CTA** — кнопки "Добавить" открывают create-modal
+8. **Layout 8/4 не 9/3** — оптимально для wishlist widget width
+
+### 🔧 Технические детали:
+
+**Новые функции:**
+- `format_date_human()` в formatters.py (~20 строк)
+- `get_upcoming_transactions()` в dashboard_service.py (~40 строк)
+- `_map_transactions()` helper в dashboard_service.py (~15 строк)
+- `_build_empty_state()` в dashboard.py (~10 строк)
+- `_build_transactions_split_table()` в dashboard.py (~80 строк)
+- `_build_cushion_card_readonly()` в dashboard.py (~50 строк)
+- `highlight_active_sidebar()` callback в sidebar.py (~30 строк)
+- `apply_url_date_filter()` callback в transactions.py (~20 строк)
+
+**Модифицированные файлы:**
+- `app/utils/formatters.py` — +format_date_human() (~100 строк total)
+- `app/services/dashboard_service.py` — +get_upcoming_transactions(), рефакторинг get_recent_transactions (~700 строк total)
+- `app/components/dashboard.py` — layout rebuild, +3 build functions, +2 callbacks (~1100 строк total)
+- `app/components/calendar.py` — reconciliation globalization (~820 строк total)
+- `app/components/sidebar.py` — card wrap, +callback (~130 строк total)
+- `app/components/transactions.py` — +URL query params callback
+- `app/main.py` — reconciliation modal перенесён
+- `app/assets/custom.css` — +.empty-state, +.dashboard-split-table
+- `app/assets/sidebar.css` — НОВЫЙ файл (~50 строк)
+- `tests/test_formatters.py` — +3 теста (format_date_human)
+- `tests/test_dashboard_service.py` — +9 тестов (3 recent refactor + 6 upcoming)
+
+### 🚀 Следующие шаги:
+
+**Epic-06: Dark Theme**:
+- Тёмная тема по спецификации dashboard_ui_spec.md секция 2
+
+**Epic-07: Mobile Responsive**:
+- Полная адаптивность < 576px
 
 ---
 
