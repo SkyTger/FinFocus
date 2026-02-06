@@ -1521,10 +1521,7 @@ def apply_reconciliation(
                 )
 
             adj_fmt = format_rub(adjustment.amount, show_sign=True)
-            logger.info(
-                f"Создана корректировка: {adj_fmt} "
-                f"на {target_date}"
-            )
+            logger.info(f"Создана корректировка: {adj_fmt} " f"на {target_date}")
             return (
                 dbc.Alert(
                     f"Корректировка на {adj_fmt} создана",
@@ -1543,5 +1540,3 @@ def apply_reconciliation(
     except Exception as e:
         logger.error(f"Ошибка создания корректировки: {e}")
         return dbc.Alert(f"Ошибка: {e}", color="danger"), True, no_update
-
-

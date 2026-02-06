@@ -432,9 +432,7 @@ class DashboardService:
             reference_date = date.today()
 
         _, last_day_num = monthrange(reference_date.year, reference_date.month)
-        end_of_month = date(
-            reference_date.year, reference_date.month, last_day_num
-        )
+        end_of_month = date(reference_date.year, reference_date.month, last_day_num)
 
         transactions = (
             self.session.query(Transaction)

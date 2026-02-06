@@ -116,15 +116,11 @@ def create_dashboard_layout():
                             dbc.Row(
                                 [
                                     dbc.Col(
-                                        html.Div(
-                                            id="dashboard-recent-transactions"
-                                        ),
+                                        html.Div(id="dashboard-recent-transactions"),
                                         md=6,
                                     ),
                                     dbc.Col(
-                                        html.Div(
-                                            id="dashboard-upcoming-transactions"
-                                        ),
+                                        html.Div(id="dashboard-upcoming-transactions"),
                                         md=6,
                                     ),
                                 ],
@@ -380,9 +376,7 @@ def _build_cushion_card_readonly(user_id: int) -> dbc.Card:
     except Exception as e:
         logger.error(f"Ошибка загрузки подушки: {e}")
         return dbc.Card(
-            dbc.CardBody(
-                html.P("Ошибка загрузки", className="text-muted small")
-            ),
+            dbc.CardBody(html.P("Ошибка загрузки", className="text-muted small")),
             className="shadow-sm",
         )
 
@@ -1292,10 +1286,6 @@ def _load_dashboard_components(
 
     cards = build_overview_cards(metrics, period)
     stats = build_statistics_card(metrics, period)
-
-    # Query params для ссылок
-    start_param = f"{year}-{month:02d}-01"
-    end_param = f"{year}-{month:02d}-28"  # Приблизительно
 
     recent = _build_transactions_split_table(
         transactions=recent_transactions,
