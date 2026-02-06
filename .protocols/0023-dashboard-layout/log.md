@@ -41,3 +41,14 @@ Restore context: protocol-0023#ctx-1
 - dashboard.py: новый callback open_recon_from_dashboard() — 2 Inputs → Output open-recon-trigger (timestamp)
 - dashboard.py: type hint dcc.Link → dbc.Button в _build_kpi_card()
 - Все 3 файла: py_compile OK
+
+### Step 03 — Dashboard UI rebuild (commit: pending)
+- Новая функция _build_empty_state(): icon, message, button_id
+- Новая функция _build_transactions_split_table(): format_date_human, recurring icon 🔁, без "Completed" бейджей, ссылка "Все операции"
+- Новая функция _build_cushion_card_readonly(): CushionService.get_settings(), readonly прогресс-бар, link→/goals
+- create_dashboard_layout() перестроен: split 8/4, split tables 50/50, cushion + stats в правой колонке
+- _load_dashboard_components() расширен: +get_upcoming_transactions(), +cushion card, 6 outputs
+- load_dashboard_data и refresh_dashboard_after_crud: 6 Outputs
+- Новый callback open_create_from_empty(): 2 Inputs (empty-recent-add-btn, empty-upcoming-add-btn) → create-modal
+- Import CushionService + format_date_human
+- py_compile OK
