@@ -1006,11 +1006,6 @@ def _load_dashboard_components(
             )
             chart = _build_yearly_cashflow_chart(yearly_data)
 
-        # Старый cashflow для статистики (совместимость)
-        cashflow_data = service.get_cashflow_data(
-            user_id=DEFAULT_USER_ID,
-            period=period,
-        )
         recent_transactions = service.get_recent_transactions(
             user_id=DEFAULT_USER_ID,
             limit=5,

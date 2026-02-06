@@ -528,20 +528,22 @@ class TestGetDailyCashflow:
 
     def test_basic_income_expense(self, db_session, test_user):
         """Базовый тест: income + expense отображаются в daily list."""
-        db_session.add_all([
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("5000"),
-                transaction_type=TransactionType.INCOME,
-                transaction_date=date(2026, 1, 10),
-            ),
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("2000"),
-                transaction_type=TransactionType.EXPENSE,
-                transaction_date=date(2026, 1, 15),
-            ),
-        ])
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("5000"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 1, 10),
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("2000"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=date(2026, 1, 15),
+                ),
+            ]
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -571,12 +573,14 @@ class TestGetDailyCashflow:
 
     def test_negative_balance_risk_status(self, db_session, test_user):
         """Баланс < 0 → min_balance_point.status == 'risk'."""
-        db_session.add(Transaction(
-            user_id=test_user.id,
-            amount=Decimal("15000"),
-            transaction_type=TransactionType.EXPENSE,
-            transaction_date=date(2026, 1, 5),
-        ))
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("15000"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 1, 5),
+            )
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -589,12 +593,14 @@ class TestGetDailyCashflow:
     def test_attention_balance_status(self, db_session, test_user):
         """0 < balance < 5000 → status == 'attention'."""
         # starting_balance = 10000, расход 7000 → balance = 3000
-        db_session.add(Transaction(
-            user_id=test_user.id,
-            amount=Decimal("7000"),
-            transaction_type=TransactionType.EXPENSE,
-            transaction_date=date(2026, 1, 5),
-        ))
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("7000"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 1, 5),
+            )
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -613,20 +619,22 @@ class TestGetDailyCashflow:
 
     def test_min_balance_in_middle(self, db_session, test_user):
         """Минимум в середине месяца (не в конце)."""
-        db_session.add_all([
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("9000"),
-                transaction_type=TransactionType.EXPENSE,
-                transaction_date=date(2026, 1, 15),
-            ),
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("20000"),
-                transaction_type=TransactionType.INCOME,
-                transaction_date=date(2026, 1, 20),
-            ),
-        ])
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("9000"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=date(2026, 1, 15),
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("20000"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 1, 20),
+                ),
+            ]
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -639,20 +647,22 @@ class TestGetDailyCashflow:
 
     def test_running_balance_cumulative(self, db_session, test_user):
         """Кумулятивность: balance дня = balance предыдущего + change."""
-        db_session.add_all([
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("1000"),
-                transaction_type=TransactionType.INCOME,
-                transaction_date=date(2026, 1, 1),
-            ),
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("500"),
-                transaction_type=TransactionType.EXPENSE,
-                transaction_date=date(2026, 1, 2),
-            ),
-        ])
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("1000"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 1, 1),
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("500"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=date(2026, 1, 2),
+                ),
+            ]
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -667,12 +677,14 @@ class TestGetDailyCashflow:
 
     def test_adjustment_positive_as_income(self, db_session, test_user):
         """ADJUSTMENT amount > 0 → income bar."""
-        db_session.add(Transaction(
-            user_id=test_user.id,
-            amount=Decimal("800"),
-            transaction_type=TransactionType.ADJUSTMENT,
-            transaction_date=date(2026, 1, 10),
-        ))
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("800"),
+                transaction_type=TransactionType.ADJUSTMENT,
+                transaction_date=date(2026, 1, 10),
+            )
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -684,12 +696,14 @@ class TestGetDailyCashflow:
 
     def test_adjustment_negative_as_expense(self, db_session, test_user):
         """ADJUSTMENT amount < 0 → expense bar (abs)."""
-        db_session.add(Transaction(
-            user_id=test_user.id,
-            amount=Decimal("-600"),
-            transaction_type=TransactionType.ADJUSTMENT,
-            transaction_date=date(2026, 1, 10),
-        ))
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("-600"),
+                transaction_type=TransactionType.ADJUSTMENT,
+                transaction_date=date(2026, 1, 10),
+            )
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -701,12 +715,14 @@ class TestGetDailyCashflow:
 
     def test_transfer_not_counted(self, db_session, test_user):
         """TRANSFER не появляется ни в income, ни в expense."""
-        db_session.add(Transaction(
-            user_id=test_user.id,
-            amount=Decimal("3000"),
-            transaction_type=TransactionType.TRANSFER,
-            transaction_date=date(2026, 1, 10),
-        ))
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("3000"),
+                transaction_type=TransactionType.TRANSFER,
+                transaction_date=date(2026, 1, 10),
+            )
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -718,12 +734,14 @@ class TestGetDailyCashflow:
 
     def test_savings_reserve_as_expense(self, db_session, test_user):
         """SAVINGS_RESERVE → expense."""
-        db_session.add(Transaction(
-            user_id=test_user.id,
-            amount=Decimal("5000"),
-            transaction_type=TransactionType.SAVINGS_RESERVE,
-            transaction_date=date(2026, 1, 10),
-        ))
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("5000"),
+                transaction_type=TransactionType.SAVINGS_RESERVE,
+                transaction_date=date(2026, 1, 10),
+            )
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -735,12 +753,14 @@ class TestGetDailyCashflow:
 
     def test_savings_contribution_as_expense(self, db_session, test_user):
         """SAVINGS_CONTRIBUTION → expense."""
-        db_session.add(Transaction(
-            user_id=test_user.id,
-            amount=Decimal("2000"),
-            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
-            transaction_date=date(2026, 1, 10),
-        ))
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("2000"),
+                transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+                transaction_date=date(2026, 1, 10),
+            )
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -765,26 +785,28 @@ class TestGetYearlyCashflow:
 
     def test_monthly_income_expense(self, db_session, test_user):
         """Корректная агрегация income/expense за месяц."""
-        db_session.add_all([
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("10000"),
-                transaction_type=TransactionType.INCOME,
-                transaction_date=date(2026, 3, 5),
-            ),
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("5000"),
-                transaction_type=TransactionType.INCOME,
-                transaction_date=date(2026, 3, 20),
-            ),
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("3000"),
-                transaction_type=TransactionType.EXPENSE,
-                transaction_date=date(2026, 3, 15),
-            ),
-        ])
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("10000"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 3, 5),
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("5000"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 3, 20),
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("3000"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=date(2026, 3, 15),
+                ),
+            ]
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -799,12 +821,14 @@ class TestGetYearlyCashflow:
         """end_balance совпадает с CalendarService balance на конец месяца."""
         from app.services.calendar_service import CalendarService
 
-        db_session.add(Transaction(
-            user_id=test_user.id,
-            amount=Decimal("5000"),
-            transaction_type=TransactionType.INCOME,
-            transaction_date=date(2026, 1, 15),
-        ))
+        db_session.add(
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("5000"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 15),
+            )
+        )
         db_session.commit()
 
         service = DashboardService(db_session)
@@ -818,21 +842,23 @@ class TestGetYearlyCashflow:
     def test_min_balance_year(self, db_session, test_user):
         """Минимум года определяется правильно."""
         # Большой расход в марте → минимум end_balance
-        db_session.add_all([
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("8000"),
-                transaction_type=TransactionType.EXPENSE,
-                transaction_date=date(2026, 3, 10),
-            ),
-            # Восстановление в апреле
-            Transaction(
-                user_id=test_user.id,
-                amount=Decimal("30000"),
-                transaction_type=TransactionType.INCOME,
-                transaction_date=date(2026, 4, 1),
-            ),
-        ])
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("8000"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=date(2026, 3, 10),
+                ),
+                # Восстановление в апреле
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("30000"),
+                    transaction_type=TransactionType.INCOME,
+                    transaction_date=date(2026, 4, 1),
+                ),
+            ]
+        )
         db_session.commit()
 
         service = DashboardService(db_session)

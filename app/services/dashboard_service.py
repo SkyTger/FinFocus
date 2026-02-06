@@ -1,7 +1,6 @@
 """Сервис для агрегации данных дашборда."""
 
 from calendar import monthrange
-from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal, TypedDict
@@ -41,6 +40,7 @@ def _classify_balance_status(balance: Decimal) -> BalanceStatus:
     elif balance < BALANCE_ATTENTION_THRESHOLD:
         return "attention"
     return "ok"
+
 
 MONTH_NAMES_RU_SHORT = {
     1: "Янв",
@@ -437,8 +437,10 @@ class DashboardService:
                                 Transaction.amount,
                             ),
                             (
-                                (Transaction.transaction_type
-                                 == TransactionType.ADJUSTMENT)
+                                (
+                                    Transaction.transaction_type
+                                    == TransactionType.ADJUSTMENT
+                                )
                                 & (Transaction.amount > 0),
                                 Transaction.amount,
                             ),
@@ -465,8 +467,10 @@ class DashboardService:
                                 Transaction.amount,
                             ),
                             (
-                                (Transaction.transaction_type
-                                 == TransactionType.ADJUSTMENT)
+                                (
+                                    Transaction.transaction_type
+                                    == TransactionType.ADJUSTMENT
+                                )
                                 & (Transaction.amount < 0),
                                 func.abs(Transaction.amount),
                             ),
@@ -543,12 +547,8 @@ class DashboardService:
 
         current = first_day
         while current <= last_day:
-            reg_inc, reg_exp = regular.get(
-                current, (Decimal("0"), Decimal("0"))
-            )
-            rec_inc, rec_exp = recurring.get(
-                current, (Decimal("0"), Decimal("0"))
-            )
+            reg_inc, reg_exp = regular.get(current, (Decimal("0"), Decimal("0")))
+            rec_inc, rec_exp = recurring.get(current, (Decimal("0"), Decimal("0")))
             day_income = reg_inc + rec_inc
             day_expense = reg_exp + rec_exp
             day_balance = balances.get(current, Decimal("0"))
@@ -651,12 +651,10 @@ class DashboardService:
 
             # Regular + recurring income/expense
             reg_inc, reg_exp = self._get_monthly_income_expense(user_id, year, m)
-            rec_inc, rec_exp = (
-                self._calendar_service._get_recurring_totals_for_period(
-                    user_id,
-                    date(year, m, 1),
-                    month_last_day,
-                )
+            rec_inc, rec_exp = self._calendar_service._get_recurring_totals_for_period(
+                user_id,
+                date(year, m, 1),
+                month_last_day,
             )
 
             month_income = reg_inc + rec_inc
