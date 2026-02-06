@@ -15,12 +15,21 @@ from app.services import (
     CashflowDataPoint,
     RecentTransaction,
 )
+from app.services.dashboard_service import MONTH_NAMES_RU_SHORT
 from app.services.onboarding_service import OnboardingService
+from app.schema.dashboard import MonthlyCashflowData, YearlyCashflowData
+from datetime import date
 from decimal import Decimal
 
 from app.utils.formatters import format_rub
 
 DEFAULT_USER_ID = 1
+
+STATUS_COLORS: dict[str, str] = {
+    "ok": "#27ae60",
+    "attention": "#f39c12",
+    "risk": "#c0152f",
+}
 
 
 # =============================================================================
@@ -626,6 +635,395 @@ def build_recent_transactions_card(
 
 
 # =============================================================================
+# Daily / Yearly Cashflow Charts
+# =============================================================================
+
+
+def _build_daily_cashflow_chart(data: MonthlyCashflowData) -> dbc.Card:
+    """Создает дневной график cashflow (Month mode).
+
+    Grouped bars (income/expense) + линия баланса + маркер минимума.
+    Dual Y-axis: левая — bars, правая — balance line.
+
+    Args:
+        data: Данные из DashboardService.get_daily_cashflow()
+
+    Returns:
+        dbc.Card с графиком Plotly
+    """
+    days = [d["date"].day for d in data["daily"]]
+    incomes = [float(d["income"]) for d in data["daily"]]
+    expenses = [float(d["expense"]) for d in data["daily"]]
+    balances = [float(d["balance"]) for d in data["daily"]]
+
+    # Customdata для hover: [income, expense, balance] formatted
+    customdata = [
+        [format_rub(d["income"]), format_rub(d["expense"]), format_rub(d["balance"])]
+        for d in data["daily"]
+    ]
+
+    fig = go.Figure()
+
+    # Income bars
+    fig.add_trace(
+        go.Bar(
+            x=days,
+            y=incomes,
+            name="Доходы",
+            marker_color="#27ae60",
+            opacity=0.8,
+            customdata=[c[0] for c in customdata],
+            hovertemplate="Доход: %{customdata}<extra></extra>",
+        )
+    )
+
+    # Expense bars
+    fig.add_trace(
+        go.Bar(
+            x=days,
+            y=expenses,
+            name="Расходы",
+            marker_color="#e74c3c",
+            opacity=0.8,
+            customdata=[c[1] for c in customdata],
+            hovertemplate="Расход: %{customdata}<extra></extra>",
+        )
+    )
+
+    # Balance line (secondary Y-axis)
+    min_point = data["min_balance_point"]
+    line_color = STATUS_COLORS.get(min_point["status"], "#27ae60")
+
+    fig.add_trace(
+        go.Scatter(
+            x=days,
+            y=balances,
+            name="Баланс",
+            mode="lines+markers",
+            line=dict(color=line_color, width=2.5),
+            marker=dict(size=4, color=line_color),
+            yaxis="y2",
+            customdata=[c[2] for c in customdata],
+            hovertemplate="Баланс: %{customdata}<extra></extra>",
+        )
+    )
+
+    # Min balance marker (diamond)
+    min_day = min_point["date"].day
+    min_bal = float(min_point["balance"])
+    min_text = f"Мин: {min_day}, {format_rub(min_point['balance'])}"
+    marker_color = STATUS_COLORS.get(min_point["status"], "#27ae60")
+
+    fig.add_trace(
+        go.Scatter(
+            x=[min_day],
+            y=[min_bal],
+            mode="markers+text",
+            marker=dict(
+                symbol="diamond",
+                size=12,
+                color=marker_color,
+                line=dict(width=2, color="white"),
+            ),
+            text=[min_text],
+            textposition="top center",
+            textfont=dict(size=10, color=marker_color),
+            showlegend=False,
+            yaxis="y2",
+            hoverinfo="skip",
+        )
+    )
+
+    # Today vertical dashed line
+    today = data["current_date"]
+    today_day = today.day
+    # Проверяем что today_day в диапазоне месяца
+    if days and days[0] <= today_day <= days[-1]:
+        fig.add_shape(
+            type="line",
+            x0=today_day,
+            x1=today_day,
+            y0=0,
+            y1=1,
+            yref="paper",
+            line=dict(color="#3498db", width=1.5, dash="dash"),
+        )
+
+    fig.update_layout(
+        barmode="group",
+        height=350,
+        margin=dict(l=40, r=40, t=30, b=30),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        hovermode="x unified",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        xaxis=dict(
+            tickvals=[1, 8, 15, 22, 29],
+            showgrid=False,
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="rgba(0,0,0,0.1)",
+            title=None,
+        ),
+        yaxis2=dict(
+            overlaying="y",
+            side="right",
+            showgrid=False,
+            title=None,
+        ),
+    )
+
+    return dbc.Card(
+        dbc.CardBody(
+            [
+                html.H5("Кассовый календарь", className="card-title mb-3"),
+                dcc.Graph(
+                    id="daily-cashflow-chart",
+                    figure=fig,
+                    config={"displayModeBar": False},
+                ),
+            ]
+        ),
+        className="shadow-sm",
+    )
+
+
+def _build_yearly_cashflow_chart(data: YearlyCashflowData) -> dbc.Card:
+    """Создает годовой график cashflow (Year mode).
+
+    Grouped bars (income/expense) + линия end_balance + маркер минимума.
+    X-ось: месяцы (Янв..Дек). Current month highlighted.
+
+    Args:
+        data: Данные из DashboardService.get_yearly_cashflow()
+
+    Returns:
+        dbc.Card с графиком Plotly
+    """
+    labels = [m["label"] for m in data["monthly"]]
+    incomes = [float(m["income"]) for m in data["monthly"]]
+    expenses = [float(m["expense"]) for m in data["monthly"]]
+    end_balances = [float(m["end_balance"]) for m in data["monthly"]]
+
+    # Customdata для hover
+    customdata = [
+        [
+            format_rub(m["income"]),
+            format_rub(m["expense"]),
+            format_rub(m["end_balance"]),
+        ]
+        for m in data["monthly"]
+    ]
+
+    fig = go.Figure()
+
+    # Income bars
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=incomes,
+            name="Доходы",
+            marker_color="#27ae60",
+            opacity=0.8,
+            customdata=[c[0] for c in customdata],
+            hovertemplate="Доход: %{customdata}<extra></extra>",
+        )
+    )
+
+    # Expense bars
+    fig.add_trace(
+        go.Bar(
+            x=labels,
+            y=expenses,
+            name="Расходы",
+            marker_color="#e74c3c",
+            opacity=0.8,
+            customdata=[c[1] for c in customdata],
+            hovertemplate="Расход: %{customdata}<extra></extra>",
+        )
+    )
+
+    # Balance line (secondary Y-axis)
+    min_point = data["min_balance_point"]
+    line_color = STATUS_COLORS.get(min_point["status"], "#27ae60")
+
+    fig.add_trace(
+        go.Scatter(
+            x=labels,
+            y=end_balances,
+            name="Баланс",
+            mode="lines+markers",
+            line=dict(color=line_color, width=2.5),
+            marker=dict(size=5, color=line_color),
+            yaxis="y2",
+            customdata=[c[2] for c in customdata],
+            hovertemplate="Баланс: %{customdata}<extra></extra>",
+        )
+    )
+
+    # Min balance marker (diamond)
+    min_month = min_point["date"].month
+    min_label = MONTH_NAMES_RU_SHORT.get(min_month, "")
+    min_bal = float(min_point["balance"])
+    min_text = f"Мин: {min_label}, {format_rub(min_point['balance'])}"
+    marker_color = STATUS_COLORS.get(min_point["status"], "#27ae60")
+
+    fig.add_trace(
+        go.Scatter(
+            x=[min_label],
+            y=[min_bal],
+            mode="markers+text",
+            marker=dict(
+                symbol="diamond",
+                size=12,
+                color=marker_color,
+                line=dict(width=2, color="white"),
+            ),
+            text=[min_text],
+            textposition="top center",
+            textfont=dict(size=10, color=marker_color),
+            showlegend=False,
+            yaxis="y2",
+            hoverinfo="skip",
+        )
+    )
+
+    # Current month highlight
+    current_month = data["current_date"].month
+    current_label = MONTH_NAMES_RU_SHORT.get(current_month, "")
+    if current_label in labels:
+        idx = labels.index(current_label)
+        fig.add_shape(
+            type="rect",
+            x0=idx - 0.5,
+            x1=idx + 0.5,
+            y0=0,
+            y1=1,
+            yref="paper",
+            fillcolor="rgba(52,152,219,0.08)",
+            line=dict(width=0),
+            layer="below",
+        )
+
+    year = data["year"]
+
+    fig.update_layout(
+        barmode="group",
+        height=350,
+        margin=dict(l=40, r=40, t=30, b=30),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        hovermode="x unified",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        xaxis=dict(showgrid=False),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor="rgba(0,0,0,0.1)",
+            title=None,
+        ),
+        yaxis2=dict(
+            overlaying="y",
+            side="right",
+            showgrid=False,
+            title=None,
+        ),
+    )
+
+    return dbc.Card(
+        dbc.CardBody(
+            [
+                html.H5(
+                    f"Кассовый календарь — {year}",
+                    className="card-title mb-3",
+                ),
+                dcc.Graph(
+                    id="daily-cashflow-chart",
+                    figure=fig,
+                    config={"displayModeBar": False},
+                ),
+            ]
+        ),
+        className="shadow-sm",
+    )
+
+
+def _load_dashboard_components(
+    period: str,
+    period_state: dict | None,
+) -> tuple:
+    """Единая точка загрузки данных и построения UI.
+
+    Используется и в load_dashboard_data, и в refresh_dashboard_after_crud.
+
+    Args:
+        period: "month" или "year"
+        period_state: Данные из dcc.Store (year, month)
+
+    Returns:
+        Tuple: (cards, chart, stats, transactions)
+    """
+    today = date.today()
+    year = today.year
+    month = today.month
+    if period_state:
+        year = period_state.get("year", today.year)
+        month = period_state.get("month", today.month)
+
+    with get_db_session() as session:
+        service = DashboardService(session)
+
+        # Метрики для KPI
+        metrics = service.get_overview_metrics(
+            user_id=DEFAULT_USER_ID,
+            period=period,
+        )
+
+        # Дневной или годовой cashflow
+        if period == "month":
+            daily_data = service.get_daily_cashflow(
+                user_id=DEFAULT_USER_ID,
+                year=year,
+                month=month,
+            )
+            chart = _build_daily_cashflow_chart(daily_data)
+        else:
+            yearly_data = service.get_yearly_cashflow(
+                user_id=DEFAULT_USER_ID,
+                year=year,
+            )
+            chart = _build_yearly_cashflow_chart(yearly_data)
+
+        # Старый cashflow для статистики (совместимость)
+        cashflow_data = service.get_cashflow_data(
+            user_id=DEFAULT_USER_ID,
+            period=period,
+        )
+        recent_transactions = service.get_recent_transactions(
+            user_id=DEFAULT_USER_ID,
+            limit=5,
+        )
+
+    cards = build_overview_cards(metrics, period)
+    stats = build_statistics_card(metrics, period)
+    transactions = build_recent_transactions_card(recent_transactions, period)
+
+    return cards, chart, stats, transactions
+
+
+# =============================================================================
 # Callbacks
 # =============================================================================
 
@@ -648,20 +1046,7 @@ def load_dashboard_data(
     period_value: str | None,
     period_state: dict | None,
 ):
-    """Загружает данные дашборда при навигации или смене периода.
-
-    Срабатывает:
-    - При переходе на /dashboard или /
-    - При изменении period-switcher
-
-    Args:
-        pathname: Текущий URL
-        period_value: Значение переключателя периода
-        period_state: Состояние из dcc.Store
-
-    Returns:
-        Tuple из 4 элементов UI: cards, chart, stats, transactions
-    """
+    """Загружает данные дашборда при навигации или смене периода."""
     # Guard #1: только для страницы dashboard
     if pathname not in ["/", "/dashboard"]:
         raise PreventUpdate
@@ -675,34 +1060,7 @@ def load_dashboard_data(
         period = "month"
 
     try:
-        with get_db_session() as session:
-            service = DashboardService(session)
-
-            # Загружаем все данные
-            metrics = service.get_overview_metrics(
-                user_id=DEFAULT_USER_ID,
-                period=period,
-            )
-            cashflow_data = service.get_cashflow_data(
-                user_id=DEFAULT_USER_ID,
-                period=period,
-            )
-            recent_transactions = service.get_recent_transactions(
-                user_id=DEFAULT_USER_ID,
-                limit=5,
-            )
-
-        # Строим UI компоненты
-        cards = build_overview_cards(metrics, period)
-        chart = build_cashflow_chart(cashflow_data, period)
-        stats = build_statistics_card(metrics, period)
-        transactions = build_recent_transactions_card(recent_transactions, period)
-
-        logger.debug(
-            f"Dashboard loaded: period={period}, balance={metrics['total_balance']}"
-        )
-        return cards, chart, stats, transactions
-
+        return _load_dashboard_components(period, period_state)
     except Exception as e:
         logger.error(f"Ошибка загрузки дашборда: {e}")
         error_alert = dbc.Alert(
@@ -718,18 +1076,12 @@ def load_dashboard_data(
     prevent_initial_call=True,
 )
 def update_period_state(period_value: str):
-    """Обновляет состояние периода в dcc.Store.
-
-    Args:
-        period_value: Новое значение периода
-
-    Returns:
-        dict с обновленным периодом
-    """
+    """Обновляет состояние периода в dcc.Store."""
     if not period_value:
         raise PreventUpdate
 
-    return {"period": period_value}
+    today = date.today()
+    return {"period": period_value, "year": today.year, "month": today.month}
 
 
 @callback(
@@ -748,18 +1100,7 @@ def refresh_dashboard_after_crud(
     period_state: dict | None,
     pathname: str,
 ):
-    """Обновляет дашборд после CRUD операции с транзакцией.
-
-    Слушает global-transaction-trigger из transaction_modals.py.
-
-    Args:
-        trigger: Данные триггера {action, timestamp, source, transaction_id}
-        period_state: Текущий период
-        pathname: Текущий URL
-
-    Returns:
-        Tuple из 4 элементов UI: cards, chart, stats, transactions
-    """
+    """Обновляет дашборд после CRUD операции с транзакцией."""
     # Guard #1: проверяем наличие триггера
     if not trigger:
         raise PreventUpdate
@@ -775,36 +1116,47 @@ def refresh_dashboard_after_crud(
         period = "month"
 
     try:
-        with get_db_session() as session:
-            service = DashboardService(session)
-
-            # Загружаем все данные
-            metrics = service.get_overview_metrics(
-                user_id=DEFAULT_USER_ID,
-                period=period,
-            )
-            cashflow_data = service.get_cashflow_data(
-                user_id=DEFAULT_USER_ID,
-                period=period,
-            )
-            recent_transactions = service.get_recent_transactions(
-                user_id=DEFAULT_USER_ID,
-                limit=5,
-            )
-
-        # Строим UI компоненты
-        cards = build_overview_cards(metrics, period)
-        chart = build_cashflow_chart(cashflow_data, period)
-        stats = build_statistics_card(metrics, period)
-        transactions = build_recent_transactions_card(recent_transactions, period)
-
+        result = _load_dashboard_components(period, period_state)
         source = trigger.get("source", "unknown")
         action = trigger.get("action", "unknown")
         logger.debug(f"Dashboard обновлен после {action} из {source}")
-        return cards, chart, stats, transactions
-
+        return result
     except Exception as e:
         logger.error(f"Ошибка обновления дашборда после CRUD: {e}")
+        raise PreventUpdate
+
+
+@callback(
+    [
+        Output("create-modal", "is_open", allow_duplicate=True),
+        Output("preselected-date", "data", allow_duplicate=True),
+        Output("modal-source", "data", allow_duplicate=True),
+    ],
+    Input("daily-cashflow-chart", "clickData"),
+    State("dashboard-period", "data"),
+    prevent_initial_call=True,
+)
+def open_create_from_chart(click_data, period_state):
+    """Открывает модал создания операции при клике на столбец графика.
+
+    Работает только в Month mode. Передает дату клика через preselected-date.
+    """
+    # Guard #1: нет клика
+    if click_data is None:
+        raise PreventUpdate
+
+    # Guard #2: только для month mode
+    if not period_state or period_state.get("period") != "month":
+        raise PreventUpdate
+
+    try:
+        point = click_data["points"][0]
+        day = int(point["x"])
+        year = period_state.get("year", date.today().year)
+        month = period_state.get("month", date.today().month)
+        clicked_date = date(year, month, day)
+        return True, clicked_date.isoformat(), "chart"
+    except (KeyError, IndexError, ValueError):
         raise PreventUpdate
 
 

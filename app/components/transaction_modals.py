@@ -745,6 +745,18 @@ def set_preselection_on_modal_open(
             no_update,
         )
 
+    if modal_source == "chart":
+        date_value = preselected_date if preselected_date else no_update
+        return (
+            no_update,
+            no_update,
+            no_update,
+            date_value,
+            no_update,
+            no_update,
+            no_update,
+        )
+
     if modal_source == "wishlist":
         category_value = preselected_category if preselected_category else no_update
         type_value = preselected_type if preselected_type else no_update

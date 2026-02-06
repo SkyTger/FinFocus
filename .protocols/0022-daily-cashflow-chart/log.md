@@ -9,6 +9,7 @@
 <!-- Записи вида: Restore context: protocol-0022#ctx-N -->
 
 Restore context: protocol-0022#ctx-1
+Restore context: protocol-0022#ctx-2
 
 ---
 
@@ -42,3 +43,16 @@ Restore context: protocol-0022#ctx-1
 - 12 тестов TestGetDailyCashflow: basic, no_txn, risk/attention/ok statuses, min_middle, cumulative, adjustment +/-, transfer, savings_reserve, savings_contribution
 - 4 теста TestGetYearlyCashflow: 12_months, income_expense, end_balance, min_year
 - Все 35 тестов файла прошли (19 старых + 16 новых)
+
+### Step 04 — Charts + Integration (commit: TBD)
+- STATUS_COLORS dict для цветовой индикации баланса (ok/attention/risk)
+- _build_daily_cashflow_chart(): grouped bars (income/expense) + balance line (yaxis2) + diamond min marker + today dashed line
+- _build_yearly_cashflow_chart(): аналогичная структура, X=месяцы, current month rect highlight
+- _load_dashboard_components(): единая точка загрузки, устраняет дублирование между load_dashboard_data и refresh_dashboard_after_crud
+- update_period_state расширен: Store хранит {period, year, month}
+- open_create_from_chart callback: клик на bar → create-modal с preselected-date (только month mode)
+- transaction_modals.py: source="chart" → set preselected date
+- Dual Y-axis: yaxis для bars, yaxis2 для balance line
+- hovermode="x unified" с customdata + format_rub() для tooltip
+- Единый Graph ID "daily-cashflow-chart" для обоих режимов
+- 508 тестов пройдено (1 pre-existing failure в allocation precision)
