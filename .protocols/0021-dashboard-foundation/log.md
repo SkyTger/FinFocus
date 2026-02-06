@@ -6,6 +6,8 @@
 
 ## Restore Context Log
 
+Restore context: protocol-0021#ctx-1
+
 <!-- Записи вида: Restore context: protocol-NNNN#ctx-N -->
 
 ---
