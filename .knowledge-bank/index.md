@@ -5,9 +5,9 @@
 
 **Уникальная ценность**: Кассовое планирование с прогнозом остатков по дням + автоматическое распределение бюджета между множественными накопительными целями с приоритетами.
 
-**Статус**: Epic-05-UI (Dashboard UI Redesign) в процессе, Батч 5.2 завершён (протокол 0022)
+**Статус**: Epic-05-UI (Dashboard UI Redesign) в процессе, Батч 5.3 завершён (протокол 0023)
 
-**Последнее обновление**: 2026-02-06 (после протокола 0022, 508 тестов)
+**Последнее обновление**: 2026-02-06 (после протокола 0023, 520 тестов)
 
 ## Быстрые ссылки на разделы
 
@@ -82,7 +82,7 @@
 - ✅ Редактирование и удаление взносов в целях (PR #19, протокол 0019)
 - ✅ Отложенные покупки (Wishlist) (PR #20, протокол 0020)
 
-**Epic-05-UI** (Dashboard UI Redesign, 🔄 В процессе):
+**Epic-05-UI** (Dashboard UI Redesign, ✅ ЗАВЕРШЕН):
 - [x] ✅ Батч 5.1: Фундамент — цвета + формат ₽ + KPI-карточки (протокол 0021, 2026-02-06)
   - ✅ Новые CSS-переменные (#2ecc71 палитра) с deprecated aliases
   - ✅ Глобальный форматтер format_rub() (замена $X,XXX.XX → X XXX ₽)
@@ -100,17 +100,22 @@
   - ✅ _load_dashboard_components() helper для устранения дублирования
   - ✅ 16 unit тестов (12 daily + 4 yearly), 508 тестов pass
   - ✅ Patterns documentation: plotly-charts.md, callbacks.md
-- [ ] Батч 5.3: Layout — операции + правая колонна + sidebar
-  - Split "Недавние/Предстоящие" 50/50
-  - Wishlist + Safety Cushion в правую колонну
-  - Sidebar как card-контейнер
-  - Модал "Сверка" на Dashboard
-  - Пустые состояния
+- [x] ✅ Батч 5.3: Layout — операции + правая колонна + sidebar (протокол 0023, 2026-02-06)
+  - ✅ format_date_human() форматтер — "5 февраля" для операций
+  - ✅ DashboardService.get_upcoming_transactions() — операции после reference_date
+  - ✅ Рефакторинг get_recent_transactions() — month range filter (1-го числа..reference_date)
+  - ✅ Глобализация reconciliation modal — Calendar + Dashboard доступ
+  - ✅ Dashboard layout 8/4 — split таблицы 50/50, cushion card, wishlist, empty states
+  - ✅ Sidebar card — активный highlight callback, новый sidebar.css
+  - ✅ Transactions URL query params — ?start=&end= для date filter
+  - ✅ 28 unit тестов (3 formatters + 9 dashboard_service + 16 старых), 520 тестов pass
 
 **Ближайшие задачи**:
-1. Запустить Батч 5.3 (Layout — операции + правая колонна + sidebar)
-2. После Epic-05: Импорт операций из банков (Backlog)
-3. Уведомления и напоминания (Backlog)
+1. Dark Theme (Epic-06) — тёмная тема по спецификации dashboard_ui_spec.md секция 2
+2. Mobile Responsive (Epic-07) — полная адаптивность < 576px
+3. AI Assistant + Exchange (Epic-08) — реализация карточек AI и курсов валют
+4. Импорт операций из банков (Backlog)
+5. Уведомления и напоминания (Backlog)
 
 ## Критичные детали
 
@@ -201,7 +206,7 @@ memory-bank/
 
 ---
 
-**Версия Memory Bank**: 3.9
+**Версия Memory Bank**: 4.0
 **Дата создания**: 2026-01-17
-**Последнее обновление**: 2026-02-06 (после протокола 0022: Daily Cashflow Chart — DashboardService, CalendarService API, Plotly patterns, callback patterns)
+**Последнее обновление**: 2026-02-06 (после протокола 0023: Dashboard Layout Redesign — formatters, DashboardService, reconciliation globalization, UI rebuild, 520 тестов)
 **GitHub**: https://github.com/SkyTger/FinFocus

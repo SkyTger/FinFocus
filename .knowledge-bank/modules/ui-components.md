@@ -28,30 +28,58 @@ dbc.Card([
 ])
 ```
 
-## Sidebar Component
+## Sidebar Component (Протокол 0023 — рефакторинг)
+
+**Файл**: `app/components/sidebar.py` (~130 строк после протокола 0023)
 
 **Layout**:
+- dbc.Card контейнер (className="sidebar-card h-100") **(NEW)**
 - Логотип + заголовок
 - Навигационные ссылки (Dashboard, Calendar, Goals, Transactions)
 - User info block (username, logout button)
 
-**Styling**:
-- `bg-light` для фона
-- Bootstrap icons для пунктов меню
-- `fixed` позиционирование
+**Styling** (sidebar.css — NEW файл):
+- `.sidebar-card` — белый фон, border, padding, no shadow
+- `.sidebar-nav-item-active` — border-left 4px green для активного пункта
+
+**Callback** (NEW):
+- `highlight_active_sidebar()` — динамический active highlight
+  - Input: url.pathname
+  - Output: sidebar-nav.children
+  - Logic: перерисовывает NavLinks с active=True для текущего pathname
+
+**Константы**:
+```python
+MAIN_NAV_ITEMS = [
+    {"label": "Dashboard", "href": "/dashboard", "icon": "bi-house"},
+    {"label": "Calendar", "href": "/calendar", "icon": "bi-calendar3"},
+    {"label": "Goals", "href": "/goals", "icon": "bi-bullseye"},
+    {"label": "Transactions", "href": "/transactions", "icon": "bi-list-ul"}
+]
+
+ADDITIONAL_NAV_ITEMS = [
+    {"label": "Analytics", "href": "/analytics", "icon": "bi-bar-chart"}
+]
+```
+
+**Helper функция**:
+- `_build_nav_links(pathname)` — генерирует NavLinks с active=True для текущего pathname
 
 **Навигация**:
 ```python
-dbc.NavLink("Dashboard", href="/dashboard", active="exact")
-dbc.NavLink("Calendar", href="/calendar", active="exact")
-dbc.NavLink("Goals", href="/goals", active="exact")
-dbc.NavLink("Transactions", href="/transactions", active="exact")
+dbc.NavLink(
+    "Dashboard",
+    href="/dashboard",
+    active=(pathname == "/dashboard"),  # Dynamic
+    className="sidebar-nav-item-active" if pathname == "/dashboard" else ""
+)
 ```
 
-## Transactions Component (КРИТИЧНО)
+## Transactions Component (КРИТИЧНО, Протокол 0023 — расширен)
 
 **Layout**:
 - Header с кнопками "Добавить операцию" и "Экспорт CSV"
+- Date Range Filter (dcc.DatePickerRange) — фильтр по диапазону дат
 - Transactions table с:
   - Multi-select checkboxes (select-all в header)
   - Quick chips для категоризации некатегоризированных операций
@@ -89,6 +117,13 @@ dbc.NavLink("Transactions", href="/transactions", active="exact")
 
 **Export Callback** (Протокол 0011):
 - `export_transactions()` - CSV экспорт с UTF-8 BOM, учет filter-no-category
+
+**URL Query Params Callback** (Протокол 0023 — NEW):
+- `apply_url_date_filter()` - парсинг ?start=&end= query params в date filter
+  - Input: url.search
+  - Output: filter-date-range.dates (start, end tuple)
+  - Logic: parse_qs() + date.fromisoformat() с try/except для невалидных дат
+  - Применение: прямые ссылки с предзаполненным фильтром
 
 **Pattern-Matching Callbacks** (КРИТИЧНО):
 ```python
@@ -290,10 +325,10 @@ fig.update_layout(template="plotly_white", showlegend=True)
 - Использование `ctx.triggered_id["index"]` напрямую вместо поиска в списках
 - Удаление избыточной проверки `n_clicks is None` (не нужна с `prevent_initial_call=True`)
 
-## Calendar Component (Фаза 3 + Протокол 0015 — ЗАВЕРШЕНА)
+## Calendar Component (Фаза 3 + Протокол 0015, 0023 — ЗАВЕРШЕНА)
 
 **Файлы**:
-- `app/components/calendar.py` — UI + callbacks (~850 строк после протокола 0015)
+- `app/components/calendar.py` — UI + callbacks (~820 строк после протокола 0023)
 - `app/assets/calendar.css` — стили (~390 строк после протокола 0015)
 
 **Layout**:
@@ -302,6 +337,7 @@ fig.update_layout(template="plotly_white", showlegend=True)
 - Calendar grid — сетка дней с балансами
 - Hover tooltips на каждой ячейке дня (Протокол 0015)
 - Интеграция с create-modal из transactions.py
+- **NEW (Протокол 0023)**: Reconciliation modal перенесён в main.py (глобализация)
 
 **Основные функции**:
 - `create_calendar_layout()` — главный layout страницы
@@ -325,13 +361,17 @@ fig.update_layout(template="plotly_white", showlegend=True)
 **Callbacks**:
 - `load_and_navigate_calendar()` — загрузка данных и навигация ±12 месяцев
 - `open_create_modal_from_calendar()` — открытие модала при клике на день
-- `refresh_calendar_after_transaction()` — обновление после CRUD операций
+- `refresh_calendar_after_transaction()` — обновление после CRUD операций **(Протокол 0023: удален calendar-refresh-trigger, использует global-transaction-trigger)**
 - `open_edit_from_tooltip()` — Pattern-Matching callback для клика по операции в tooltip (Протокол 0015)
   - Inputs: {"type": "tooltip-txn", "date": ALL, "id": ALL, "is_virtual": ALL, "template_id": ALL}
   - Outputs: recurring-scope-modal is_open, recurring-edit-context data, edit-modal is_open, edit-transaction-id data
   - 4 ADR-003 guard clauses: triggered_id exists, type="tooltip-txn", n_clicks not None, n_clicks > 0
   - Logic: is_virtual=True → scope modal, else → edit modal
   - Placeholder -1 для template_id вместо None (Dash PM ID limitation)
+- `apply_reconciliation()` — применение сверки баланса **(Протокол 0023: Output global-transaction-trigger вместо calendar-refresh-trigger)**
+  - allow_duplicate=True для множественных Outputs на trigger
+  - return data: {"timestamp": ..., "source": "calendar", "action": "reconciliation"}
+- `toggle_reconciliation_modal()` — открытие/закрытие модала сверки (query param ?open_recon=1)
 
 **Утилиты**:
 - `serialize_balances()` / `deserialize_balances()` — Decimal ↔ JSON для dcc.Store
@@ -386,50 +426,71 @@ if ctx.triggered[0].get('value') is None:
 - **Mobile disabled** — tooltip скрыт на < 768px (нет hover)
 - **Placeholder -1** — template_id=-1 вместо None для Dash Pattern-Matching (None не поддерживается)
 
-## Dashboard Component (Фаза 4 + Epic-05-UI Протокол 0021-0022 — ЗАВЕРШЕНА)
+## Dashboard Component (Фаза 4 + Epic-05-UI Протокол 0021-0023 — ЗАВЕРШЕНА)
 
 **Файлы**:
-- `app/components/dashboard.py` — UI + callbacks (~950 строк после протокола 0022)
+- `app/components/dashboard.py` — UI + callbacks (~1100 строк после протокола 0023)
 - `app/assets/dashboard.css` — стили
 
-**Layout** (обновлено в протоколе 0021-0022):
-- 4 KPI cards (Total Balance, Income, Expense, Goals) с новым дизайном:
+**Layout** (обновлено в протоколе 0021-0023):
+- **Row 1**: 4 KPI cards (Total Balance, Income, Expense, Goals) с новым дизайном:
   - Белый фон вместо градиентов
   - Border и border-radius
   - Типографика: .kpi-number, .kpi-title, .kpi-subtitle
   - Русские label: "Обзор", "Доходы", "Расходы", "Накопления"
-  - Кнопка "Сверка" на Total Balance → /calendar?open_recon=1
-- **Daily/Yearly cashflow chart (Plotly)** — дневной график для Month mode, месячный для Year mode (Протокол 0022):
-  - Grouped bars (доходы/расходы) + линия running balance
-  - Diamond маркер минимального баланса
-  - Today вертикальная линия (только Month mode)
-  - Current month highlight rect (только Year mode)
-  - Dual Y-axis (bars слева, balance справа)
-  - hovermode="x unified" с customdata + format_rub()
-  - Клик по bar → create-modal с preselected date (только Month mode)
-- Recent transactions table — последние 5 транзакций с .table-amount классами
+  - **Кнопка "Сверка" на Total Balance** — открывает reconciliation modal (Протокол 0023)
+- **Row 2 (8/4 split)** **(Протокол 0023)**:
+  - **Левая колонна (8 cols)**:
+    - **Daily/Yearly cashflow chart (Plotly)** — дневной график для Month mode, месячный для Year mode (Протокол 0022):
+      - Grouped bars (доходы/расходы) + линия running balance
+      - Diamond маркер минимального баланса
+      - Today вертикальная линия (только Month mode)
+      - Current month highlight rect (только Year mode)
+      - Dual Y-axis (bars слева, balance справа)
+      - hovermode="x unified" с customdata + format_rub()
+      - Клик по bar → create-modal с preselected date (только Month mode)
+    - **Split Transactions Tables (50/50)** **(Протокол 0023)**:
+      - Недавние операции (до today) — последние 5, DESC sort
+      - Предстоящие операции (от today) — ближайшие 5, ASC sort
+      - format_date_human() для дат ("5 февраля")
+      - Иконка 🔁 для recurring instances
+      - Empty states с CTA кнопками "Добавить"
+      - Ссылка "Все операции" → /transactions
+  - **Правая колонна (4 cols)** **(Протокол 0023)**:
+    - **Wishlist Widget** — 5 фокусных хотелок (переиспользован из Протокола 0020)
+    - **Safety Cushion Card (readonly)** — прогресс подушки, link→/goals
 - Period switcher (month/year) через RadioItems
 - AI Assistant и Exchange cards — **скрыты** (TODO Epic-08)
 
-**Callbacks** (протокол 0022):
+**Callbacks** (протокол 0022-0023):
 - `load_dashboard_data()` — загрузка данных из DashboardService при открытии страницы
-  - **Рефакторинг**: использует _load_dashboard_components() helper
+  - **Рефакторинг (0022)**: использует _load_dashboard_components() helper
+  - **Расширен (0023)**: +2 Outputs (recent table, upcoming table)
 - `refresh_dashboard_after_crud()` — обновление после CRUD операций
-  - **Рефакторинг**: использует _load_dashboard_components() helper (устраняет дублирование)
+  - **Рефакторинг (0022)**: использует _load_dashboard_components() helper (устраняет дублирование)
+  - **Расширен (0023)**: +2 Outputs (recent table, upcoming table)
 - `update_period_state()` — обновление dcc.Store при смене периода
-  - **NEW**: Store теперь хранит {period, year, month} вместо просто period
+  - **NEW (0022)**: Store теперь хранит {period, year, month} вместо просто period
 - `open_create_from_chart()` — Pattern-Matching callback для клика по bar (Протокол 0022)
   - Inputs: {"type": "cashflow-bar", "date": ALL}.n_clicks, period-store, preselection Stores
   - Outputs: create-modal is_open, preselected-date, 4x preselection resets
   - **Только Month mode**: Year mode не поддерживает клик (guard clause)
   - ADR-003 guard clauses #1-4 (triggered_id, type, n_clicks, period)
+- `open_create_from_empty()` — открытие create-modal из empty states **(Протокол 0023)**
+  - Inputs: empty-recent-add-btn, empty-upcoming-add-btn
+  - Output: create-modal is_open
+  - ADR-003 guard clauses
+- `open_recon_from_dashboard()` — открытие reconciliation modal **(Протокол 0023)**
+  - Inputs: open-recon-from-dashboard-btn (KPI button), open-recon-from-dashboard-banner-btn (banner button)
+  - Output: open-recon-trigger (timestamp)
+  - ADR-003 guard clauses
 
 **State Management**:
 - `dcc.Store(id="dashboard-period-store")` — хранит {period, year, month}
 - Preselection Stores (интеграция с transaction_modals.py):
   - preselected-date, preselected-amount, preselected-description, preselected-risk-warning
 
-**Build Functions** (протокол 0021-0022):
+**Build Functions** (протокол 0021-0023):
 - `_build_kpi_card()` — новая функция для KPI-карточек (вместо create_metric_card)
 - `_build_daily_cashflow_chart()` — дневной график для Month mode (Протокол 0022)
   - Grouped bars (go.Bar) для income/expense (yaxis)
@@ -442,10 +503,23 @@ if ctx.triggered[0].get('value') is None:
   - Аналогичная структура, X=месяцы вместо дней
   - Current month highlight rect (go.Scatter fill)
   - Bars НЕ clickable (guard в callback)
-- `_load_dashboard_components()` — helper для устранения дублирования (Протокол 0022)
-  - Единая точка загрузки: KPI, chart, transactions
+- `_load_dashboard_components()` — helper для устранения дублирования (Протокол 0022-0023)
+  - Единая точка загрузки: KPI, chart, recent/upcoming transactions
+  - **Расширен (0023)**: +get_upcoming_transactions(), +cushion card, +6 outputs
   - Используется в load_dashboard_data И refresh_dashboard_after_crud
-- `build_recent_transactions()` — таблица из RecentTransaction[]
+- `_build_transactions_split_table()` — таблица для Recent/Upcoming **(Протокол 0023)**
+  - format_date_human() для дат ("5 февраля")
+  - Иконка 🔁 для recurring instances
+  - Без "Completed" бейджей (не нужны на Dashboard)
+  - Ссылка "Все операции" → /transactions
+- `_build_empty_state()` — пустое состояние с CTA **(Протокол 0023)**
+  - icon: bi-inbox или bi-calendar-plus
+  - message: текст подсказки
+  - button_id: для callback open_create_from_empty
+- `_build_cushion_card_readonly()` — readonly карточка подушки **(Протокол 0023)**
+  - CushionService.get_settings() для данных
+  - Прогресс-бар с 4 статусами (not_configured/danger/warning/info/success)
+  - Link → /goals (без edit функциональности)
 
 **Форматирование** (протокол 0021):
 - 12 inline замен на format_rub():
@@ -492,13 +566,17 @@ customdata=[...], ids={"type": "cashflow-bar", "date": date.isoformat()}
 - format_rub() для форматирования всех денежных сумм
 - transaction_modals.py — preselection Store Pattern
 
-**Критичные изменения** (протокол 0021-0022):
+**Критичные изменения** (протокол 0021-0023):
 - Новый формат денег: $X,XXX.XX → X XXX ₽ (глобально)
 - CSS-переменные: --color-primary (#2ecc71), --color-secondary (#e74c3c)
 - AI Assistant/Exchange скрыты, НЕ удалены (будущий Epic-08)
 - **_load_dashboard_components() helper** — устраняет дублирование между load и refresh callbacks
 - **Единый Graph ID "daily-cashflow-chart"** — переиспользуется для Month и Year режимов
 - **Preselection Store Pattern** — для передачи даты в create-modal из chart click
+- **Reconciliation globalization (0023)** — modal доступен с Dashboard (не только Calendar)
+- **Split tables 50/50 (0023)** — recent (до today) + upcoming (от today)
+- **Empty states (0023)** — CTA кнопки для создания операций
+- **Layout 8/4 (0023)** — левая колонна (chart + tables), правая колонна (wishlist + cushion)
 
 ## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
 

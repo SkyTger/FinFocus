@@ -4,7 +4,7 @@
 Утилиты для форматирования, сериализации и обработки данных в UI компонентах
 
 ## Ключевые файлы
-- `app/utils/formatters.py` - форматирование для отображения (~75 строк)
+- `app/utils/formatters.py` - форматирование для отображения (~100 строк после протокола 0023)
 - `app/utils/serializers.py` - сериализация TypedDicts для dcc.Store (~65 строк)
 
 ## Форматирование для отображения
@@ -67,6 +67,24 @@ format_date(date(2026, 1, 21))
 ```
 
 **Формат**: DD.MM.YYYY
+
+### format_date_human(date_obj: date) → str **(Протокол 0023)**
+Форматирует дату в человекочитаемом формате для операций.
+
+```python
+format_date_human(date(2026, 2, 5))
+# → "5 февраля"
+
+format_date_human(date(2026, 12, 31))
+# → "31 декабря"
+```
+
+**Формат**: D monthname_genitive (без года)
+
+**Константы**:
+- `MONTH_NAMES_RU_GENITIVE` — родительный падеж месяцев для русской локализации
+
+**Применение**: Dashboard recent/upcoming transactions tables (читабельность UI)
 
 ### format_days_remaining(days: int) → str
 Форматирует оставшиеся дни с правильным склонением для русского языка.
@@ -179,6 +197,9 @@ preview = deserialize_redistribution_preview(serialized)
 **format_date**:
 - `app/components/transactions.py` - даты операций
 - `app/components/goals.py` - целевые даты
+
+**format_date_human** (Протокол 0023):
+- `app/components/dashboard.py` - recent/upcoming transactions tables ("5 февраля" вместо "05.02.2026")
 
 **format_days_remaining**:
 - `app/components/goals.py` - срок до достижения цели

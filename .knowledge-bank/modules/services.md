@@ -337,9 +337,9 @@ with get_db_session() as session:
 **Unit тесты**: 28 тестов в `tests/test_recurring_service.py`
 - Покрытие: generate, exceptions, skip, stop, delete, anchored edge cases
 
-## DashboardService (Фаза 4 + Протокол 0022 — ЗАВЕРШЕНА)
+## DashboardService (Фаза 4 + Протокол 0022-0023 — ЗАВЕРШЕНА)
 
-**Файл**: `app/services/dashboard_service.py` (~640 строк после протокола 0022)
+**Файл**: `app/services/dashboard_service.py` (~700 строк после протокола 0023)
 
 **Инициализация**: `DashboardService(session)` - принимает SQLAlchemy session
 
@@ -352,8 +352,17 @@ with get_db_session() as session:
   - period="month": последние 12 месяцев
   - period="year": последние 5 лет
   - Один SQL-запрос с GROUP BY (оптимизация)
-- `get_recent_transactions(user_id, limit)` → `list[RecentTransaction]`
-  - Последние N транзакций, отсортированных по дате DESC
+- `get_recent_transactions(user_id, limit, reference_date=None)` → `list[RecentTransaction]` **(Протокол 0023 — рефакторинг)**
+  - Транзакции за текущий месяц ДО reference_date (не включая), DESC sort
+  - **NEW**: reference_date параметр для фильтрации (default: today)
+  - Month range filter: first_of_month..reference_date
+  - Recurring фильтр: исключает шаблоны (is_recurring=True, recurring_parent_id=None), включает instances
+  - Маппинг через _map_transactions() helper
+- `get_upcoming_transactions(user_id, limit, reference_date=None)` → `list[RecentTransaction]` **(Протокол 0023 — NEW)**
+  - Транзакции ПОСЛЕ reference_date (включая) до конца месяца, ASC sort
+  - Month range filter: reference_date..end_of_month
+  - Аналогичный recurring фильтр как в get_recent_transactions
+  - Маппинг через _map_transactions() helper
 - `get_daily_cashflow(user_id, year, month)` → `MonthlyCashflowData` **(Протокол 0022)**
   - Дневной cashflow с running balance для одного месяца
   - Merge regular + recurring операций по дням
@@ -379,12 +388,13 @@ class CashflowDataPoint(TypedDict):
     income: Decimal
     expense: Decimal
 
-class RecentTransaction(TypedDict):
+class RecentTransaction(TypedDict):  # Протокол 0023: расширен
     id: int
     date: str
     description: str | None
     amount: Decimal
     type: str
+    is_recurring_instance: bool  # NEW: для иконки 🔁 в таблице
 
 # Протокол 0022: новые TypedDicts см. schema.md
 # MonthlyCashflowData, YearlyCashflowData, DailyCashflow, DailyBalancePoint, MonthlyCashflow
@@ -411,7 +421,7 @@ with get_db_session() as session:
     # {"year": 2026, "monthly_data": [12 месяцев], "min_balance": "8000.00", ...}
 ```
 
-**Внутренние методы** (Протокол 0022):
+**Внутренние методы** (Протокол 0022-0023):
 - `_classify_balance_status(balance)` → `BalanceStatus`
   - Классификация по порогам BALANCE_RISK/ATTENTION_THRESHOLD
   - "risk" < 5000, "attention" 5000-15000, "ok" ≥ 15000
@@ -421,6 +431,10 @@ with get_db_session() as session:
   - **ADJUSTMENT logic**: amount > 0 → income, amount < 0 → expense(abs)
 - `_get_monthly_income_expense(user_id, year, month)` → `tuple[Decimal, Decimal]`
   - Переиспользует _get_daily_income_expense() с sum() (рекомендация critique)
+- `_map_transactions(results)` → `list[RecentTransaction]` **(Протокол 0023 — NEW)**
+  - Helper для маппинга SQLAlchemy results → RecentTransaction TypedDict
+  - Устраняет дублирование между get_recent_transactions и get_upcoming_transactions
+  - Добавляет is_recurring_instance: bool поле
 
 **Composition Pattern**: DashboardService содержит CalendarService и GoalService
 
@@ -431,9 +445,11 @@ with get_db_session() as session:
 - **Min balance tracking**: сквозной поиск минимального баланса для diamond marker на графике
 - **End-of-month балансы**: для Year mode берется balance[last_day_of_month] из calculate_daily_balances()
 
-**Unit тесты**: 35 тестов в `tests/test_dashboard_service.py` (19 старых + 16 новых для протокола 0022)
+**Unit тесты**: 44 тестов в `tests/test_dashboard_service.py` (19 старых + 16 протокол 0022 + 9 протокол 0023)
 - TestGetDailyCashflow: 12 тестов (basic, no txn, status classification, min tracking, cumulative, adjustment/transfer/savings)
 - TestGetYearlyCashflow: 4 теста (12 months, income/expense, end balance, min year)
+- TestGetRecentTransactionsRefactored: 3 теста (reference_date filter, recurring filter, month boundary) **(Протокол 0023)**
+- TestGetUpcomingTransactions: 6 тестов (basic, limit, recurring, no upcoming, across months, past ref date) **(Протокол 0023)**
 
 ## AllocationService (Батч 2 — ЗАВЕРШЕН)
 
