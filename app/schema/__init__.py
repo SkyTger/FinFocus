@@ -39,6 +39,16 @@ from app.schema.wishlist import (
     SafeDateInfo,
     HoverBalances,
 )
+from app.schema.dashboard import (
+    BalanceStatus,
+    BALANCE_RISK_THRESHOLD,
+    BALANCE_ATTENTION_THRESHOLD,
+    DailyCashflow,
+    DailyBalancePoint,
+    MonthlyCashflowData,
+    MonthlyCashflow,
+    YearlyCashflowData,
+)
 
 __all__ = [
     # Analytics
@@ -76,4 +86,13 @@ __all__ = [
     "WishlistItemData",
     "SafeDateInfo",
     "HoverBalances",
+    # Dashboard cashflow
+    "BalanceStatus",
+    "BALANCE_RISK_THRESHOLD",
+    "BALANCE_ATTENTION_THRESHOLD",
+    "DailyCashflow",
+    "DailyBalancePoint",
+    "MonthlyCashflowData",
+    "MonthlyCashflow",
+    "YearlyCashflowData",
 ]

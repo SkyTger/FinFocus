@@ -712,6 +712,48 @@ class CalendarService:
             year=year,
         )
 
+    def get_recurring_income_expense_by_day(
+        self, user_id: int, start_date: date, end_date: date
+    ) -> dict[date, tuple[Decimal, Decimal]]:
+        """Возвращает доходы и расходы от recurring операций по дням.
+
+        Публичный метод-обёртка над _get_recurring_instances_for_period().
+        Классификация:
+        - income → income
+        - expense, savings_reserve, savings_contribution → expense
+        - transfer → игнорируется
+        - ADJUSTMENT recurring практически невозможен (guard comment)
+
+        Args:
+            user_id: ID пользователя.
+            start_date: Начало периода (включительно).
+            end_date: Конец периода (включительно).
+
+        Returns:
+            dict[date, tuple[Decimal, Decimal]]: {дата: (income, expense)}.
+                Дни без recurring операций отсутствуют в словаре.
+        """
+        instances = self._get_recurring_instances_for_period(
+            user_id, start_date, end_date
+        )
+
+        result: dict[date, tuple[Decimal, Decimal]] = defaultdict(
+            lambda: (Decimal("0"), Decimal("0"))
+        )
+
+        for inst in instances:
+            d = inst["date"]
+            inc, exp = result[d]
+            t = inst["transaction_type"]
+            if t == "income":
+                result[d] = (inc + inst["amount"], exp)
+            elif t in ("expense", "savings_reserve", "savings_contribution"):
+                result[d] = (inc, exp + inst["amount"])
+            # transfer → игнорируется
+            # ADJUSTMENT recurring практически невозможен
+
+        return dict(result)
+
     def get_all_transactions_for_period(
         self,
         user_id: int,
