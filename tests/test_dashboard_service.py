@@ -521,3 +521,324 @@ class TestDashboardServiceAdjustmentExclusion:
 
         # ADJUSTMENT не должен влиять на period_expense
         assert metrics["period_expense"] == Decimal("300.00")
+
+
+class TestGetDailyCashflow:
+    """Тесты для get_daily_cashflow()."""
+
+    def test_basic_income_expense(self, db_session, test_user):
+        """Базовый тест: income + expense отображаются в daily list."""
+        db_session.add_all([
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("5000"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 10),
+            ),
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("2000"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 1, 15),
+            ),
+        ])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        assert len(result["daily"]) == 31  # Январь = 31 день
+        day_10 = result["daily"][9]  # index 9 = 10 января
+        assert day_10["income"] == Decimal("5000")
+        assert day_10["expense"] == Decimal("0")
+        day_15 = result["daily"][14]
+        assert day_15["income"] == Decimal("0")
+        assert day_15["expense"] == Decimal("2000")
+        # Balance: starting 10000 + 5000 = 15000 на 10-е; 15000 - 2000 = 13000 на 15-е
+        assert day_10["balance"] == Decimal("15000")
+        assert day_15["balance"] == Decimal("13000")
+
+    def test_no_transactions(self, db_session, test_user):
+        """Пустой месяц: balance == starting_balance для всех дней."""
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 2)
+
+        assert len(result["daily"]) == 28  # Февраль 2026 = 28 дней
+        for day in result["daily"]:
+            assert day["balance"] == Decimal("10000")
+            assert day["income"] == Decimal("0")
+            assert day["expense"] == Decimal("0")
+
+    def test_negative_balance_risk_status(self, db_session, test_user):
+        """Баланс < 0 → min_balance_point.status == 'risk'."""
+        db_session.add(Transaction(
+            user_id=test_user.id,
+            amount=Decimal("15000"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 5),
+        ))
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        # Balance = 10000 - 15000 = -5000
+        assert result["min_balance_point"]["status"] == "risk"
+        assert result["min_balance_point"]["balance"] == Decimal("-5000")
+
+    def test_attention_balance_status(self, db_session, test_user):
+        """0 < balance < 5000 → status == 'attention'."""
+        # starting_balance = 10000, расход 7000 → balance = 3000
+        db_session.add(Transaction(
+            user_id=test_user.id,
+            amount=Decimal("7000"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 5),
+        ))
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        assert result["min_balance_point"]["status"] == "attention"
+        assert result["min_balance_point"]["balance"] == Decimal("3000")
+
+    def test_ok_balance_status(self, db_session, test_user):
+        """balance >= 5000 → status == 'ok'."""
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        # starting_balance = 10000 > 5000
+        assert result["min_balance_point"]["status"] == "ok"
+
+    def test_min_balance_in_middle(self, db_session, test_user):
+        """Минимум в середине месяца (не в конце)."""
+        db_session.add_all([
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("9000"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 1, 15),
+            ),
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("20000"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 20),
+            ),
+        ])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        # Минимум на 15-19 января: 10000 - 9000 = 1000
+        # После 20-го: 1000 + 20000 = 21000
+        assert result["min_balance_point"]["date"] == date(2026, 1, 15)
+        assert result["min_balance_point"]["balance"] == Decimal("1000")
+
+    def test_running_balance_cumulative(self, db_session, test_user):
+        """Кумулятивность: balance дня = balance предыдущего + change."""
+        db_session.add_all([
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("1000"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 1, 1),
+            ),
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("500"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 1, 2),
+            ),
+        ])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        day1 = result["daily"][0]  # 1 янв
+        day2 = result["daily"][1]  # 2 янв
+        # day1: 10000 + 1000 = 11000
+        assert day1["balance"] == Decimal("11000")
+        # day2: 11000 - 500 = 10500
+        assert day2["balance"] == Decimal("10500")
+
+    def test_adjustment_positive_as_income(self, db_session, test_user):
+        """ADJUSTMENT amount > 0 → income bar."""
+        db_session.add(Transaction(
+            user_id=test_user.id,
+            amount=Decimal("800"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date(2026, 1, 10),
+        ))
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        day_10 = result["daily"][9]
+        assert day_10["income"] == Decimal("800")
+        assert day_10["expense"] == Decimal("0")
+
+    def test_adjustment_negative_as_expense(self, db_session, test_user):
+        """ADJUSTMENT amount < 0 → expense bar (abs)."""
+        db_session.add(Transaction(
+            user_id=test_user.id,
+            amount=Decimal("-600"),
+            transaction_type=TransactionType.ADJUSTMENT,
+            transaction_date=date(2026, 1, 10),
+        ))
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        day_10 = result["daily"][9]
+        assert day_10["income"] == Decimal("0")
+        assert day_10["expense"] == Decimal("600")
+
+    def test_transfer_not_counted(self, db_session, test_user):
+        """TRANSFER не появляется ни в income, ни в expense."""
+        db_session.add(Transaction(
+            user_id=test_user.id,
+            amount=Decimal("3000"),
+            transaction_type=TransactionType.TRANSFER,
+            transaction_date=date(2026, 1, 10),
+        ))
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        day_10 = result["daily"][9]
+        assert day_10["income"] == Decimal("0")
+        assert day_10["expense"] == Decimal("0")
+
+    def test_savings_reserve_as_expense(self, db_session, test_user):
+        """SAVINGS_RESERVE → expense."""
+        db_session.add(Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=date(2026, 1, 10),
+        ))
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        day_10 = result["daily"][9]
+        assert day_10["expense"] == Decimal("5000")
+        assert day_10["income"] == Decimal("0")
+
+    def test_savings_contribution_as_expense(self, db_session, test_user):
+        """SAVINGS_CONTRIBUTION → expense."""
+        db_session.add(Transaction(
+            user_id=test_user.id,
+            amount=Decimal("2000"),
+            transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
+            transaction_date=date(2026, 1, 10),
+        ))
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_daily_cashflow(test_user.id, 2026, 1)
+
+        day_10 = result["daily"][9]
+        assert day_10["expense"] == Decimal("2000")
+        assert day_10["income"] == Decimal("0")
+
+
+class TestGetYearlyCashflow:
+    """Тесты для get_yearly_cashflow()."""
+
+    def test_returns_12_months(self, db_session, test_user):
+        """Возвращает 12 месяцев с номерами 1-12."""
+        service = DashboardService(db_session)
+        result = service.get_yearly_cashflow(test_user.id, 2026)
+
+        assert len(result["monthly"]) == 12
+        months = [m["month"] for m in result["monthly"]]
+        assert months == list(range(1, 13))
+
+    def test_monthly_income_expense(self, db_session, test_user):
+        """Корректная агрегация income/expense за месяц."""
+        db_session.add_all([
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("10000"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 3, 5),
+            ),
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("5000"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 3, 20),
+            ),
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("3000"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 3, 15),
+            ),
+        ])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_yearly_cashflow(test_user.id, 2026)
+
+        march = result["monthly"][2]  # index 2 = март
+        assert march["income"] == Decimal("15000")
+        assert march["expense"] == Decimal("3000")
+        assert march["label"] == "Мар"
+
+    def test_end_balance_correct(self, db_session, test_user):
+        """end_balance совпадает с CalendarService balance на конец месяца."""
+        from app.services.calendar_service import CalendarService
+
+        db_session.add(Transaction(
+            user_id=test_user.id,
+            amount=Decimal("5000"),
+            transaction_type=TransactionType.INCOME,
+            transaction_date=date(2026, 1, 15),
+        ))
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_yearly_cashflow(test_user.id, 2026)
+
+        # Проверяем через CalendarService
+        cal = CalendarService(db_session)
+        expected_jan = cal.get_balance_on_date(test_user.id, date(2026, 1, 31))
+        assert result["monthly"][0]["end_balance"] == expected_jan
+
+    def test_min_balance_year(self, db_session, test_user):
+        """Минимум года определяется правильно."""
+        # Большой расход в марте → минимум end_balance
+        db_session.add_all([
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("8000"),
+                transaction_type=TransactionType.EXPENSE,
+                transaction_date=date(2026, 3, 10),
+            ),
+            # Восстановление в апреле
+            Transaction(
+                user_id=test_user.id,
+                amount=Decimal("30000"),
+                transaction_type=TransactionType.INCOME,
+                transaction_date=date(2026, 4, 1),
+            ),
+        ])
+        db_session.commit()
+
+        service = DashboardService(db_session)
+        result = service.get_yearly_cashflow(test_user.id, 2026)
+
+        # Март end_balance = 10000 - 8000 = 2000 (минимум)
+        # Апрель end_balance = 2000 + 30000 = 32000
+        assert result["min_balance_point"]["balance"] == Decimal("2000")
+        assert result["min_balance_point"]["date"] == date(2026, 3, 31)

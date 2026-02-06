@@ -37,3 +37,8 @@ Restore context: protocol-0022#ctx-1
 - Добавлен `get_yearly_cashflow()` — оптимизация: один calculate_daily_balances(Jan 1, Dec 31) вместо 12x
 - ADJUSTMENT: amount > 0 → income, amount < 0 → expense(abs) — сознательное решение, documented в docstring
 - Используется protected `_get_recurring_totals_for_period` для Year mode recurring (допустимо — тот же сервисный слой)
+
+### Step 03 — Unit Tests (commit: TBD)
+- 12 тестов TestGetDailyCashflow: basic, no_txn, risk/attention/ok statuses, min_middle, cumulative, adjustment +/-, transfer, savings_reserve, savings_contribution
+- 4 теста TestGetYearlyCashflow: 12_months, income_expense, end_balance, min_year
+- Все 35 тестов файла прошли (19 старых + 16 новых)
