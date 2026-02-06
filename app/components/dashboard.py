@@ -52,14 +52,13 @@ def _build_balance_banner() -> dbc.Alert:
                         "Для точных расчётов укажите текущий остаток на счетах.",
                         className="me-3",
                     ),
-                    dcc.Link(
-                        dbc.Button(
-                            "Сверить баланс",
-                            color="dark",
-                            size="sm",
-                            outline=True,
-                        ),
-                        href="/calendar?open_recon=1",
+                    dbc.Button(
+                        "Сверить баланс",
+                        id="open-recon-from-dashboard-banner-btn",
+                        color="dark",
+                        size="sm",
+                        outline=True,
+                        n_clicks=0,
                     ),
                 ],
                 className="d-flex align-items-center justify-content-center flex-wrap",
@@ -153,7 +152,7 @@ def _build_kpi_card(
     icon: str = "",
     icon_color: str = "#2c3e50",
     status_border_color: str = "",
-    action_button: html.Div | dcc.Link | None = None,
+    action_button: html.Div | dbc.Button | None = None,
 ) -> html.Div:
     """Создает KPI-карточку в новом дизайне.
 
@@ -307,14 +306,13 @@ def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
 
     period_label = "За месяц" if period == "month" else "За год"
 
-    recon_button = dcc.Link(
-        dbc.Button(
-            [html.I(className="bi bi-check2-square me-1"), "Сверка"],
-            size="sm",
-            color="success",
-            outline=True,
-        ),
-        href="/calendar?open_recon=1",
+    recon_button = dbc.Button(
+        [html.I(className="bi bi-check2-square me-1"), "Сверка"],
+        id="open-recon-from-dashboard-btn",
+        size="sm",
+        color="success",
+        outline=True,
+        n_clicks=0,
     )
 
     cards = [
@@ -1205,3 +1203,41 @@ def persist_toast_dismissal(is_open: bool, current: bool) -> bool:
     if not is_open and not current:
         return True
     return no_update
+
+
+@callback(
+    Output("open-recon-trigger", "data", allow_duplicate=True),
+    [
+        Input("open-recon-from-dashboard-btn", "n_clicks"),
+        Input("open-recon-from-dashboard-banner-btn", "n_clicks"),
+    ],
+    prevent_initial_call=True,
+)
+def open_recon_from_dashboard(
+    kpi_clicks: int | None,
+    banner_clicks: int | None,
+):
+    """Открывает модал сверки из Dashboard (KPI или баннер).
+
+    Args:
+        kpi_clicks: Клики на кнопку "Сверка" в KPI-карточке
+        banner_clicks: Клики на кнопку "Сверить баланс" в баннере
+
+    Returns:
+        int: Timestamp для open-recon-trigger
+    """
+    import time
+
+    triggered_id = ctx.triggered_id
+
+    # Guard: проверка реального клика
+    if triggered_id == "open-recon-from-dashboard-btn":
+        if not kpi_clicks or kpi_clicks == 0:
+            raise PreventUpdate
+    elif triggered_id == "open-recon-from-dashboard-banner-btn":
+        if not banner_clicks or banner_clicks == 0:
+            raise PreventUpdate
+    else:
+        raise PreventUpdate
+
+    return int(time.time() * 1000)

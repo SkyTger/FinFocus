@@ -29,3 +29,15 @@
 - Обновлены существующие тесты: передан `reference_date` в 3 старых теста
 - 12 новых тестов: 3 formatter + 3 recent refactor + 6 upcoming
 - Все 57 тестов (13+44) прошли
+Restore context: protocol-0023#ctx-1
+
+### Step 02 — Reconciliation globalization (commit: pending)
+- calendar.py: удален dcc.Store("calendar-refresh-trigger"), удален create_reconciliation_modal() из layout
+- calendar.py: удален callback refresh_calendar_after_reconciliation() (дублировал refresh_calendar_after_transaction)
+- calendar.py: apply_reconciliation() Output "calendar-refresh-trigger" → "global-transaction-trigger" (allow_duplicate=True), return data расширен source/action
+- main.py: добавлен import create_reconciliation_modal, вызов в app.layout после create_wishlist_modal()
+- dashboard.py: KPI recon_button — dcc.Link(href=...) → dbc.Button(id="open-recon-from-dashboard-btn")
+- dashboard.py: Banner — dcc.Link(dbc.Button(...)) → dbc.Button(id="open-recon-from-dashboard-banner-btn")
+- dashboard.py: новый callback open_recon_from_dashboard() — 2 Inputs → Output open-recon-trigger (timestamp)
+- dashboard.py: type hint dcc.Link → dbc.Button в _build_kpi_card()
+- Все 3 файла: py_compile OK
