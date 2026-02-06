@@ -51,3 +51,9 @@ Restore context: protocol-0021#ctx-1
 ### Step 05 — Analytics.py обновления
 - 2 inline замены: donut center annotation + total H4 → format_rub()
 - Plotly hovertemplate (lines 160, 244) оставлены без изменений
+
+### Step 06 — Финализация
+- Black: all 51 files unchanged (уже форматированы)
+- Flake8: 0 errors
+- Pytest: 492 passed, 1 pre-existing failure (test_budget_change_updates_allocation — precision)
+- PR #21 переведён в Ready for Review
