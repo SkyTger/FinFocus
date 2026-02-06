@@ -5,6 +5,8 @@ from decimal import Decimal
 
 from loguru import logger
 
+# Типографский минус (U+2212) вместо дефиса-минуса (U+002D)
+MINUS_SIGN = "\u2212"
 
 # Маппинг Bootstrap Icons на эмодзи для dropdown категорий
 # Используется в transaction_modals.py и других компонентах
@@ -31,16 +33,59 @@ ICON_TO_EMOJI: dict[str, str] = {
 }
 
 
+def format_rub(
+    amount: Decimal | float | int | None,
+    show_sign: bool = False,
+) -> str:
+    """Форматирует сумму в рублях.
+
+    Разделитель тысяч — пробел, символ ₽ в конце.
+    Копейки .00 скрываются (15000 → "15 000 ₽", 1234.56 → "1 234.56 ₽").
+    Знак минус — типографский U+2212.
+
+    Args:
+        amount: Сумма (Decimal, float, int или None)
+        show_sign: Добавлять «+» для положительных сумм
+
+    Returns:
+        str: Отформатированная строка (например, "15 000 ₽")
+    """
+    if amount is None:
+        return "0 ₽"
+    try:
+        value = Decimal(str(amount))
+    except Exception:
+        return "0 ₽"
+    is_negative = value < 0
+    abs_value = abs(value)
+    quantized = abs_value.quantize(Decimal("0.01"))
+    int_part = int(quantized)
+    frac_part = quantized - int_part
+    int_str = f"{int_part:,}".replace(",", " ")
+    if frac_part == 0:
+        number_str = int_str
+    else:
+        frac_str = f"{frac_part:.2f}"[1:]
+        number_str = f"{int_str}{frac_str}"
+    if is_negative:
+        result = f"{MINUS_SIGN}{number_str} ₽"
+    elif show_sign and value > 0:
+        result = f"+{number_str} ₽"
+    else:
+        result = f"{number_str} ₽"
+    return result
+
+
 def format_amount(amount: Decimal) -> str:
-    """Форматирует сумму для отображения.
+    """Форматирует сумму для отображения (alias для format_rub).
 
     Args:
         amount: Сумма операции
 
     Returns:
-        str: Отформатированная строка (например, "15 000.00 ₽")
+        str: Отформатированная строка (например, "15 000 ₽")
     """
-    return f"{amount:,.2f} ₽".replace(",", " ")
+    return format_rub(amount)
 
 
 def format_date(date_obj: date) -> str:

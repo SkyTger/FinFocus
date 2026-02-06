@@ -14,10 +14,10 @@ Restore context: protocol-0021#ctx-1
 
 ## Step Log
 
-<!--
-Формат записи:
-### Step XX — [название] (commit: abc1234)
-- Что сделано
-- Неочевидные решения и почему
-- Проблемы и как решены
--->
+### Step 01 — format_rub() + тесты
+- format_rub() реализован по спецификации (Decimal/float/int/None, show_sign, U+2212 минус)
+- format_amount() переопределён как alias → 28 callsites покрыты без изменений
+- MINUS_SIGN константа для типографского минуса
+- .00 копейки скрываются (15000 → "15 000 ₽", не "15 000.00 ₽")
+- 10 unit тестов PASS, 492 total PASS (1 pre-existing failure в allocation precision)
+- format_rub добавлен в __init__.py экспорт

@@ -1,9 +1,9 @@
 # Protocol Context: 0021-dashboard-foundation
 
-- **Current Step**: 1
+- **Current Step**: 2
 - **Status**: In Progress
-- **Last Action**: Setup завершён (commit 79f9933), PR #21 создан
-- **Next Action**: Шаг 1 — format_rub() + тесты
+- **Last Action**: format_rub() + 10 unit тестов
+- **Next Action**: Шаг 2 — CSS-переменные + типографика
 - **Git Branch**: `0021-dashboard-foundation`
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`
 - **CWD**: `/home/skytiger/PycharmProjects/worktrees/0021-dashboard-foundation`
