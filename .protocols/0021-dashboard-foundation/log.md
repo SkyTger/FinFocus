@@ -47,3 +47,7 @@ Restore context: protocol-0021#ctx-1
 - Tooltip balance и 5 amount строк → format_rub()
 - Reconciliation: 2 expected, 1 diff, 2 adjustment → format_rub()
 - 2 теста обновлены: "-3 000" → "\u2212" + "3 000" (типографский минус)
+
+### Step 05 — Analytics.py обновления
+- 2 inline замены: donut center annotation + total H4 → format_rub()
+- Plotly hovertemplate (lines 160, 244) оставлены без изменений
