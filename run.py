@@ -2,10 +2,42 @@
 Запуск приложения FinFocus.
 """
 import os
+from decimal import Decimal
 
 from app.core import setup_logging, logger, init_database, get_db_session
 from app.main import app
-from app.models.database import User
+from app.models.database import User, Category
+from app.services.category_service import CategoryService
+
+
+def auto_bootstrap() -> None:
+    """Автоинициализация при первом запуске.
+
+    Создаёт пользователя по умолчанию и сидит категории,
+    если база данных пустая. Идемпотентно — безопасно при повторных запусках.
+    """
+    with get_db_session() as session:
+        user_count = session.query(User).count()
+        category_count = session.query(Category).count()
+
+        if user_count == 0:
+            default_user = User(
+                name="Пользователь",
+                email="user@local",
+                starting_balance=Decimal("0"),
+                first_launch=True,
+            )
+            session.add(default_user)
+            session.flush()
+            logger.info(f"Создан пользователь по умолчанию (id={default_user.id})")
+
+        if category_count == 0:
+            service = CategoryService(session)
+            count = service.seed_default_categories()
+            logger.info(f"Добавлено {count} предустановленных категорий")
+
+        session.commit()
+
 
 if __name__ == "__main__":
     # Настраиваем логирование первым делом
@@ -19,18 +51,11 @@ if __name__ == "__main__":
     init_database()
     logger.info("База данных готова")
 
-    # Проверка: есть ли данные в БД?
-    with get_db_session() as session:
-        user_count = session.query(User).count()
-
-    if user_count == 0:
-        logger.warning("База данных пустая!")
-        logger.info("Запустите: python scripts/seed_database.py")
-    else:
-        logger.info(f"Найдено пользователей: {user_count}")
+    # Auto-bootstrap: создание пользователя и категорий при первом запуске
+    auto_bootstrap()
 
     # Запускаем приложение
-    debug = os.getenv("DEBUG", "True").lower() == "true"
+    debug = os.getenv("DEBUG", "False").lower() == "true"
     port = int(os.getenv("PORT", 8050))
 
     logger.info(f"Запускаем FinFocus на http://localhost:{port}")
