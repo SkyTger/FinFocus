@@ -109,7 +109,7 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
                     ]
                 )
             ],
-            className="cushion-card cushion-not-configured mb-4",
+            className="cushion-card cushion-not-configured",
         )
 
     # Состояние "Настроена"
@@ -140,7 +140,7 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
         [
             dbc.CardBody(
                 [
-                    # Header с заголовком и кнопкой
+                    # Row 1: Icon + Title + Status + Edit button
                     html.Div(
                         [
                             html.Div(
@@ -149,97 +149,122 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
                                         className="bi bi-shield-check "
                                         "cushion-icon-large"
                                     ),
-                                    html.H5(
-                                        "Финансовая подушка",
-                                        className="cushion-title mb-0 ms-2",
+                                    html.Div(
+                                        [
+                                            html.H5(
+                                                "Финансовая подушка",
+                                                className="cushion-title mb-0",
+                                            ),
+                                            html.Div(
+                                                [
+                                                    html.I(
+                                                        className="bi "
+                                                        f"{status_icon} me-1"
+                                                    ),
+                                                    html.Span(
+                                                        status_text,
+                                                        className="small",
+                                                    ),
+                                                ],
+                                                className="cushion-status "
+                                                f"cushion-status-{progress_color}",
+                                            ),
+                                        ],
+                                        className="ms-3",
                                     ),
                                 ],
                                 className="d-flex align-items-center",
                             ),
                             dbc.Button(
-                                [html.I(className="bi bi-pencil me-1"), "Изменить"],
+                                [
+                                    html.I(className="bi bi-gear me-1"),
+                                    "Параметры",
+                                ],
                                 id="cushion-open-modal-btn",
-                                color="secondary",
+                                color="primary",
                                 outline=True,
                                 size="sm",
                             ),
                         ],
-                        className="d-flex justify-content-between align-items-center "
-                        "mb-3",
+                        className="d-flex justify-content-between "
+                        "align-items-center mb-3",
                     ),
-                    # Статус
-                    html.Div(
-                        [
-                            html.I(className=f"bi {status_icon} me-2"),
-                            html.Span(status_text),
-                        ],
-                        className=f"cushion-status cushion-status-{progress_color} "
-                        "mb-3",
-                    ),
-                    # Суммы
+                    # Row 2: Amounts + Progress — compact grid
                     html.Div(
                         [
                             html.Div(
                                 [
                                     html.Span(
-                                        "Накоплено", className="text-muted small"
+                                        "НАКОПЛЕНО",
+                                        className="cushion-metric-label",
                                     ),
-                                    html.H4(
+                                    html.Span(
                                         format_amount(current),
-                                        className="mb-0 cushion-amount",
+                                        className="cushion-metric-value",
                                     ),
                                 ],
-                                className="cushion-amount-block",
+                                className="cushion-metric",
                             ),
                             html.Div(
                                 [
-                                    html.Span("Цель", className="text-muted small"),
-                                    html.H4(
+                                    html.Span(
+                                        "ЦЕЛЬ",
+                                        className="cushion-metric-label",
+                                    ),
+                                    html.Span(
                                         format_amount(target),
-                                        className="mb-0 text-muted",
+                                        className="cushion-metric-value "
+                                        "text-muted",
                                     ),
                                 ],
-                                className="cushion-amount-block",
+                                className="cushion-metric",
                             ),
-                        ],
-                        className="d-flex gap-4 mb-3",
-                    ),
-                    # Прогресс-бар с маркером порога
-                    html.Div(
-                        [
-                            dbc.Progress(
-                                value=min(progress, 100),
-                                color=progress_color,
-                                className="cushion-progress",
-                                style={"height": "12px"},
-                            ),
-                            # Маркер порога
                             html.Div(
-                                className="cushion-threshold-marker",
-                                style={"left": f"{threshold_percent}%"},
-                                title=f"Порог безопасности: {threshold_percent}%",
+                                [
+                                    html.Div(
+                                        [
+                                            html.Span(
+                                                "ПРОГРЕСС",
+                                                className="cushion-metric-label",
+                                            ),
+                                            html.Span(
+                                                f"{progress:.1f}%",
+                                                className="cushion-progress-text",
+                                            ),
+                                        ],
+                                        className="d-flex justify-content-between "
+                                        "align-items-end mb-1",
+                                    ),
+                                    html.Div(
+                                        [
+                                            dbc.Progress(
+                                                value=min(progress, 100),
+                                                color=progress_color,
+                                                className="cushion-progress",
+                                                style={"height": "10px"},
+                                            ),
+                                            html.Div(
+                                                className="cushion-threshold-marker",
+                                                style={
+                                                    "left": f"{threshold_percent}%"
+                                                },
+                                                title="Порог безопасности: "
+                                                f"{threshold_percent}%",
+                                            ),
+                                        ],
+                                        className="cushion-progress-container "
+                                        "position-relative",
+                                    ),
+                                ],
+                                className="cushion-metric cushion-metric-wide",
                             ),
                         ],
-                        className="cushion-progress-container position-relative",
-                    ),
-                    # Подпись прогресса
-                    html.Div(
-                        [
-                            html.Span(
-                                f"{progress:.1f}%",
-                                className="cushion-progress-text",
-                            ),
-                            html.Span(
-                                f"Порог: {threshold_percent}%",
-                                className="text-muted small",
-                            ),
-                        ],
-                        className="d-flex justify-content-between mt-2",
+                        className="cushion-metrics-grid",
                     ),
                 ]
             )
         ],
-        className=f"cushion-card cushion-configured cushion-{progress_color} mb-4",
+        className=f"cushion-card cushion-configured cushion-{progress_color}",
     )
 
 
@@ -256,10 +281,13 @@ def _build_mode_selector(current_mode: str) -> dbc.Card:
         {
             "label": html.Div(
                 [
-                    html.Span(MODE_OPTIONS[mode]["label"], className="mode-label"),
-                    html.Br(),
-                    html.Small(
-                        MODE_OPTIONS[mode]["description"], className="mode-description"
+                    html.Div(
+                        MODE_OPTIONS[mode]["label"],
+                        className="mode-label",
+                    ),
+                    html.Div(
+                        MODE_OPTIONS[mode]["description"],
+                        className="mode-description",
                     ),
                 ]
             ),
@@ -268,18 +296,17 @@ def _build_mode_selector(current_mode: str) -> dbc.Card:
         for mode in ["free", "medium", "strict"]
     ]
 
-    return dbc.Card(
+    return html.Div(
         [
-            dbc.CardHeader(html.H6("Режим накоплений", className="mb-0")),
-            dbc.CardBody(
-                [
-                    dbc.RadioItems(
-                        id="savings-mode-selector",
-                        options=options,
-                        value=current_mode,
-                        className="savings-mode-radio",
-                    ),
-                ]
+            html.Div(
+                "РЕЖИМ НАКОПЛЕНИЙ",
+                className="mode-selector-label",
+            ),
+            dbc.RadioItems(
+                id="savings-mode-selector",
+                options=options,
+                value=current_mode,
+                className="savings-mode-radio",
             ),
         ],
         className="mode-selector-card",
@@ -383,7 +410,7 @@ def _build_budget_alert() -> dbc.Alert:
         ],
         color="info",
         dismissable=True,
-        className="budget-alert mb-3",
+        className="budget-alert",
     )
 
 
@@ -402,114 +429,91 @@ def _build_summary_section(
     Returns:
         dbc.Card: Карточка со сводной информацией
     """
-    # Статус распределения
-    if allocation_summary["all_goals_funded"]:
-        distribution_status = dbc.Alert(
-            [
-                html.I(className="bi bi-check-circle me-2"),
-                "Все цели полностью профинансированы",
-            ],
-            color="success",
-            className="mb-0",
-        )
+    # Прогресс распределения
+    total_budget = budget_progress["total_budget"]
+    used_budget = budget_progress["used_budget"]
+    if total_budget and total_budget > 0:
+        dist_pct = float(used_budget / total_budget * 100)
+        free_amount = total_budget - used_budget
     else:
-        shortfall = allocation_summary["total_shortfall"]
-        distribution_status = dbc.Alert(
-            [
-                html.I(className="bi bi-exclamation-triangle me-2"),
-                f"Недостаток бюджета: {format_amount(shortfall)}",
-            ],
-            color="warning",
-            className="mb-0",
-        )
+        dist_pct = 0
+        free_amount = Decimal("0")
 
-    # Бюджет накоплений - формат "used / total"
-    if allocation_summary["budget_not_set"]:
-        budget_content = html.H5("Не настроен", className="mb-0 text-muted")
-    else:
-        budget_content = html.H5(
-            [
-                format_amount(budget_progress["used_budget"]),
-                html.Span(" / ", className="text-muted"),
-                html.Span(
-                    format_amount(budget_progress["total_budget"]),
-                    className="text-muted",
-                ),
-            ],
-            className="mb-0",
-        )
-
-    return dbc.Card(
+    return html.Div(
         [
-            dbc.CardHeader(html.H5("Сводка по целям", className="mb-0")),
-            dbc.CardBody(
+            # Label
+            html.Div("ЕЖЕМЕСЯЧНЫЙ ПЛАН", className="summary-label"),
+            # Main row: budget amount | distribution progress
+            html.Div(
                 [
-                    dbc.Row(
+                    # Left: budget
+                    html.Div(
                         [
-                            dbc.Col(
-                                [
-                                    html.P(
-                                        "Общий прогресс",
-                                        className="text-muted mb-1 small",
-                                    ),
-                                    html.H5(
-                                        [
-                                            format_amount(
-                                                goals_summary["total_current_amount"]
-                                            ),
-                                            html.Span(" / ", className="text-muted"),
-                                            html.Span(
-                                                format_amount(
-                                                    goals_summary["total_target_amount"]
-                                                ),
-                                                className="text-muted",
-                                            ),
-                                            html.Small(
-                                                f" ({goals_summary['total_progress_percentage']:.1f}%)",  # noqa: E501
-                                                className="text-muted ms-2",
-                                            ),
-                                        ],
-                                        className="mb-0",
-                                    ),
-                                ],
-                                md=6,
+                            html.Div(
+                                "Бюджет на накопления",
+                                className="summary-budget-label",
                             ),
-                            dbc.Col(
-                                [
-                                    html.P(
-                                        "Бюджет накоплений",
-                                        className="text-muted mb-0 small",
-                                    ),
-                                    html.Small(
-                                        "В текущем месяце",
-                                        className="text-muted",
-                                    ),
-                                    budget_content,
-                                ],
-                                md=6,
+                            html.Div(
+                                (
+                                    f"{format_amount(total_budget)}/мес"
+                                    if not allocation_summary["budget_not_set"]
+                                    else "Не настроен"
+                                ),
+                                className="summary-budget-value",
                             ),
                         ],
-                        className="mb-3",
+                        className="summary-budget-block",
                     ),
-                    distribution_status,
+                    # Right: distribution
                     html.Div(
-                        dbc.Button(
-                            [
-                                html.I(className="bi bi-gear me-2"),
-                                "Настроить бюджет",
-                            ],
-                            id="open-budget-modal-btn",
-                            color="primary",
-                            outline=True,
-                            size="sm",
-                            className="mt-3",
-                        ),
-                        className="text-end",
+                        [
+                            html.Div(
+                                [
+                                    html.Span(
+                                        f"Распределено {dist_pct:.0f}%",
+                                        className="summary-dist-label",
+                                    ),
+                                    html.Span(
+                                        f"{format_amount(free_amount)} свободно",
+                                        className="summary-dist-free",
+                                    ),
+                                ],
+                                className="summary-dist-header",
+                            ),
+                            dbc.Progress(
+                                value=min(dist_pct, 100),
+                                color=(
+                                    "success"
+                                    if dist_pct >= 100
+                                    else "primary"
+                                    if dist_pct >= 50
+                                    else "warning"
+                                ),
+                                className="summary-dist-progress",
+                                style={"height": "8px"},
+                            ),
+                        ],
+                        className="summary-dist-block",
                     ),
-                ]
+                ],
+                className="summary-main-row",
+            ),
+            # Button
+            html.Div(
+                dbc.Button(
+                    [
+                        html.I(className="bi bi-gear me-2"),
+                        "Настроить бюджет",
+                    ],
+                    id="open-budget-modal-btn",
+                    color="primary",
+                    outline=True,
+                    size="sm",
+                ),
+                className="summary-btn-row",
             ),
         ],
-        className="summary-section mb-4",
+        className="summary-compact-card",
     )
 
 
@@ -554,7 +558,7 @@ def _build_progress_bar(progress: float, current: Decimal, target: Decimal) -> h
                 label=f"{progress:.1f}%",
             ),
         ],
-        className="goal-progress-container mb-4",
+        className="goal-progress-container",
     )
 
 
@@ -614,58 +618,61 @@ def _build_action_buttons(goal_data: GoalDisplayData) -> dbc.ButtonGroup:
     )
 
 
-def _build_goal_card(goal_data: GoalDisplayData) -> dbc.Card:
-    """Создает карточку цели для списка с приоритетами и allocation.
+def _build_goal_card(goal_data: GoalDisplayData) -> html.Div:
+    """Создает компактную карточку цели (Stitch style).
 
     Args:
         goal_data: Данные цели с allocated_amount и allocation_status
 
     Returns:
-        dbc.Card: Карточка с информацией о цели
+        html.Div: Компактная карточка цели
     """
-    # Определяем badge статуса
+    # Badge статуса
     status_badges = {
-        "active": dbc.Badge("Активна", color="success", className="ms-2"),
-        "paused": dbc.Badge("Приостановлена", color="warning", className="ms-2"),
-        "completed": dbc.Badge("Завершена", color="info", className="ms-2"),
+        "active": dbc.Badge(
+            "Активна", color="success", className="ms-2"
+        ),
+        "paused": dbc.Badge(
+            "Приостановлена", color="warning", className="ms-2"
+        ),
+        "completed": dbc.Badge(
+            "Завершена", color="info", className="ms-2"
+        ),
     }
     status_badge = status_badges.get(goal_data["status"], None)
 
-    # Badge приоритета
-    priority_badge = dbc.Badge(
-        f"#{goal_data['priority']}",
-        color="secondary",
-        className="goal-card-priority me-2",
-    )
+    # Цвет прогресса
+    progress = goal_data["progress_percentage"]
+    if progress >= 100:
+        p_color = "success"
+    elif progress >= 50:
+        p_color = "primary"
+    elif progress >= 25:
+        p_color = "warning"
+    else:
+        p_color = "secondary"
 
-    # Badge allocation status
-    allocation_badge = None
-    if goal_data.get("allocation_status"):
-        allocation_badges = {
-            "fully_funded": dbc.Badge("Полностью", color="success", className="ms-2"),
-            "partial": dbc.Badge("Частично", color="warning", className="ms-2"),
-            "not_funded": dbc.Badge(
-                "Не профинансирована", color="danger", className="ms-2"
-            ),
-            "skipped": dbc.Badge("Пропущена", color="secondary", className="ms-2"),
-        }
-        allocation_badge = allocation_badges.get(goal_data["allocation_status"])
-
-    # Кнопки приоритетов (arrows)
+    # Кнопки приоритетов
     priority_buttons = dbc.ButtonGroup(
         [
             dbc.Button(
                 html.I(className="bi bi-arrow-up"),
-                id={"type": "priority-up-btn", "index": goal_data["id"]},
-                color="light",
+                id={
+                    "type": "priority-up-btn",
+                    "index": goal_data["id"],
+                },
+                color="secondary",
                 size="sm",
                 outline=True,
                 className="priority-btn",
             ),
             dbc.Button(
                 html.I(className="bi bi-arrow-down"),
-                id={"type": "priority-down-btn", "index": goal_data["id"]},
-                color="light",
+                id={
+                    "type": "priority-down-btn",
+                    "index": goal_data["id"],
+                },
+                color="secondary",
                 size="sm",
                 outline=True,
                 className="priority-btn",
@@ -674,145 +681,144 @@ def _build_goal_card(goal_data: GoalDisplayData) -> dbc.Card:
         size="sm",
     )
 
-    # Allocation секция (если есть)
-    allocation_section = None
-    if goal_data.get("allocated_amount") is not None:
-        allocation_section = dbc.Card(
-            dbc.CardBody(
+    return html.Div(
+        [
+            # Row 1: #N Name [Badge] ... Deadline + priority arrows
+            html.Div(
                 [
-                    html.P("Выделено из бюджета", className="text-muted mb-1 small"),
-                    html.H5(
+                    html.Div(
                         [
-                            format_amount(goal_data["allocated_amount"]),
-                            html.Span("/мес", className="text-muted ms-1"),
-                            allocation_badge if allocation_badge else None,
+                            dbc.Badge(
+                                f"#{goal_data['priority']}",
+                                color="secondary",
+                                className="goal-card-priority me-2",
+                            ),
+                            html.Span(
+                                goal_data["name"],
+                                className="goal-compact-name",
+                            ),
+                            status_badge,
                         ],
-                        className="mb-0",
+                        className="d-flex align-items-center",
+                    ),
+                    html.Div(
+                        [
+                            html.Small(
+                                format_date(goal_data["target_date"]),
+                                className="goal-compact-deadline me-2",
+                            ),
+                            priority_buttons,
+                        ],
+                        className="d-flex align-items-center",
                     ),
                 ],
+                className="goal-compact-header",
             ),
-            className="goal-metric-card goal-card-allocation",
-        )
-
-    # Метрики
-    metric_cols = [
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody(
-                    [
-                        html.P("Накоплено", className="text-muted mb-1 small"),
-                        html.H5(
-                            format_amount(goal_data["current_amount"]),
-                            className="mb-0 text-success",
-                        ),
-                    ]
-                ),
-                className="goal-metric-card",
-            ),
-            md=3 if allocation_section else 4,
-        ),
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody(
-                    [
-                        html.P(
-                            "Рекомендуемый взнос",
-                            className="text-muted mb-1 small",
-                        ),
-                        html.H5(
-                            format_amount(goal_data["monthly_contribution"]) + "/мес",
-                            className="mb-0 text-primary",
-                        ),
-                    ]
-                ),
-                className="goal-metric-card",
-            ),
-            md=3 if allocation_section else 4,
-        ),
-        dbc.Col(
-            dbc.Card(
-                dbc.CardBody(
-                    [
-                        html.P("Осталось", className="text-muted mb-1 small"),
-                        html.H5(
-                            format_days_remaining(goal_data["days_remaining"]),
-                            className="mb-0",
-                        ),
-                    ]
-                ),
-                className="goal-metric-card",
-            ),
-            md=3 if allocation_section else 4,
-        ),
-    ]
-
-    if allocation_section:
-        metric_cols.append(dbc.Col(allocation_section, md=3))
-
-    metrics_row = dbc.Row(metric_cols, className="mb-3")
-
-    return dbc.Card(
-        [
-            dbc.CardHeader(
-                html.Div(
-                    [
-                        html.Div(
-                            [
-                                priority_badge,
-                                html.H5(
-                                    [goal_data["name"], status_badge],
-                                    className="d-inline mb-0",
-                                ),
-                            ],
-                            className="d-flex align-items-center",
-                        ),
-                        html.Div(
-                            [
-                                html.Small(
-                                    f"Дедлайн: {format_date(goal_data['target_date'])}",
-                                    className="text-muted me-3",
-                                ),
-                                priority_buttons,
-                            ],
-                            className="d-flex align-items-center",
-                        ),
-                    ],
-                    className="d-flex justify-content-between align-items-center",
-                )
-            ),
-            dbc.CardBody(
+            # Row 2: amount / target + progress bar
+            html.Div(
                 [
-                    _build_progress_bar(
-                        goal_data["progress_percentage"],
-                        goal_data["current_amount"],
-                        goal_data["target_amount"],
+                    html.Div(
+                        [
+                            html.Span(
+                                format_amount(
+                                    goal_data["current_amount"]
+                                ),
+                                className="goal-compact-current",
+                            ),
+                            html.Span(
+                                " / ",
+                                className="goal-compact-sep",
+                            ),
+                            html.Span(
+                                format_amount(
+                                    goal_data["target_amount"]
+                                ),
+                                className="goal-compact-target",
+                            ),
+                        ],
+                        className="goal-compact-amounts",
                     ),
-                    metrics_row,
+                    html.Div(
+                        [
+                            dbc.Progress(
+                                value=min(progress, 100),
+                                color=p_color,
+                                className="goal-compact-progress",
+                                style={"height": "8px"},
+                            ),
+                        ],
+                        className="goal-compact-bar",
+                    ),
+                    html.Span(
+                        f"{progress:.0f}%",
+                        className="goal-compact-pct",
+                    ),
+                ],
+                className="goal-compact-progress-row",
+            ),
+            # Row 3: info chips + action buttons
+            html.Div(
+                [
+                    html.Div(
+                        [
+                            html.Span(
+                                [
+                                    html.I(
+                                        className="bi bi-clock me-1"
+                                    ),
+                                    format_days_remaining(
+                                        goal_data["days_remaining"]
+                                    ),
+                                ],
+                                className="goal-compact-chip",
+                            ),
+                            html.Span(
+                                [
+                                    html.I(
+                                        className="bi "
+                                        "bi-arrow-repeat me-1"
+                                    ),
+                                    format_amount(
+                                        goal_data[
+                                            "monthly_contribution"
+                                        ]
+                                    )
+                                    + "/мес",
+                                ],
+                                className="goal-compact-chip",
+                            ),
+                        ],
+                        className="goal-compact-chips",
+                    ),
                     html.Div(
                         [
                             dbc.Button(
                                 [
-                                    html.I(className="bi bi-plus-circle me-2"),
-                                    "Внести взнос",
+                                    html.I(
+                                        className="bi "
+                                        "bi-plus-circle me-1"
+                                    ),
+                                    "Взнос",
                                 ],
                                 id={
                                     "type": "add-contribution-btn",
                                     "index": goal_data["id"],
                                 },
                                 color="success",
-                                className="me-2",
                                 size="sm",
                                 disabled=goal_data["is_completed"]
                                 or goal_data["status"] == "paused",
+                                className="me-1",
                             ),
                             _build_action_buttons(goal_data),
                         ],
-                        className="d-flex justify-content-between align-items-center",
+                        className="d-flex align-items-center",
                     ),
-                ]
+                ],
+                className="goal-compact-footer",
             ),
         ],
-        className="goal-card mb-3",
+        className="goal-compact-card",
     )
 
 
@@ -1841,34 +1847,33 @@ def _recalculate_and_render(
     # Строим layout
     goals_container_children = []
 
-    # 1. Summary section + Mode selector (Row для адаптивности)
+    # 1. Summary section (full width, compact)
     goals_container_children.append(
-        dbc.Row(
-            [
-                dbc.Col(
-                    _build_summary_section(
-                        goals_summary, allocation_summary, budget_progress
-                    ),
-                    lg=8,
-                    md=12,
-                    className="mb-3 mb-lg-0",
-                ),
-                dbc.Col(
-                    _build_mode_selector(savings_mode),
-                    lg=4,
-                    md=12,
-                ),
-            ],
-            className="mb-4",
-        )
+        _build_summary_section(goals_summary, allocation_summary, budget_progress)
     )
 
     # 2. Budget alert (если бюджет не настроен)
     if allocation_summary["budget_not_set"]:
         goals_container_children.append(_build_budget_alert())
 
-    # 3. Goals list
-    goals_container_children.append(_build_goals_list(all_goals, allocation_dict))
+    # 3. Goals list + Mode selector (right column)
+    goals_container_children.append(
+        dbc.Row(
+            [
+                dbc.Col(
+                    _build_goals_list(all_goals, allocation_dict),
+                    lg=9,
+                    md=12,
+                ),
+                dbc.Col(
+                    _build_mode_selector(savings_mode),
+                    lg=3,
+                    md=12,
+                    className="mt-3 mt-lg-0",
+                ),
+            ],
+        )
+    )
 
     return (
         goals_container_children,
@@ -2004,26 +2009,29 @@ def create_goals_layout() -> html.Div:
     """
     return html.Div(
         [
-            # Заголовок страницы с кнопкой создания
+            # Заголовок страницы (Stitch style)
             html.Div(
                 [
                     html.Div(
                         [
-                            html.H2("Накопительные цели", className="mb-0"),
+                            html.H1(
+                                "Цели накопления",
+                                className="goals-page-title",
+                            ),
                             html.P(
-                                "Ставьте финансовые цели и отслеживайте прогресс",
-                                className="text-muted mb-0",
+                                "Управляйте своими финансовыми мечтами",
+                                className="goals-page-subtitle",
                             ),
                         ]
                     ),
                     dbc.Button(
-                        [html.I(className="bi bi-plus-lg me-2"), "Создать цель"],
+                        [html.I(className="bi bi-plus-circle me-2"), "Добавить цель"],
                         id="create-goal-btn-header",
                         color="success",
                         className="create-goal-header-btn",
                     ),
                 ],
-                className="d-flex justify-content-between align-items-center mb-4",
+                className="goals-page-header",
             ),
             # Alert для ошибок
             dbc.Alert(
@@ -2043,7 +2051,6 @@ def create_goals_layout() -> html.Div:
                     dbc.CardHeader(html.H5("История взносов", className="mb-0")),
                     dbc.CardBody(html.Div(id="contributions-table-container")),
                 ],
-                className="mt-4",
             ),
             # Модалы
             _build_cushion_modal(),
