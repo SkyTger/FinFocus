@@ -1,195 +1,319 @@
-/* ==================== КАССОВЫЙ КАЛЕНДАРЬ ==================== */
+/* ==================== КАССОВЫЙ КАЛЕНДАРЬ — Glass Grid ==================== */
 
-/* Контейнер календаря */
+/* Контейнер страницы — fills sidebar height */
 .calendar-container {
-    padding: 20px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 820px;
+    margin: 0 auto;
+    height: calc(100vh - 48px);
 }
 
-/* Заголовок */
+/* ID wrappers — flex passthrough */
+#calendar-grid {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+#wishlist-overlay:empty {
+    display: none;
+}
+
+/* ==================== HEADER ==================== */
+
 .calendar-header {
-    margin-bottom: 20px;
+    margin-bottom: 0;
+}
+
+.calendar-header-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.calendar-month-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    border-radius: 16px;
+    padding: 6px 16px;
 }
 
 .calendar-month-title {
     font-weight: 600;
-    color: #333;
+    color: var(--color-text-primary);
+    font-size: 14px;
+    min-width: 130px;
+    text-align: center;
 }
 
-/* Карточки статистики */
+/* ==================== STATS CARDS ==================== */
+
+.calendar-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
 .stats-card {
-    border: none;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    transition: transform 0.2s;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 14px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .stats-card:hover {
     transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
 }
 
-/* ==================== СЕТКА КАЛЕНДАРЯ ==================== */
-
-.calendar-grid {
-    border: 1px solid #dee2e6;
-    border-radius: 8px;
-    overflow: visible;  /* Для tooltip за границами */
-    background: #fff;
+.stats-card-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
 }
 
-/* Строка дней недели */
+.stats-card-value {
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--color-text-primary);
+}
+
+.stats-card-value.income {
+    color: var(--color-income);
+}
+
+.stats-card-value.expense {
+    color: var(--color-expense);
+}
+
+/* ==================== CALENDAR GRID WRAPPER ==================== */
+
+.calendar-grid-wrapper {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-height: 0;  /* allow flex shrink */
+    overflow: hidden;
+}
+
+/* ==================== WEEKDAY HEADER ==================== */
+
 .calendar-weekday-row {
-    background-color: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    background: none;
+    border-bottom: none;
+    flex-shrink: 0;
 }
 
 .calendar-weekday {
-    width: 14.28%;  /* 100% / 7 */
-    font-weight: 600;
-    padding: 12px 8px;
-    color: #495057;
-    font-size: 13px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 6px 0;
 }
 
-/* Строка недели */
+/* Weekend headers slightly lighter */
+.calendar-weekday:nth-child(6),
+.calendar-weekday:nth-child(7) {
+    color: var(--color-text-muted);
+    opacity: 0.7;
+}
+
+/* ==================== CALENDAR GRID ==================== */
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-auto-rows: 1fr;
+    gap: 6px;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Week rows: children flow into parent grid */
 .calendar-week-row {
-    border-bottom: 1px solid #dee2e6;
-    overflow: visible;  /* Для tooltip за границами строки */
-}
-
-.calendar-week-row:last-child {
+    display: contents;
     border-bottom: none;
 }
 
-/* ==================== ЯЧЕЙКА ДНЯ ==================== */
+/* ==================== DAY CELL ==================== */
 
 .calendar-day {
-    width: 14.28%;  /* 100% / 7 */
-    min-height: 80px;
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    border-radius: 16px;
     padding: 8px;
-    border-right: 1px solid #dee2e6;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: all 0.2s ease;
     display: flex;
     flex-direction: column;
-    position: relative;  /* Для позиционирования tooltip */
-}
-
-.calendar-day:last-child {
-    border-right: none;
+    position: relative;
 }
 
 .calendar-day:hover {
-    background-color: #f8f9fa;
+    background: rgba(255, 255, 255, 0.4);
+    border-color: rgba(255, 255, 255, 0.6);
 }
 
-/* Сегодняшний день */
+.calendar-day:last-child {
+    border-right: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+/* Today — green glow */
 .calendar-day-today {
-    background-color: #e8f5e9;
-    border: 2px solid #4caf50 !important;
+    background: rgba(46, 204, 113, 0.08) !important;
+    border: 2px solid var(--color-primary) !important;
+    box-shadow: 0 0 12px rgba(46, 204, 113, 0.15);
 }
 
 .calendar-day-today:hover {
-    background-color: #c8e6c9;
+    background: rgba(46, 204, 113, 0.12) !important;
 }
 
-/* День другого месяца */
+/* Other month — faded */
 .calendar-day-other-month {
-    opacity: 0.4;
-    background-color: #fafafa;
+    opacity: 0.25;
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .calendar-day-other-month:hover {
-    opacity: 0.6;
+    opacity: 0.4;
 }
 
-/* Выходной */
+/* Weekend */
 .calendar-day-weekend {
-    background-color: #fafafa;
+    background: rgba(255, 255, 255, 0.12);
 }
 
 .calendar-day-weekend:hover {
-    background-color: #f0f0f0;
+    background: rgba(255, 255, 255, 0.3);
 }
 
-/* ==================== ЭЛЕМЕНТЫ ЯЧЕЙКИ ==================== */
+/* ==================== DAY CELL ELEMENTS ==================== */
 
-/* Номер дня */
+.calendar-day-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    cursor: pointer;
+}
+
+/* Top row: day number + dots */
+.calendar-day-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
 .calendar-day-number {
-    font-weight: bold;
-    font-size: 14px;
-    color: #333;
-    margin-bottom: 4px;
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--color-text-primary);
+    margin-bottom: 0;
 }
 
 .calendar-day-other-month .calendar-day-number {
-    color: #999;
+    color: var(--color-text-muted);
 }
 
-/* Иконки транзакций */
-.calendar-day-icons {
-    font-size: 12px;
-    margin-top: 2px;
-    margin-bottom: 2px;
+.calendar-day-today .calendar-day-number {
+    color: var(--color-primary);
+    font-weight: 800;
 }
 
-/* Баланс */
+/* Transaction dots */
+.calendar-day-dots {
+    display: flex;
+    gap: 3px;
+    align-items: center;
+}
+
+.txn-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.txn-dot.income {
+    background-color: var(--color-income);
+}
+
+.txn-dot.expense {
+    background-color: var(--color-expense);
+}
+
+.txn-dot.recurring {
+    background-color: var(--color-secondary);
+}
+
+/* Balance at bottom */
 .calendar-day-balance {
     font-size: 11px;
+    font-weight: 600;
     margin-top: auto;
-    font-weight: 500;
+    color: var(--color-text-secondary);
 }
 
-/* ==================== ЦВЕТА БАЛАНСА ==================== */
-
 .balance-positive {
-    color: var(--color-primary-dark);
+    color: var(--color-text-secondary);
 }
 
 .balance-negative {
-    color: #dc3545;
+    color: var(--color-expense);
 }
 
 .balance-warning {
-    color: #ff9800;
+    color: var(--color-warning);
 }
 
-/* ==================== АДАПТИВНОСТЬ ==================== */
-
-@media (max-width: 768px) {
-    .calendar-day {
-        min-height: 60px;
-        padding: 4px;
-    }
-
-    .calendar-day-number {
-        font-size: 12px;
-    }
-
-    .calendar-day-balance {
-        font-size: 10px;
-    }
-
-    .calendar-weekday {
-        padding: 8px 4px;
-        font-size: 11px;
-    }
-
-    .calendar-month-title {
-        font-size: 1.1rem;
-    }
-}
-
-@media (max-width: 576px) {
-    .calendar-container {
-        padding: 10px;
-    }
-
-    .calendar-day {
-        min-height: 50px;
-    }
-
-    .calendar-day-icons {
-        display: none;
-    }
+/* Low balance — red tint */
+.calendar-day.balance-low {
+    background: rgba(244, 63, 94, 0.05);
 }
 
 /* ==================== RECURRING INDICATORS ==================== */
@@ -222,27 +346,17 @@
     --tooltip-hide-delay: 150ms;
 }
 
-/* Wrapper для кликабельной области */
-.calendar-day-content {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    cursor: pointer;
-}
-
-/* Glassmorphism tooltip — позиционируется СБОКУ от ячейки */
+/* Glassmorphism tooltip — positioned BESIDE the cell */
 .calendar-day-tooltip {
     position: absolute;
     top: 0;
-    left: 100%;  /* Справа от ячейки */
-    margin-left: 0;  /* Вплотную к ячейке для удобства наведения */
+    left: 100%;
+    margin-left: 4px;
     z-index: 1000;
     min-width: 240px;
     max-width: 300px;
     padding: 14px;
 
-    /* Glassmorphism — визуальный эффект матового стекла */
     background: linear-gradient(
         145deg,
         rgba(250, 252, 255, 0.95) 0%,
@@ -258,7 +372,7 @@
         inset 0 -1px 0 rgba(0, 20, 40, 0.04);
 }
 
-/* Animation — сбоку */
+/* Animation */
 .calendar-day-tooltip {
     opacity: 0;
     visibility: hidden;
@@ -267,7 +381,6 @@
         opacity 0.2s ease,
         transform 0.2s ease,
         visibility 0s linear var(--tooltip-hide-delay);
-
     pointer-events: none;
 }
 
@@ -280,13 +393,13 @@
     pointer-events: auto;
 }
 
-/* Правые колонки (Сб, Вс) — tooltip СЛЕВА от ячейки */
+/* Right columns (Sat, Sun) — tooltip LEFT */
 .calendar-day:nth-child(7n-1) .calendar-day-tooltip,
 .calendar-day:nth-child(7n) .calendar-day-tooltip {
     left: auto;
     right: 100%;
     margin-left: 0;
-    margin-right: 0;  /* Вплотную к ячейке */
+    margin-right: 4px;
     transform: translateX(8px);
 }
 
@@ -295,17 +408,21 @@
     transform: translateX(0);
 }
 
-/* Fallback для браузеров без backdrop-filter */
+/* Fallback */
 @supports not (backdrop-filter: blur(12px)) {
     .calendar-day-tooltip {
         background: rgba(255, 255, 255, 0.98);
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     }
+    .stats-card,
+    .calendar-header-card,
+    .calendar-grid-wrapper {
+        background: rgba(255, 255, 255, 0.92);
+    }
 }
 
 /* ==================== TOOLTIP CONTENT ==================== */
 
-/* Header с балансом */
 .tooltip-balance {
     font-size: 13px;
     font-weight: 600;
@@ -334,7 +451,6 @@
     color: #dc3545;
 }
 
-/* Строка операции */
 .tooltip-txn-row {
     display: flex;
     align-items: center;
@@ -386,10 +502,10 @@
 }
 
 .tooltip-txn-amount.savings {
-    color: #6f42c1;  /* Purple — выделяем savings от expense */
+    color: #6f42c1;
 }
 
-/* Read-only rows (e.g. SAVINGS_RESERVE) */
+/* Read-only rows */
 .tooltip-txn-row.readonly {
     cursor: default;
     opacity: 0.75;
@@ -399,14 +515,12 @@
     background: transparent;
 }
 
-/* ==================== TOOLTIP EXPAND (HTML5 details/summary) ==================== */
+/* ==================== TOOLTIP EXPAND ==================== */
 
-/* Details container */
 .tooltip-expand-details {
     margin-top: 6px;
 }
 
-/* Summary (expand button) */
 .tooltip-expand-btn {
     display: inline-flex;
     align-items: center;
@@ -418,11 +532,11 @@
     border-radius: 4px;
     cursor: pointer;
     transition: background 0.15s;
-    list-style: none;  /* Убираем стандартный треугольник */
+    list-style: none;
 }
 
 .tooltip-expand-btn::-webkit-details-marker {
-    display: none;  /* Убираем треугольник в Chrome/Safari */
+    display: none;
 }
 
 .tooltip-expand-btn:hover {
@@ -433,22 +547,68 @@
     transition: transform 0.2s;
 }
 
-/* Hidden transactions container */
 .tooltip-hidden-txns {
     margin-top: 4px;
     padding-top: 4px;
     border-top: 1px dashed rgba(0, 0, 0, 0.1);
 }
 
-/* Expand state — rotate chevron when open */
 .tooltip-expand-details[open] .tooltip-expand-btn .bi {
     transform: rotate(180deg);
 }
 
-/* ==================== TOOLTIP MOBILE ==================== */
+/* ==================== RESPONSIVE ==================== */
 
 @media (max-width: 768px) {
+    .calendar-container {
+        height: auto;
+    }
+
+    .calendar-grid {
+        gap: 4px;
+    }
+
+    .calendar-day {
+        aspect-ratio: auto;
+        min-height: 60px;
+        padding: 6px;
+        border-radius: 12px;
+    }
+
+    .calendar-day-number {
+        font-size: 11px;
+    }
+
+    .calendar-day-balance {
+        font-size: 9px;
+    }
+
+    .calendar-weekday {
+        font-size: 10px;
+        padding: 6px 0;
+    }
+
+    .calendar-stats-row {
+        grid-template-columns: 1fr;
+    }
+
+    .calendar-header-card {
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 16px 20px;
+    }
+
     .calendar-day-tooltip {
         display: none !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .calendar-day {
+        min-height: 50px;
+    }
+
+    .calendar-day-dots {
+        display: none;
     }
 }

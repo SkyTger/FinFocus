@@ -231,26 +231,10 @@ def _build_kpi_card(
         html.Div с KPI-карточкой
     """
     style: dict = {}
-    if status_border_color:
-        style["borderTop"] = f"3px solid {status_border_color}"
 
-    icon_el = None
-    if icon:
-        icon_el = html.I(
-            className=f"bi {icon}",
-            style={"fontSize": "1.5rem", "color": icon_color},
-        )
-
+    # Title (uppercase label like Stitch)
     card_content = [
-        html.Div(
-            [
-                icon_el,
-                html.Div(title, className="kpi-title"),
-            ],
-            className="d-flex align-items-center gap-2 mb-2",
-        )
-        if icon_el is not None
-        else html.Div(title, className="kpi-title mb-2"),
+        html.Div(title, className="kpi-title mb-2"),
         html.Div(value, className="kpi-number mb-1"),
     ]
 
@@ -259,6 +243,10 @@ def _build_kpi_card(
 
     if action_button:
         card_content.append(html.Div(action_button, className="mt-2"))
+
+    # Decorative background icon (large, semi-transparent, bottom-right)
+    if icon:
+        card_content.append(html.I(className=f"bi {icon} kpi-card-icon"))
 
     return html.Div(card_content, className="kpi-card h-100", style=style)
 

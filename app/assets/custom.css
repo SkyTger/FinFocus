@@ -1,27 +1,46 @@
-/* FinFocus Custom Styles */
+/* FinFocus Custom Styles — Glassmorphism Light Theme */
 
 /* === ОБЩИЕ СТИЛИ === */
 :root {
     /* Основная палитра */
     --color-primary: #2ecc71;
     --color-primary-dark: #27ae60;
+    --color-primary-glow: rgba(46, 204, 113, 0.2);
     --color-secondary: #3498db;
     --color-danger: #e74c3c;
     --color-warning: #f39c12;
     --color-success: #2ecc71;
     --color-info: #3498db;
 
+    /* Семантические (доходы/расходы) */
+    --color-income: #2ecc71;
+    --color-expense: #f43f5e;
+    --color-cushion: #eab308;
+
     /* Текст */
     --color-text-primary: #2c3e50;
-    --color-text-secondary: #7f8c8d;
-    --color-text-muted: #95a5a6;
+    --color-text-secondary: #64748b;
+    --color-text-muted: #94a3b8;
 
-    /* Фон и границы */
+    /* Фон — мятный градиент (как в Stitch) */
     --color-bg-card: #ffffff;
     --color-bg-page: #f8f9fa;
+    --color-bg-page-from: #eaf2ee;
+    --color-bg-page-to: #dce8e0;
     --color-border: #bdc3c7;
     --color-border-light: #ecf0f1;
     --color-separator: #dfe6e9;
+
+    /* Glass tokens (как в Stitch) */
+    --glass-bg: rgba(255, 255, 255, 0.25);
+    --glass-bg-hover: rgba(255, 255, 255, 0.35);
+    --glass-border: rgba(255, 255, 255, 0.5);
+    --glass-border-top: rgba(255, 255, 255, 0.8);
+    --glass-blur: blur(16px);
+
+    /* Тени — глубокие, мягкие */
+    --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+    --shadow-hover: 0 12px 40px 0 rgba(31, 38, 135, 0.12);
 
     /* Deprecated aliases (обратная совместимость) */
     --primary-green: var(--color-primary);
@@ -29,38 +48,81 @@
     --bg-light: #f8f9fa;
     --text-muted: #6c757d;
     --border-color: #dee2e6;
-    --shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
-    --shadow-hover: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
 }
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: var(--bg-light);
+    background: linear-gradient(135deg, var(--color-bg-page-from) 0%, var(--color-bg-page-to) 100%);
+    min-height: 100vh;
     color: #333;
+}
+
+/* === APP LAYOUT === */
+.app-layout {
+    display: flex;
+    min-height: 100vh;
+    padding: 24px;
+    gap: 24px;
+}
+
+.main-content {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Hide closed alerts so they don't take space */
+#transaction-error-alert:not(.show) {
+    display: none;
+}
+
+/* === GLASSMORPHISM === */
+.glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.glass-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+@supports not (backdrop-filter: blur(16px)) {
+    .glass-card {
+        background: rgba(255, 255, 255, 0.92);
+    }
 }
 
 /* === SIDEBAR СТИЛИ === */
 .sidebar-nav .nav-link {
-    border-radius: 8px !important;
+    border-radius: 9999px !important;
     margin-bottom: 4px;
+    padding: 12px 16px !important;
     transition: all 0.2s ease;
+    font-weight: 500;
 }
 
 .sidebar-nav .nav-link:hover {
-    background-color: rgba(46, 204, 113, 0.1) !important;
-    color: var(--primary-green) !important;
+    background-color: rgba(255, 255, 255, 0.3) !important;
+    color: var(--color-text-primary) !important;
 }
 
 .sidebar-nav .nav-link.active {
     background-color: var(--primary-green) !important;
-    color: white !important;
-    box-shadow: var(--shadow);
+    color: var(--color-text-primary) !important;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(46, 204, 113, 0.2);
 }
 
 /* === КАРТОЧКИ === */
 .card {
     border: none;
-    border-radius: 12px;
+    border-radius: 16px;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -131,30 +193,71 @@ body {
 
 /* === ТИПОГРАФИКА KPI === */
 .kpi-card {
-    background: var(--color-bg-card);
-    border: none;
-    border-radius: 12px;
-    padding: 20px;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    padding: 24px;
     box-shadow: var(--shadow);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
+    position: relative;
+    overflow: hidden;
 }
 
 .kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-hover) !important;
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-hover);
+    background: var(--glass-bg-hover);
 }
 
-.kpi-number {
-    font-size: 40px;
+@supports not (backdrop-filter: blur(16px)) {
+    .kpi-card {
+        background: rgba(255, 255, 255, 0.92);
+    }
+}
+
+/* Декоративная иконка в углу KPI */
+.kpi-card-icon {
+    position: absolute;
+    right: -8px;
+    bottom: -8px;
+    font-size: 5rem;
+    opacity: 0.06;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.kpi-card:hover .kpi-card-icon {
+    opacity: 0.12;
+}
+
+/* Trend line under KPI number */
+.kpi-trend {
+    font-size: 13px;
     font-weight: 600;
+    margin-top: 4px;
+}
+
+.kpi-trend.positive { color: var(--color-income); }
+.kpi-trend.negative { color: var(--color-expense); }
+.kpi-trend.warning { color: var(--color-warning); }
+
+.kpi-number {
+    font-size: 30px;
+    font-weight: 900;
     color: var(--color-text-primary);
-    line-height: 1.1;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
 }
 
 .kpi-title {
-    font-size: 16px;
-    font-weight: 500;
-    color: var(--color-text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
 }
 
 .kpi-subtitle {
@@ -236,16 +339,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: #f1f1f1;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: var(--primary-green);
+    background: rgba(46, 204, 113, 0.3);
     border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-primary-dark);
+    background: rgba(46, 204, 113, 0.5);
 }
 
 /* === ЗАГРУЗОЧНЫЕ СОСТОЯНИЯ === */
@@ -279,6 +382,11 @@ body {
     border-bottom: 2px solid var(--border-color);
     margin-bottom: 2rem;
     padding-bottom: 1rem;
+}
+
+/* Hide page-header when it has no meaningful content (e.g. calendar page) */
+#page-header:not(:has(h1)) {
+    display: none;
 }
 
 .metric-card-icon {

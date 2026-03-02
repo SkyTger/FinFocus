@@ -36,7 +36,7 @@ def _build_nav_links(active_pathname: str = "/dashboard") -> list:
     nav_links = []
     for item in MAIN_NAV_ITEMS:
         is_active = item["href"] == active_pathname
-        css_class = "text-dark py-3 px-3 rounded-0 border-0"
+        css_class = "text-dark py-3 px-3 border-0"
         if is_active:
             css_class += " sidebar-nav-item-active"
 
@@ -51,98 +51,80 @@ def _build_nav_links(active_pathname: str = "/dashboard") -> list:
 
 
 def create_sidebar():
-    """Создает боковое меню навигации в card-контейнере."""
+    """Создает боковое меню навигации в card-контейнере (Stitch design)."""
 
-    # Логотип и заголовок
-    header = html.Div(
+    # Профиль пользователя (вверху, как в Stitch)
+    profile = html.Div(
         [
             html.Div(
-                [
-                    html.I(
-                        className="bi bi-currency-dollar text-success me-2",
-                        style={"fontSize": "1.5rem"},
-                    ),
-                    html.Span("FinFocus", className="h4 mb-0 text-dark fw-bold"),
-                ],
-                className="d-flex align-items-center p-3",
-            )
-        ]
-    )
-
-    # Информация о пользователе (пока заглушка)
-    user_info = html.Div(
-        [
+                "🦊",
+                className="d-flex align-items-center justify-content-center",
+                style={
+                    "width": "48px",
+                    "height": "48px",
+                    "borderRadius": "50%",
+                    "background": "rgba(46, 204, 113, 0.15)",
+                    "border": "1px solid rgba(255,255,255,0.4)",
+                    "fontSize": "1.5rem",
+                },
+            ),
             html.Div(
                 [
                     html.Div(
-                        [
-                            html.I(
-                                className="bi bi-person-circle",
-                                style={"fontSize": "2rem"},
-                            ),
-                        ],
-                        className="me-3",
+                        "Иван Иванов",
+                        className="fw-bold",
+                        style={"fontSize": "14px", "lineHeight": "1.2"},
                     ),
                     html.Div(
-                        [
-                            html.Div("Иван Иванов", className="fw-semibold"),
-                            html.Div("Личный аккаунт", className="text-muted small"),
-                        ]
+                        "FinFocus",
+                        className="text-muted",
+                        style={"fontSize": "12px"},
                     ),
-                ],
-                className="d-flex align-items-center p-3 bg-light rounded mx-3 mb-3",
-            )
-        ]
+                ]
+            ),
+        ],
+        className="d-flex align-items-center gap-3 px-4 pt-4 pb-2",
     )
 
-    # Главное меню
-    main_menu = html.Div(
+    # Навигация (без заголовков секций, как в Stitch)
+    nav = html.Div(
         [
-            html.Div("ГЛАВНОЕ МЕНЮ", className="text-muted small fw-bold px-3 mb-2"),
             dbc.Nav(
                 _build_nav_links("/dashboard"),
                 id="sidebar-nav",
                 vertical=True,
-                className="mb-4",
-            ),
-        ]
-    )
-
-    # Дополнительные пункты
-    additional_links = []
-    for item in ADDITIONAL_NAV_ITEMS:
-        link = dbc.NavLink(
-            [html.I(className=f"bi {item['icon']} me-3"), item["label"]],
-            href=item["href"],
-            className="text-dark py-2 px-3 rounded-0 border-0",
-        )
-        additional_links.append(link)
-
-    additional_menu = html.Div(
-        [
-            html.Div("НАСТРОЙКИ", className="text-muted small fw-bold px-3 mb-2"),
-            dbc.Nav(additional_links, vertical=True),
-        ]
-    )
-
-    # Собираем sidebar и оборачиваем в Card
-    sidebar_content = html.Div(
-        [
-            header,
-            user_info,
-            main_menu,
-            additional_menu,
-            # Футер sidebar
-            html.Div(
-                [
-                    html.Hr(className="mx-3"),
-                    html.Div(
-                        [html.Span("v1.0.0", className="text-muted small")],
-                        className="text-center p-3",
-                    ),
-                ],
+                className="sidebar-nav px-2",
             ),
         ],
+        className="flex-grow-1 py-2",
+    )
+
+    # Настройки внизу (mt-auto pushes to bottom)
+    settings_link = dbc.NavLink(
+        [html.I(className="bi bi-gear me-3"), "Настройки"],
+        href="/settings",
+        className="text-dark py-3 px-3 border-0",
+        style={"borderRadius": "9999px"},
+    )
+
+    bottom = html.Div(
+        [
+            html.Div(
+                dbc.Nav([settings_link], vertical=True),
+                className="px-2",
+            ),
+            html.Div(className="sidebar-separator"),
+            html.Div(
+                html.Span("v1.0.0", className="text-muted small"),
+                className="text-center pb-4",
+            ),
+        ],
+        className="mt-auto",
+    )
+
+    sidebar_content = html.Div(
+        [profile, nav, bottom],
+        style={"display": "flex", "flexDirection": "column", "height": "100%"},
     )
 
     return dbc.Card(

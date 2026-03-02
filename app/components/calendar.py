@@ -7,7 +7,19 @@ from decimal import Decimal
 from typing import Any
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, clientside_callback, ClientsideFunction, Input, Output, State, ALL, ctx, no_update
+from dash import (
+    html,
+    dcc,
+    callback,
+    clientside_callback,
+    ClientsideFunction,
+    Input,
+    Output,
+    State,
+    ALL,
+    ctx,
+    no_update,
+)
 from dash.exceptions import PreventUpdate
 from dateutil.relativedelta import relativedelta
 from loguru import logger
@@ -119,7 +131,7 @@ def format_month_header(month: int, year: int) -> str:
 
 
 def build_calendar_header(month: int, year: int) -> html.Div:
-    """Создает заголовок календаря с навигацией.
+    """Создает заголовок календаря с навигацией (glass card).
 
     Args:
         month: Текущий месяц (1-12)
@@ -137,67 +149,72 @@ def build_calendar_header(month: int, year: int) -> html.Div:
     prev_disabled = current_offset <= -MAX_MONTHS_OFFSET
     next_disabled = current_offset >= MAX_MONTHS_OFFSET
 
-    return html.Div(
+    # Left: title
+    title = html.H4(
+        "Кассовый календарь",
+        className="mb-0 fw-bold",
+        style={"fontSize": "20px"},
+    )
+
+    # Center: month nav pill
+    month_nav = html.Div(
         [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        dbc.ButtonGroup(
-                            [
-                                dbc.Button(
-                                    html.I(className="bi bi-chevron-left"),
-                                    id="prev-month-btn",
-                                    color="outline-secondary",
-                                    disabled=prev_disabled,
-                                    n_clicks=0,
-                                ),
-                                dbc.Button(
-                                    html.I(className="bi bi-chevron-right"),
-                                    id="next-month-btn",
-                                    color="outline-secondary",
-                                    disabled=next_disabled,
-                                    n_clicks=0,
-                                ),
-                            ],
-                            size="sm",
-                        ),
-                        width="auto",
-                    ),
-                    dbc.Col(
-                        html.H4(
-                            format_month_header(month, year),
-                            className="mb-0 text-center calendar-month-title",
-                        ),
-                        width="auto",
-                        style={"minWidth": "180px"},
-                    ),
-                    dbc.Col(
-                        dbc.Button(
-                            "Сегодня",
-                            id="today-btn",
-                            color="outline-primary",
-                            size="sm",
-                            n_clicks=0,
-                            disabled=(month == today.month and year == today.year),
-                        ),
-                        width="auto",
-                    ),
-                    # Кнопка сверки
-                    dbc.Col(
-                        dbc.Button(
-                            [html.I(className="bi bi-calculator me-1"), "Сверка"],
-                            id="open-recon-from-calendar-btn",
-                            color="outline-secondary",
-                            size="sm",
-                            n_clicks=0,
-                        ),
-                        width="auto",
-                        className="ms-auto",
-                    ),
-                ],
-                className="align-items-center mb-4",
+            dbc.Button(
+                html.I(className="bi bi-chevron-left"),
+                id="prev-month-btn",
+                color="link",
+                size="sm",
+                disabled=prev_disabled,
+                n_clicks=0,
+                className="text-muted p-0",
+            ),
+            html.Span(
+                format_month_header(month, year),
+                className="calendar-month-title",
+            ),
+            dbc.Button(
+                html.I(className="bi bi-chevron-right"),
+                id="next-month-btn",
+                color="link",
+                size="sm",
+                disabled=next_disabled,
+                n_clicks=0,
+                className="text-muted p-0",
             ),
         ],
+        className="calendar-month-nav",
+    )
+
+    # Right: Today + Сверка
+    right_buttons = html.Div(
+        [
+            dbc.Button(
+                "Сегодня",
+                id="today-btn",
+                color="outline-primary",
+                size="sm",
+                n_clicks=0,
+                disabled=(month == today.month and year == today.year),
+                className="me-2",
+                style={"borderRadius": "12px"},
+            ),
+            dbc.Button(
+                [html.I(className="bi bi-calculator me-1"), "Сверка"],
+                id="open-recon-from-calendar-btn",
+                color="outline-secondary",
+                size="sm",
+                n_clicks=0,
+                style={"borderRadius": "12px"},
+            ),
+        ],
+        className="d-flex align-items-center",
+    )
+
+    return html.Div(
+        html.Div(
+            [title, month_nav, right_buttons],
+            className="calendar-header-card",
+        ),
         className="calendar-header",
     )
 
@@ -242,7 +259,6 @@ def create_calendar_layout() -> html.Div:
             # Карточки статистики (загрузка...)
             html.Div(
                 id="calendar-stats",
-                className="mb-4",
                 children=html.Div("Загрузка...", className="text-muted"),
             ),
             # Календарная сетка (загрузка...)
@@ -258,8 +274,8 @@ def create_calendar_layout() -> html.Div:
 # ==================== КАРТОЧКИ СТАТИСТИКИ ====================
 
 
-def build_stats_cards(summary: dict[str, Any]) -> dbc.Row:
-    """Создает карточки статистики над календарем.
+def build_stats_cards(summary: dict[str, Any]) -> html.Div:
+    """Создает карточки статистики над календарем (glass style).
 
     Args:
         summary: MonthSummary dict с ключами:
@@ -269,65 +285,32 @@ def build_stats_cards(summary: dict[str, Any]) -> dbc.Row:
             - end_balance: Decimal
 
     Returns:
-        dbc.Row: Три карточки (Доходы, Расходы, Баланс на конец месяца)
+        html.Div: Три glass-карточки (Начальный остаток, Доходы, Расходы)
     """
+    start_balance = summary.get("start_balance", Decimal("0"))
     total_income = summary.get("total_income", Decimal("0"))
     total_expense = summary.get("total_expense", Decimal("0"))
-    end_balance = summary.get("end_balance", Decimal("0"))
 
+    start_formatted = format_rub(start_balance)
     income_formatted = format_rub(total_income, show_sign=True)
     expense_formatted = format_rub(-total_expense)
-    balance_formatted, balance_class = format_balance(end_balance)
 
-    return dbc.Row(
+    def _stat_card(label: str, value: str, value_class: str = "") -> html.Div:
+        return html.Div(
+            [
+                html.Span(label, className="stats-card-label"),
+                html.Span(value, className=f"stats-card-value {value_class}"),
+            ],
+            className="stats-card",
+        )
+
+    return html.Div(
         [
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody(
-                        [
-                            html.P("Доходы", className="text-muted mb-1"),
-                            html.H5(
-                                income_formatted,
-                                className="text-success mb-0",
-                            ),
-                        ]
-                    ),
-                    className="stats-card",
-                ),
-                md=4,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody(
-                        [
-                            html.P("Расходы", className="text-muted mb-1"),
-                            html.H5(
-                                expense_formatted,
-                                className="text-danger mb-0",
-                            ),
-                        ]
-                    ),
-                    className="stats-card",
-                ),
-                md=4,
-            ),
-            dbc.Col(
-                dbc.Card(
-                    dbc.CardBody(
-                        [
-                            html.P("Баланс на конец", className="text-muted mb-1"),
-                            html.H5(
-                                balance_formatted,
-                                className=f"{balance_class} mb-0",
-                            ),
-                        ]
-                    ),
-                    className="stats-card",
-                ),
-                md=4,
-            ),
+            _stat_card("Начальный остаток", start_formatted),
+            _stat_card("Прогноз доходов", income_formatted, "income"),
+            _stat_card("Прогноз расходов", expense_formatted, "expense"),
         ],
-        className="mb-4",
+        className="calendar-stats-row",
     )
 
 
@@ -358,18 +341,18 @@ def build_calendar_grid(
         [
             html.Div(
                 day_name,
-                className="calendar-weekday text-center",
+                className="calendar-weekday",
             )
             for day_name in WEEKDAY_NAMES_RU
         ],
-        className="calendar-weekday-row d-flex",
+        className="calendar-weekday-row",
     )
 
     # Получаем матрицу дней месяца
     cal = calendar.Calendar(firstweekday=0)  # Понедельник = 0
     month_days = cal.monthdatescalendar(year, month)
 
-    # Создаем строки недель
+    # Создаем ячейки дней (display: contents для week-row → CSS Grid)
     week_rows = []
     for week in month_days:
         day_cells = []
@@ -391,12 +374,19 @@ def build_calendar_grid(
             )
             day_cells.append(day_cell)
 
-        week_row = html.Div(day_cells, className="calendar-week-row d-flex")
+        # display: contents — children flow into parent CSS Grid
+        week_row = html.Div(day_cells, className="calendar-week-row")
         week_rows.append(week_row)
 
-    return html.Div(
-        [weekday_header] + week_rows,
+    # Grid wrapper с glass effect
+    grid = html.Div(
+        week_rows,
         className="calendar-grid",
+    )
+
+    return html.Div(
+        [weekday_header, grid],
+        className="calendar-grid-wrapper",
     )
 
 
@@ -619,61 +609,41 @@ def build_day_cell(
     # Форматируем баланс
     balance_text, balance_class = format_balance(balance)
 
-    # Иконки транзакций — dict-доступ вместо ORM
-    icons = []
+    # Low balance warning class
+    if balance < WARNING_BALANCE_THRESHOLD and is_current_month:
+        css_classes.append("balance-low")
+
+    # Transaction dots (цветные точки вместо стрелок)
+    dots = []
     has_income = any(t.get("transaction_type") == "income" for t in transactions)
     has_expense = any(t.get("transaction_type") == "expense" for t in transactions)
     has_recurring = any(
         t.get("is_recurring") or t.get("is_virtual") for t in transactions
     )
-    has_skipped = any(t.get("is_skipped") for t in transactions)
-    has_exception = any(
-        t.get("recurring_parent_id") and not t.get("is_skipped") for t in transactions
-    )
 
     if has_income:
-        icons.append(html.Span("↓", className="text-success me-1", title="Доход"))
+        dots.append(html.Div(className="txn-dot income", title="Доход"))
     if has_expense:
-        icons.append(html.Span("↑", className="text-danger me-1", title="Расход"))
+        dots.append(html.Div(className="txn-dot expense", title="Расход"))
     if has_recurring:
-        # Определяем класс recurring иконки
-        recurring_class = "bi bi-arrow-repeat recurring-indicator"
-        recurring_title = "Повторяющаяся операция"
-        if has_skipped:
-            recurring_class += " skipped"
-            recurring_title = "Пропущенная операция"
-        icons.append(
-            html.I(
-                className=recurring_class,
-                title=recurring_title,
-            )
-        )
-        # Добавляем иконку изменённого экземпляра
-        if has_exception:
-            icons.append(
-                html.I(
-                    className="bi bi-pencil-fill exception-indicator",
-                    title="Изменённый экземпляр",
-                )
-            )
+        dots.append(html.Div(className="txn-dot recurring", title="Повторяющаяся"))
 
     # Кликабельная область (для create-modal)
     clickable_content = html.Div(
         [
-            # Номер дня
+            # Top row: day number + dots
             html.Div(
-                str(day_date.day),
-                className="calendar-day-number",
+                [
+                    html.Span(
+                        str(day_date.day),
+                        className="calendar-day-number",
+                    ),
+                    html.Div(dots, className="calendar-day-dots") if dots else None,
+                ],
+                className="calendar-day-top",
             ),
-            # Иконки транзакций
-            html.Div(
-                icons,
-                className="calendar-day-icons",
-            )
-            if icons
-            else None,
-            # Баланс (data-date для JS hover в wishlist-mode)
-            html.Div(
+            # Balance at bottom (data-date для JS hover в wishlist-mode)
+            html.Span(
                 balance_text,
                 className=f"calendar-day-balance {balance_class}",
                 **{"data-date": day_date.isoformat()},

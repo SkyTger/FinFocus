@@ -48,37 +48,31 @@ app.layout = dbc.Container(
         # URL компонент для роутинга
         dcc.Location(id="url", refresh=False),
         # Главная структура с sidebar
-        dbc.Row(
+        html.Div(
             [
-                # Sidebar (левая панель навигации)
-                dbc.Col(
+                # Sidebar (левая панель навигации, fixed)
+                html.Div(
                     create_sidebar(),
-                    width=3,
                     className="sidebar-column",
                 ),
                 # Основной контент
-                dbc.Col(
+                html.Div(
                     [
-                        # Заголовок страницы
-                        html.Div(id="page-header", className="mb-4"),
-                        # Глобальный Alert для ошибок транзакций
+                        html.Div(id="page-header"),
                         dbc.Alert(
                             id="transaction-error-alert",
                             is_open=False,
                             color="danger",
                             dismissable=True,
                             duration=5000,
-                            className="mb-3",
                         ),
-                        # Контент страницы
                         html.Div(id="page-content"),
                     ],
-                    width=9,
-                    style={"margin-left": "25%"},
-                ),  # Отступ для sidebar
+                    className="main-content",
+                ),
             ],
-            className="g-0",
-        ),  # Убираем отступы между колонками
+            className="app-layout",
+        ),
         # Глобальные модалы транзакций (доступны на всех страницах)
         create_transaction_modals(),
         # Wishlist модал (отложенные покупки)
@@ -95,7 +89,7 @@ app.layout = dbc.Container(
         dcc.Store(id="wishlist-active-item", data=None),
     ],
     fluid=True,
-    className="p-0",
+    className="p-0 app-container",
 )
 
 
@@ -158,14 +152,12 @@ def display_page(pathname):
         )
 
     elif pathname == "/calendar":
-        # Кассовый календарь
-        return create_calendar_layout(), create_page_header(
-            "Календарь", "Кассовый календарь"
-        )
+        # Кассовый календарь (заголовок встроен в glass-header)
+        return create_calendar_layout(), html.Div(style={"display": "none"})
 
     elif pathname == "/goals":
-        # Накопительные цели
-        return create_goals_layout(), create_page_header("Цели", "Накопительные цели")
+        # Накопительные цели (заголовок встроен в layout)
+        return create_goals_layout(), html.Div(style={"display": "none"})
 
     elif pathname == "/transactions":
         # Страница операций
