@@ -160,10 +160,8 @@ def display_page(pathname):
         return create_goals_layout(), html.Div(style={"display": "none"})
 
     elif pathname == "/transactions":
-        # Страница операций
-        return create_transactions_layout(), create_page_header(
-            "Операции", "Управление доходами и расходами"
-        )
+        # Страница операций (заголовок встроен в glass-header)
+        return create_transactions_layout(), html.Div(style={"display": "none"})
 
     elif pathname == "/analytics":
         # Страница аналитики

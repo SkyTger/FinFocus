@@ -167,7 +167,7 @@ def _build_quick_add_section(chips: list[QuickAddChipData]) -> html.Div:
             )
         )
 
-    return html.Div(sections, className="qa-chip-section mb-3")
+    return html.Div(sections, className="qa-chip-section")
 
 
 def _build_category_more_modal() -> dbc.Modal:
@@ -241,35 +241,30 @@ def _build_bulk_panel() -> html.Div:
         html.Div: Панель массовых операций с dropdown и кнопкой применения
     """
     return html.Div(
-        [
-            html.Div(
-                [
-                    # Счётчик выбранных операций
-                    html.Span(
-                        id="bulk-selected-count",
-                        className="me-3 fw-bold",
-                    ),
-                    # Dropdown выбора категории
-                    dcc.Dropdown(
-                        id="bulk-category-dropdown",
-                        placeholder="Выберите категорию...",
-                        className="me-3",
-                        style={"width": "250px", "display": "inline-block"},
-                    ),
-                    # Кнопка применения
-                    dbc.Button(
-                        [
-                            html.I(className="bi bi-check2-all me-2"),
-                            "Применить",
-                        ],
-                        id="bulk-apply-btn",
-                        color="success",
-                        size="sm",
-                    ),
-                ],
-                className="d-flex align-items-center justify-content-center",
-            ),
-        ],
+        html.Div(
+            [
+                html.Span(
+                    id="bulk-selected-count",
+                    className="me-3 fw-bold",
+                ),
+                dcc.Dropdown(
+                    id="bulk-category-dropdown",
+                    placeholder="Выберите категорию...",
+                    className="me-3",
+                    style={"width": "250px", "display": "inline-block"},
+                ),
+                dbc.Button(
+                    [
+                        html.I(className="bi bi-check2-all me-2"),
+                        "Применить",
+                    ],
+                    id="bulk-apply-btn",
+                    className="tx-btn-primary",
+                    size="sm",
+                ),
+            ],
+            className="d-flex align-items-center justify-content-center",
+        ),
         id="bulk-actions-panel",
         className="tx-bulk-panel",
         style={"display": "none"},
@@ -562,15 +557,15 @@ def create_transactions_layout():
             ),
             # Компонент для скачивания файлов
             dcc.Download(id="export-download"),
-            # Заголовок с описанием
+            # Glass header — title + action buttons
             html.Div(
                 [
                     html.Div(
                         [
-                            html.H4("Операции", className="mb-1"),
-                            html.P(
+                            html.H4("Операции", className="mb-0 fw-semibold"),
+                            html.Small(
                                 "Управление доходами и расходами",
-                                className="text-muted mb-0",
+                                className="tx-header-subtitle",
                             ),
                         ],
                         className="flex-grow-1",
@@ -580,135 +575,97 @@ def create_transactions_layout():
                             dbc.Button(
                                 [
                                     html.I(className="bi bi-download me-2"),
-                                    "Экспорт CSV",
+                                    "CSV",
                                 ],
                                 id="export-btn",
-                                color="secondary",
-                                outline=True,
-                                className="d-flex align-items-center me-2",
+                                className="tx-btn-glass me-2",
                             ),
                             dbc.Button(
                                 [
                                     html.I(className="bi bi-plus-circle me-2"),
-                                    "Добавить операцию",
+                                    "Добавить",
                                 ],
                                 id="add-transaction-btn",
-                                color="success",
-                                className="d-flex align-items-center",
+                                className="tx-btn-primary",
                             ),
                         ],
                         className="d-flex",
                     ),
                 ],
-                className="d-flex justify-content-between align-items-center mb-4",
+                className="tx-glass-header",
             ),
             # Quick-add chips секция
             _build_quick_add_section(_get_quick_add_chips()),
-            # Alert для ошибок валидации находится в main.py (глобальный)
-            # Панель фильтров
-            dbc.Card(
-                dbc.CardBody(
-                    [
-                        dbc.Row(
-                            [
-                                # Фильтры по дате
-                                dbc.Col(
-                                    [
-                                        # Кнопка-лейбл (визуальная, клики проходят к DatePicker)
-                                        dbc.Button(
-                                            [
-                                                html.I(
-                                                    className="bi bi-calendar3 me-2"
-                                                ),
-                                                html.Span(
-                                                    "Период",
-                                                    id="filter-date-label",
-                                                ),
-                                            ],
-                                            id="filter-date-btn",
-                                            color="outline-secondary",
-                                            size="sm",
-                                        ),
-                                        # DatePickerRange поверх кнопки (невидимый input)
-                                        html.Div(
-                                            dcc.DatePickerRange(
-                                                id="filter-date-range",
-                                                start_date_placeholder_text="",
-                                                end_date_placeholder_text="",
-                                                display_format="DD.MM.YYYY",
-                                                first_day_of_week=1,
-                                                minimum_nights=0,
-                                            ),
-                                            id="filter-date-picker-container",
-                                        ),
-                                        # Кнопка сброса
-                                        dbc.Button(
-                                            html.I(className="bi bi-x-lg"),
-                                            id="filter-date-clear",
-                                            color="link",
-                                            size="sm",
-                                            className="text-muted p-0 ms-2",
-                                            title="Сбросить период",
-                                            style={"display": "none"},
-                                        ),
-                                    ],
-                                    className="d-flex align-items-center position-relative",
-                                    width="auto",
-                                ),
-                                # Разделитель
-                                dbc.Col(
-                                    html.Div(
-                                        className="vr mx-3",
-                                        style={"height": "24px"},
-                                    ),
-                                    width="auto",
-                                    className="d-flex align-items-center",
-                                ),
-                                # Чекбокс категории
-                                dbc.Col(
-                                    dbc.Checkbox(
-                                        id="filter-no-category",
-                                        label="Показать только без категории",
-                                        value=False,
-                                    ),
-                                    className="d-flex align-items-center",
-                                ),
-                            ],
-                            className="g-0 align-items-center",
-                        ),
-                    ],
-                    className="py-2",
-                ),
-                className="mb-3 filter-card-elevated",
-            ),
-            # Таблица операций
-            dbc.Card(
+            # Панель фильтров — glass card
+            html.Div(
                 [
-                    dbc.CardBody(
+                    # Фильтры по дате
+                    html.Div(
                         [
-                            html.Div(
-                                id="transactions-table-container",
-                                children=[
-                                    dbc.Table(
-                                        id="transactions-table",
-                                        striped=True,
-                                        hover=True,
-                                        responsive=True,
-                                        className="mb-0",
-                                    )
+                            dbc.Button(
+                                [
+                                    html.I(className="bi bi-calendar3 me-2"),
+                                    html.Span("Период", id="filter-date-label"),
                                 ],
-                            )
-                        ]
-                    )
+                                id="filter-date-btn",
+                                color="outline-secondary",
+                                size="sm",
+                            ),
+                            html.Div(
+                                dcc.DatePickerRange(
+                                    id="filter-date-range",
+                                    start_date_placeholder_text="",
+                                    end_date_placeholder_text="",
+                                    display_format="DD.MM.YYYY",
+                                    first_day_of_week=1,
+                                    minimum_nights=0,
+                                ),
+                                id="filter-date-picker-container",
+                            ),
+                            dbc.Button(
+                                html.I(className="bi bi-x-lg"),
+                                id="filter-date-clear",
+                                color="link",
+                                size="sm",
+                                className="text-muted p-0 ms-2",
+                                title="Сбросить период",
+                                style={"display": "none"},
+                            ),
+                        ],
+                        className="d-flex align-items-center position-relative",
+                    ),
+                    # Разделитель
+                    html.Div(className="tx-filter-divider"),
+                    # Чекбокс категории
+                    dbc.Checkbox(
+                        id="filter-no-category",
+                        label="Только без категории",
+                        value=False,
+                    ),
                 ],
-                className="shadow-sm",
+                className="tx-filter-card filter-card-elevated",
             ),
-            # Модалы теперь в глобальном layout (main.py -> transaction_modals.py)
+            # Таблица операций — glass card
+            html.Div(
+                html.Div(
+                    id="transactions-table-container",
+                    children=[
+                        dbc.Table(
+                            id="transactions-table",
+                            hover=True,
+                            responsive=True,
+                            className="tx-table mb-0",
+                        )
+                    ],
+                ),
+                className="tx-table-card",
+            ),
             # Bulk Actions Panel (sticky bottom, скрыт по умолчанию)
             _build_bulk_panel(),
             # Quick-add More Modal (полный список категорий)
             _build_category_more_modal(),
-        ]
+        ],
+        className="tx-page-container",
     )
 
 

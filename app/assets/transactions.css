@@ -1,113 +1,83 @@
-/* Transactions component styles */
+/* ==============================================
+   Transactions Page — Glassmorphism Style
+   ============================================== */
 
-/* Recurring section in create modal */
-#create-recurring-section {
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    margin-top: 10px;
-    border-left: 3px solid var(--color-primary);
-}
-
-#create-recurring-section .form-label {
-    font-weight: 500;
-    color: #495057;
-}
-
-/* Checkbox styling */
-#create-is-recurring {
-    font-weight: 500;
-}
-
-/* Recurring badge in table */
-.recurring-badge {
-    color: var(--color-primary);
-    font-size: 1rem;
-}
-
-/* Table responsive adjustments */
-@media (max-width: 768px) {
-    #create-recurring-section .row > div {
-        margin-bottom: 15px;
-    }
-
-    #create-recurring-section .row > div:last-child {
-        margin-bottom: 0;
-    }
-}
-
-/* === Chips для быстрой категоризации === */
-.tx-chips {
+/* === Page Container === */
+.tx-page-container {
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 1100px;
+    margin: 0 auto;
 }
 
-.tx-chip-btn {
-    font-size: 0.75rem;
-    padding: 2px 8px;
+/* === Glass Header === */
+.tx-glass-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 14px 20px;
+}
+
+.tx-header-subtitle {
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+}
+
+/* === Glass Buttons === */
+.tx-btn-glass {
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    color: var(--color-text-primary);
     border-radius: 12px;
-    white-space: nowrap;
+    font-size: 0.85rem;
+    padding: 6px 14px;
+    transition: all 0.2s ease;
 }
 
-.tx-chip-btn:hover {
-    background-color: var(--bs-success);
-    border-color: var(--bs-success);
-    color: white;
+.tx-btn-glass:hover {
+    background: rgba(255, 255, 255, 0.5);
+    border-color: rgba(0, 0, 0, 0.15);
+    color: var(--color-text-primary);
 }
 
-.tx-chip-more {
-    font-size: 0.75rem;
-    padding: 2px 8px;
+.tx-btn-primary {
+    background: var(--color-primary);
+    border: 1px solid var(--color-primary);
+    color: #fff;
     border-radius: 12px;
+    font-size: 0.85rem;
+    padding: 6px 14px;
+    transition: all 0.2s ease;
 }
 
-.tx-chips-cell {
-    min-width: 200px;
-}
-
-/* === Bulk Actions Panel === */
-.tx-bulk-panel {
-    position: sticky;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    background-color: #f8f9fa;
-    border-top: 1px solid #dee2e6;
-    padding: 12px 16px;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
-    margin-top: 1rem;
-}
-
-.tx-checkbox {
-    margin: 0;
-}
-
-.tx-select-all {
-    margin: 0;
-}
-
-/* Warning text */
-.tx-bulk-panel .text-warning {
-    font-size: 0.875rem;
-}
-
-/* Dropdown in bulk panel */
-.tx-bulk-panel .Select {
-    display: inline-block;
+.tx-btn-primary:hover {
+    background: var(--color-primary-dark);
+    border-color: var(--color-primary-dark);
+    color: #fff;
 }
 
 /* === Quick-add Chips Section === */
 .qa-chip-section {
-    margin-bottom: 1.5rem;
-    padding: 1rem;
-    background: var(--bs-light);
-    border-radius: 0.5rem;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 14px 20px;
 }
 
 .qa-section {
-    margin-bottom: 1rem;
+    margin-bottom: 10px;
 }
 
 .qa-section:last-child {
@@ -116,42 +86,48 @@
 
 .qa-section-label {
     display: block;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    color: var(--bs-secondary);
-    margin-bottom: 0.5rem;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
 }
 
 .qa-chips-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 8px;
 }
 
 .qa-chip {
-    width: 100px;
-    height: 80px;
+    width: 90px;
+    height: 70px;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    border-radius: 0.5rem;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.4) !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+    border-radius: 16px !important;
     transition: transform 0.15s, box-shadow 0.15s;
-    padding: 0.5rem;
+    padding: 6px;
+    color: var(--color-text-primary) !important;
 }
 
 .qa-chip:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    background: rgba(255, 255, 255, 0.6) !important;
 }
 
 .qa-chip-icon {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
 }
 
 .qa-chip-label {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     text-align: center;
     line-height: 1.2;
     max-width: 100%;
@@ -160,11 +136,22 @@
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
+    color: var(--color-text-secondary);
 }
 
 .qa-more-btn {
-    width: 80px;
-    height: 80px;
+    width: 70px;
+    height: 70px;
+    background: transparent !important;
+    border: 1px dashed rgba(0, 0, 0, 0.15) !important;
+    border-radius: 16px !important;
+    color: var(--color-text-muted) !important;
+}
+
+.qa-more-btn:hover {
+    background: rgba(255, 255, 255, 0.3) !important;
+    border-color: rgba(0, 0, 0, 0.2) !important;
+    color: var(--color-text-secondary) !important;
 }
 
 /* Quick-add More Modal */
@@ -178,47 +165,185 @@
     white-space: nowrap;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .qa-chips-row {
-        flex-wrap: nowrap;
-        overflow-x: auto;
-        padding-bottom: 0.5rem;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .qa-chip {
-        flex-shrink: 0;
-    }
-
-    .qa-more-btn {
-        flex-shrink: 0;
-    }
+/* === Filter Card — Glass === */
+.tx-filter-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 10px 20px;
+    position: relative;
+    z-index: 10;
+    overflow: visible;
 }
 
-@media (max-width: 576px) {
-    .qa-chip {
-        width: 85px;
-        height: 70px;
-    }
+.tx-filter-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.12);
+    flex-shrink: 0;
+}
 
-    .qa-chip-icon {
-        font-size: 1.25rem;
-    }
+/* === Table Card — Glass === */
+.tx-table-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 4px;
+    overflow: hidden;
+}
 
-    .qa-chip-label {
-        font-size: 0.65rem;
-    }
+.tx-table {
+    background: transparent;
+    font-size: 0.875rem;
+}
 
-    .qa-more-btn {
-        width: 70px;
-        height: 70px;
-    }
+.tx-table thead th {
+    background: rgba(0, 0, 0, 0.03);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
+    padding: 10px 12px;
+    white-space: nowrap;
+}
+
+.tx-table thead th:first-child {
+    border-radius: 20px 0 0 0;
+}
+
+.tx-table thead th:last-child {
+    border-radius: 0 20px 0 0;
+}
+
+.tx-table tbody tr {
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    transition: background 0.15s ease;
+}
+
+.tx-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.tx-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.tx-table tbody td {
+    padding: 8px 12px;
+    vertical-align: middle;
+    color: var(--color-text-primary);
+    border: none;
+}
+
+/* === Bulk Actions Panel — Glass === */
+.tx-bulk-panel {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 24px 24px 0 0;
+    padding: 12px 20px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
+    z-index: 1000;
+    margin-top: 8px;
+}
+
+.tx-checkbox {
+    margin: 0;
+}
+
+.tx-select-all {
+    margin: 0;
+}
+
+/* === Chips для быстрой категоризации в таблице === */
+.tx-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.tx-chip-btn {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.tx-chip-btn:hover {
+    background-color: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
+}
+
+.tx-chip-more {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.tx-chips-cell {
+    min-width: 200px;
+}
+
+/* === Sortable Headers === */
+.sortable-header {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+
+.sortable-header:hover {
+    color: var(--color-primary);
+}
+
+.sortable-header:hover .text-muted {
+    color: var(--color-primary) !important;
+}
+
+/* === Recurring section in create modal === */
+#create-recurring-section {
+    padding: 15px;
+    background-color: rgba(46, 204, 113, 0.06);
+    border-radius: 12px;
+    margin-top: 10px;
+    border-left: 3px solid var(--color-primary);
+}
+
+#create-recurring-section .form-label {
+    font-weight: 500;
+    color: var(--color-text-primary);
+}
+
+#create-is-recurring {
+    font-weight: 500;
+}
+
+.recurring-badge {
+    color: var(--color-primary);
+    font-size: 1rem;
 }
 
 /* === Date Filter Section === */
-
-/* Position DatePicker container over the button */
 #filter-date-picker-container {
     position: absolute;
     top: 0;
@@ -233,7 +358,6 @@
     height: 100%;
 }
 
-/* Make input wrapper fill container and be clickable */
 #filter-date-range .DateRangePickerInput {
     background: transparent;
     border: none;
@@ -244,7 +368,6 @@
     cursor: pointer;
 }
 
-/* Hide text inputs visually but keep clickable */
 #filter-date-range .DateInput {
     background: transparent;
     flex: 1;
@@ -262,40 +385,27 @@
     padding: 0;
 }
 
-/* Hide arrow and clear button inside DatePicker */
 #filter-date-range .DateRangePickerInput_arrow,
 #filter-date-range .DateRangePickerInput_clearDates {
     display: none;
 }
 
-/* Calendar dropdown styling */
 .DateRangePicker_picker {
     z-index: 1060 !important;
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-    border: 1px solid #dee2e6;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.5);
     margin-top: 8px;
 }
 
-/* Filter card needs higher stacking context */
-.filter-card-elevated {
-    position: relative;
-    z-index: 10;
-    overflow: visible;
-}
-
-.filter-card-elevated .card-body {
-    overflow: visible;
-}
-
-/* Date button is visual only - clicks pass through */
 #filter-date-btn {
     position: relative;
     z-index: 1;
     pointer-events: none;
+    border-radius: 10px;
+    font-size: 0.8rem;
 }
 
-/* Clear button must be clickable */
 #filter-date-clear {
     position: relative;
     z-index: 10;
@@ -303,32 +413,78 @@
 }
 
 #filter-date-clear:hover {
-    color: var(--bs-danger) !important;
+    color: var(--color-expense) !important;
 }
 
-/* === Sortable Headers === */
-.sortable-header {
-    cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-}
-
-.sortable-header:hover {
-    color: var(--bs-primary);
-}
-
-.sortable-header:hover .text-muted {
-    color: var(--bs-primary) !important;
-}
-
-/* Responsive filter panel */
+/* === Responsive === */
 @media (max-width: 768px) {
+    .tx-glass-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .tx-filter-card {
+        flex-wrap: wrap;
+    }
+
+    .qa-chips-row {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .qa-chip {
+        flex-shrink: 0;
+    }
+
+    .qa-more-btn {
+        flex-shrink: 0;
+    }
+
     #filter-date-range .DateInput {
         width: 85px;
     }
+}
 
-    .filter-date-picker-visible {
-        left: auto;
-        right: 0;
+@media (max-width: 576px) {
+    .qa-chip {
+        width: 80px;
+        height: 60px;
+    }
+
+    .qa-chip-icon {
+        font-size: 1.2rem;
+    }
+
+    .qa-chip-label {
+        font-size: 0.6rem;
+    }
+
+    .qa-more-btn {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+@media (max-width: 768px) {
+    #create-recurring-section .row > div {
+        margin-bottom: 15px;
+    }
+
+    #create-recurring-section .row > div:last-child {
+        margin-bottom: 0;
+    }
+}
+
+/* === Fallback for no backdrop-filter === */
+@supports not (backdrop-filter: blur(16px)) {
+    .tx-glass-header,
+    .qa-chip-section,
+    .tx-filter-card,
+    .tx-table-card,
+    .tx-bulk-panel {
+        background: rgba(255, 255, 255, 0.92);
     }
 }
