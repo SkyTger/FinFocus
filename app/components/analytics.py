@@ -29,13 +29,23 @@ CATEGORY_COLORS = [
 def create_analytics_layout():
     """Создание layout страницы аналитики."""
     return html.Div(
-        className="analytics-page p-4",
+        className="an-page",
         children=[
-            # Header
-            html.H2("Аналитика расходов", className="mb-4"),
-            # Period switcher
+            # Stores
+            dcc.Store(id="analytics-period-store", data={"type": "month"}),
+            dcc.Store(id="analytics-bar-mode-store", data="stack"),
+            # Glass header — title + period switcher
             html.Div(
                 [
+                    html.Div(
+                        [
+                            html.H4(
+                                "Аналитика расходов",
+                                className="mb-0 fw-semibold",
+                            ),
+                        ],
+                        className="flex-grow-1",
+                    ),
                     dbc.RadioItems(
                         id="analytics-period-switcher",
                         options=[
@@ -45,67 +55,66 @@ def create_analytics_layout():
                         ],
                         value="month",
                         inline=True,
-                        className="mb-3",
+                        className="an-period-switcher",
                     ),
-                ]
+                ],
+                className="an-glass-header",
             ),
-            # Stores
-            dcc.Store(id="analytics-period-store", data={"type": "month"}),
-            dcc.Store(id="analytics-bar-mode-store", data="stack"),
             # Summary cards row
-            dbc.Row(id="summary-cards-row", className="mb-4"),
+            html.Div(id="summary-cards-row", className="an-summary-row"),
             # Charts row
             dbc.Row(
                 [
                     # Donut chart
                     dbc.Col(
-                        [
-                            dbc.Card(
-                                [
-                                    dbc.CardHeader("Структура расходов"),
-                                    dbc.CardBody(
-                                        [
-                                            dcc.Graph(
-                                                id="expenses-donut-chart",
-                                                config={"displayModeBar": False},
-                                            ),
-                                        ]
-                                    ),
-                                ]
-                            ),
-                        ],
+                        html.Div(
+                            [
+                                html.Span(
+                                    "СТРУКТУРА РАСХОДОВ",
+                                    className="an-card-label",
+                                ),
+                                dcc.Graph(
+                                    id="expenses-donut-chart",
+                                    config={"displayModeBar": False},
+                                ),
+                            ],
+                            className="an-chart-card",
+                        ),
                         md=5,
                     ),
                     # Bar chart
                     dbc.Col(
-                        [
-                            dbc.Card(
-                                [
-                                    dbc.CardHeader(
-                                        [
-                                            "Динамика расходов",
-                                            dbc.Switch(
-                                                id="bar-mode-switch",
-                                                label="Grouped",
-                                                value=False,
-                                                className="float-end",
-                                            ),
-                                        ]
+                        html.Div(
+                            [
+                                html.Div(
+                                    [
+                                        html.Span(
+                                            "ДИНАМИКА РАСХОДОВ",
+                                            className="an-card-label",
+                                        ),
+                                        dbc.Switch(
+                                            id="bar-mode-switch",
+                                            label="Grouped",
+                                            value=False,
+                                            className="an-bar-switch",
+                                        ),
+                                    ],
+                                    className=(
+                                        "d-flex justify-content-between"
+                                        " align-items-center"
                                     ),
-                                    dbc.CardBody(
-                                        [
-                                            dcc.Graph(
-                                                id="expenses-bar-chart",
-                                                config={"displayModeBar": False},
-                                            ),
-                                        ]
-                                    ),
-                                ]
-                            ),
-                        ],
+                                ),
+                                dcc.Graph(
+                                    id="expenses-bar-chart",
+                                    config={"displayModeBar": False},
+                                ),
+                            ],
+                            className="an-chart-card",
+                        ),
                         md=7,
                     ),
-                ]
+                ],
+                className="g-3",
             ),
         ],
     )
@@ -136,6 +145,8 @@ def _build_donut_chart(data: list) -> go.Figure:
             showlegend=False,
             margin=dict(l=20, r=20, t=20, b=20),
             height=300,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
         )
         return fig
 
@@ -179,6 +190,8 @@ def _build_donut_chart(data: list) -> go.Figure:
         legend=dict(orientation="h", yanchor="bottom", y=-0.2),
         margin=dict(l=20, r=20, t=20, b=60),
         height=350,
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
     )
 
     return fig
@@ -209,6 +222,8 @@ def _build_bar_chart(data: list, barmode: str = "stack") -> go.Figure:
             showlegend=False,
             margin=dict(l=40, r=20, t=20, b=40),
             height=350,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
         )
         return fig
 
@@ -254,7 +269,10 @@ def _build_bar_chart(data: list, barmode: str = "stack") -> go.Figure:
         legend=dict(orientation="h", yanchor="bottom", y=-0.3),
         margin=dict(l=40, r=20, t=20, b=80),
         height=350,
-        yaxis=dict(tickformat=","),
+        yaxis=dict(tickformat=",", gridcolor="rgba(0,0,0,0.06)"),
+        xaxis=dict(gridcolor="rgba(0,0,0,0.06)"),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
     )
 
     return fig
@@ -278,72 +296,32 @@ def _build_summary_cards(data: list, uncategorized_count: int) -> list:
     top_percentage = f"{data[0]['percentage']:.0f}%" if data else "—"
 
     cards = [
-        dbc.Col(
-            dbc.Card(
-                [
-                    dbc.CardBody(
-                        [
-                            html.H6("Всего расходов", className="text-muted"),
-                            html.H4(format_rub(total)),
-                        ]
-                    ),
-                ]
-            ),
-            md=3,
+        _summary_card("Всего расходов", format_rub(total)),
+        _summary_card("Категорий", str(categories_count)),
+        _summary_card(
+            "Без категории",
+            str(uncategorized_count),
+            badge="!" if uncategorized_count > 0 else None,
         ),
-        dbc.Col(
-            dbc.Card(
-                [
-                    dbc.CardBody(
-                        [
-                            html.H6("Категорий", className="text-muted"),
-                            html.H4(str(categories_count)),
-                        ]
-                    ),
-                ]
-            ),
-            md=3,
-        ),
-        dbc.Col(
-            dbc.Card(
-                [
-                    dbc.CardBody(
-                        [
-                            html.H6("Без категории", className="text-muted"),
-                            html.H4(
-                                [
-                                    str(uncategorized_count),
-                                    dbc.Badge(
-                                        "!",
-                                        color="warning",
-                                        className="ms-2",
-                                    )
-                                    if uncategorized_count > 0
-                                    else None,
-                                ]
-                            ),
-                        ]
-                    ),
-                ]
-            ),
-            md=3,
-        ),
-        dbc.Col(
-            dbc.Card(
-                [
-                    dbc.CardBody(
-                        [
-                            html.H6("Топ категория", className="text-muted"),
-                            html.H4(f"{top_category} ({top_percentage})"),
-                        ]
-                    ),
-                ]
-            ),
-            md=3,
-        ),
+        _summary_card("Топ категория", f"{top_category} ({top_percentage})"),
     ]
 
     return cards
+
+
+def _summary_card(label: str, value: str, badge: str | None = None) -> html.Div:
+    """Создает компактную glass-карточку метрики."""
+    value_children: list = [html.Span(value, className="an-metric-value")]
+    if badge:
+        value_children.append(dbc.Badge(badge, color="warning", className="ms-2"))
+
+    return html.Div(
+        [
+            html.Span(label, className="an-metric-label"),
+            html.Div(value_children),
+        ],
+        className="an-metric-card",
+    )
 
 
 # === CALLBACKS ===

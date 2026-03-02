@@ -1,49 +1,165 @@
-/* === Analytics Page Namespace === */
-.analytics-page {
-    max-width: 1400px;
+/* ==============================================
+   Analytics Page — Glassmorphism Style
+   ============================================== */
+
+/* === Page Container === */
+.an-page {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 1100px;
     margin: 0 auto;
 }
 
-.analytics-page .card {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+/* === Glass Header === */
+.an-glass-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 14px 20px;
 }
 
-.analytics-page .card-header {
-    background-color: #f8f9fa;
+/* === Period Switcher === */
+.an-period-switcher {
+    display: flex;
+    gap: 4px;
+}
+
+.an-period-switcher .form-check {
+    padding-left: 0;
+    margin-right: 0;
+}
+
+.an-period-switcher .form-check-input {
+    display: none;
+}
+
+.an-period-switcher .form-check-label {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    color: var(--color-text-secondary);
+    transition: all 0.2s ease;
+}
+
+.an-period-switcher .form-check-label:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.an-period-switcher .form-check-input:checked + .form-check-label {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+/* === Summary Cards Row === */
+.an-summary-row {
+    display: flex;
+    gap: 10px;
+}
+
+.an-metric-card {
+    flex: 1;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.an-metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+.an-metric-label {
+    font-size: 0.72rem;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
 }
 
-/* Summary cards */
-.analytics-page .card-body h4 {
+.an-metric-value {
+    font-size: 1.15rem;
     font-weight: 700;
-    color: #2E7D32;
+    color: var(--color-text-primary);
 }
 
-.analytics-page .card-body h6 {
-    font-size: 0.85rem;
+/* === Chart Cards === */
+.an-chart-card {
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
 }
 
-/* Charts container */
-.analytics-page .donut-container,
-.analytics-page .bar-container {
-    min-height: 350px;
+.an-card-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-secondary);
 }
 
-/* Period switcher */
-.analytics-page .form-check-inline {
-    margin-right: 1rem;
+.an-bar-switch {
+    font-size: 0.8rem;
 }
 
-/* Responsive */
+.an-bar-switch .form-check-label {
+    color: var(--color-text-secondary);
+}
+
+/* Plotly chart transparent bg */
+.an-chart-card .js-plotly-plot .plotly .main-svg {
+    background: transparent !important;
+}
+
+/* === Responsive === */
 @media (max-width: 768px) {
-    .analytics-page .row {
+    .an-glass-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .an-summary-row {
         flex-direction: column;
     }
 
-    .analytics-page .col-md-3,
-    .analytics-page .col-md-5,
-    .analytics-page .col-md-7 {
-        width: 100%;
-        margin-bottom: 1rem;
+    .an-chart-card {
+        margin-bottom: 10px;
+    }
+}
+
+/* === Fallback for no backdrop-filter === */
+@supports not (backdrop-filter: blur(16px)) {
+    .an-glass-header,
+    .an-metric-card,
+    .an-chart-card {
+        background: rgba(255, 255, 255, 0.92);
     }
 }

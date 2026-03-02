@@ -164,10 +164,8 @@ def display_page(pathname):
         return create_transactions_layout(), html.Div(style={"display": "none"})
 
     elif pathname == "/analytics":
-        # Страница аналитики
-        return create_analytics_layout(), create_page_header(
-            "Аналитика", "Анализ расходов по категориям"
-        )
+        # Страница аналитики (заголовок встроен в glass-header)
+        return create_analytics_layout(), html.Div(style={"display": "none"})
 
     else:
         # 404 страница
