@@ -414,6 +414,97 @@ body {
     color: var(--color-text-muted);
 }
 
+/* === DASHBOARD LAYOUT === */
+.db-glass-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--glass-bg);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-top: 1px solid var(--glass-border-top);
+    border-radius: 24px;
+    box-shadow: var(--shadow);
+    padding: 14px 20px;
+    margin-bottom: 8px;
+}
+
+.db-header-subtitle {
+    color: var(--color-text-secondary);
+    font-size: 0.8rem;
+}
+
+/* Period switcher — pill buttons */
+.db-period-switcher {
+    display: flex;
+    gap: 4px;
+}
+
+.db-period-switcher .form-check {
+    padding-left: 0;
+    margin-right: 0;
+}
+
+.db-period-switcher .form-check-input {
+    display: none;
+}
+
+.db-period-switcher .form-check-label {
+    display: inline-block;
+    padding: 4px 18px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    color: var(--color-text-secondary);
+    transition: all 0.2s ease;
+    min-width: 72px;
+    text-align: center;
+}
+
+.db-period-switcher .form-check-label:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.db-period-switcher .form-check-input:checked + .form-check-label {
+    background: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+
+/* Compact gaps between dashboard cards */
+#dashboard-overview-cards {
+    margin-bottom: 8px;
+}
+
+#dashboard-overview-cards .row {
+    --bs-gutter-x: 8px;
+    --bs-gutter-y: 8px;
+}
+
+.kpi-card {
+    padding: 16px 18px;
+}
+
+.kpi-number {
+    font-size: 24px;
+}
+
+/* Right column compact */
+.db-right-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* Chart card compact margin */
+#dashboard-cashflow-chart {
+    margin-bottom: 8px;
+}
+
 /* === DASHBOARD SPLIT TABLE === */
 .dashboard-split-table .table td {
     padding: 0.5rem 0.4rem;
@@ -422,4 +513,19 @@ body {
 
 .dashboard-split-table .table tr:hover {
     background-color: rgba(46, 204, 113, 0.04);
+}
+
+/* === Responsive dashboard header === */
+@media (max-width: 768px) {
+    .db-glass-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+}
+
+@supports not (backdrop-filter: blur(16px)) {
+    .db-glass-header {
+        background: rgba(255, 255, 255, 0.92);
+    }
 }

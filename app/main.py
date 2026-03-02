@@ -146,10 +146,8 @@ def display_page(pathname):
     Роутинг между страницами приложения.
     """
     if pathname is None or pathname == "/" or pathname == "/dashboard":
-        # Главная страница - дашборд
-        return create_dashboard_layout(), create_page_header(
-            "Дашборд", "Обзор финансов"
-        )
+        # Главная страница — дашборд (заголовок встроен в glass-header)
+        return create_dashboard_layout(), html.Div(style={"display": "none"})
 
     elif pathname == "/calendar":
         # Кассовый календарь (заголовок встроен в glass-header)

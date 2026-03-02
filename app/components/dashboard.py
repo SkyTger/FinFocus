@@ -90,11 +90,22 @@ def create_dashboard_layout():
             ),
             # Баннер предупреждения о балансе (вверху контента)
             _build_balance_banner(),
-            # Header с переключателем периода
-            # КРИТИЧНО: должен быть в статическом layout
+            # Glass header — greeting + period switcher
             html.Div(
                 [
-                    html.H5("Обзор", className="mb-0"),
+                    html.Div(
+                        [
+                            html.H4(
+                                "Добро пожаловать!",
+                                className="mb-0 fw-semibold",
+                            ),
+                            html.Small(
+                                "Ваш финансовый обзор",
+                                className="db-header-subtitle",
+                            ),
+                        ],
+                        className="flex-grow-1",
+                    ),
                     dbc.RadioItems(
                         id="period-switcher",
                         options=[
@@ -103,13 +114,10 @@ def create_dashboard_layout():
                         ],
                         value="month",
                         inline=True,
-                        className="btn-group",
-                        inputClassName="btn-check",
-                        labelClassName="btn btn-outline-secondary btn-sm",
-                        labelCheckedClassName="btn btn-secondary btn-sm",
+                        className="db-period-switcher",
                     ),
                 ],
-                className="d-flex justify-content-between align-items-center mb-3",
+                className="db-glass-header",
             ),
             # KPI карточки
             html.Div(
@@ -135,24 +143,25 @@ def create_dashboard_layout():
                                         md=6,
                                     ),
                                 ],
-                                className="mt-3",
+                                className="g-2 mt-0",
                             ),
                         ],
                         width=8,
                     ),
                     # Правая колонка: wishlist + cushion + stats
                     dbc.Col(
-                        [
-                            build_wishlist_widget(),
-                            html.Div(style={"height": "16px"}),
-                            html.Div(id="dashboard-cushion-card"),
-                            html.Div(style={"height": "16px"}),
-                            html.Div(id="dashboard-statistics-card"),
-                        ],
+                        html.Div(
+                            [
+                                build_wishlist_widget(),
+                                html.Div(id="dashboard-cushion-card"),
+                                html.Div(id="dashboard-statistics-card"),
+                            ],
+                            className="db-right-col",
+                        ),
                         width=4,
                     ),
                 ],
-                className="mb-4",
+                className="g-2",
             ),
         ]
     )
