@@ -7,6 +7,7 @@
 ## Restore Context Log
 
 <!-- Записи вида: Restore context: protocol-0025#ctx-N -->
+Restore context: protocol-0025#ctx-1
 
 ---
 
@@ -19,3 +20,9 @@
 - Неочевидные решения и почему
 - Проблемы и как решены
 -->
+
+### Step 01 — Requirements + Start Scripts
+- Разделены requirements: runtime (requirements.txt) / dev (requirements-dev.txt)
+- Создан start.sh: Python 3.10+ check, venv, deps marker, port check, trap handler, цветной вывод
+- Создан start.bat: py -3/python fallback, version parsing, venv, deps marker (xcopy /D /L), netstat port check, pause on error
+- shellcheck недоступен в окружении — пропущено
