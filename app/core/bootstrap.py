@@ -27,6 +27,7 @@ def auto_bootstrap() -> dict[str, bool]:
                 name="Пользователь",
                 email="user@local",
                 starting_balance=Decimal("0"),
+                avatar_id="emoji-default",
                 first_launch=True,
             )
             session.add(default_user)

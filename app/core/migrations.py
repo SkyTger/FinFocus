@@ -154,6 +154,14 @@ def run_all_migrations(db_path: Path | None = None) -> list[str]:
             )
             applied.append("006_ix_wishlist_user_priority")
 
+        # 007: avatar_id
+        if not _column_exists(cursor, "users", "avatar_id"):
+            cursor.execute(
+                "ALTER TABLE users "
+                "ADD COLUMN avatar_id VARCHAR(20) DEFAULT 'emoji-default' NOT NULL"
+            )
+            applied.append("007_avatar_id")
+
         conn.commit()
 
     except sqlite3.Error as e:
