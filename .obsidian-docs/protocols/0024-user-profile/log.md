@@ -21,3 +21,9 @@ Restore context: protocol-0024#ctx-1
 - Миграция 007_avatar_id в migrations.py (идемпотентная)
 - bootstrap.py: avatar_id="emoji-default" при создании пользователя
 - UserProfile TypedDict + name/avatar_id в OnboardingStatus
+
+### Step 03 — Service Layer
+- OnboardingService: complete(), update_profile(), get_profile(), _validate_profile_fields()
+- complete_with_balance() как deprecated wrapper
+- get_status() расширен name/avatar_id
+- Re-export UserProfile в schema/__init__.py

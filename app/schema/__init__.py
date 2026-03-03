@@ -23,7 +23,7 @@ from app.schema.cushion import (
     CushionSettings,
     CushionScenario,
 )
-from app.schema.onboarding import OnboardingStatus
+from app.schema.onboarding import OnboardingStatus, UserProfile
 from app.schema.recurring import (
     RecurringDeleteContext,
     DELETE_SCOPE_OPTIONS,
@@ -72,8 +72,9 @@ __all__ = [
     "Percent",
     "CushionSettings",
     "CushionScenario",
-    # Onboarding
+    # Onboarding / Profile
     "OnboardingStatus",
+    "UserProfile",
     # Recurring
     "RecurringDeleteContext",
     "DELETE_SCOPE_OPTIONS",
