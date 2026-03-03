@@ -3,8 +3,8 @@
 ## 📊 Общий статус проекта: Epic-09 Beta Preparation — IN PROGRESS
 
 **Последнее обновление**: 2026/03/03
-**Статус**: 🔄 Epic-09 (Фаза 1-2 завершены, Фаза 3 следующая)
-**Прогресс Epic-09**: 2/4 фаз завершено (50%)
+**Статус**: 🔄 Epic-09 (Фаза 1-3 завершены, Фаза 4 следующая)
+**Прогресс Epic-09**: 3/4 фаз завершено (75%)
 **GitHub**: https://github.com/SkyTger/FinFocus
 
 ---
@@ -21,7 +21,7 @@
 ### Фазы:
 - [x] ✅ Фаза 1: Auto-bootstrap (2026/02/28) — auto_bootstrap() + run_all_migrations()
 - [x] ✅ Фаза 2: User Profile (2026/03/03, PR #24) — avatar config, extended onboarding, dynamic sidebar, profile modal
-- [ ] Фаза 3: Delivery & Setup (scope TBD) — способ установки для тестеров
+- [x] ✅ Фаза 3: Delivery & Setup (2026/03/03, PR #25) — start.sh + start.bat, requirements split, BETA_README, RELEASE_GUIDE
 - [ ] Фаза 4: Bug fixes & Polish — резерв для багов из бета-тестирования
 
 ### Ключевые решения:
@@ -29,7 +29,39 @@
 2. Аватарки предустановленные (8-12 emoji/иконок, НЕ загрузка файлов)
 3. Auto-bootstrap в run.py (ПЕРЕД запуском Dash сервера)
 4. Welcome screen расширяет onboarding wizard
-5. Фаза 3 scope TBD (Docker vs PyInstaller vs setup-скрипт)
+5. Beta delivery: setup-скрипты (start.sh + start.bat), НЕ Docker/PyInstaller
+
+---
+
+## ✅ Батч 20: Beta Delivery & Setup (2026-03-03) — MERGED
+
+**Дата**: 2026/03/03
+**Протокол**: 0025-beta-delivery
+**PR**: https://github.com/SkyTger/FinFocus/pull/25
+**Статус**: ✅ Merged в main
+
+### 🎯 Цель батча:
+Обеспечить 1-click запуск FinFocus для нетехнических бета-тестеров: платформенные скрипты с авто-настройкой venv и зависимостей, инструкция для тестеров, процесс создания релизов.
+
+### ✅ Выполненные задачи:
+
+1. **Requirements split** — requirements.txt (runtime only) + requirements-dev.txt (pytest, black, flake8)
+2. **start.sh** (168 строк) — Python 3.10+ check, venv creation, deps marker (.deps_installed), port check (ss/lsof/netstat), trap handler, colored output, auto browser open
+3. **start.bat** (148 строк) — py -3/python fallback, version parsing, venv, deps marker (xcopy /D /L), netstat port check, pause on error
+4. **BETA_README.md** (86 строк) — 3 шага установки, 6 FAQ, ссылка на GitHub issues для bug reports
+5. **docs/RELEASE_GUIDE.md** (82 строк) — tag format v0.9.0-beta.N, git archive команда, Release Notes шаблон, checklist
+
+### 📊 Результат:
+- ✅ 546 тестов (без изменений — новый код не содержит Python)
+- ✅ start.sh + start.bat — 1-click запуск на 3 платформах
+- ✅ Идемпотентная установка зависимостей через маркер-файл
+- ✅ Проверка Python >= 3.10 и порта перед запуском
+
+### 💡 Ключевые решения:
+1. **Setup-скрипты, не Docker/PyInstaller** — minimal barrier для тестеров с Python
+2. **Deps marker** — .venv/.deps_installed, обновляется при изменении requirements.txt
+3. **Port check fallback chain** — ss → lsof → netstat (кроссплатформенность)
+4. **xcopy /D /L трюк** — Windows timestamp comparison без PowerShell
 
 ---
 
@@ -384,232 +416,9 @@
 
 ---
 
-## ✅ Батч 15: Postponed Purchases (Wishlist) (2026-02-04) — MERGED
-
-**Дата**: 2026/02/04
-**Протокол**: 0020-postponed-purchases
-**PR**: https://github.com/SkyTger/FinFocus/pull/20
-**Статус**: ✅ Merged в main (commit 258f084)
-
-### 🎯 Цель батча:
-Реализовать функционал отложенных покупок (wishlist) с подбором безопасной даты на основе кассового календаря и визуализацией каскадного влияния покупки на остатки месяца.
-
-### ✅ Выполненные задачи:
-
-1. **Schema + Model + Migration** (commits: 80d1ad2, 8b28dd4)
-   - TypedDicts: WishlistItemData, SafeDateInfo, HoverBalances
-   - WishlistItem ORM: name, amount, category_id, priority (1/2), status ("new"/"planned"), planned_date, planned_transaction_id
-   - FK: user_id, category_id (nullable), planned_transaction_id (ON DELETE SET NULL)
-   - scripts/migrate_006_wishlist.py — idempotent CREATE TABLE + index
-
-2. **WishlistService** (commit: a6f0b84)
-   - CRUD: create_item, get_all, get_focus, get_by_id, update_item, delete_item
-   - Planning: mark_as_planned, reset_planned
-   - Utility: check_orphaned_planned, to_data
-   - Валидация: name (1-100), amount > 0, priority in {1, 2}
-   - Planned guard: статус "planned" → можно менять только name, priority
-
-3. **PurchaseRecommendationService** (commit: ab7f32d)
-   - get_safe_dates_map() — карта безопасности дней {date: {safe, reasons}}
-   - precalculate_hover_data() — предрассчет ~960 балансов для JS hover
-   - Интеграция: CalendarService + CushionService
-   - Каскадная проверка: min(balance[d:end_month] - amount)
-
-4. **Unit тесты сервисов** (commit: a17c82f)
-   - test_wishlist_service.py: 31 тест (CRUD, validation, planning, to_data)
-   - test_purchase_recommendation.py: 11 тестов (safe dates, hover data, edge cases)
-   - Всего: 483 теста (было 441, +42)
-
-5. **Wishlist UI (виджет + модал)** (commit: ae3e15c)
-   - build_wishlist_widget() — Dashboard карточка с 5 фокусными хотелками
-   - create_wishlist_modal() — модал с inline-формой, секции Focus/Later
-   - _build_replan_confirm_modal() — confirm dialog для перепланирования
-   - 9 callbacks: open/add/delete/edit(priority toggle)/replan flow/plan navigate
-   - ADR-003 guard clauses
-
-6. **Dashboard + Main интеграция** (commit: 8f1e4d7)
-   - Виджет в dashboard.py правая колонка
-   - create_wishlist_modal() в main.py layout
-   - dcc.Store wishlist-active-item
-   - handle_calendar_query_params() для ?wishlist_item=ID (расширен для recon + wishlist)
-
-7. **Calendar wishlist module** (commit: 3a5d4b2)
-   - calendar_wishlist.py (~280 строк):
-     - build_wishlist_overlay_banner() — баннер с легендой, счетчиком дней
-     - build_wishlist_day_cell() — ячейка с safe/unsafe маркерами, data-date, reasons tooltip
-     - build_wishlist_calendar_grid() — полная сетка с .wishlist-mode CSS
-     - cancel_wishlist_mode callback
-
-8. **Calendar.py расширение** (commit: 236228e)
-   - data-date атрибут на .calendar-day-balance (для JS hover)
-   - dcc.Stores: wishlist-safe-dates, wishlist-hover-data
-   - wishlist-overlay div в layout
-   - load_and_navigate_calendar: +Input wishlist-active-item, +3 Outputs (overlay + stores)
-   - Wishlist mode: PurchaseRecommendationService + wishlist grid
-   - wishlist.css: +55 строк (overlay, markers, safe/unsafe, hover, past-day)
-
-9. **JS hover asset** (commit: e7a0f3c)
-   - wishlist_hover.js (~145 строк):
-     - IIFE pattern, 'use strict'
-     - rubleFormatter: Intl.NumberFormat('ru-RU') + ' ₽'
-     - getHoverData() — JSON.parse из #wishlist-hover-data (dcc.Store DOM)
-     - applyHoverBalances() — подмена .calendar-day-balance[data-date] из by_candidate
-     - restoreBaseBalances() — восстановление из base_balances
-     - attachHoverListeners() — mouseenter/mouseleave, data-hover-attached guard
-     - observeContainer() — MutationObserver для .wishlist-mode обнаружения
-     - init() — DOMContentLoaded / readyState check
-
-10. **Preselection + mark_planned + orphan detection** (commit: f9c8a41)
-    - transaction_modals.py:
-      - +4 dcc.Stores: preselected-amount, -date, -description, -risk-warning
-      - set_preselection_on_modal_open(): расширен для source="wishlist" (7 outputs)
-      - create_transaction: +wishlist_item_id State, trigger_data["wishlist_item_id"], +4 reset (19 outputs)
-      - close_create_modal: +4 resets (10 outputs)
-    - calendar_wishlist.py:
-      - open_create_from_wishlist_day() — клик на wishlist-day-cell → create-modal с preselection
-      - ADR-003 guard clauses #1-#4
-      - Risk warning из safe_dates
-    - wishlist.py:
-      - mark_wishlist_planned_after_create() — trigger source="wishlist" → mark_as_planned()
-      - detect_orphaned_wishlist() — trigger action="delete" → check_orphaned_planned() → reset_planned()
-
-11. **Финализация** (Step 11, в процессе)
-    - Black: TBD
-    - Flake8: TBD
-    - Pytest: 483 tests PASSED
-    - PR создание
-
-### 📊 Результат:
-- ✅ +~1700 строк кода (services ~430, UI ~1100, JS ~145)
-- ✅ +~280 строк tests
-- ✅ 483 unit и integration тестов (было 441, +42)
-- ✅ Полный wishlist workflow: add → plan → calendar mode → hover → select → create transaction → mark planned
-- ✅ JS hover без server calls (< 1ms vs ~200ms предрассчет)
-- ✅ Orphan detection для data integrity
-
-### 💡 Ключевые решения:
-
-1. **Каскадный hover через JS** — предрассчет ~960 балансов (~30KB Store) + clientside JS для hover (< 1ms)
-2. **Статическая карта safe/unsafe** — маркеры pre-calculated, не меняются при hover (UX clarity)
-3. **Orphan detection** — ON DELETE SET NULL + callback для автосброса статуса "planned"
-4. **Planned guard** — статус "planned" блокирует изменение amount, category_id (только name, priority)
-5. **Preselection Store Pattern** — 4 новых Stores для передачи данных в create-modal (amount, date, description, risk_warning)
-6. **MutationObserver** — обнаружение .wishlist-mode для подключения hover listeners (data-hover-attached guard)
-7. **Lazy import для circular dependency** — _get_budget_service() в WishlistService (как в протоколе 0018)
-
-### 🔧 Технические детали:
-
-**Новые файлы:**
-- `app/models/database.py` — WishlistItem ORM (+7 полей)
-- `app/services/wishlist_service.py` — WishlistService (~270 строк)
-- `app/services/purchase_recommendation_service.py` — PurchaseRecommendationService (~160 строк)
-- `app/schema/wishlist.py` — 3 TypedDicts (~50 строк)
-- `app/components/wishlist.py` — Wishlist UI + modal + callbacks (~500 строк)
-- `app/components/calendar_wishlist.py` — Calendar wishlist grid + overlay (~280 строк)
-- `app/assets/wishlist.css` — стили overlay, markers, safe/unsafe (~130 строк)
-- `app/assets/wishlist_hover.js` — JS hover logic (~145 строк)
-- `tests/test_wishlist_service.py` — 31 unit тест
-- `tests/test_purchase_recommendation.py` — 11 unit тестов
-- `scripts/migrate_006_wishlist.py` — idempotent migration
-
-**Модифицированные файлы:**
-- `app/components/dashboard.py` — +wishlist виджет (~70 строк)
-- `app/components/calendar.py` — +wishlist mode integration (~100 строк)
-- `app/components/transaction_modals.py` — +4 preselection Stores (~40 строк)
-- `app/main.py` — create_wishlist_modal(), handle_calendar_query_params расширен
-- `app/schema/__init__.py`, `app/services/__init__.py`, `app/components/__init__.py` — экспорты
-
-### 🚀 Следующие шаги:
-
-**Финализация протокола 0020**:
-- Black: 8 файлов
-- Flake8: проверка E501, F401
-- PR #20 создание и merge
-
-**Epic-04 продолжение**:
-- Импорт операций из банков (CSV, Excel, OFX)
-- Уведомления и напоминания
-
----
-
-## ✅ Батч 14: Contribution Edit/Delete (2026-02-04) — MERGED
-
-**Дата**: 2026/02/04
-**Протокол**: 0019-contribution-edit-delete
-**PR**: https://github.com/SkyTiger/FinFocus/pull/19
-**Статус**: ✅ Merged в main
-
-### 🎯 Цель батча:
-Реализовать полноценное CRUD для GoalContribution с каскадной синхронизацией (Contribution ↔ Transaction ↔ Goal.current_amount ↔ Exception) и блокировкой SAVINGS_CONTRIBUTION в calendar tooltip.
-
-### ✅ Выполненные задачи:
-
-1. **Schema + Helpers** (commit: 8b0648c)
-   - ContributionInfo и ContributionUpdateResult TypedDicts
-   - _get_budget_service() для lazy import (избегание circular dependency)
-   - get_contribution_by_id() метод
-
-2. **Service Methods** (commit: 9089dc5)
-   - update_contribution() с Guards #1-3, каскадная синхронизация (Contribution → Transaction → current_amount → Exception)
-   - Переписан delete_contribution() по Варианту A (прямое удаление, без delete_contribution_transaction())
-   - Откат статуса COMPLETED → ACTIVE в обоих методах
-
-3. **Calendar Guard #6** (commit: de9531f)
-   - Блокировка SAVINGS_CONTRIBUTION в tooltip (аналогично SAVINGS_RESERVE)
-   - Обновлен тест test_savings_contribution_is_readonly
-
-4. **Goals UI** (commit: 28b02b4)
-   - Таблица взносов с кнопками Edit/Delete
-   - Модалы: edit_contribution_modal, delete_contribution_confirm_modal
-   - 4 callbacks с ADR-003 guard clauses
-
-5. **Unit Tests** (commit: d557f2c)
-   - 23 новых тестов (17 update, 5 delete, 1 not_found)
-   - Mock scope fix для across_months теста
-
-6. **Финализация** (commit: edc2195)
-   - Black: 3 файла переформатированы
-   - Flake8: 1 unused import исправлен
-   - Pytest: 441 tests passed (было 418, +23)
-
-### 📊 Результат:
-- ✅ 441 unit и integration тестов (было 418, +23)
-- ✅ Полный lifecycle для GoalContribution (CRUD complete)
-- ✅ Каскадная синхронизация 4 уровней (Contribution → Transaction → Goal → Exception)
-- ✅ Защита от data corruption через calendar
-- ✅ Black + Flake8 OK
-- ✅ PR #19 Merged
-
-### 💡 Ключевые решения:
-
-1. **Вариант A в delete_contribution** — прямое удаление без вызова delete_contribution_transaction() для избежания дублирования логики current_amount
-2. **Lazy import для circular dependency** — _get_budget_service() в GoalService
-3. **ContributionInfo detachment** — сохранение данных до flush() для защиты от detached state
-4. **Guard #6 в calendar** — блокировка SAVINGS_CONTRIBUTION для предотвращения рассинхронизации
-
-### 🔧 Технические детали:
-
-**Новые файлы:**
-- `tests/test_contribution_edit_delete.py` — 23 unit тестов
-
-**Модифицированные файлы:**
-- `app/schema/goals.py` — +2 TypedDicts (ContributionInfo, ContributionUpdateResult)
-- `app/services/goal_service.py` — +3 методы (_get_budget_service, get_contribution_by_id, update_contribution), переписан delete_contribution
-- `app/components/calendar.py` — +Guard #6, обновлен tooltip readonly
-- `app/components/goals.py` — +таблица actions, +2 модала, +4 callbacks
-
-### 🚀 Следующие шаги:
-
-**Epic-04 продолжение**:
-- Отложенные покупки (Wishlist) — протокол 0020
-- Импорт операций из банков (Backlog)
-- Уведомления и напоминания (Backlog)
-
----
-
 ---
 
 *Последнее обновление: 2026/03/03*
 *Формат: Rolling Window (последние 5 батчей)*
 
-> Архив старых батчей: Батч 13 (Onboarding Wizard) и ранее — см. feature_progress_archive.md
+> Архив старых батчей: Батч 15 (Wishlist) и ранее — см. feature_progress_archive.md
