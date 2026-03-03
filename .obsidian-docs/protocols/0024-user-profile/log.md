@@ -27,3 +27,9 @@ Restore context: protocol-0024#ctx-1
 - complete_with_balance() как deprecated wrapper
 - get_status() расширен name/avatar_id
 - Re-export UserProfile в schema/__init__.py
+
+### Step 04 — Onboarding UI
+- Перестроен onboarding wizard: имя + RadioItems аватарка + баланс
+- Два callback'а: check+validate (ctx.triggered_id оптимизация), handle action (submit/skip)
+- Output profile-updated.data для Store-based обновлений
+- CSS: avatar grid, avatar-option, avatar-option-selected, profile-modal
