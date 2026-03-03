@@ -39,3 +39,7 @@ Restore context: protocol-0024#ctx-1
 - Callback update_sidebar_profile: реагирует на url.pathname + profile-updated Store
 - profile_modal.py: модал редактирования (имя + аватарка), один callback (open/save/cancel)
 - CSS: sidebar-profile-clickable стили
+
+### Step 06 — Main + Dashboard
+- main.py: +create_profile_modal(), +dcc.Store("profile-updated")
+- dashboard.py: inline read имени для greeting "Добро пожаловать, {name}!"

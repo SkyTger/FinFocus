@@ -22,6 +22,7 @@ from app.components.goals import create_goals_layout  # Потом goals
 from app.components.transaction_modals import create_transaction_modals
 from app.components.analytics import create_analytics_layout  # Аналитика
 from app.components.onboarding_wizard import create_onboarding_wizard
+from app.components.profile_modal import create_profile_modal
 from app.components.wishlist import create_wishlist_modal
 
 # Загружаем переменные окружения
@@ -81,6 +82,10 @@ app.layout = dbc.Container(
         create_reconciliation_modal(),
         # Onboarding wizard (blocking modal при first_launch)
         create_onboarding_wizard(),
+        # Profile modal (глобальный — редактирование профиля)
+        create_profile_modal(),
+        # Store для обновления sidebar при изменении профиля
+        dcc.Store(id="profile-updated", data=None),
         # Глобальный store для toast dismissal (до перезагрузки)
         dcc.Store(id="balance-toast-dismissed", data=False),
         # Trigger для автооткрытия reconciliation modal (timestamp-based)

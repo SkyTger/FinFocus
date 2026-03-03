@@ -81,6 +81,17 @@ def _build_balance_banner() -> dbc.Alert:
 
 def create_dashboard_layout():
     """Создает layout главной страницы дашборда."""
+    # NOTE: greeting обновляется только при навигации (inline read)
+    greeting_name = "Пользователь"
+    try:
+        with get_db_session() as session:
+            profile = OnboardingService(session).get_profile(DEFAULT_USER_ID)
+            greeting_name = profile["name"]
+    except Exception:
+        logger.warning(
+            "Failed to load user name for dashboard greeting", exc_info=True
+        )
+
     return html.Div(
         [
             # State хранилище для периода
@@ -96,7 +107,7 @@ def create_dashboard_layout():
                     html.Div(
                         [
                             html.H4(
-                                "Добро пожаловать!",
+                                f"Добро пожаловать, {greeting_name}!",
                                 className="mb-0 fw-semibold",
                             ),
                             html.Small(
