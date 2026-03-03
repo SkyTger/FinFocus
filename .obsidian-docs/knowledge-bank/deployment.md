@@ -44,6 +44,70 @@ PORT=8080 DEBUG=False python run.py
 - Таблицы создаются автоматически через `init_database()` в `run.py`
 - Seed данные: `python scripts/seed_test_data.py` (optional)
 
+## Beta Delivery (Текущий способ для тестеров)
+
+### Концепция
+Два платформенных скрипта с автонастройкой окружения — нетехнический пользователь делает двойной клик и получает приложение в браузере.
+
+### Скрипты запуска
+
+| Файл | Платформа | Размер |
+|------|-----------|--------|
+| `start.sh` | Linux / macOS | 168 строк |
+| `start.bat` | Windows | 148 строк |
+
+**Что делают скрипты (оба):**
+1. Проверяют Python 3.10+ (не 3.12 — намеренно для совместимости у тестеров)
+2. Создают `.venv/` если не существует
+3. Устанавливают зависимости из `requirements.txt` — пропускают если `.venv/.deps_installed` уже есть
+4. Проверяют свободен ли порт 8050
+5. Запускают `python run.py` и открывают браузер
+
+**Маркер идемпотентности**: `.venv/.deps_installed`
+- Создается командой `touch .venv/.deps_installed` после успешного `pip install`
+- start.bat: xcopy /D /L имитирует timestamp-сравнение (dry-run)
+- Повторные запуски не переустанавливают зависимости
+
+**start.sh специфика:**
+- Проверка порта: fallback chain `ss` → `lsof` → `netstat`
+- Браузер: `xdg-open` (Linux) или `open` (macOS)
+- Trap handler для cleanup при Ctrl+C
+- Цветной вывод через ANSI-коды
+
+**start.bat специфика:**
+- Python поиск: `py -3` приоритет, `python` fallback
+- Версия парсится через `py -3 -c "import sys; print(sys.version_info...)"`
+- Порт: `netstat -an`
+- Пауза при ошибке (`pause`) для видимости сообщений
+
+### Разделение зависимостей
+
+```
+requirements.txt      ← только runtime (Dash, SQLAlchemy, ...)
+requirements-dev.txt  ← dev/test (pytest, black, flake8, coverage)
+```
+
+Бета-тестеры устанавливают только `requirements.txt` через start-скрипты.
+Разработчики: `pip install -r requirements-dev.txt`.
+
+### Документация для тестеров
+
+**`BETA_README.md`** (86 строк, в корне репозитория):
+- 3-шаговая установка: скачать ZIP → запустить скрипт → открыть `localhost:8050`
+- 6 FAQ: Python не найден, порт занят, ошибки зависимостей и др.
+
+**`docs/RELEASE_GUIDE.md`** (82 строки):
+- Формат тега: `v0.9.0-beta.N`
+- ZIP через `git archive`: автоматически исключает `.git`, `.venv`, `data/`
+- Шаблон Release Notes и чеклист выпуска
+
+### Ограничения beta delivery
+- Приложение работает в браузере (`localhost:8050`), не нативное окно
+- Требует установленный Python 3.10+ (не включен в поставку)
+- Backlog: нативное окно (flaskwebgui/pywebview) и PyInstaller/Docker — отложены post-beta
+
+---
+
 ## Environment Variables
 
 **Поддерживаемые переменные** (через `.env` файл):

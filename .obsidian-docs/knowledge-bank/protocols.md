@@ -8,6 +8,63 @@
 
 ## Завершенные протоколы
 
+### Протокол 0025: Beta Delivery & Setup (2026-03-03)
+**Статус**: ЗАВЕРШЕН
+**Батч**: Epic-09 (Delivery & Setup for Beta Testers)
+**Worktree**: `/worktrees/0025-beta-delivery`
+
+**Контекст**:
+- Нетехнические бета-тестеры не знают terminal/pip/venv
+- Нужен способ запустить Dash web app (localhost:8050) без технических знаний
+- Решение: два платформенных скрипта (start.sh + start.bat) с автонастройкой окружения
+
+**Решения**:
+- `start.sh` (Linux/macOS) + `start.bat` (Windows) — автоматически создают venv, устанавливают зависимости, запускают браузер
+- Маркер `.venv/.deps_installed` для идемпотентных установок (не переустанавливать при каждом запуске)
+- Проверка Python 3.10+ с понятными сообщениями об ошибке
+- Проверка занятости порта 8050 перед запуском
+- `BETA_README.md` — инструкция для тестеров (3 шага установки + 6 FAQ)
+- `docs/RELEASE_GUIDE.md` — процесс релиза для команды
+- Разделение зависимостей: `requirements.txt` (runtime) + `requirements-dev.txt` (dev/test)
+
+**Реализация** (3 шага):
+1. **Скрипты запуска + разделение requirements** (start.sh 168 строк, start.bat 148 строк)
+   - start.sh: ss/lsof/netstat fallback chain для проверки порта, xdg-open/open для браузера, trap handler, цветной вывод
+   - start.bat: py -3 launcher приоритет, python fallback, xcopy /D /L для timestamp comparison маркера
+   - requirements.txt очищен от dev-зависимостей; requirements-dev.txt создан с pytest/black/flake8
+
+2. **Документация** (BETA_README.md 86 строк, docs/RELEASE_GUIDE.md 82 строки)
+   - BETA_README.md: 3-шаговая установка (скачать → запустить → открыть браузер), 6 FAQ с типичными проблемами
+   - RELEASE_GUIDE.md: формат тега v0.9.0-beta.N, команда git archive для ZIP, шаблон Release Notes, чеклист
+
+3. **QA финализация**
+   - black OK, flake8 6 E501 pre-existing, pytest 546 passed / 7 failed (все pre-existing)
+
+**Результат**:
+- Бета-тестер запускает приложение двойным кликом на start.sh/start.bat
+- Приложение открывается в браузере автоматически
+- Повторные запуски: зависимости не переустанавливаются (маркер)
+
+**Критичные детали**:
+- **Python 3.10+ (не 3.12)** — намеренно для широкой совместимости у тестеров
+- **Маркер `.venv/.deps_installed`** — проверяется по timestamp; touch при успешной установке
+- **start.bat xcopy /D /L** — имитирует timestamp-сравнение (xcopy dry-run проверяет newer)
+- **Порт 8050** — check через ss/lsof/netstat (fallback chain) на Linux; netstat на Windows
+- **git archive для ZIP** — исключает .git, .venv, data/ автоматически через .gitattributes
+- **requirements-dev.txt** — pytest, black, flake8, coverage; не нужны пользователям
+
+**Альтернативы** (отвергнуты):
+- Python-launcher — проблема "курица и яйцо" (нужен Python для запуска Python)
+- Docker — слишком сложен для нетехнических пользователей
+- PyInstaller — сложная сборка Dash на 3 платформах (в Backlog post-beta)
+
+**Референсы**:
+- Рабочая директория: `/worktrees/0025-beta-delivery`
+- RELEASE_GUIDE: `docs/RELEASE_GUIDE.md`
+- Инструкция для тестеров: `BETA_README.md`
+
+---
+
 ### Протокол 0020: Postponed Purchases (Wishlist) (2026-02-04)
 **Статус**: ✅ ЗАВЕРШЕН (в процессе финализации)
 **Батч**: Epic-04-Advanced Features (Batch 4, Postponed Purchases)
