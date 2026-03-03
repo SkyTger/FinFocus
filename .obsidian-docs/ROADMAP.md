@@ -251,14 +251,16 @@ MVP разрабатывается по принципу **dual-track agile** с
   - [x] Динамический профиль в sidebar (Store-based обновление)
   - [x] Profile modal для редактирования имени и аватарки
   - [x] 10 предустановленных emoji аватарок (app/config/avatars.py)
-- [ ] Фаза 3: Delivery & Setup — scope TBD
-  - [ ] Способ установки для нетехнических пользователей
-  - [ ] README для тестеров с пошаговой инструкцией
+- [x] ✅ Фаза 3: Delivery & Setup (2026/03/03, PR #25)
+  - [x] start.sh + start.bat — 1-click запуск с авто-venv и зависимостями
+  - [x] Разделение requirements.txt (runtime) / requirements-dev.txt (dev)
+  - [x] BETA_README.md — инструкция для тестеров (3 шага + FAQ)
+  - [x] docs/RELEASE_GUIDE.md — процесс создания GitHub Release
 - [ ] Фаза 4: Bug fixes & Polish
   - [ ] Резерв для багов из бета-тестирования
   - [ ] UX улучшения по фидбеку
 
-**Прогресс**: 50% (2/4 фаз)
+**Прогресс**: 75% (3/4 фаз)
 **Статус**: 🔄 В работе
 **Спецификация**: `.reports/epics/epic-09-beta-prep/README.md`
 
