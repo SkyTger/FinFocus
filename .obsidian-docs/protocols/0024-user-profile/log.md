@@ -43,3 +43,9 @@ Restore context: protocol-0024#ctx-1
 ### Step 06 — Main + Dashboard
 - main.py: +create_profile_modal(), +dcc.Store("profile-updated")
 - dashboard.py: inline read имени для greeting "Добро пожаловать, {name}!"
+
+### Step 07 — Tests
+- test_avatars.py: 5 тестов конфига аватарок
+- test_onboarding_service.py: расширен до 15 тестов (complete, update_profile, get_profile, validate)
+- test_migration_007.py: 3 теста миграции (add column, idempotent, default value)
+- Результат: 546 passed, 6 pre-existing failures (date-sensitive budget_reservation)
