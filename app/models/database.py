@@ -106,6 +106,9 @@ class User(Base):
     cushion_threshold_percent = Column(Integer, default=30)
     cushion_threshold_manual = Column(Boolean, default=False)
 
+    # Профиль
+    avatar_id = Column(String(20), default="emoji-default", nullable=False)
+
     # Онбординг
     first_launch = Column(Boolean, default=True, nullable=False)
 

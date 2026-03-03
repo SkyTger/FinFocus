@@ -6,16 +6,13 @@
 
 ## Restore Context Log
 
-<!-- Записи вида: Restore context: protocol-NNNN#ctx-N -->
+Restore context: protocol-0024#ctx-1
 
 ---
 
 ## Step Log
 
-<!--
-Формат записи:
-### Step XX — [название] (commit: abc1234)
-- Что сделано
-- Неочевидные решения и почему
-- Проблемы и как решены
--->
+### Step 01 — Data Layer
+- Создан `app/config/__init__.py` (пустой)
+- Создан `app/config/avatars.py` — 10 emoji аватарок, DEFAULT_AVATAR_ID, get_avatar_emoji()
+- Добавлен `avatar_id` Column(String(20)) в User модель
