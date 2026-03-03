@@ -26,3 +26,7 @@ Restore context: protocol-0025#ctx-1
 - Создан start.sh: Python 3.10+ check, venv, deps marker, port check, trap handler, цветной вывод
 - Создан start.bat: py -3/python fallback, version parsing, venv, deps marker (xcopy /D /L), netstat port check, pause on error
 - shellcheck недоступен в окружении — пропущено
+
+### Step 02 — Документация
+- Создан BETA_README.md: 3 шага установки, 6 FAQ, раздел bug report с ссылкой на GitHub issues
+- Создан docs/RELEASE_GUIDE.md: tag format v0.9.0-beta.N, git archive команда, шаблон Release Notes, checklist
