@@ -55,9 +55,7 @@ def create_onboarding_wizard() -> dbc.Modal:
                         className="mb-3",
                     ),
                     # Аватарка
-                    dbc.Label(
-                        "Выберите аватарку", className="fw-semibold mb-1"
-                    ),
+                    dbc.Label("Выберите аватарку", className="fw-semibold mb-1"),
                     dbc.RadioItems(
                         id="onboarding-avatar-selector",
                         options=_build_avatar_options(),
@@ -228,9 +226,7 @@ def handle_onboarding_action(
             if triggered_id == "onboarding-submit-btn":
                 name = name_value.strip() if name_value else "Пользователь"
                 avatar = avatar_value or DEFAULT_AVATAR_ID
-                balance = (
-                    Decimal(str(balance_value)) if balance_value else Decimal("0")
-                )
+                balance = Decimal(str(balance_value)) if balance_value else Decimal("0")
                 service.complete(DEFAULT_USER_ID, name, avatar, balance)
             elif triggered_id == "onboarding-skip-btn":
                 service.skip(DEFAULT_USER_ID)

@@ -34,9 +34,7 @@ class OnboardingService:
         """
         self.session = session
 
-    def _validate_profile_fields(
-        self, name: str, avatar_id: str
-    ) -> tuple[str, str]:
+    def _validate_profile_fields(self, name: str, avatar_id: str) -> tuple[str, str]:
         """Валидация полей профиля.
 
         Args:
@@ -55,9 +53,7 @@ class OnboardingService:
         """
         clean_name = name.strip() if name else ""
         if not clean_name or len(clean_name) > 50:
-            raise ValueError(
-                "Имя должно быть от 1 до 50 символов"
-            )
+            raise ValueError("Имя должно быть от 1 до 50 символов")
         valid_avatar = avatar_id if avatar_id in AVATARS else DEFAULT_AVATAR_ID
         return clean_name, valid_avatar
 

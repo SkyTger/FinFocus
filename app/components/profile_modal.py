@@ -46,9 +46,7 @@ def create_profile_modal() -> dbc.Modal:
                         maxLength=50,
                         className="mb-3",
                     ),
-                    dbc.Label(
-                        "Аватарка", className="fw-semibold mb-1"
-                    ),
+                    dbc.Label("Аватарка", className="fw-semibold mb-1"),
                     dbc.RadioItems(
                         id="profile-avatar-selector",
                         options=_build_avatar_options(),

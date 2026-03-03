@@ -88,9 +88,7 @@ def create_dashboard_layout():
             profile = OnboardingService(session).get_profile(DEFAULT_USER_ID)
             greeting_name = profile["name"]
     except Exception:
-        logger.warning(
-            "Failed to load user name for dashboard greeting", exc_info=True
-        )
+        logger.warning("Failed to load user name for dashboard greeting", exc_info=True)
 
     return html.Div(
         [
