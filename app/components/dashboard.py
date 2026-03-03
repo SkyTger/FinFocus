@@ -55,7 +55,7 @@ def _build_balance_banner() -> dbc.Alert:
         id="balance-alert-toast",
         is_open=False,
         dismissable=True,
-        className="balance-banner mb-3",
+        className="balance-banner mb-0",
         children=[
             html.Div(
                 [
@@ -92,85 +92,87 @@ def create_dashboard_layout():
 
     return html.Div(
         [
-            # State хранилище для периода
+            # Hidden elements (не участвуют в flex layout)
             dcc.Store(
                 id="dashboard-period",
                 data={"period": "month"},
             ),
-            # Баннер предупреждения о балансе (вверху контента)
             _build_balance_banner(),
-            # Glass header — greeting + period switcher
+            # Visible flex container
             html.Div(
                 [
+                    # Glass header — greeting + period switcher
                     html.Div(
                         [
                             html.H4(
                                 f"Добро пожаловать, {greeting_name}!",
                                 className="mb-0 fw-semibold",
                             ),
-                            html.Small(
-                                "Ваш финансовый обзор",
-                                className="db-header-subtitle",
-                            ),
-                        ],
-                        className="flex-grow-1",
-                    ),
-                    dbc.RadioItems(
-                        id="period-switcher",
-                        options=[
-                            {"label": "Месяц", "value": "month"},
-                            {"label": "Год", "value": "year"},
-                        ],
-                        value="month",
-                        inline=True,
-                        className="db-period-switcher",
-                    ),
-                ],
-                className="db-glass-header",
-            ),
-            # KPI карточки
-            html.Div(
-                id="dashboard-overview-cards",
-                children=html.Div("Загрузка...", className="text-muted p-4"),
-            ),
-            # Основная сетка 8/4
-            dbc.Row(
-                [
-                    # Левая колонка: график + split таблицы
-                    dbc.Col(
-                        [
-                            html.Div(id="dashboard-cashflow-chart"),
-                            # Split таблицы 50/50
-                            dbc.Row(
-                                [
-                                    dbc.Col(
-                                        html.Div(id="dashboard-recent-transactions"),
-                                        md=6,
-                                    ),
-                                    dbc.Col(
-                                        html.Div(id="dashboard-upcoming-transactions"),
-                                        md=6,
-                                    ),
+                            dbc.RadioItems(
+                                id="period-switcher",
+                                options=[
+                                    {"label": "Месяц", "value": "month"},
+                                    {"label": "Год", "value": "year"},
                                 ],
-                                className="g-2 mt-0",
+                                value="month",
+                                inline=True,
+                                className="db-period-switcher",
                             ),
                         ],
-                        width=8,
+                        className="db-glass-header",
                     ),
-                    # Правая колонка: wishlist + cushion + stats
-                    dbc.Col(
-                        html.Div(
-                            [
-                                build_wishlist_widget(),
-                                html.Div(id="dashboard-cushion-card"),
-                                html.Div(id="dashboard-statistics-card"),
-                            ],
-                            className="db-right-col",
-                        ),
-                        width=4,
+                    # KPI карточки
+                    html.Div(
+                        id="dashboard-overview-cards",
+                        children=html.Div("Загрузка...", className="text-muted p-4"),
+                    ),
+                    # Основная сетка 8/4 — растягивается до низа
+                    dbc.Row(
+                        [
+                            # Левая колонка: график + split таблицы
+                            dbc.Col(
+                                html.Div(
+                                    [
+                                        html.Div(id="dashboard-cashflow-chart"),
+                                        dbc.Row(
+                                            [
+                                                dbc.Col(
+                                                    html.Div(
+                                                        id="dashboard-recent-transactions"
+                                                    ),
+                                                    md=6,
+                                                ),
+                                                dbc.Col(
+                                                    html.Div(
+                                                        id="dashboard-upcoming-transactions"
+                                                    ),
+                                                    md=6,
+                                                ),
+                                            ],
+                                            className="g-2 flex-grow-1",
+                                        ),
+                                    ],
+                                    className="db-left-col",
+                                ),
+                                width=8,
+                            ),
+                            # Правая колонка: wishlist + cushion + stats
+                            dbc.Col(
+                                html.Div(
+                                    [
+                                        build_wishlist_widget(),
+                                        html.Div(id="dashboard-cushion-card"),
+                                        html.Div(id="dashboard-statistics-card"),
+                                    ],
+                                    className="db-right-col",
+                                ),
+                                width=4,
+                            ),
+                        ],
+                        className="g-2 db-main-row",
                     ),
                 ],
-                className="g-2",
+                className="db-page",
             ),
         ]
     )
@@ -645,7 +647,7 @@ def build_overview_cards(metrics: OverviewMetrics, period: str) -> dbc.Row:
         ),
     ]
 
-    return dbc.Row(cards, className="mb-4")
+    return dbc.Row(cards)
 
 
 def build_cashflow_chart(

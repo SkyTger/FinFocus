@@ -415,6 +415,28 @@ body {
 }
 
 /* === DASHBOARD LAYOUT === */
+
+/* Dashboard page — flex column, fills sidebar height */
+.db-page {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: calc(100vh - 48px);  /* match sidebar-column height */
+}
+
+/* Reset ALL Bootstrap margins inside dashboard — flex gap handles spacing */
+.db-page .card,
+.db-page .row,
+.db-page .mb-3,
+.db-page .mb-4 {
+    margin-bottom: 0 !important;
+}
+
+#dashboard-overview-cards .row {
+    --bs-gutter-x: 8px;
+    --bs-gutter-y: 8px;
+}
+
 .db-glass-header {
     display: flex;
     justify-content: space-between;
@@ -427,7 +449,6 @@ body {
     border-radius: 24px;
     box-shadow: var(--shadow);
     padding: 14px 20px;
-    margin-bottom: 8px;
 }
 
 .db-header-subtitle {
@@ -475,16 +496,6 @@ body {
     border-color: var(--color-primary);
 }
 
-/* Compact gaps between dashboard cards */
-#dashboard-overview-cards {
-    margin-bottom: 8px;
-}
-
-#dashboard-overview-cards .row {
-    --bs-gutter-x: 8px;
-    --bs-gutter-y: 8px;
-}
-
 .kpi-card {
     padding: 16px 18px;
 }
@@ -493,16 +504,42 @@ body {
     font-size: 24px;
 }
 
-/* Right column compact */
+/* Main 8/4 row — stretches to fill remaining height */
+.db-main-row {
+    flex: 1;
+    --bs-gutter-y: 0;  /* vertical gap handled by db-page flex gap */
+}
+
+/* Override mb-3 on cards inside dashboard */
+.db-right-col .card {
+    margin-bottom: 0 !important;
+}
+
+/* Left column — flex column with uniform gap */
+.db-left-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    height: 100%;
+}
+
+/* Split tables stretch to fill remaining space */
+.db-left-col > .row {
+    flex: 1;
+    --bs-gutter-y: 0;
+}
+
+/* Right column — flex column with uniform gap */
 .db-right-col {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    height: 100%;
 }
 
-/* Chart card compact margin */
-#dashboard-cashflow-chart {
-    margin-bottom: 8px;
+/* Last card in right col stretches to fill remaining space */
+.db-right-col > div:last-child {
+    flex: 1;
 }
 
 /* === DASHBOARD SPLIT TABLE === */
@@ -521,6 +558,10 @@ body {
         flex-direction: column;
         align-items: flex-start;
         gap: 10px;
+    }
+
+    .db-page {
+        min-height: auto;
     }
 }
 
