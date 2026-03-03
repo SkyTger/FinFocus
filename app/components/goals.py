@@ -213,8 +213,7 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
                                     ),
                                     html.Span(
                                         format_amount(target),
-                                        className="cushion-metric-value "
-                                        "text-muted",
+                                        className="cushion-metric-value " "text-muted",
                                     ),
                                 ],
                                 className="cushion-metric",
@@ -245,9 +244,7 @@ def _build_cushion_card(settings: CushionSettings | None) -> dbc.Card:
                                             ),
                                             html.Div(
                                                 className="cushion-threshold-marker",
-                                                style={
-                                                    "left": f"{threshold_percent}%"
-                                                },
+                                                style={"left": f"{threshold_percent}%"},
                                                 title="Порог безопасности: "
                                                 f"{threshold_percent}%",
                                             ),
@@ -629,15 +626,9 @@ def _build_goal_card(goal_data: GoalDisplayData) -> html.Div:
     """
     # Badge статуса
     status_badges = {
-        "active": dbc.Badge(
-            "Активна", color="success", className="ms-2"
-        ),
-        "paused": dbc.Badge(
-            "Приостановлена", color="warning", className="ms-2"
-        ),
-        "completed": dbc.Badge(
-            "Завершена", color="info", className="ms-2"
-        ),
+        "active": dbc.Badge("Активна", color="success", className="ms-2"),
+        "paused": dbc.Badge("Приостановлена", color="warning", className="ms-2"),
+        "completed": dbc.Badge("Завершена", color="info", className="ms-2"),
     }
     status_badge = status_badges.get(goal_data["status"], None)
 
@@ -720,9 +711,7 @@ def _build_goal_card(goal_data: GoalDisplayData) -> html.Div:
                     html.Div(
                         [
                             html.Span(
-                                format_amount(
-                                    goal_data["current_amount"]
-                                ),
+                                format_amount(goal_data["current_amount"]),
                                 className="goal-compact-current",
                             ),
                             html.Span(
@@ -730,9 +719,7 @@ def _build_goal_card(goal_data: GoalDisplayData) -> html.Div:
                                 className="goal-compact-sep",
                             ),
                             html.Span(
-                                format_amount(
-                                    goal_data["target_amount"]
-                                ),
+                                format_amount(goal_data["target_amount"]),
                                 className="goal-compact-target",
                             ),
                         ],
@@ -763,26 +750,15 @@ def _build_goal_card(goal_data: GoalDisplayData) -> html.Div:
                         [
                             html.Span(
                                 [
-                                    html.I(
-                                        className="bi bi-clock me-1"
-                                    ),
-                                    format_days_remaining(
-                                        goal_data["days_remaining"]
-                                    ),
+                                    html.I(className="bi bi-clock me-1"),
+                                    format_days_remaining(goal_data["days_remaining"]),
                                 ],
                                 className="goal-compact-chip",
                             ),
                             html.Span(
                                 [
-                                    html.I(
-                                        className="bi "
-                                        "bi-arrow-repeat me-1"
-                                    ),
-                                    format_amount(
-                                        goal_data[
-                                            "monthly_contribution"
-                                        ]
-                                    )
+                                    html.I(className="bi " "bi-arrow-repeat me-1"),
+                                    format_amount(goal_data["monthly_contribution"])
                                     + "/мес",
                                 ],
                                 className="goal-compact-chip",
@@ -794,10 +770,7 @@ def _build_goal_card(goal_data: GoalDisplayData) -> html.Div:
                         [
                             dbc.Button(
                                 [
-                                    html.I(
-                                        className="bi "
-                                        "bi-plus-circle me-1"
-                                    ),
+                                    html.I(className="bi " "bi-plus-circle me-1"),
                                     "Взнос",
                                 ],
                                 id={

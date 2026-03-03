@@ -30,3 +30,7 @@ Restore context: protocol-0025#ctx-1
 ### Step 02 — Документация
 - Создан BETA_README.md: 3 шага установки, 6 FAQ, раздел bug report с ссылкой на GitHub issues
 - Создан docs/RELEASE_GUIDE.md: tag format v0.9.0-beta.N, git archive команда, шаблон Release Notes, checklist
+
+### Step 03 — Финализация
+- Верификация: black (1 файл reformatted — goals.py, pre-existing), flake8 (6 E501 pre-existing), pytest 546 passed / 6+1 failed (все pre-existing на main)
+- PR переведён в Ready
