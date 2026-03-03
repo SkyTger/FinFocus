@@ -5,9 +5,9 @@
 
 **Уникальная ценность**: Кассовое планирование с прогнозом остатков по дням + автоматическое распределение бюджета между множественными накопительными целями с приоритетами.
 
-**Статус**: Epic-05-UI (Dashboard UI Redesign) в процессе, Батч 5.3 завершён (протокол 0023)
+**Статус**: Epic-05-UI завершён. Протокол 0024 (User Profile + Avatar) в ветке 0024-user-profile.
 
-**Последнее обновление**: 2026-02-06 (после протокола 0023, 520 тестов)
+**Последнее обновление**: 2026-03-03 (после протокола 0024, ~550+ тестов)
 
 ## Быстрые ссылки на разделы
 
@@ -23,11 +23,11 @@
 - [protocols.md] - История протоколов разработки (0002-0011) с деталями реализации
 
 ### Модули системы (краткие описания)
-- [modules/database.md] - SQLAlchemy ORM: User, Transaction, Goal, GoalContribution
-- [modules/services.md] - TransactionService, GoalService, CalendarService, RecurringService, DashboardService, AllocationService
-- [modules/ui-components.md] - Dashboard, Sidebar, Transactions, Calendar, Goals - Dash компоненты
+- [modules/database.md] - SQLAlchemy ORM: User (+ avatar_id), Transaction, Goal, GoalContribution
+- [modules/services.md] - TransactionService, GoalService, CalendarService, RecurringService, DashboardService, AllocationService, OnboardingService (+ profile API)
+- [modules/ui-components.md] - Dashboard (greeting с именем), Sidebar (динамический профиль), ProfileModal (глобальный), Onboarding Wizard (name + avatar + balance)
 - [modules/routing.md] - URL-based routing, display_page callback
-- [modules/schema.md] - TypedDicts для типизации (app/schema/)
+- [modules/schema.md] - TypedDicts для типизации (app/schema/), UserProfile, OnboardingStatus расширен
 - [modules/utils.md] - Утилиты форматирования и сериализации (app/utils/)
 
 ### Паттерны разработки (NEW, протокол 0022)
@@ -110,10 +110,22 @@
   - ✅ Transactions URL query params — ?start=&end= для date filter
   - ✅ 28 unit тестов (3 formatters + 9 dashboard_service + 16 старых), 520 тестов pass
 
+**Epic-06 (протокол 0024)**: User Profile + Avatar
+- [x] ✅ Поле User.avatar_id (миграция 007)
+- [x] ✅ app/config/avatars.py — 10 emoji аватаров, DEFAULT_AVATAR_ID, get_avatar_emoji()
+- [x] ✅ app/components/profile_modal.py — глобальный модал редактирования профиля
+- [x] ✅ app/core/bootstrap.py — выделен из main.py, idempotent миграции 001-007
+- [x] ✅ app/core/migrations.py — 7 идемпотентных миграций
+- [x] ✅ OnboardingService.update_profile(), get_profile() — профиль API
+- [x] ✅ Sidebar — динамический блок профиля (Store-based)
+- [x] ✅ Dashboard greeting — "Добрый день, {name}!"
+- [x] ✅ Onboarding Wizard перестроен (name + avatar + balance шаги)
+- [x] ✅ dcc.Store("profile-updated") — event bus реактивных обновлений
+
 **Ближайшие задачи**:
-1. Dark Theme (Epic-06) — тёмная тема по спецификации dashboard_ui_spec.md секция 2
-2. Mobile Responsive (Epic-07) — полная адаптивность < 576px
-3. AI Assistant + Exchange (Epic-08) — реализация карточек AI и курсов валют
+1. Dark Theme (Epic-07) — тёмная тема
+2. Mobile Responsive (Epic-08) — адаптивность < 576px
+3. AI Assistant + Exchange (Epic-09) — карточки AI и курсов валют
 4. Импорт операций из банков (Backlog)
 5. Уведомления и напоминания (Backlog)
 
@@ -206,7 +218,7 @@ memory-bank/
 
 ---
 
-**Версия Memory Bank**: 4.0
+**Версия Memory Bank**: 4.1
 **Дата создания**: 2026-01-17
-**Последнее обновление**: 2026-02-06 (после протокола 0023: Dashboard Layout Redesign — formatters, DashboardService, reconciliation globalization, UI rebuild, 520 тестов)
+**Последнее обновление**: 2026-03-03 (после протокола 0024: User Profile + Avatar — avatar_id, bootstrap/migrations, profile_modal, OnboardingService profile API, Store event bus, ~550 тестов)
 **GitHub**: https://github.com/SkyTger/FinFocus

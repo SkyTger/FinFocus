@@ -593,7 +593,38 @@
 
 ---
 
-### 15. Импорт операций 🔄
+### 15. Профиль пользователя ✅
+**Статус**: Завершен (Протокол 0024, PR #24)
+
+**Возможности**:
+- Onboarding wizard расширен: имя + аватарка + стартовый баланс
+- 10 emoji аватарок (конфиг в app/config/avatars.py)
+- Динамический sidebar с именем и аватаркой (Store-based обновление)
+- Profile modal для редактирования имени и аватарки
+- Dashboard greeting "Добро пожаловать, {name}!"
+- Bootstrap модуль (app/core/bootstrap.py) для инициализации БД
+- Idempotent миграции 001-007 (app/core/migrations.py)
+
+**Технические детали**:
+- User.avatar_id (String(20), nullable, default via bootstrap)
+- OnboardingService расширен: complete(), update_profile(), get_profile(), _validate_profile_fields()
+- UserProfile TypedDict в app/schema/onboarding.py
+- Store("profile-updated") как event bus для реактивного обновления sidebar
+- complete_with_balance() deprecated wrapper
+- Миграция 007_avatar_id (idempotent)
+
+**Файлы**:
+- `app/config/avatars.py` — конфиг 10 аватарок (~30 строк)
+- `app/components/profile_modal.py` — модал редактирования (~150 строк)
+- `app/components/onboarding_wizard.py` — расширен (имя + аватарка)
+- `app/components/sidebar.py` — динамический профиль
+- `app/core/bootstrap.py` — инициализация БД (~45 строк)
+- `app/core/migrations.py` — миграции 001-007 (~180 строк)
+- `tests/test_avatars.py`, `tests/test_bootstrap.py`, `tests/test_migration_007.py`
+
+---
+
+### 16. Импорт операций 🔄
 **Статус**: Планируется
 
 **Планируемые возможности**:

@@ -754,9 +754,9 @@ with get_db_session() as session:
 **Unit тесты**: 16 тестов в `tests/test_analytics_service.py`
 - Покрытие: агрегация, группировка мелких категорий, uncategorized, monthly trends
 
-## OnboardingService (Протокол 0014 — ЗАВЕРШЕН)
+## OnboardingService (Протокол 0014 + Протокол 0024 — расширен)
 
-**Файл**: `app/services/onboarding_service.py` (~80 строк)
+**Файл**: `app/services/onboarding_service.py` (~130 строк после протокола 0024)
 
 **Инициализация**: `OnboardingService(session)` - принимает SQLAlchemy session
 
@@ -766,15 +766,26 @@ with get_db_session() as session:
   - first_launch — требуется ли показ wizard
   - starting_balance — текущий баланс
   - needs_balance_alert — показывать ли toast (balance=0 AND first_launch=False)
-- `complete_with_balance(user_id, starting_balance)` → `None`
-  - Завершение onboarding с настройкой баланса
-  - Валидация: starting_balance >= 0
-  - Обновляет User.first_launch=False, User.starting_balance
+  - **NEW (0024)**: name, avatar_id — для sidebar и dashboard greeting
+- `complete(user_id, name, avatar_id, starting_balance)` → `None` **(NEW 0024 — заменяет complete_with_balance)**
+  - Завершение onboarding с именем + аватаром + балансом
+  - Валидация через `_validate_profile_fields(name, avatar_id)`
+  - Обновляет User.first_launch=False, name, avatar_id, starting_balance
   - **Flush/commit contract**: session.flush(), caller commit()
+- `complete_with_balance(user_id, starting_balance)` → `None` **(deprecated, для совместимости)**
 - `skip(user_id)` → `None`
   - Пропуск onboarding (для опытных пользователей)
   - Обновляет User.first_launch=False, starting_balance остается 0
   - **Flush/commit contract**: session.flush(), caller commit()
+- `update_profile(user_id, name, avatar_id)` → `None` **(NEW 0024)**
+  - Обновление профиля (имя + аватар) в любой момент (не только при onboarding)
+  - Валидация через `_validate_profile_fields()`
+  - Доступно через ProfileModal
+- `get_profile(user_id)` → `UserProfile` **(NEW 0024)**
+  - Возвращает `{"name": ..., "avatar_id": ...}` для ProfileModal
+- `_validate_profile_fields(name, avatar_id)` → `None` **(NEW 0024)**
+  - Приватная валидация: name непустое; avatar_id в списке `app/config/avatars.AVATARS`
+  - Поднимает ValidationError
 
 **TypedDict** (app/schema/onboarding.py):
 ```python
@@ -782,6 +793,12 @@ class OnboardingStatus(TypedDict):
     first_launch: bool               # Требуется ли wizard
     starting_balance: Decimal        # Текущий баланс
     needs_balance_alert: bool        # Показывать ли toast
+    name: str | None                 # NEW (0024): имя пользователя
+    avatar_id: str | None            # NEW (0024): ID аватара
+
+class UserProfile(TypedDict):       # NEW (0024)
+    name: str
+    avatar_id: str
 ```
 
 **Пример использования**:
@@ -793,25 +810,26 @@ with get_db_session() as session:
 
     # Проверка статуса
     status = service.get_status(user_id=1)
-    # {"first_launch": True, "starting_balance": Decimal("0"), "needs_balance_alert": False}
+    # {"first_launch": False, "starting_balance": Decimal("50000"), "name": "Иван", "avatar_id": "cat", ...}
 
-    # Завершение onboarding
-    service.complete_with_balance(user_id=1, starting_balance=Decimal("50000"))
-    # Commit происходит автоматически через context manager
+    # Завершение onboarding (протокол 0024)
+    service.complete(user_id=1, name="Иван", avatar_id="cat", starting_balance=Decimal("50000"))
 
-    # Пропуск onboarding
-    service.skip(user_id=1)
+    # Обновление профиля после onboarding
+    service.update_profile(user_id=1, name="Иван", avatar_id="fox")
+
+    # Получение профиля для ProfileModal
+    profile = service.get_profile(user_id=1)
+    # {"name": "Иван", "avatar_id": "fox"}
 ```
 
 **Критичные детали**:
-- **Flush/commit contract**: сервис вызывает session.flush() для валидации и ID generation, caller управляет commit() через context manager (documented в class docstring)
+- **Flush/commit contract**: сервис вызывает session.flush() для валидации и ID generation, caller управляет commit() через context manager
 - **Fail-closed DB strategy**: UI callback скрывает wizard при ошибке БД, не блокирует приложение
-- **needs_balance_alert logic**: True только если balance=0 И first_launch=False (пользователь пропустил onboarding)
+- **needs_balance_alert logic**: True только если balance=0 И first_launch=False
+- **avatar_id валидация**: проверяется против `app/config/avatars.AVATARS` dict (не произвольные строки)
 
-**Unit тесты**: 8 тестов в `tests/test_onboarding_service.py`
-- TestGetStatus: 3 теста (first launch, after complete, after skip)
-- TestCompleteWithBalance: 3 теста (valid, zero balance, negative balance)
-- TestSkip: 2 теста (valid, idempotent)
+**Unit тесты**: расширены в `tests/test_onboarding_service.py` (протокол 0024 добавил тесты для complete(), update_profile(), get_profile(), _validate_profile_fields())
 
 ---
 

@@ -6,6 +6,7 @@
 ## Ключевые файлы
 - `app/schema/__init__.py` - экспорты
 - `app/schema/goals.py` - TypedDicts для накопительных целей
+- `app/schema/onboarding.py` - UserProfile, OnboardingStatus (расширен в протоколе 0024)
 
 ## Цели модуля
 
@@ -140,6 +141,32 @@ class RedistributionEvent(TypedDict):
 - `app/utils/serializers.py` — serialize/deserialize для RedistributionPreview
 - `tests/` — для типизации тестовых данных
 
+## TypedDicts для Onboarding / Profile (Протокол 0024)
+
+### UserProfile
+Данные профиля пользователя.
+
+```python
+class UserProfile(TypedDict):
+    name: str        # Имя пользователя (обязательно, непустое)
+    avatar_id: str   # ID аватара из app/config/avatars.py
+```
+
+**Использование**: возвращается `OnboardingService.get_profile()`, принимается `OnboardingService.update_profile()`
+
+### OnboardingStatus (расширен)
+```python
+class OnboardingStatus(TypedDict):
+    first_launch: bool
+    starting_balance: Decimal
+    name: str | None       # NEW (протокол 0024)
+    avatar_id: str | None  # NEW (протокол 0024)
+```
+
+**Использование**: `OnboardingService.get_status()`, sidebar и dashboard greeting для reactive обновлений
+
+---
+
 ## TypedDicts для Dashboard (Протокол 0022)
 
 ### BalanceStatus
@@ -227,6 +254,8 @@ class YearlyCashflowData(TypedDict):
 **Протокол 0008**: Добавлены RedistributionPreview и RedistributionEvent для перераспределения бюджета
 
 **Протокол 0022**: Добавлены Dashboard TypedDicts для дневного/годового cashflow графика
+
+**Протокол 0024**: Добавлены UserProfile TypedDict; OnboardingStatus расширен полями name и avatar_id
 
 **Serialization**: Decimal → str через `app/utils/serializers.py` для JSON-совместимости
 

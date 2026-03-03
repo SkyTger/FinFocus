@@ -16,6 +16,7 @@ savings_mode: String(20)           # Режим накоплений: free/mediu
 first_launch: Boolean              # Флаг первого запуска для onboarding (default=True)
 reservation_mode: String(20)       # Режим резервирования бюджета: fixed_date/from_balance (default="from_balance")
 reservation_day: Integer           # День месяца для резервирования в режиме fixed_date (1-28, nullable)
+avatar_id: String(20)              # ID аватара из app/config/avatars.py (nullable, default="cat") — Протокол 0024
 
 # Формула остатка: starting_balance + SUM(доходы) - SUM(расходы) до даты
 # TRANSFER, SAVINGS_RESERVE, SAVINGS_CONTRIBUTION исключаются при расчете для целей, но учитываются в балансе
@@ -89,9 +90,9 @@ transaction_id: Integer   # FK к Transaction (nullable, SET NULL) — связ�
 - Минимум 1 месяц для расчета
 
 **Session Management**:
-- Инициализация: `init_database(database_url)` в `run.py`
+- Инициализация: `init_database(database_url)` теперь в `app/core/bootstrap.py` (выделено из run.py в протоколе 0024)
 - Session creation: `get_session(engine)`
-- Автосоздание таблиц при первом запуске
+- Автосоздание таблиц при первом запуске + idempotent миграции 001-007 через `app/core/migrations.py`
 
 **Enums**:
 - `TransactionType`: INCOME, EXPENSE, TRANSFER, ADJUSTMENT, SAVINGS_RESERVE, SAVINGS_CONTRIBUTION
@@ -115,6 +116,8 @@ transaction_id: Integer   # FK к Transaction (nullable, SET NULL) — связ�
 **Протокол 0016**: User.reservation_mode/reservation_day, TransactionType +SAVINGS_RESERVE/+SAVINGS_CONTRIBUTION, GoalContribution.transaction_id FK
 
 **Протокол 0020**: WishlistItem модель для отложенных покупок
+
+**Протокол 0024**: User.avatar_id (String(20), nullable, миграция 007)
 
 ### WishlistItem (Протокол 0020)
 ```python

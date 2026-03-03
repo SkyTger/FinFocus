@@ -34,7 +34,7 @@
 
 - **BudgetReservationService** - управление резервированием бюджета накоплений, два режима (fixed_date/from_balance), adjust_reserve_for_contribution() для досрочных взносов
 - **CushionService** - финансовая подушка безопасности, калькулятор сценариев
-- **OnboardingService** - onboarding wizard для новых пользователей
+- **OnboardingService** - onboarding wizard + profile management (complete, update_profile, get_profile)
 
 **Паттерн**: Service Layer с изолированной бизнес-логикой, session management через flush()
 
@@ -65,8 +65,8 @@
 
 ### 4. Database Layer
 **SQLite** (development) / **PostgreSQL** (production)
-- Автоинициализация через `init_database()` в `run.py`
-- Миграции через Alembic (пока не используется)
+- Автоинициализация через `init_database()` в `app/core/bootstrap.py` (Протокол 0024)
+- Idempotent миграции 001-007 в `app/core/migrations.py` (без Alembic)
 
 ### 5. Core Infrastructure Layer (NEW)
 **Модуль**: `app/core/`
@@ -74,6 +74,8 @@
   - `get_engine()` - singleton engine factory
   - `get_db_session()` - context manager для сессий
   - `init_database()` - инициализация БД
+- **bootstrap.py** - инициализация БД (init_database, create tables, run migrations, seed categories)
+- **migrations.py** - idempotent миграции 001-007 (column additions, table creation)
 - **logging.py** - настройка loguru
   - `setup_logging()` - конфигурация логгера
   - Ротация файлов по дням
