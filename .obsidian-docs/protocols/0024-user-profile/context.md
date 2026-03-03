@@ -1,9 +1,9 @@
 # Protocol Context: 0024-user-profile
 
-- **Current Step**: 5
+- **Current Step**: 6
 - **Status**: In Progress
-- **Last Action**: Шаг 4 — Onboarding UI
-- **Next Action**: Шаг 5 — Sidebar + Profile Modal
+- **Last Action**: Шаг 5 — Sidebar + Profile Modal
+- **Next Action**: Шаг 6 — Main + Dashboard
 - **Tech Stack**: `Python 3.12, Dash 2.17.1, SQLAlchemy 2.0.23, SQLite` (python)
 - **Git Branch**: `0024-user-profile`
 - **PROJECT_ROOT**: `/home/skytiger/PycharmProjects/FinFocus`

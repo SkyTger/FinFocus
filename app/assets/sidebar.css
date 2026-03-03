@@ -56,6 +56,17 @@
     opacity: 0.3;
 }
 
+/* Sidebar profile — clickable */
+.sidebar-profile-clickable {
+    cursor: pointer;
+    border-radius: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.sidebar-profile-clickable:hover {
+    background: rgba(46, 204, 113, 0.08);
+}
+
 /* Active nav item — full pill shape (как в Stitch) */
 .sidebar-nav-item-active {
     background-color: var(--color-primary, #2ecc71) !important;

@@ -1,9 +1,13 @@
-"""
-Sidebar компонент - боковое меню навигации.
-"""
+"""Sidebar компонент - боковое меню навигации."""
 import dash_bootstrap_components as dbc
 from dash import html, callback, Input, Output
+from loguru import logger
 
+from app.config.avatars import get_avatar_emoji
+from app.core.database import get_db_session
+from app.services.onboarding_service import OnboardingService
+
+DEFAULT_USER_ID = 1
 
 # Определения пунктов меню
 MAIN_NAV_ITEMS = [
@@ -53,11 +57,14 @@ def _build_nav_links(active_pathname: str = "/dashboard") -> list:
 def create_sidebar():
     """Создает боковое меню навигации в card-контейнере (Stitch design)."""
 
-    # Профиль пользователя (вверху, как в Stitch)
+    # Профиль пользователя (динамический, clickable)
     profile = html.Div(
         [
             html.Div(
-                "🦊",
+                html.Span(
+                    "\U0001f60a",
+                    id="sidebar-profile-avatar",
+                ),
                 className="d-flex align-items-center justify-content-center",
                 style={
                     "width": "48px",
@@ -71,19 +78,25 @@ def create_sidebar():
             html.Div(
                 [
                     html.Div(
-                        "Иван Иванов",
+                        "Пользователь",
+                        id="sidebar-profile-name",
                         className="fw-bold",
                         style={"fontSize": "14px", "lineHeight": "1.2"},
                     ),
                     html.Div(
-                        "FinFocus",
+                        "Профиль \u270f\ufe0f",
                         className="text-muted",
                         style={"fontSize": "12px"},
                     ),
                 ]
             ),
         ],
-        className="d-flex align-items-center gap-3 px-4 pt-4 pb-2",
+        id="sidebar-profile-container",
+        n_clicks=0,
+        className=(
+            "d-flex align-items-center gap-3 px-4 pt-4 pb-2"
+            " sidebar-profile-clickable"
+        ),
     )
 
     # Навигация (без заголовков секций, как в Stitch)
@@ -141,14 +154,32 @@ def create_sidebar():
     Input("url", "pathname"),
 )
 def highlight_active_sidebar(pathname: str | None):
-    """Обновляет active state в sidebar при смене страницы.
-
-    Args:
-        pathname: Текущий URL pathname
-
-    Returns:
-        list: Обновленные NavLink с active highlight
-    """
+    """Обновляет active state в sidebar при смене страницы."""
     if pathname is None:
         pathname = "/dashboard"
     return _build_nav_links(pathname)
+
+
+@callback(
+    [
+        Output("sidebar-profile-name", "children"),
+        Output("sidebar-profile-avatar", "children"),
+    ],
+    [
+        Input("url", "pathname"),
+        Input("profile-updated", "data"),
+    ],
+)
+def update_sidebar_profile(
+    pathname: str | None, profile_updated: float | None
+) -> tuple[str, str]:
+    """Обновляет профиль в sidebar из БД."""
+    try:
+        with get_db_session() as session:
+            service = OnboardingService(session)
+            profile = service.get_profile(DEFAULT_USER_ID)
+            emoji = get_avatar_emoji(profile["avatar_id"])
+            return profile["name"], emoji
+    except Exception:
+        logger.warning("Failed to load sidebar profile", exc_info=True)
+        return "Пользователь", "\U0001f60a"

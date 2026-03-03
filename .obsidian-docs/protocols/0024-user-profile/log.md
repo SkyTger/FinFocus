@@ -33,3 +33,9 @@ Restore context: protocol-0024#ctx-1
 - Два callback'а: check+validate (ctx.triggered_id оптимизация), handle action (submit/skip)
 - Output profile-updated.data для Store-based обновлений
 - CSS: avatar grid, avatar-option, avatar-option-selected, profile-modal
+
+### Step 05 — Sidebar + Profile Modal
+- sidebar.py: динамический профиль с sidebar-profile-container (clickable)
+- Callback update_sidebar_profile: реагирует на url.pathname + profile-updated Store
+- profile_modal.py: модал редактирования (имя + аватарка), один callback (open/save/cancel)
+- CSS: sidebar-profile-clickable стили
