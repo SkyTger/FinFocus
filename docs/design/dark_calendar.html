@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FinFocus - Кассовый календарь</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --primary: #13ec5b;
+            --background-dark: #0a150e;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-bg-hover: rgba(255, 255, 255, 0.06);
+        }
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+        }
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 12px;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13ec5b",
+                        "background-light": "#f6f8f6",
+                        "background-dark": "#0a150e",
+                        "neutral-gray": "#e2e8e4",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-dark font-display text-slate-100 antialiased h-screen overflow-hidden">
+<div class="flex h-full p-4 gap-4">
+<aside class="w-64 glass-card rounded-3xl flex flex-col shrink-0">
+<div class="p-6 flex items-center gap-3">
+<div class="w-9 h-9 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-background-dark font-bold text-xl">account_balance_wallet</span>
+</div>
+<h2 class="text-lg font-800 tracking-tight text-white uppercase">Fin<span class="text-primary">Focus</span></h2>
+</div>
+<div class="px-4 mb-6">
+<div class="flex items-center gap-3 p-3 rounded-2xl bg-white/5 border border-white/5">
+<div class="size-10 rounded-full bg-primary/20 flex items-center justify-center text-xl border border-white/10 shadow-sm">
+<span aria-label="user avatar" role="img">🦊</span>
+</div>
+<div class="flex flex-col overflow-hidden">
+<h3 class="text-xs font-semibold truncate">Иван Иванов</h3>
+<button class="text-[10px] text-slate-400 hover:text-primary flex items-center gap-1 transition-colors">
+<span>Профиль</span>
+<span class="material-symbols-outlined text-[12px]">edit</span>
+</button>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-3 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:bg-white/5 transition-all group" href="#">
+<span class="material-symbols-outlined text-[22px] group-hover:text-primary">grid_view</span>
+<span class="text-sm">Дашборд</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-primary text-background-dark font-bold shadow-lg shadow-primary/20 transition-all" href="#">
+<span class="material-symbols-outlined fill-1 text-[22px]">calendar_today</span>
+<span class="text-sm">Календарь</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:bg-white/5 transition-all group" href="#">
+<span class="material-symbols-outlined text-[22px] group-hover:text-primary">swap_horiz</span>
+<span class="text-sm">Операции</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:bg-white/5 transition-all group" href="#">
+<span class="material-symbols-outlined text-[22px] group-hover:text-primary">leaderboard</span>
+<span class="text-sm">Аналитика</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-400 hover:bg-white/5 transition-all group" href="#">
+<span class="material-symbols-outlined text-[22px] group-hover:text-primary">track_changes</span>
+<span class="text-sm">Цели</span>
+</a>
+</nav>
+<div class="mt-auto p-4 border-t border-white/5 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2 rounded-xl text-slate-500 hover:text-slate-300 transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="text-xs">Настройки</span>
+</a>
+<div class="pt-4 flex justify-center">
+<span class="text-[10px] font-medium text-slate-600 tracking-widest px-3 py-1 bg-white/5 rounded-full border border-white/5">v1.0.0</span>
+</div>
+</div>
+</aside>
+<main class="flex-1 flex flex-col gap-4 overflow-hidden">
+<header class="flex items-center justify-between glass-card rounded-3xl p-6 px-8">
+<div class="flex items-center gap-6">
+<h1 class="text-2xl font-bold">Кассовый календарь</h1>
+<div class="flex items-center gap-4 bg-white/5 rounded-2xl px-4 py-2 border border-white/5">
+<button class="material-symbols-outlined text-slate-400 hover:text-primary transition-colors">chevron_left</button>
+<span class="text-sm font-semibold min-w-[120px] text-center">Февраль 2026</span>
+<button class="material-symbols-outlined text-slate-400 hover:text-primary transition-colors">chevron_right</button>
+</div>
+</div>
+<button class="flex items-center gap-2 px-6 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-[20px]">account_balance</span>
+<span>Сверка</span>
+</button>
+</header>
+<div class="grid grid-cols-3 gap-4">
+<div class="glass-card rounded-3xl p-5 flex flex-col gap-1">
+<span class="text-slate-400 text-xs font-medium uppercase tracking-wider">Начальный остаток</span>
+<span class="text-xl font-bold">125 000 ₽</span>
+</div>
+<div class="glass-card rounded-3xl p-5 flex flex-col gap-1">
+<span class="text-slate-400 text-xs font-medium uppercase tracking-wider">Прогноз доходов</span>
+<span class="text-xl font-bold text-primary">+ 85 000 ₽</span>
+</div>
+<div class="glass-card rounded-3xl p-5 flex flex-col gap-1">
+<span class="text-slate-400 text-xs font-medium uppercase tracking-wider">Прогноз расходов</span>
+<span class="text-xl font-bold text-red-400">- 62 400 ₽</span>
+</div>
+</div>
+<div class="flex-1 glass-card rounded-3xl p-6 flex flex-col gap-4 overflow-hidden">
+<div class="grid grid-cols-7 text-center">
+<div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Пн</div>
+<div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Вт</div>
+<div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Ср</div>
+<div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Чт</div>
+<div class="text-[11px] font-bold text-slate-500 uppercase tracking-widest">Пт</div>
+<div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Сб</div>
+<div class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Вс</div>
+</div>
+<div class="flex-1 calendar-grid overflow-y-auto pr-1">
+<div class="glass-card rounded-2xl p-3 opacity-20 cursor-not-allowed">
+<span class="text-xs font-bold text-slate-500">26</span>
+</div>
+<div class="glass-card rounded-2xl p-3 opacity-20 cursor-not-allowed">
+<span class="text-xs font-bold text-slate-500">27</span>
+</div>
+<div class="glass-card rounded-2xl p-3 opacity-20 cursor-not-allowed">
+<span class="text-xs font-bold text-slate-500">28</span>
+</div>
+<div class="glass-card rounded-2xl p-3 opacity-20 cursor-not-allowed">
+<span class="text-xs font-bold text-slate-500">29</span>
+</div>
+<div class="glass-card rounded-2xl p-3 opacity-20 cursor-not-allowed">
+<span class="text-xs font-bold text-slate-500">30</span>
+</div>
+<div class="glass-card rounded-2xl p-3 opacity-20 cursor-not-allowed">
+<span class="text-xs font-bold text-slate-500">31</span>
+</div>
+<div class="glass-card rounded-2xl p-3 flex flex-col justify-between hover:bg-white/10 transition-colors cursor-pointer group">
+<div class="flex justify-between items-start">
+<span class="text-xs font-bold">1</span>
+<div class="flex gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
+</div>
+</div>
+<span class="text-[11px] font-semibold text-slate-300">125 000 ₽</span>
+</div>
+<div class="glass-card rounded-2xl p-3 flex flex-col justify-between border-primary/50 shadow-[0_0_15px_rgba(19,236,91,0.1)] bg-primary/5">
+<div class="flex justify-between items-start">
+<span class="text-xs font-bold text-primary">2</span>
+<div class="flex gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-primary"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-red-400"></div>
+</div>
+</div>
+<span class="text-[11px] font-bold text-white">128 400 ₽</span>
+</div>
+<div class="glass-card rounded-2xl p-3 flex flex-col justify-between hover:bg-white/10 transition-colors cursor-pointer group">
+<div class="flex justify-between items-start">
+<span class="text-xs font-bold">3</span>
+</div>
+<span class="text-[11px] font-semibold text-slate-300">128 400 ₽</span>
+</div>
+<div class="glass-card rounded-2xl p-3 flex flex-col justify-between hover:bg-white/10 transition-colors cursor-pointer group">
+<div class="flex justify-between items-start">
+<span class="text-xs font-bold">4</span>
+<div class="flex gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-red-400"></div>
+</div>
+</div>
+<span class="text-[11px] font-semibold text-slate-300">124 100 ₽</span>
+</div>
+<div class="glass-card rounded-2xl p-3 flex flex-col justify-between hover:bg-white/10 transition-colors cursor-pointer group bg-red-500/5">
+<div class="flex justify-between items-start">
+<span class="text-xs font-bold">5</span>
+<div class="flex gap-1">
+<div class="w-1.5 h-1.5 rounded-full bg-red-400"></div>
+</div>
+</div>
+<span class="text-[11px] font-semibold text-red-400/80">14 200 ₽</span>
+</div>
+<div class="glass-card rounded-2xl p-3 flex flex-col justify-between hover:bg-white/10 transition-colors cursor-pointer group bg-red-500/5 border-red-500/20">
+<div class="flex justify-between items-start">
+<span class="text-xs font-bold">6</span>
+</div>
+<span class="text-[11px] font-semibold text-red-400/80">8 400 ₽</span>
+</div>
+<script>
+                    const container = document.querySelector('.calendar-grid');
+                    for (let i = 7; i <= 28; i++) {
+                        const balance = 140000 + (Math.random() * 20000);
+                        const hasIncome = Math.random() > 0.7;
+                        const hasExpense = Math.random() > 0.4;
+                        const isLow = balance < 10000;
+                        const day = document.createElement('div');
+                        day.className = `glass-card rounded-2xl p-3 flex flex-col justify-between hover:bg-white/10 transition-colors cursor-pointer group ${isLow ? 'bg-red-500/5' : ''}`;
+                        day.innerHTML = `
+                            <div class="flex justify-between items-start">
+                                <span class="text-xs font-bold">${i}</span>
+                                <div class="flex gap-1">
+                                    ${hasIncome ? '<div class="w-1.5 h-1.5 rounded-full bg-primary"></div>' : ''}
+                                    ${hasExpense ? '<div class="w-1.5 h-1.5 rounded-full bg-red-400"></div>' : ''}
+                                </div>
+                            </div>
+                            <span class="text-[11px] font-semibold text-slate-300">${Math.round(balance).toLocaleString()} ₽</span>
+                        `;
+                        container.appendChild(day);
+                    }
+                </script>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>

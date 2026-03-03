@@ -86,7 +86,7 @@ MVP разрабатывается по принципу **dual-track agile** с
   - [x] Goals UI рефакторинг (список целей, кнопки приоритетов, модал бюджета)
   - [x] Dashboard интеграция (агрегация savings по всем целям)
   - [x] Unit и integration тесты (98 tests)
-- [ ] Три режима накоплений (свободный/средний/строгий)
+- [x] Три режима накоплений (свободный/средний/строгий)
 - [x] ✅ Перераспределение средств между целями (2026/01/22, PR #8)
   - [x] RedistributionService с Temporary Status Pattern
   - [x] TypedDicts и Serializers для preview/event
@@ -263,6 +263,8 @@ MVP разрабатывается по принципу **dual-track agile** с
 **Спецификация**: `.reports/epics/epic-09-beta-prep/README.md`
 
 ### Backlog (после MVP)
+- [ ] Native Window (flaskwebgui/pywebview) — обернуть Dash в нативное окно вместо браузера (UX для конечных пользователей)
+- [ ] Production Packaging — PyInstaller/Docker/другой способ доставки без требования установки Python (для массового релиза, не бета)
 - [ ] Dark Theme (Epic-06) — тёмная тема по спецификации dashboard_ui_spec.md секция 2
 - [ ] Mobile Responsive (Epic-07) — полная адаптивность < 576px
 - [ ] AI Assistant + Exchange (Epic-08) — реализация карточек AI и курсов валют

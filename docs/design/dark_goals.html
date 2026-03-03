@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>FinFocus - Цели накопления</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style type="text/tailwindcss">
+        :root {
+            --primary: #13ec5b;
+            --background-dark: #0a150e;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-blur: blur(20px);
+        }
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .glass-sidebar {
+            background: rgba(16, 34, 22, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#13ec5b",
+                        "background-dark": "#0a150e",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    }
+                },
+            },
+        }
+    </script>
+</head>
+<body class="bg-background-dark font-display text-slate-100 antialiased min-h-screen overflow-x-hidden">
+<div class="fixed top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
+<div class="fixed bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+<div class="flex h-screen overflow-hidden relative z-10">
+<aside class="w-72 m-6 rounded-3xl glass-sidebar flex flex-col h-[calc(100vh-3rem)] border-r border-white/5 shadow-2xl">
+<div class="px-8 py-10 flex items-center gap-3">
+<div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined text-background-dark font-bold">account_balance_wallet</span>
+</div>
+<h2 class="text-xl font-extrabold tracking-tight text-white uppercase">Fin<span class="text-primary">Focus</span></h2>
+</div>
+<div class="px-6 mb-8">
+<div class="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/10">
+<div class="size-12 rounded-full bg-primary/20 flex items-center justify-center text-2xl border border-white/20">
+<span aria-label="user avatar" role="img">🦊</span>
+</div>
+<div class="flex flex-col overflow-hidden">
+<h3 class="text-sm font-semibold truncate text-white">Иван Иванов</h3>
+<a class="text-[10px] text-slate-400 hover:text-primary flex items-center gap-1 transition-colors uppercase tracking-wider" href="#">
+<span>Профиль</span>
+<span class="material-symbols-outlined text-[12px]">edit</span>
+</a>
+</div>
+</div>
+</div>
+<nav class="flex-1 px-4 space-y-2 overflow-y-auto">
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">grid_view</span>
+<span class="text-sm font-medium">Дашборд</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">calendar_today</span>
+<span class="text-sm font-medium">Календарь</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">swap_horiz</span>
+<span class="text-sm font-medium">Операции</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-all group" href="#">
+<span class="material-symbols-outlined group-hover:text-primary">leaderboard</span>
+<span class="text-sm font-medium">Аналитика</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 rounded-xl bg-primary text-black font-bold shadow-lg shadow-primary/20 transition-all" href="#">
+<span class="material-symbols-outlined fill-1">track_changes</span>
+<span class="text-sm">Цели</span>
+</a>
+</nav>
+<div class="mt-auto px-4 py-8 space-y-1">
+<a class="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-500 hover:text-white hover:bg-white/5 transition-colors group" href="#">
+<span class="material-symbols-outlined text-[22px]">settings</span>
+<span class="text-sm font-medium">Настройки</span>
+</a>
+<div class="pt-6 flex justify-center items-center">
+<span class="text-[10px] font-bold text-slate-600 tracking-[0.2em] bg-white/5 px-4 py-1.5 rounded-full border border-white/5">
+                        v1.0.0
+                    </span>
+</div>
+</div>
+</aside>
+<main class="flex-1 h-screen overflow-y-auto pt-10 pb-20 px-12">
+<header class="mb-10 flex justify-between items-end">
+<div>
+<h1 class="text-4xl font-extrabold text-white tracking-tight">Цели накопления</h1>
+<p class="text-slate-400 mt-2 text-lg">Управляйте своими финансовыми мечтами</p>
+</div>
+<button class="bg-primary hover:bg-primary/90 text-black px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-primary/20">
+<span class="material-symbols-outlined">add_circle</span>
+                    Добавить цель
+                </button>
+</header>
+<div class="glass-card p-8 rounded-[2.5rem] mb-10 relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+<div>
+<span class="text-slate-400 text-sm font-bold uppercase tracking-widest mb-1 block">Ежемесячный план</span>
+<h2 class="text-3xl font-extrabold text-white">Бюджет на накопления: <span class="text-primary">15 000 ₽/мес</span></h2>
+</div>
+<div class="flex-1 max-w-md">
+<div class="flex justify-between text-sm mb-3">
+<span class="text-slate-300 font-medium">Распределено 85%</span>
+<span class="text-slate-500">2 250 ₽ свободно</span>
+</div>
+<div class="h-3 w-full bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full shadow-[0_0_15px_rgba(19,236,91,0.5)]" style="width: 85%"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-6">
+<div class="glass-card p-6 rounded-[2rem] flex flex-col md:flex-row gap-8 items-center group transition-all hover:border-primary/30">
+<div class="flex-none flex items-center gap-6">
+<div class="bg-primary/10 text-primary w-12 h-12 rounded-2xl flex items-center justify-center font-extrabold text-lg border border-primary/20">#1</div>
+<div class="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-primary">beach_access</span>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-3 mb-1">
+<h3 class="text-xl font-bold text-white truncate">Отпуск в Турцию</h3>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-500/20 text-orange-400 uppercase tracking-tighter">Высокий приоритет</span>
+</div>
+<div class="flex items-center gap-4 text-sm text-slate-400 mb-4">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-base">event</span> Август 2026</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-base">payments</span> 10 000 ₽/мес</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-bold">
+<span class="text-white">67 500 ₽ <span class="text-slate-500 font-normal">из 150 000 ₽</span></span>
+<span class="text-primary">45%</span>
+</div>
+<div class="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full" style="width: 45%"></div>
+</div>
+</div>
+</div>
+<div class="flex gap-3 flex-none">
+<button class="bg-white/5 hover:bg-white/10 text-white px-5 py-2.5 rounded-xl font-bold transition-all border border-white/10">Редактировать</button>
+<button class="bg-primary text-black px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-primary/10">Внести</button>
+</div>
+</div>
+<div class="glass-card p-6 rounded-[2rem] flex flex-col md:flex-row gap-8 items-center group transition-all hover:border-blue-400/30">
+<div class="flex-none flex items-center gap-6">
+<div class="bg-blue-500/10 text-blue-400 w-12 h-12 rounded-2xl flex items-center justify-center font-extrabold text-lg border border-blue-500/20">#2</div>
+<div class="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center">
+<span class="material-symbols-outlined text-3xl text-blue-400">directions_car</span>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex items-center gap-3 mb-1">
+<h3 class="text-xl font-bold text-white truncate">Новый автомобиль</h3>
+<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-400 uppercase tracking-tighter">Средний приоритет</span>
+</div>
+<div class="flex items-center gap-4 text-sm text-slate-400 mb-4">
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-base">event</span> Декабрь 2025</span>
+<span class="flex items-center gap-1.5"><span class="material-symbols-outlined text-base">payments</span> 5 000 ₽/мес</span>
+</div>
+<div class="space-y-2">
+<div class="flex justify-between text-sm font-bold">
+<span class="text-white">420 000 ₽ <span class="text-slate-500 font-normal">из 2 500 000 ₽</span></span>
+<span class="text-blue-400">16.8%</span>
+</div>
+<div class="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-blue-500 rounded-full" style="width: 16.8%"></div>
+</div>
+</div>
+</div>
+<div class="flex gap-3 flex-none">
+<button class="bg-white/5 hover:bg-white/10 text-white px-5 py-2.5 rounded-xl font-bold transition-all border border-white/10">Редактировать</button>
+<button class="bg-blue-500 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/10">Внести</button>
+</div>
+</div>
+<div class="mt-16">
+<h2 class="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+<span class="material-symbols-outlined text-yellow-500">verified_user</span>
+                        Базовая защита
+                    </h2>
+<div class="relative group">
+<div class="absolute -inset-0.5 bg-gradient-to-r from-yellow-500/20 to-primary/20 rounded-[2.5rem] blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+<div class="relative glass-card p-8 rounded-[2.5rem] bg-black/40">
+<div class="flex flex-col md:flex-row items-center gap-10">
+<div class="flex-none">
+<div class="w-24 h-24 bg-yellow-500/10 rounded-full flex items-center justify-center border border-yellow-500/20 shadow-[0_0_30px_rgba(234,179,8,0.1)]">
+<span class="material-symbols-outlined text-5xl text-yellow-500">security</span>
+</div>
+</div>
+<div class="flex-1">
+<div class="flex items-center gap-3 mb-2">
+<h3 class="text-2xl font-black text-white">Финансовая подушка</h3>
+<span class="px-3 py-1 rounded-full text-[11px] font-black bg-white/10 text-white uppercase border border-white/10">Критически важно</span>
+</div>
+<p class="text-slate-400 mb-6 text-sm max-w-xl">Резервный фонд на 6 месяцев жизни в случае непредвиденных обстоятельств. Самый надежный фундамент вашего благополучия.</p>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-6">
+<div>
+<span class="block text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Накоплено</span>
+<span class="text-xl font-extrabold text-white">180 000 ₽</span>
+</div>
+<div>
+<span class="block text-[10px] text-slate-500 uppercase font-bold tracking-widest mb-1">Цель</span>
+<span class="text-xl font-extrabold text-slate-400">300 000 ₽</span>
+</div>
+<div class="col-span-2">
+<div class="flex justify-between items-end mb-2">
+<span class="text-[10px] text-slate-500 uppercase font-bold tracking-widest">Прогресс</span>
+<span class="text-lg font-black text-yellow-500">60%</span>
+</div>
+<div class="h-3 w-full bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-yellow-500 to-primary rounded-full shadow-[0_0_15px_rgba(234,179,8,0.3)]" style="width: 60%"></div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<button class="bg-yellow-500 hover:bg-yellow-400 text-black px-8 py-3 rounded-2xl font-black transition-all shadow-xl shadow-yellow-500/20 uppercase text-xs tracking-widest">Пополнить</button>
+<button class="bg-white/5 hover:bg-white/10 text-white px-8 py-3 rounded-2xl font-bold transition-all border border-white/10 text-xs uppercase tracking-widest">Параметры</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+</body></html>
