@@ -25,3 +25,13 @@
 - start.sh: Python 3.10+ check, venv, deps marker, port check, trap handler, color output — quality code
 - start.bat: py -3 fallback, version parsing, venv, deps marker (xcopy /D /L), netstat port check — correct
 - No security issues, no logic bugs
+
+### Step 4-m — Knowledge Bank
+- Updated protocols.md (added 0025 entry)
+- Updated deployment.md (added Beta Delivery section)
+- Commit: b1c1da3
+
+### Step 4.5-m — Documentation
+- ROADMAP.md: Phase 3 marked complete, progress 75%
+- feature_progress.md: Added Batch 20 entry, rolling window applied (removed Batches 14-15)
+- Commit: 15e0f3c
