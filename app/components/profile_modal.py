@@ -143,7 +143,7 @@ def handle_profile_modal(
             return True, name_value, avatar_value, None
         except Exception:
             logger.error("Failed to save profile", exc_info=True)
-            return False, None, None, None
+            return True, name_value, avatar_value, None
 
     # Cancel
     if triggered_id == "profile-cancel-btn":
