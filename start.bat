@@ -46,13 +46,18 @@ goto :exit_with_pause
 
 :check_version
 REM === 2. Парсинг версии ===
+set "PY_VERSION="
+set "PY_MAJOR=0"
+set "PY_MINOR=0"
 for /f "tokens=2 delims= " %%V in ('!PYTHON_CMD! --version 2^>^&1') do set "PY_VERSION=%%V"
+if "!PY_VERSION!"=="" goto :version_fail
 for /f "tokens=1,2 delims=." %%A in ("!PY_VERSION!") do (
     set "PY_MAJOR=%%A"
     set "PY_MINOR=%%B"
 )
 
 REM Проверка: major == 3 И minor >= 10
+if "!PY_MAJOR!"=="0" goto :version_fail
 if !PY_MAJOR! neq %REQUIRED_MAJOR% goto :version_fail
 if !PY_MINOR! lss %REQUIRED_MINOR% goto :version_fail
 
@@ -86,9 +91,9 @@ REM Проверяем: маркер существует?
 if not exist "%DEPS_MARKER%" goto :install_deps
 
 REM Проверяем: requirements.txt новее маркера?
-for /f %%F in ('xcopy /D /L /Y "requirements.txt" "%DEPS_MARKER%" 2^>nul') do (
-    if "%%F" neq "0" goto :install_deps
-)
+REM Сравниваем содержимое — если файл изменился, переустановим
+fc /b "requirements.txt" "%DEPS_MARKER%.req" >nul 2>&1
+if !errorlevel! neq 0 goto :install_deps
 
 echo [FinFocus] Зависимости актуальны.
 goto :check_port
@@ -101,8 +106,9 @@ if !errorlevel! neq 0 (
     echo   Проверьте подключение к интернету.
     goto :exit_with_pause
 )
-REM Создаём маркер
+REM Создаём маркер и копию requirements для отслеживания изменений
 type nul > "%DEPS_MARKER%"
+copy /Y "requirements.txt" "%DEPS_MARKER%.req" >nul 2>&1
 echo [FinFocus] Зависимости установлены.
 
 REM === 5. Проверка порта ===
