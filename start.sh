@@ -28,7 +28,12 @@ fi
 info()  { echo -e "${GREEN}[FinFocus]${NC} $1"; }
 warn()  { echo -e "${YELLOW}[Внимание]${NC} $1"; }
 error() { echo -e "${RED}[Ошибка]${NC} $1"; }
-die()   { error "$1"; exit 1; }
+pause_on_error() {
+    echo ""
+    echo "Нажмите Enter для выхода..."
+    read -r 2>/dev/null || true
+}
+die()   { error "$1"; pause_on_error; exit 1; }
 
 # === Trap handler: корректное завершение ===
 cleanup() {
@@ -39,6 +44,8 @@ cleanup() {
     fi
     exit 0
 }
+# При неожиданной ошибке (set -e) — показать паузу
+trap 'error "Непредвиденная ошибка (строка $LINENO)"; pause_on_error; exit 1' ERR
 trap cleanup INT TERM
 
 # === 1. Поиск Python ===
@@ -50,6 +57,9 @@ find_python() {
             version_output="$("$cmd" --version 2>&1)" || continue
             major=$(echo "$version_output" | sed -n 's/Python \([0-9]*\)\..*/\1/p')
             minor=$(echo "$version_output" | sed -n 's/Python [0-9]*\.\([0-9]*\)\..*/\1/p')
+
+            # Пропустить если не удалось распарсить версию
+            [ -z "$major" ] || [ -z "$minor" ] && continue
 
             if [ "$major" -eq "$REQUIRED_PYTHON_MAJOR" ] && [ "$minor" -ge "$REQUIRED_PYTHON_MINOR" ]; then
                 PYTHON_CMD="$cmd"
@@ -71,6 +81,7 @@ find_python() {
         echo "  - Ubuntu:   sudo apt install python3"
         echo "  - Fedora:   sudo dnf install python3"
     fi
+    pause_on_error
     exit 1
 }
 
@@ -81,6 +92,7 @@ check_venv_package() {
         py_minor=$("$PYTHON_CMD" -c "import sys; print(sys.version_info.minor)")
         error "Модуль venv не доступен."
         echo "  Установите: sudo apt install python3.$py_minor-venv"
+        pause_on_error
         exit 1
     fi
 }
@@ -101,6 +113,7 @@ ensure_deps() {
         "$VENV_DIR/bin/pip" install --quiet -r requirements.txt || {
             error "Не удалось установить зависимости."
             echo "  Проверьте подключение к интернету."
+            pause_on_error
             exit 1
         }
         touch "$DEPS_MARKER"
@@ -129,6 +142,7 @@ check_port() {
         echo "  1. Закройте другое приложение, использующее порт $PORT"
         echo "  2. Запустите FinFocus на другом порту:"
         echo "     PORT=8051 ./start.sh"
+        pause_on_error
         exit 1
     fi
 }

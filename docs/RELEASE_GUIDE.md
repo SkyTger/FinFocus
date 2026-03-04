@@ -29,7 +29,7 @@ v0.9.0-beta.N
 git archive --format=zip --prefix=FinFocus/ HEAD \
   -o FinFocus-v0.9.0-beta.1.zip \
   start.sh start.bat BETA_README.md requirements.txt \
-  run.py app/ alembic/ alembic.ini
+  run.py app/ scripts/
 ```
 
 ### Что включать в ZIP
@@ -39,7 +39,7 @@ git archive --format=zip --prefix=FinFocus/ HEAD \
 - `requirements.txt` — runtime-зависимости
 - `run.py` — точка входа
 - `app/` — код приложения
-- `alembic/`, `alembic.ini` — миграции БД
+- `scripts/` — миграции и seed-скрипты БД
 
 ### Что НЕ включать
 
