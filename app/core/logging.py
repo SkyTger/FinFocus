@@ -5,15 +5,19 @@ from pathlib import Path
 from loguru import logger
 
 
-def setup_logging(log_dir: str = "logs", level: str = "INFO") -> None:
+def setup_logging(log_dir: str | None = None, level: str = "INFO") -> None:
     """Настраивает loguru для приложения.
 
     Args:
-        log_dir: Папка для файлов логов
+        log_dir: Папка для файлов логов (по умолчанию paths.get_logs_dir())
         level: Уровень логирования (DEBUG, INFO, WARNING, ERROR)
     """
-    # Создаём папку для логов
-    Path(log_dir).mkdir(exist_ok=True)
+    if log_dir is None:
+        from app.core.paths import get_logs_dir
+
+        log_dir = str(get_logs_dir())
+    else:
+        Path(log_dir).mkdir(exist_ok=True)
 
     # Убираем default handler
     logger.remove()

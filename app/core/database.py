@@ -21,7 +21,11 @@ def get_engine():
     """
     global _engine
     if _engine is None:
-        database_url = os.getenv("DATABASE_URL", "sqlite:///data/finfocus.db")
+        from app.core.paths import get_data_dir
+
+        default_db = get_data_dir() / "finfocus.db"
+        default_url = f"sqlite:///{default_db.as_posix()}"
+        database_url = os.getenv("DATABASE_URL", default_url)
         _engine = create_engine(database_url, echo=False)
         logger.debug(f"Database engine создан: {database_url}")
     return _engine

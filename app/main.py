@@ -3,6 +3,8 @@
 """
 from dotenv import load_dotenv
 
+from app.core.paths import get_app_dir, get_assets_dir
+
 import dash
 import time
 from dash import dcc, html, Input, Output, State, callback
@@ -25,12 +27,13 @@ from app.components.onboarding_wizard import create_onboarding_wizard
 from app.components.profile_modal import create_profile_modal
 from app.components.wishlist import create_wishlist_modal
 
-# Загружаем переменные окружения
-load_dotenv()
+# Загружаем переменные окружения (.env рядом с exe в frozen, опционален)
+load_dotenv(get_app_dir() / ".env", override=False)
 
 # Создаем Dash приложение
 app = dash.Dash(
     __name__,
+    assets_folder=str(get_assets_dir()),
     external_stylesheets=[
         dbc.themes.BOOTSTRAP,  # Bootstrap тема
         dbc.icons.BOOTSTRAP,  # Bootstrap иконки

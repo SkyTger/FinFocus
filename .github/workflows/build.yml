@@ -1,0 +1,47 @@
+name: Build FinFocus
+
+on:
+  push:
+    tags:
+      - "v*"  # Срабатывает при push тега v0.9.1, v1.0.0 и т.д.
+  workflow_dispatch:  # Ручной запуск из GitHub UI
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller finfocus.spec --noconfirm
+
+      - name: Smoke test — check exe exists
+        run: |
+          if (!(Test-Path "dist/FinFocus/FinFocus.exe")) { throw "FinFocus.exe not found" }
+        shell: pwsh
+
+      - name: Create ZIP archive
+        run: Compress-Archive -Path dist/FinFocus/* -DestinationPath FinFocus-windows.zip
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FinFocus-windows
+          path: FinFocus-windows.zip
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: FinFocus-windows.zip

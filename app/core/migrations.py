@@ -9,7 +9,9 @@ from pathlib import Path
 
 from loguru import logger
 
-DB_PATH = Path("data/finfocus.db")
+from app.core.paths import get_data_dir
+
+DB_PATH = get_data_dir() / "finfocus.db"
 
 
 def _column_exists(cursor: sqlite3.Cursor, table: str, column: str) -> bool:
