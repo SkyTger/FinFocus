@@ -1,9 +1,25 @@
+---
+name: deployment
+description: Запуск и деплоймент FinFocus — два способа доставки (setup-скрипты и PyInstaller), оба существуют, выбор основного отложен до аудита
+type: reference
+---
+
 # Запуск и деплоймент FinFocus
+
+> **Открытый вопрос (2026-08-19)**: в проекте сейчас два независимых
+> способа доставки конечному пользователю — setup-скрипты
+> (`start.sh`/`start.bat`, требуют установленный Python) и PyInstaller-
+> бандл (standalone exe/бинарник, не требует Python). Какой из них
+> становится основным — решение отложено: пользователь сначала проводит
+> аудит проекта и сейчас сфокусирован на личном использовании, упаковка
+> для внешних тестеров не приоритет. Ни один из способов не считать
+> "устаревшим" до явного решения.
 
 ## Локальная разработка
 
 ### Системные требования
-- **Python**: >= 3.12
+- **Python**: 3.10 – 3.12 (см. `tech-stack.md` — 3.13 несовместим с
+  SQLAlchemy 2.0.23). Локально разработка ведётся на 3.10.12.
 - **OS**: Linux, macOS, Windows (WSL recommended)
 - **RAM**: 1GB minimum, 2GB recommended
 - **Disk**: 500MB for virtualenv + dependencies
@@ -15,8 +31,8 @@
 git clone https://github.com/SkyTger/FinFocus
 cd FinFocus
 
-# 2. Создать виртуальное окружение
-python3.12 -m venv .venv
+# 2. Создать виртуальное окружение (любая версия 3.10-3.12)
+python3.10 -m venv .venv
 
 # 3. Активировать
 source .venv/bin/activate  # Linux/Mac
@@ -57,7 +73,7 @@ PORT=8080 DEBUG=False python run.py
 | `start.bat` | Windows | 148 строк |
 
 **Что делают скрипты (оба):**
-1. Проверяют Python 3.10+ (не 3.12 — намеренно для совместимости у тестеров)
+1. Проверяют Python 3.10+ (совместимость с диапазоном, поддерживаемым проектом — 3.10-3.12, см. `tech-stack.md`)
 2. Создают `.venv/` если не существует
 3. Устанавливают зависимости из `requirements.txt` — пропускают если `.venv/.deps_installed` уже есть
 4. Проверяют свободен ли порт 8050
@@ -101,10 +117,63 @@ requirements-dev.txt  ← dev/test (pytest, black, flake8, coverage)
 - ZIP через `git archive`: автоматически исключает `.git`, `.venv`, `data/`
 - Шаблон Release Notes и чеклист выпуска
 
-### Ограничения beta delivery
+### Ограничения setup-скриптов
 - Приложение работает в браузере (`localhost:8050`), не нативное окно
-- Требует установленный Python 3.10+ (не включен в поставку)
-- Backlog: нативное окно (flaskwebgui/pywebview) и PyInstaller/Docker — отложены post-beta
+- Требует установленный Python 3.10+ на машине тестера (не включён в поставку)
+- Backlog: нативное окно (flaskwebgui/pywebview) — не реализовано
+
+---
+
+## PyInstaller-бандл (реализовано, работает в CI)
+
+### Статус
+В отличие от прежней формулировки "отложено post-beta" — **PyInstaller
+сборка реально реализована и работает**: конфиг `finfocus.spec` в корне
+репозитория, автоматическая сборка в `.github/workflows/build.yml`.
+Появилось в коммите `d9e93c6`.
+
+Не путать со статусом "основной способ доставки" — это отдельный
+нерешённый вопрос (см. врезку в начале файла).
+
+### Что делает пайплайн
+- Собирает **onedir**-бандл (портативная папка, не единый exe) через
+  `pyinstaller finfocus.spec --noconfirm`
+- Две платформы: `windows-latest` → `FinFocus.exe`, `macos-latest` →
+  бинарник `FinFocus` (обе — Python 3.12 в CI)
+- Smoke test после сборки: проверка что исполняемый файл существует
+- ZIP-архив (`FinFocus-windows.zip` / `FinFocus-macos.zip`) прикладывается
+  к GitHub Release автоматически при пуше тега `v*`
+- Linux-сборка в `build.yml` не настроена (только Windows и macOS)
+
+### Централизация путей: `app/core/paths.py`
+
+Значимая архитектурная деталь, которую ввёл PyInstaller: приложению нужно
+по-разному находить свои файлы в двух режимах запуска, и это вынесено в
+отдельный модуль.
+
+| Режим | Как определяется | Куда указывают пути |
+|-------|-------------------|----------------------|
+| Normal | `is_frozen()` → `False` | Относительно корня проекта |
+| Frozen (PyInstaller) | `is_frozen()` → `True` (`sys.frozen` выставлен) | assets — `sys._MEIPASS` (временная распаковка бандла); данные пользователя — директория, где лежит exe |
+
+Ключевые функции:
+- `is_frozen()` - проверка режима запуска
+- `get_bundle_dir()` - директория с кодом/assets (`sys._MEIPASS` во
+  frozen-режиме, корень проекта в normal)
+- `get_app_dir()` - директория для пользовательских данных (папка exe во
+  frozen-режиме, корень проекта в normal)
+- `get_data_dir()` / `get_logs_dir()` - `data/` и `logs/` от `get_app_dir()`,
+  создаются автоматически при первом обращении
+- `get_assets_dir()` - `app/assets/` от `get_bundle_dir()`
+
+Важно: `app/core/migrations.py` уже переведён на `get_data_dir()` вместо
+хардкода пути `data/finfocus.db` — миграции работают одинаково в обоих
+режимах.
+
+### Исключения из сборки
+`finfocus.spec` явно исключает `alembic`, `tkinter`, `unittest`, `pytest`,
+`test` — не нужны в рантайме конечного пользователя, уменьшают размер
+бандла.
 
 ---
 
@@ -249,32 +318,29 @@ server {
 }
 ```
 
-## CI/CD Pipeline (Planned)
+## CI/CD Pipeline (реализовано частично)
 
-**GitHub Actions** (.github/workflows/test.yml):
-```yaml
-name: Tests
-on: [push, pull_request]
+Два независимых workflow в `.github/workflows/`, оба реально существуют
+(не "planned"):
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-      - run: pip install -r requirements.txt
-      - run: black --check app/
-      - run: flake8 app/
-      - run: pytest --cov=app --cov-report=xml
-      - uses: codecov/codecov-action@v3
-```
+### `tests.yml` — прогон тестов
+- Триггеры: push в `main`, pull_request, ручной запуск
+- Матрица: Python 3.10 и 3.12, `fail-fast: false`
+- Шаги: `pip install -r requirements-dev.txt` → `pytest -q`
+- Линтеры (`black --check`, `flake8`) **намеренно не включены** — в
+  `app/` есть pre-existing E501, было решено не блокировать CI ими
+  (детали — `testing.md`)
 
-**Deployment workflow**:
-```
-git push → GitHub Actions → Tests → Build Docker → Deploy to server
-```
+### `build.yml` — сборка PyInstaller-бандла
+- Триггер: push тега `v*` или ручной запуск (не на каждый push/PR)
+- Python 3.12, платформы Windows + macOS
+- Собирает `finfocus.spec`, прикладывает ZIP к GitHub Release
+
+### Чего нет
+- Codecov / отчётов покрытия в CI
+- Docker-сборки в CI
+- Автоматического деплоя на сервер (весь пайплайн — тесты + сборка
+  дистрибутивов, без "deploy" шага, что логично для desktop-приложения)
 
 ## Monitoring (Planned)
 
@@ -328,3 +394,12 @@ aws s3 cp backup_$DATE.sql s3://finfocus-backups/
 - Dash Deployment: https://dash.plotly.com/deployment
 - Gunicorn Docs: https://docs.gunicorn.org/
 - Docker Best Practices: https://docs.docker.com/develop/dev-best-practices/
+- `finfocus.spec`, `.github/workflows/build.yml` — PyInstaller-сборка
+- `app/core/paths.py` — централизация путей normal/frozen режимов
+
+---
+
+**Последнее обновление**: 2026-08-19 (аудит KB: устранено противоречие
+Python 3.12/3.10+, PyInstaller зафиксирован как реализованный факт вместо
+backlog, добавлен `app/core/paths.py`, описан реальный CI из двух workflow;
+выбор основного способа доставки — открытый вопрос, отложен до аудита проекта)
