@@ -1,11 +1,11 @@
 """Интеграционные тесты для множественных целей с приоритетами."""
 
-from datetime import date
 from decimal import Decimal
 
 from app.models.database import Goal, GoalStatus
 from app.services.allocation_service import AllocationService
 from app.services.goal_service import GoalService
+from tests.conftest import months_ahead
 
 
 def test_create_multiple_goals_with_auto_priority(db_session, test_user):
@@ -24,7 +24,7 @@ def test_create_multiple_goals_with_auto_priority(db_session, test_user):
         user_id=test_user.id,
         name="Отпуск",
         target_amount=Decimal("100000.00"),
-        target_date=date(2026, 12, 31),
+        target_date=months_ahead(11),
     )
     db_session.commit()
 
@@ -32,7 +32,7 @@ def test_create_multiple_goals_with_auto_priority(db_session, test_user):
         user_id=test_user.id,
         name="Автомобиль",
         target_amount=Decimal("500000.00"),
-        target_date=date(2027, 6, 30),
+        target_date=months_ahead(17),
     )
     db_session.commit()
 
@@ -40,7 +40,7 @@ def test_create_multiple_goals_with_auto_priority(db_session, test_user):
         user_id=test_user.id,
         name="Ремонт",
         target_amount=Decimal("200000.00"),
-        target_date=date(2027, 12, 31),
+        target_date=months_ahead(23),
     )
     db_session.commit()
 
@@ -74,7 +74,7 @@ def test_priority_reorder_updates_allocation(db_session, test_user):
         name="Цель 1 (низкий взнос)",
         target_amount=Decimal("10000.00"),
         current_amount=Decimal("0"),
-        target_date=date(2026, 12, 31),  # ~11 месяцев от сегодня
+        target_date=months_ahead(11),  # ~11 месяцев от сегодня
         status=GoalStatus.ACTIVE,
         priority=1,
     )
@@ -84,7 +84,7 @@ def test_priority_reorder_updates_allocation(db_session, test_user):
         name="Цель 2 (средний взнос)",
         target_amount=Decimal("20000.00"),
         current_amount=Decimal("0"),
-        target_date=date(2026, 12, 31),
+        target_date=months_ahead(11),
         status=GoalStatus.ACTIVE,
         priority=2,
     )
@@ -94,7 +94,7 @@ def test_priority_reorder_updates_allocation(db_session, test_user):
         name="Цель 3 (высокий взнос)",
         target_amount=Decimal("30000.00"),
         current_amount=Decimal("0"),
-        target_date=date(2026, 12, 31),
+        target_date=months_ahead(11),
         status=GoalStatus.ACTIVE,
         priority=3,
     )
@@ -171,7 +171,7 @@ def test_budget_change_updates_allocation(db_session, test_user):
         name="Цель 1",
         target_amount=Decimal("11000.00"),
         current_amount=Decimal("0"),
-        target_date=date(2026, 12, 31),  # ~11 месяцев → 1000/мес
+        target_date=months_ahead(11),  # ~11 месяцев → 1000/мес
         status=GoalStatus.ACTIVE,
         priority=1,
     )
@@ -180,7 +180,7 @@ def test_budget_change_updates_allocation(db_session, test_user):
         name="Цель 2",
         target_amount=Decimal("11000.00"),
         current_amount=Decimal("0"),
-        target_date=date(2026, 12, 31),
+        target_date=months_ahead(11),
         status=GoalStatus.ACTIVE,
         priority=2,
     )

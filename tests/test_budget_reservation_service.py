@@ -16,6 +16,12 @@ from app.services.budget_reservation_service import (
     BudgetReservationService,
     RESERVE_DESCRIPTION,
 )
+from tests.conftest import (
+    days_after,
+    days_before,
+    far_future_date,
+    reserve_period_start,
+)
 
 
 class TestGetSettings:
@@ -153,7 +159,7 @@ class TestGetBudgetProgress:
             user_id=test_user.id,
             name="Тест",
             target_amount=Decimal("100000.00"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
         )
         db_session.add(goal)
@@ -186,7 +192,7 @@ class TestGetBudgetProgress:
             user_id=test_user.id,
             name="Тест статусов",
             target_amount=Decimal("100000.00"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
         )
         db_session.add(goal)
@@ -372,7 +378,7 @@ class TestUpdateContributionTransaction:
             name="Цель",
             target_amount=Decimal("100000.00"),
             current_amount=Decimal("10000.00"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
         )
         db_session.add(goal)
@@ -423,7 +429,7 @@ class TestUpdateContributionTransaction:
             name="Почти готовая цель",
             target_amount=Decimal("10000.00"),
             current_amount=Decimal("8000.00"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
         )
         db_session.add(goal)
@@ -477,7 +483,7 @@ class TestDeleteContributionTransaction:
             name="Цель",
             target_amount=Decimal("100000.00"),
             current_amount=Decimal("20000.00"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
         )
         db_session.add(goal)
@@ -524,7 +530,7 @@ class TestDeleteContributionTransaction:
             name="Завершённая цель",
             target_amount=Decimal("10000.00"),
             current_amount=Decimal("10000.00"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.COMPLETED,
         )
         db_session.add(goal)
@@ -627,10 +633,11 @@ class TestAdjustReserveForContribution:
         settings = service.get_settings(test_user.id)
         template_id = settings["template_id"]
 
-        # Взнос 20-го числа (после резерва)
+        # Взнос через 5 дней после даты резерва
+        reserve_date = reserve_period_start(15)
         service.adjust_reserve_for_contribution(
             user_id=test_user.id,
-            contribution_date=date(2026, 2, 20),
+            contribution_date=days_after(reserve_date, 5),
             contribution_amount=Decimal("10000"),
         )
         db_session.commit()
@@ -657,13 +664,17 @@ class TestAdjustReserveForContribution:
         settings = service.get_settings(test_user.id)
         template_id = settings["template_id"]
 
+        # Взнос за день до даты резерва
+        reserve_date = reserve_period_start(15)
+        contribution_date = days_before(reserve_date)
+
         # Создать цель и взнос
         goal = Goal(
             user_id=test_user.id,
             name="Test Goal",
             target_amount=Decimal("100000"),
             current_amount=Decimal("0"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
             priority=1,
         )
@@ -674,7 +685,7 @@ class TestAdjustReserveForContribution:
         contribution = GoalContribution(
             goal_id=goal.id,
             amount=Decimal("10000"),
-            contribution_date=date(2026, 2, 5),
+            contribution_date=contribution_date,
         )
         db_session.add(contribution)
         db_session.commit()
@@ -682,7 +693,7 @@ class TestAdjustReserveForContribution:
         # Вызов метода
         service.adjust_reserve_for_contribution(
             user_id=test_user.id,
-            contribution_date=date(2026, 2, 5),
+            contribution_date=contribution_date,
             contribution_amount=Decimal("10000"),
         )
         db_session.commit()
@@ -708,13 +719,17 @@ class TestAdjustReserveForContribution:
         settings = service.get_settings(test_user.id)
         template_id = settings["template_id"]
 
+        # Взнос за день до даты резерва
+        reserve_date = reserve_period_start(15)
+        contribution_date = days_before(reserve_date)
+
         # Создать цель и взнос на всю сумму бюджета
         goal = Goal(
             user_id=test_user.id,
             name="Test Goal",
             target_amount=Decimal("100000"),
             current_amount=Decimal("0"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
             priority=1,
         )
@@ -724,14 +739,14 @@ class TestAdjustReserveForContribution:
         contribution = GoalContribution(
             goal_id=goal.id,
             amount=Decimal("10000"),
-            contribution_date=date(2026, 2, 5),
+            contribution_date=contribution_date,
         )
         db_session.add(contribution)
         db_session.commit()
 
         service.adjust_reserve_for_contribution(
             user_id=test_user.id,
-            contribution_date=date(2026, 2, 5),
+            contribution_date=contribution_date,
             contribution_amount=Decimal("10000"),
         )
         db_session.commit()
@@ -757,12 +772,16 @@ class TestAdjustReserveForContribution:
         settings = service.get_settings(test_user.id)
         template_id = settings["template_id"]
 
+        # Взнос за день до даты резерва
+        reserve_date = reserve_period_start(15)
+        contribution_date = days_before(reserve_date)
+
         goal = Goal(
             user_id=test_user.id,
             name="Test Goal",
             target_amount=Decimal("100000"),
             current_amount=Decimal("0"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
             priority=1,
         )
@@ -773,14 +792,14 @@ class TestAdjustReserveForContribution:
         contribution = GoalContribution(
             goal_id=goal.id,
             amount=Decimal("20000"),
-            contribution_date=date(2026, 2, 5),
+            contribution_date=contribution_date,
         )
         db_session.add(contribution)
         db_session.commit()
 
         service.adjust_reserve_for_contribution(
             user_id=test_user.id,
-            contribution_date=date(2026, 2, 5),
+            contribution_date=contribution_date,
             contribution_amount=Decimal("20000"),
         )
         db_session.commit()
@@ -946,7 +965,7 @@ class TestCleanupOrphanExceptions:
         recurring_service = RecurringService(db_session)
         recurring_service.create_exception(
             template_id=template_id,
-            original_date=date(2026, 3, 15),
+            original_date=reserve_period_start(15),
             new_amount=Decimal("5000"),
         )
         db_session.commit()
@@ -1021,13 +1040,18 @@ class TestRecalculateCurrentMonthException:
         settings = service.get_settings(test_user.id)
         template_id = settings["template_id"]
 
+        # Взнос и пересчёт — до даты резерва, внутри того же периода
+        reserve_date = reserve_period_start(28)
+        contribution_date = days_before(reserve_date, 10)
+        reference_date = days_before(reserve_date, 5)
+
         # Создаём цель и взнос
         goal = Goal(
             user_id=test_user.id,
             name="Test Goal",
             target_amount=Decimal("100000"),
             current_amount=Decimal("3000"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
             priority=1,
         )
@@ -1037,14 +1061,14 @@ class TestRecalculateCurrentMonthException:
         contribution = GoalContribution(
             goal_id=goal.id,
             amount=Decimal("3000"),
-            contribution_date=date(2026, 2, 5),  # До 28-го
+            contribution_date=contribution_date,  # До даты резерва
         )
         db_session.add(contribution)
         db_session.commit()
 
-        # Пересчитываем для февраля
+        # Пересчитываем внутри периода резерва
         result = service.recalculate_current_month_exception(
-            test_user.id, reference_date=date(2026, 2, 10)
+            test_user.id, reference_date=reference_date
         )
         db_session.commit()
 
@@ -1074,9 +1098,10 @@ class TestRecalculateCurrentMonthException:
         from app.services import RecurringService
 
         recurring_service = RecurringService(db_session)
+        reserve_date = reserve_period_start(28)
         recurring_service.create_exception(
             template_id=template_id,
-            original_date=date(2026, 2, 28),
+            original_date=reserve_date,
             new_amount=Decimal("5000"),
         )
         db_session.commit()
@@ -1085,9 +1110,9 @@ class TestRecalculateCurrentMonthException:
         exceptions = recurring_service.get_exceptions_for_template(template_id)
         assert len(exceptions) == 1
 
-        # Пересчитываем (взносов нет)
+        # Пересчитываем (взносов нет) — до даты резерва
         result = service.recalculate_current_month_exception(
-            test_user.id, reference_date=date(2026, 2, 10)
+            test_user.id, reference_date=days_before(reserve_date, 5)
         )
         db_session.commit()
 
@@ -1113,13 +1138,17 @@ class TestUpdateContributionRecalc:
         settings = service.get_settings(test_user.id)
         template_id = settings["template_id"]
 
+        # Взнос — до даты резерва, внутри того же периода
+        reserve_date = reserve_period_start(28)
+        contribution_date = days_before(reserve_date, 10)
+
         # Создаём цель
         goal = Goal(
             user_id=test_user.id,
             name="Test Goal",
             target_amount=Decimal("100000"),
             current_amount=Decimal("0"),
-            target_date=date(2026, 12, 31),
+            target_date=far_future_date(),
             status=GoalStatus.ACTIVE,
             priority=1,
         )
@@ -1131,7 +1160,7 @@ class TestUpdateContributionRecalc:
             user_id=test_user.id,
             amount=Decimal("2000"),
             transaction_type=TransactionType.SAVINGS_CONTRIBUTION,
-            transaction_date=date(2026, 2, 5),
+            transaction_date=contribution_date,
             description="Взнос: Test Goal",
         )
         db_session.add(transaction)
@@ -1140,7 +1169,7 @@ class TestUpdateContributionRecalc:
         contribution = GoalContribution(
             goal_id=goal.id,
             amount=Decimal("2000"),
-            contribution_date=date(2026, 2, 5),
+            contribution_date=contribution_date,
             transaction_id=transaction.id,
         )
         db_session.add(contribution)
