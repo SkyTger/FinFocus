@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:  # Ручной запуск из GitHub UI
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # Падение на 3.10 не отменяет прогон на 3.12
+      matrix:
+        # 3.10 — минимум, заявленный в start.sh/start.bat (и локальная версия)
+        # 3.12 — версия, на которой собирается PyInstaller-бандл (build.yml)
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run pytest
+        run: pytest -q

@@ -1,7 +1,36 @@
+---
+name: tech-stack
+description: Технологический стек FinFocus — Dash/SQLAlchemy/SQLite, поддерживаемый диапазон Python 3.10-3.12, PyInstaller как реальный инструмент сборки
+type: reference
+---
+
 # Технологический стек FinFocus
 
 ## Runtime Environment
-**Python 3.12** - минимальная требуемая версия, type annotations обязательны
+
+**Поддерживаемый диапазон: Python 3.10 – 3.12.** Три разных заявленных
+рантайма в проекте, ни один из них не "3.12 как единственный минимум":
+
+| Контекст | Версия | Источник |
+|----------|--------|----------|
+| Минимум для бета-тестеров | >= 3.10 | `start.sh` / `start.bat` (осознанное решение протокола 0025 — совместимость у тестеров) |
+| Матрица тестов в CI | 3.10 и 3.12 | `.github/workflows/tests.yml` |
+| Сборка PyInstaller-бандла | 3.12 | `.github/workflows/build.yml` |
+| Локальная разработка (реально используется) | 3.10.12 | `.venv` в репозитории |
+
+**Верхняя граница: Python 3.13 не поддерживается.** SQLAlchemy 2.0.23
+падает при импорте на 3.13 с `AssertionError: Class SQLCoreOperations
+directly inherits TypingOnly but has additional attributes` (проверено
+2026-08-19 в чистом venv на Python 3.13.15). Причина: у SQLAlchemy 2.0.23
+есть wheel'ы под cp310/cp311/cp312, но нет под cp313 — сборка идёт из
+исходников и ломается о изменившийся `typing.Generic.__init_subclass__`.
+Обновление SQLAlchemy для поддержки 3.13 — не делать без отдельного
+решения, потенциально breaking change для остального ORM-кода.
+
+**Type annotations обязательны** (PEP 484-стиль, `from __future__ import
+annotations` не требуется на 3.10+ проекта). **`match-case` в кодовой базе
+не используется** (проверено `grep` по `app/` — 0 совпадений) — упоминание
+`match-case` как обоснования версии 3.12 было ошибочным, убрано.
 
 ## Core Framework
 
@@ -84,12 +113,21 @@ class User(Base):
 - Автоинициализация через `init_database()`
 
 **Production** (planned): PostgreSQL через `DATABASE_URL` env variable
-- Migration path через Alembic
 
-### Alembic 1.13.1
-**Назначение**: Database migrations (пока не используется)
-- Планируется для production deployments
-- Версионирование схемы БД
+### Миграции: собственные скрипты, НЕ Alembic
+
+**Alembic 1.13.1 числится в `requirements-dev.txt`, но реально не
+используется** (`grep -rn alembic app/` → 0 совпадений, каталогов
+`alembic/` и `migrations/` в проекте нет). Держать зависимость в
+`requirements-dev.txt` без применения — расхождение, требует отдельного
+решения (либо начать использовать, либо убрать из зависимостей).
+
+Фактический механизм миграций: **идемпотентные скрипты в
+`app/core/migrations.py`** — 7 миграций (001–007), каждая проверяет
+наличие колонки/таблицы/индекса перед `ALTER TABLE`/`CREATE`, поэтому
+безопасно перезапускается на любой версии БД. Запускаются автоматически
+при старте (`run_all_migrations()` в связке с `init_database()`).
+`architecture.md` уже фиксирует это корректно ("без Alembic").
 
 ## Development Tools
 
@@ -109,8 +147,8 @@ pytest tests/test_models.py  # Specific file
 
 ### pytest-cov 4.1.0
 **Назначение**: Code coverage для pytest
-- Цель: 80% покрытие для Core MVP
 - Отчеты в терминал и HTML
+- Целевой процент покрытия формально не зафиксирован (см. `testing.md`)
 
 ### black 23.11.0
 **Назначение**: Автоматическое форматирование кода
@@ -139,6 +177,24 @@ black --check app/   # Check without changes
 ```bash
 flake8 app/
 ```
+
+## Сборка standalone-бандла
+
+### PyInstaller
+**Назначение**: Сборка автономного desktop-бандла (не requirements.txt-версия,
+не Docker) — реально реализовано и работает в CI.
+- Конфиг: `finfocus.spec` в корне репозитория, режим `onedir` (не
+  `onefile`) — портативная папка с exe/бинарником и зависимостями
+- Собирается на Python 3.12 через `.github/workflows/build.yml`,
+  триггер — push тега `v*` или ручной запуск
+- Платформы: Windows (`windows-latest`) и macOS (`macos-latest`); готовый
+  ZIP прикладывается к GitHub Release автоматически
+- Явно исключает из сборки `alembic`, `tkinter`, `unittest`, `pytest`, `test`
+- Собирает hidden imports для Dash/Plotly/dbc (динамическая подгрузка
+  модулей через `importlib`, PyInstaller не видит их статическим анализом)
+- Статус относительно setup-скриптов (`start.sh`/`start.bat`) как способа
+  доставки — открытый вопрос, решение отложено до аудита проекта
+  (см. `deployment.md`)
 
 ## Logging
 
@@ -261,9 +317,11 @@ FinFocus
 ## Version Constraints
 
 **Критичные**:
-- `Python >= 3.12` - type annotations, match-case
+- `Python 3.10 – 3.12` - поддерживаемый диапазон (см. Runtime Environment
+  выше); 3.13 несовместим с SQLAlchemy 2.0.23
 - `Dash >= 2.17` - prevent_initial_call в callbacks
-- `SQLAlchemy >= 2.0` - новый API (declarative_base)
+- `SQLAlchemy >= 2.0` - новый API (declarative_base); верхняя граница
+  фактически 3.12 из-за отсутствия cp313-wheel
 
 **Рекомендуемые**:
 - Все версии зафиксированы в `requirements.txt` для reproducibility
@@ -321,3 +379,9 @@ python run.py
 - `requirements.txt` - полный список зависимостей
 - Dash Documentation: https://dash.plotly.com/
 - SQLAlchemy 2.0 Migration Guide: https://docs.sqlalchemy.org/en/20/changelog/migration_20.html
+
+---
+
+**Последнее обновление**: 2026-08-19 (аудит KB: диапазон Python 3.10-3.12
+вместо ошибочного "3.12 минимум", устранено противоречие по Alembic,
+добавлен PyInstaller)

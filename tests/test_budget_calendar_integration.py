@@ -3,12 +3,16 @@
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
 from app.models.database import Goal, GoalStatus
 from app.services.budget_reservation_service import BudgetReservationService
 from app.services.calendar_service import CalendarService
 from app.services.goal_service import GoalService
+from tests.conftest import (
+    days_before,
+    far_future_date,
+    reserve_period_start,
+    upcoming_reserve_day,
+)
 
 
 class TestContributionAffectsCalendar:
@@ -25,13 +29,11 @@ class TestContributionAffectsCalendar:
         3. Создаём взнос 10000 на дату < 25
         4. Проверяем что CalendarService показывает резерв = 20000
         """
-        # Arrange
-        today = date.today()
-        reserve_day = 25
-
-        # Гарантируем что сегодня < reserve_day (если нет — skip)
-        if today.day >= reserve_day:
-            pytest.skip("Test requires today < reserve_day=25")
+        # Arrange: день резерва подбираем впереди сегодняшней даты,
+        # месяц берём из фактической даты резерва (в конце месяца
+        # сервис переносит серию на следующий месяц)
+        reserve_day = upcoming_reserve_day()
+        reserve_date = reserve_period_start(reserve_day)
 
         test_user.monthly_savings_budget = Decimal("30000")
         test_user.reservation_mode = "fixed_date"
@@ -44,7 +46,7 @@ class TestContributionAffectsCalendar:
             name="Test Goal",
             target_amount=Decimal("100000"),
             current_amount=Decimal("0"),
-            target_date=date(2027, 12, 31),
+            target_date=far_future_date(2),
             status=GoalStatus.ACTIVE,
             priority=1,
         )
@@ -64,7 +66,7 @@ class TestContributionAffectsCalendar:
         db_session.commit()
 
         # Act: делаем взнос до даты резерва
-        contribution_date = date(today.year, today.month, today.day)
+        contribution_date = days_before(reserve_date)
         goal_service.add_contribution(
             goal_id=goal.id,
             amount=Decimal("10000"),
@@ -74,9 +76,8 @@ class TestContributionAffectsCalendar:
         db_session.commit()
 
         # Assert: проверяем что календарь показывает уменьшенный резерв
-        reserve_date = date(today.year, today.month, reserve_day)
-        start_date = date(today.year, today.month, 1)
-        end_date = date(today.year, today.month, 28)
+        start_date = date(reserve_date.year, reserve_date.month, 1)
+        end_date = date(reserve_date.year, reserve_date.month, 28)
 
         transactions = calendar_service.get_all_transactions_for_period(
             user_id=test_user.id,
@@ -110,11 +111,8 @@ class TestContributionAffectsCalendar:
         4. Переключаем обратно на fixed_date, day=15
         5. Резерв должен остаться 20000 (exception сохранён)
         """
-        today = date.today()
-        reserve_day = 15
-
-        if today.day >= reserve_day:
-            pytest.skip("Test requires today < reserve_day=15")
+        reserve_day = upcoming_reserve_day()
+        reserve_date = reserve_period_start(reserve_day)
 
         test_user.monthly_savings_budget = Decimal("30000")
         db_session.commit()
@@ -124,7 +122,7 @@ class TestContributionAffectsCalendar:
             name="Test Goal",
             target_amount=Decimal("100000"),
             current_amount=Decimal("0"),
-            target_date=date(2027, 12, 31),
+            target_date=far_future_date(2),
             status=GoalStatus.ACTIVE,
             priority=1,
         )
@@ -143,11 +141,11 @@ class TestContributionAffectsCalendar:
         )
         db_session.commit()
 
-        # Step 2: делаем взнос
+        # Step 2: делаем взнос до даты резерва
         goal_service.add_contribution(
             goal_id=goal.id,
             amount=Decimal("10000"),
-            contribution_date=date(today.year, today.month, today.day),
+            contribution_date=days_before(reserve_date),
         )
         db_session.commit()
 
@@ -167,11 +165,10 @@ class TestContributionAffectsCalendar:
         db_session.commit()
 
         # Assert: резерв должен быть 20000 (exception сохранился)
-        reserve_date = date(today.year, today.month, reserve_day)
         transactions = calendar_service.get_all_transactions_for_period(
             user_id=test_user.id,
-            start_date=date(today.year, today.month, 1),
-            end_date=date(today.year, today.month, 28),
+            start_date=date(reserve_date.year, reserve_date.month, 1),
+            end_date=date(reserve_date.year, reserve_date.month, 28),
             include_recurring=True,
         )
 
@@ -197,11 +194,8 @@ class TestDeleteContributionRecalculatesReserve:
         2. Удаляем взнос
         3. Резерв должен стать 30000 (exception удалён)
         """
-        today = date.today()
-        reserve_day = 20
-
-        if today.day >= reserve_day:
-            pytest.skip("Test requires today < reserve_day=20")
+        reserve_day = upcoming_reserve_day()
+        reserve_date = reserve_period_start(reserve_day)
 
         test_user.monthly_savings_budget = Decimal("30000")
         db_session.commit()
@@ -211,7 +205,7 @@ class TestDeleteContributionRecalculatesReserve:
             name="Test Goal",
             target_amount=Decimal("100000"),
             current_amount=Decimal("0"),
-            target_date=date(2027, 12, 31),
+            target_date=far_future_date(2),
             status=GoalStatus.ACTIVE,
             priority=1,
         )
@@ -233,7 +227,7 @@ class TestDeleteContributionRecalculatesReserve:
         contribution = goal_service.add_contribution(
             goal_id=goal.id,
             amount=Decimal("10000"),
-            contribution_date=date(today.year, today.month, today.day),
+            contribution_date=days_before(reserve_date),
         )
         db_session.commit()
 
@@ -242,11 +236,10 @@ class TestDeleteContributionRecalculatesReserve:
         db_session.commit()
 
         # Assert: резерв = полный бюджет
-        reserve_date = date(today.year, today.month, reserve_day)
         transactions = calendar_service.get_all_transactions_for_period(
             user_id=test_user.id,
-            start_date=date(today.year, today.month, 1),
-            end_date=date(today.year, today.month, 28),
+            start_date=date(reserve_date.year, reserve_date.month, 1),
+            end_date=date(reserve_date.year, reserve_date.month, 28),
             include_recurring=True,
         )
 

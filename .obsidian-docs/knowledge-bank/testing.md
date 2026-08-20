@@ -1,8 +1,21 @@
+---
+name: testing
+description: Стратегия тестирования FinFocus — 553 теста, стратегия относительных дат против календарного протухания, CI на pytest
+type: reference
+---
+
 # Стратегия тестирования FinFocus
 
 ## Текущий статус
-**Coverage**: 0% (тесты не написаны)
-**Цель для Core MVP**: 80% покрытие критических компонентов
+
+**553 теста, все проходят** (проверено 2026-08-19, Python 3.10.12, `pytest -q` → `553 passed`).
+Тестов в `tests/`: 35 файлов (`test_*.py`, без подкаталогов).
+
+Запуск:
+```bash
+pytest -q          # быстрый прогон
+pytest --cov        # с coverage-отчётом
+```
 
 ## Testing Stack
 
@@ -13,126 +26,89 @@
 
 **pytest-cov 4.1.0** - code coverage
 - Coverage reports (terminal + HTML)
-- Coverage thresholds для CI/CD
 
-## Testing Pyramid (приоритеты)
+## КРИТИЧНО: стратегия дат — избегаем календарного протухания
 
-### 1. Unit Tests (70% от всех тестов)
-**Scope**: Отдельные функции и классы
+Ключевые сервисы считают **от `date.today()`**, а не от фиксированной точки:
+- `BudgetReservationService` строит recurring-шаблон резерва от текущей даты
+- `Goal.monthly_contribution` (`app/models/database.py:289-317`) делит остаток
+  до цели на `(target_date - today).days / 30` — размер взноса зависит от
+  того, сколько дней осталось "сегодня"
 
-**Приоритет 1** (КРИТИЧНО):
-- **TransactionService** - CRUD методы, валидация
-- **GoalService** - CRUD, add_contribution, валидация
-- **Goal.monthly_contribution** - guard clauses, формула расчета
-- **Goal.progress_percentage** - cap на 100%, edge cases
+Следствие: **захардкоженная дата в тесте протухает**. Тест, зелёный в
+феврале, может упасть в августе — не из-за регрессии в коде, а потому что
+относительно новой даты изменилось количество месяцев/дней в расчёте.
 
-**Приоритет 2**:
-- **User model** - relationships, starting_balance
-- **Transaction model** - enum validation
-- **ValidationError** - custom exceptions
+**Историческая заметка** (чтобы не повторить ошибку диагностики): в марте
+2026 (протокол 0025) 7 таких падений были на скорую руку списаны как
+"pre-existing failure, precision issue в `test_budget_change_updates_allocation`,
+регрессий нет". Диагноз был **неверным** — падения не имели отношения к
+точности `Decimal`, это было обычное календарное протухание захардкоженных
+дат. Расследовано и исправлено 2026-08-19 (коммит `fix(tests): устранить
+протухание тестов из-за захардкоженных дат`). Не воспроизводить
+формулировку "precision issue" в будущих отчётах — источник падения другой.
 
-**Пример теста**:
-```python
-# tests/test_services/test_transaction_service.py
-import pytest
-from decimal import Decimal
-from app.services.transaction_service import TransactionService, ValidationError
+### Хелперы относительных дат (`tests/conftest.py`)
 
-def test_create_transaction_success(db_session, test_user):
-    service = TransactionService()
-    data = {
-        'amount': Decimal('1500.00'),
-        'transaction_type': 'income',
-        'transaction_date': date.today(),
-        'description': 'Зарплата'
-    }
+| Хелпер | Сигнатура | Назначение |
+|--------|-----------|------------|
+| `reserve_period_start` | `(day_of_month: int, today: date \| None = None) -> date` | Дата резерва, которую построит `BudgetReservationService` — повторяет anchored-логику переноса на следующий месяц, если день уже прошёл |
+| `days_before` | `(reference: date, days: int = 1) -> date` | `reference - N дней` |
+| `days_after` | `(reference: date, days: int = 1) -> date` | `reference + N дней` |
+| `far_future_date` | `(years: int = 1) -> date` | 31 декабря через `years` лет — гарантированно в будущем для `target_date` |
+| `months_ahead` | `(months: int) -> date` | `today + 30*months` дней — для тестов, зависящих от размера `monthly_contribution` |
+| `upcoming_reserve_day` | `(min_gap_days: int = 2) -> int` | Подбирает день месяца резерва, который ещё не прошёл — замена `pytest.skip()` |
 
-    transaction = service.create_transaction(db_session, test_user.id, data)
-    assert transaction.id is not None
-    assert transaction.amount == Decimal('1500.00')
+### Антипаттерны (не делать)
 
-def test_create_transaction_negative_amount(db_session, test_user):
-    service = TransactionService()
-    data = {'amount': Decimal('-100.00'), ...}
+- ❌ Хардкодить конкретные даты (`date(2026, 3, 15)`) в тестах, завязанных
+  на "дни до сегодня"
+- ❌ `today.replace(year=today.year + 1)` — падает 29 февраля, такой даты
+  нет в невисокосном году следующего года
+- ❌ `pytest.skip()` как обход календарной зависимости. Так уже было в
+  `test_budget_calendar_integration.py`: 3 теста молча отключались после
+  25-го числа месяца, покрытие падало незаметно (тесты формально
+  "проходили", просто не выполнялись). Исправлено переходом на
+  `upcoming_reserve_day()`.
+- ✅ Вместо `pytest.skip()` — вычислить дату относительно `date.today()`
+  через хелперы conftest, чтобы сценарий воспроизводился в любой день
 
-    with pytest.raises(ValidationError, match="положительной"):
-        service.create_transaction(db_session, test_user.id, data)
-```
+### Проверка устойчивости к календарю
 
-### 2. Integration Tests (20% от всех тестов)
-**Scope**: Взаимодействие компонентов
+Для новых тестов, зависящих от даты, желательно проверять поведение через
+заморозку времени (`freezegun`) на нескольких контрольных датах: конец
+месяца, конец года, 29 февраля. **На момент 2026-08-19 `freezegun` в
+зависимостях и тестах проекта не используется** — это рекомендация на
+будущее, не текущая практика.
 
-**Приоритеты**:
-- **Service + ORM**: создание операции → сохранение в БД → retrieval
-- **GoalService.add_contribution**: обновление current_amount → изменение статуса
-- **Session management**: flush → commit → rollback flow
+**Важное ограничение**: заморозка времени ломает тесты, измеряющие
+реальное время выполнения — например `calculation_time_ms` в
+`redistribution_service.py:136` (используется в `test_serializers.py`).
+Такие тесты нужно исключать из прогона с `freeze_time`.
 
-**Пример теста**:
-```python
-def test_add_contribution_updates_goal(db_session, test_goal):
-    service = GoalService()
-    initial_amount = test_goal.current_amount
+## Testing Pyramid (структура, актуально)
 
-    service.add_contribution(
-        db_session,
-        test_goal.id,
-        amount=Decimal('5000.00'),
-        contribution_date=date.today()
-    )
-    db_session.commit()
+### 1. Unit Tests
+**Scope**: Отдельные функции и классы — сервисы (`TransactionService`,
+`GoalService`, `BudgetReservationService`), модели (`Goal.monthly_contribution`,
+`Goal.progress_percentage`), кастомные исключения.
 
-    updated_goal = service.get_goal(db_session, test_goal.id)
-    assert updated_goal.current_amount == initial_amount + Decimal('5000.00')
-```
+### 2. Integration Tests
+**Scope**: Взаимодействие компонентов — Service + ORM, `GoalService.add_contribution`
+(обновление `current_amount` → изменение статуса), календарная интеграция
+резервов (`test_budget_calendar_integration.py`).
 
-### 3. E2E Tests (10% от всех тестов)
-**Scope**: Полные пользовательские сценарии
+### 3. E2E / manual QA
+Dash-специфичные сценарии (модалки, callbacks) на текущем этапе проверяются
+вручную; автоматизация через `dash.testing`/Selenium в проекте не внедрена.
 
-**Приоритеты** (для Батча 1):
-- **Create Transaction flow**: Open modal → Fill form → Submit → Table updates
-- **Edit Transaction flow**: Click Edit → Modal opens → Update → Table refreshes
-- **Delete Transaction flow**: Click Delete → Confirm → Table updates
-
-**Инструмент**: Dash Testing (`dash.testing`) или Selenium
-
-**Пример теста**:
-```python
-def test_create_transaction_e2e(dash_duo):
-    app = create_app()
-    dash_duo.start_server(app)
-
-    # Navigate to Transactions
-    dash_duo.wait_for_element("#transaction-table")
-
-    # Open modal
-    dash_duo.find_element("#create-transaction-btn").click()
-    dash_duo.wait_for_element("#create-modal")
-
-    # Fill form
-    dash_duo.find_element("#amount-input").send_keys("1500")
-    dash_duo.find_element("#type-dropdown").click()
-    # ...
-
-    # Submit
-    dash_duo.find_element("#submit-btn").click()
-
-    # Verify table updated
-    table_rows = dash_duo.find_elements("tbody tr")
-    assert len(table_rows) > 0
-```
-
-## Test Fixtures (pytest)
+## Test Fixtures (`tests/conftest.py`)
 
 **Database fixtures**:
 ```python
-# tests/conftest.py
-import pytest
-from sqlalchemy import create_engine
-from app.models.database import Base, User
-
 @pytest.fixture(scope="function")
 def db_engine():
-    """Создает in-memory SQLite engine для тестов"""
+    """Создаёт in-memory SQLite engine для тестов."""
     engine = create_engine("sqlite:///:memory:")
     Base.metadata.create_all(engine)
     yield engine
@@ -140,22 +116,20 @@ def db_engine():
 
 @pytest.fixture
 def db_session(db_engine):
-    """Создает session для тестов с автоматическим rollback"""
-    from sqlalchemy.orm import sessionmaker
+    """Создаёт session для тестов с автоматическим rollback."""
     Session = sessionmaker(bind=db_engine)
     session = Session()
     yield session
     session.rollback()
     session.close()
-
-@pytest.fixture
-def test_user(db_session):
-    """Создает тестового пользователя"""
-    user = User(email="test@test.com", name="Test User")
-    db_session.add(user)
-    db_session.commit()
-    return user
 ```
+
+**User fixtures**: `test_user`, `test_user_zero_balance` — готовые
+пользователи для сценариев с ненулевым/нулевым стартовым балансом.
+
+**Date fixtures**: см. таблицу хелперов выше — они не pytest-фикстуры в
+строгом смысле (обычные функции), но живут в том же `conftest.py` и
+выполняют ту же роль переиспользуемой инфраструктуры тестов.
 
 ## Quality Gates (QA workflow)
 
@@ -163,46 +137,29 @@ def test_user(db_session):
 ```bash
 black app/               # Format
 flake8 app/              # Lint
-pytest                   # Run tests
+pytest -q                # Run tests
 ```
 
-**CI/CD pipeline** (GitHub Actions - planned):
-```yaml
-- name: Run tests
-  run: |
-    pytest --cov=app --cov-report=xml
-    coverage report --fail-under=80  # Fail if < 80%
-```
+**CI** (`.github/workflows/tests.yml`, реально существует):
+- Триггеры: `push` в `main`, `pull_request`, ручной запуск (`workflow_dispatch`)
+- Матрица: Python 3.10 и 3.12 (`fail-fast: false` — падение на одной версии
+  не отменяет прогон на другой)
+- Устанавливает `requirements-dev.txt`, запускает `pytest -q`
+- **Линтеры (`black --check`, `flake8`) в CI намеренно не включены** — в
+  `app/` есть unresolved pre-existing E501 (превышение длины строки),
+  включение линта заблокировало бы CI без реальной пользы
 
 **QA тестирование** (manual):
 - Функциональное тестирование основных сценариев
 - Bug reporting с приоритетами (P1-P4)
 - Regression testing после багфиксов
 
-## Testing Priorities (Roadmap)
-
-**Фаза 1** (Database Integration) ✅:
-- QA тестирование выполнено (PASS 95/100)
-- Unit тесты для сервисов - **TODO**
-
-**Фаза 2** (Формы управления) ✅:
-- E2E тесты для CRUD операций - **TODO**
-
-**Фаза 3** (Кассовый календарь):
-- Unit тесты для расчета остатков
-- Integration тесты с Transaction
-
-**Батч 1 завершение**:
-- Покрытие >= 80% для критических компонентов
-- CI/CD настроен с автотестами
-
 ## Edge Cases для тестирования
 
 **Goal.monthly_contribution**:
-- target_date в прошлом → return 0
-- target_date == сегодня → return 0
-- current_amount >= target_amount → return 0
-- months_remaining < 1 → использовать 1 месяц
+- `target_date` в прошлом или сегодня → return 0
+- `current_amount >= target_amount` → return 0
+- `days_remaining < 30` → `months_remaining` берётся с минимумом 1
 
 **GoalService.add_contribution**:
 - Сумма взноса > остаток до цели → статус COMPLETED
@@ -212,27 +169,22 @@ pytest                   # Run tests
 **Pattern-Matching Callbacks**:
 - Auto-trigger при DOM update → PreventUpdate
 - Multiple clicks на одну кнопку → idempotency
-- Одновременные clicks на разные кнопки → race condition handling
 
-## Metrics для мониторинга
+## Metrics
 
-**Code Coverage**:
-- Цель: 80% для Core MVP
-- Критичные компоненты: 90%+ (services, models)
-
-**Test Execution Time**:
-- Unit tests: < 5 секунд
-- Integration tests: < 30 секунд
-- E2E tests: < 2 минуты
-
-**Bug Metrics**:
-- P1 bugs: 0 (блокеры)
-- P2 bugs: < 3 (критичные)
-- Regression bugs: < 10% от исправленных
+**Test Execution Time**: полный прогон 553 тестов — около 5 секунд локально
+(`pytest -q`, Python 3.10.12, in-memory SQLite).
 
 ---
 
 Референсы:
 - pytest docs: https://docs.pytest.org/
-- Dash Testing: https://dash.plotly.com/testing
-- QA Report: `.reports/notes/feature_progress.md` (Фаза 1)
+- `.github/workflows/tests.yml` — CI-конфигурация
+- Историческая заметка про протухание дат: `tests-calendar-rot.md`
+  (автопамять проекта, `~/.claude/projects/-home-skytiger-Projects-FinFocus/memory/`)
+
+---
+
+**Последнее обновление**: 2026-08-19 (аудит KB: заменено устаревшее
+"0% coverage" на факт — 553 теста; задокументирована стратегия
+относительных дат и хелперы conftest; описан реальный CI)

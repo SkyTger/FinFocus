@@ -196,7 +196,9 @@ class TestUpdateContributionDate:
         service = GoalService(db_session)
 
         today = date.today()
-        far_future = today.replace(year=today.year + 1)
+        # timedelta вместо replace(year=...): 29 февраля не существует
+        # в невисокосном году, replace() упал бы с ValueError
+        far_future = today + timedelta(days=365)
 
         result = service.update_contribution(
             contribution_id=contrib.id,
