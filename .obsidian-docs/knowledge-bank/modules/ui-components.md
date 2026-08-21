@@ -462,10 +462,16 @@ if ctx.triggered[0].get('value') is None:
 - Period switcher (month/year) через RadioItems
 - AI Assistant и Exchange cards — **скрыты** (TODO Epic-08)
 
-**Callbacks** (протокол 0022-0023):
+**Callbacks** (протокол 0022-0023, 0026):
 - `load_dashboard_data()` — загрузка данных из DashboardService при открытии страницы
   - **Рефакторинг (0022)**: использует _load_dashboard_components() helper
   - **Расширен (0023)**: +2 Outputs (recent table, upcoming table)
+  - **Расширен (0026)**: +Input("profile-updated") — обновление после онбординга/правки профиля без перезагрузки
+- `update_dashboard_greeting()` — реактивное приветствие **(Протокол 0026)**
+  - Input: profile-updated, State: url.pathname, prevent_initial_call=True
+  - Guard'ы: data None / чужой pathname / ошибка БД → PreventUpdate
+  - H4 приветствия получил id="dashboard-greeting" (inline-имя в layout — начальное значение)
+- `toggle_balance_toast()` — **Расширен (0026)**: +Input("profile-updated") — баннер нулевого баланса скрывается сразу после ввода баланса в онбординге
 - `refresh_dashboard_after_crud()` — обновление после CRUD операций
   - **Рефакторинг (0022)**: использует _load_dashboard_components() helper (устраняет дублирование)
   - **Расширен (0023)**: +2 Outputs (recent table, upcoming table)

@@ -53,3 +53,14 @@
   first_launch=False», в коде (onboarding_service.py:80) — только
   starting_balance == 0. Код прав, поведение не меняли; кандидат
   в /kb-update при финализации.
+
+### Step 03 — Финализация
+- Полная верификация: black (app/ + tests/) OK, flake8 — только 6
+  предсуществующих E501 (не наш scope), pytest — 564 passed.
+- black попутно переформатировал tests/test_migration_007.py (старый файл,
+  вне scope) — откатили, дифф протокола сфокусирован.
+- KB-доки обновлены: features.md (event bus — дашборд в подписчиках),
+  modules/ui-components.md (callbacks 0026).
+- Расхождение needs_balance_alert (доки vs код) НЕ чинили здесь —
+  передано владельцу как кандидат в /kb-update.
+- PR #26 переведён в Ready.
