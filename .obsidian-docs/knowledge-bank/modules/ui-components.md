@@ -627,7 +627,7 @@ customdata=[...], ids={"type": "cashflow-bar", "date": date.isoformat()}
 **Dashboard Toast Integration** (Протокол 0014):
 - Toast UI в dashboard.py:
   - _build_balance_toast() — warning toast с CTA кнопкой
-  - Показывается если starting_balance=0 AND first_launch=False (пользователь пропустил)
+  - Показывается если starting_balance=0 (в коде БЕЗ условия first_launch — onboarding_service.py:80; уточнено при ревью 0026)
   - Dismissable через close button (состояние в session Store)
   - CTA кнопка "Настроить" → redirect на /calendar?open_recon=1
 - 2 callbacks:
