@@ -4,6 +4,7 @@
 - Donut chart: структура расходов по категориям
 - Bar chart: динамика расходов по месяцам
 """
+import calendar
 from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -218,19 +219,7 @@ class AnalyticsService:
             # Определяем границы месяца
             start_of_month = date(year, month, 1)
 
-            # Конец месяца: первый день следующего месяца минус 1 день
-            if month == 12:
-                end_of_month = date(year + 1, 1, 1)
-            else:
-                end_of_month = date(year, month + 1, 1)
-            end_of_month = date(
-                end_of_month.year,
-                end_of_month.month,
-                end_of_month.day - 1 if end_of_month.day > 1 else 28,  # Fallback
-            )
-            # Более надежный способ: вычислить последний день месяца
-            import calendar
-
+            # Конец месяца: последний день месяца
             last_day = calendar.monthrange(year, month)[1]
             end_of_month = date(year, month, last_day)
 

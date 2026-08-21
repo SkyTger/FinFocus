@@ -473,6 +473,50 @@ class TestGetMonthlyTrends:
             assert trend["total"] == Decimal("0")
             assert trend["categories"] == []
 
+    def test_december_january_boundary(self, db_session, user_with_categories):
+        """Граница декабрь/январь: конец декабря считается верно (31 день).
+
+        Регрессия на удаление мёртвого блока end_of_month с fallback=28:
+        транзакция 31 декабря должна попасть в декабрьский тренд, а не
+        быть отрезана из-за неверного конца месяца.
+        """
+        user, cats = user_with_categories
+
+        # Транзакция в последний день декабря
+        t_dec = Transaction(
+            user_id=user.id,
+            amount=Decimal("777.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2025, 12, 31),
+            category_id=cats["food"].id,
+        )
+        # Транзакция в первый день января
+        t_jan = Transaction(
+            user_id=user.id,
+            amount=Decimal("333.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date(2026, 1, 1),
+            category_id=cats["food"].id,
+        )
+        db_session.add_all([t_dec, t_jan])
+        db_session.flush()
+
+        service = AnalyticsService(db_session)
+        result = service.get_monthly_trends(
+            user_id=user.id,
+            months=2,
+            reference_date=date(2026, 1, 31),
+        )
+
+        assert len(result) == 2
+        assert result[0]["month"] == "2025-12"
+        assert result[0]["month_label"] == "Дек"
+        assert result[0]["total"] == Decimal("777.00")
+
+        assert result[1]["month"] == "2026-01"
+        assert result[1]["month_label"] == "Янв"
+        assert result[1]["total"] == Decimal("333.00")
+
 
 class TestGetUncategorizedCount:
     """Тесты метода get_uncategorized_count."""
