@@ -1,78 +1,77 @@
 """Тесты для callbacks в dashboard.py — подписки на profile-updated.
 
-Протокол: 0026-onboarding-refresh, шаг 2.
+Протокол: 0026-onboarding-refresh, шаг 2 (переработан после ревью 3-m).
 
 Регрессионная защита подписок дашборда на event bus `profile-updated`:
 приветствие, KPI/график/таблицы и баннер нулевого баланса должны
 обновляться сразу после онбординга/правки профиля, без ручной
-перезагрузки страницы.
+перезагрузки страницы. Приветствие обновляется внутри
+load_dashboard_data (7-й Output), а не отдельным колбэком — отдельный
+Output на элемент, существующий только на странице дашборда, отклонён
+ещё в протоколе 0024 (риск ReferenceError на других страницах).
 """
 
 import inspect
 from unittest.mock import MagicMock, patch
 
-from dash.exceptions import PreventUpdate
 import pytest
 
 from app.components.dashboard import (
+    _build_greeting_text,
     load_dashboard_data,
     toggle_balance_toast,
-    update_dashboard_greeting,
 )
 from app.models.database import User
 
 
-class TestCallbackContracts:
-    """Фиксация контракта: колбэки подписаны на profile-updated.
+def _decorator_source(func) -> str:
+    """Исходник блока @callback(...) непосредственно перед функцией.
 
     Полноценная интроспекция Dash callback map в тестовой среде (без
-    запущенного `Dash(__name__)` приложения и реального HTTP-запроса)
-    нестабильна: `callback_context`/`ctx.triggered` недоступны вне
-    запроса, а внутренний `dash.callback_map` ключуется по строке
-    Output, собранной во время импорта модуля — хрупко привязываться
-    к её точному формату. Поэтому вместо этого используется устойчивая
-    альтернатива из спецификации: анализ исходного кода декоратора
-    `@callback` через `inspect.getsource`, чтобы зафиксировать наличие
-    `Input("profile-updated", "data")` в декораторе конкретной функции.
-    Это не эмулирует Dash целиком, но защищает от потери подписки при
-    рефакторинге.
+    запущенного приложения и HTTP-запроса) нестабильна: callback map
+    ключуется по строке Output, собранной при импорте, — хрупко
+    привязываться к её формату. Анализ исходника декоратора — устойчивая
+    альтернатива: фиксирует контракт (какие Input/Output объявлены),
+    но НЕ проверяет поведение — поведенческие тесты ниже, по классам.
+    """
+    module_source = inspect.getsource(inspect.getmodule(func))
+    decorator_block = module_source[: module_source.index(f"def {func.__name__}")]
+    decorator_start = decorator_block.rfind("@callback(")
+    return decorator_block[decorator_start:]
+
+
+class TestCallbackContracts:
+    """Фиксация контракта декораторов: подписки и целевые Output'ы.
+
+    Это защита от синтаксической регрессии (Input/Output не потеряны
+    при рефакторинге), а не поведенческое покрытие — см. _decorator_source.
     """
 
-    def test_load_dashboard_data_subscribed_to_profile_updated(self):
-        """load_dashboard_data содержит Input('profile-updated', 'data')."""
-        # Декоратор идёт перед определением функции — достаём весь блок
-        # исходников модуля, чтобы увидеть @callback(...) над функцией.
-        module_source = inspect.getsource(inspect.getmodule(load_dashboard_data))
-        decorator_block = module_source[
-            : module_source.index("def load_dashboard_data")
-        ]
-        # Берём последний @callback перед определением функции.
-        decorator_start = decorator_block.rfind("@callback(")
-        decorator_source = decorator_block[decorator_start:]
+    def test_load_dashboard_data_decorator_declares_profile_updated_input(self):
+        """Декоратор load_dashboard_data объявляет Input profile-updated."""
+        assert 'Input("profile-updated", "data")' in _decorator_source(
+            load_dashboard_data
+        )
 
-        assert 'Input("profile-updated", "data")' in decorator_source
+    def test_toggle_balance_toast_decorator_declares_profile_updated_input(self):
+        """Декоратор toggle_balance_toast объявляет Input profile-updated."""
+        assert 'Input("profile-updated", "data")' in _decorator_source(
+            toggle_balance_toast
+        )
 
-    def test_toggle_balance_toast_subscribed_to_profile_updated(self):
-        """toggle_balance_toast содержит Input('profile-updated', 'data')."""
-        module_source = inspect.getsource(inspect.getmodule(toggle_balance_toast))
-        decorator_block = module_source[
-            : module_source.index("def toggle_balance_toast")
-        ]
-        decorator_start = decorator_block.rfind("@callback(")
-        decorator_source = decorator_block[decorator_start:]
+    def test_load_dashboard_data_decorator_declares_greeting_output(self):
+        """Декоратор load_dashboard_data объявляет Output dashboard-greeting.
 
-        assert 'Input("profile-updated", "data")' in decorator_source
-
-    def test_update_dashboard_greeting_signature(self):
-        """update_dashboard_greeting принимает profile_updated и pathname."""
-        signature = inspect.signature(update_dashboard_greeting)
-        params = list(signature.parameters)
-
-        assert params == ["profile_updated", "pathname"]
+        Приветствие обновляется 7-м Output'ом этого колбэка, НЕ отдельным
+        колбэком (решение 0024/0026 — см. докстринг модуля).
+        """
+        assert 'Output("dashboard-greeting", "children")' in _decorator_source(
+            load_dashboard_data
+        )
 
 
-class TestUpdateDashboardGreeting:
-    """Тесты колбэка update_dashboard_greeting."""
+class TestBuildGreetingText:
+    """Тесты хелпера _build_greeting_text (источник текста приветствия)."""
 
     def test_valid_profile_returns_greeting_with_name(self, db_session):
         """С валидным профилем в БД возвращает приветствие с именем."""
@@ -88,70 +87,19 @@ class TestUpdateDashboardGreeting:
             mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
             mock_session.return_value.__exit__ = MagicMock(return_value=False)
 
-            result = update_dashboard_greeting(
-                profile_updated=123456.0,
-                pathname="/dashboard",
-            )
+            result = _build_greeting_text()
 
         assert result == "Добро пожаловать, Иван!"
 
-    def test_data_none_prevents_update(self, db_session):
-        """profile_updated=None → PreventUpdate (событие ещё не наступало)."""
+    def test_empty_db_falls_back_to_default_name(self, db_session):
+        """Пустая БД (пользователь не найден) → fallback «Пользователь»."""
         with patch("app.components.dashboard.get_db_session") as mock_session:
             mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
             mock_session.return_value.__exit__ = MagicMock(return_value=False)
 
-            with pytest.raises(PreventUpdate):
-                update_dashboard_greeting(
-                    profile_updated=None,
-                    pathname="/dashboard",
-                )
+            result = _build_greeting_text()
 
-    def test_wrong_pathname_prevents_update(self, db_session):
-        """pathname не '/' и не '/dashboard' → PreventUpdate."""
-        with patch("app.components.dashboard.get_db_session") as mock_session:
-            mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
-            mock_session.return_value.__exit__ = MagicMock(return_value=False)
-
-            with pytest.raises(PreventUpdate):
-                update_dashboard_greeting(
-                    profile_updated=123456.0,
-                    pathname="/goals",
-                )
-
-    def test_root_pathname_is_allowed(self, db_session):
-        """pathname='/' проходит guard так же, как '/dashboard'."""
-        user = User(
-            email="root@example.com",
-            name="Мария",
-            starting_balance=10000,
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        with patch("app.components.dashboard.get_db_session") as mock_session:
-            mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
-            mock_session.return_value.__exit__ = MagicMock(return_value=False)
-
-            result = update_dashboard_greeting(
-                profile_updated=1.0,
-                pathname="/",
-            )
-
-        assert result == "Добро пожаловать, Мария!"
-
-    def test_db_error_prevents_update(self, db_session):
-        """Ошибка БД (например, пользователь не найден) → PreventUpdate."""
-        # db_session пустая — get_profile подымет ValueError.
-        with patch("app.components.dashboard.get_db_session") as mock_session:
-            mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
-            mock_session.return_value.__exit__ = MagicMock(return_value=False)
-
-            with pytest.raises(PreventUpdate):
-                update_dashboard_greeting(
-                    profile_updated=1.0,
-                    pathname="/dashboard",
-                )
+        assert result == "Добро пожаловать, Пользователь!"
 
 
 class TestToggleBalanceToastProfileUpdated:
@@ -210,15 +158,65 @@ class TestToggleBalanceToastProfileUpdated:
         assert result is True
 
     def test_dismissed_keeps_banner_hidden(self, db_session):
-        """is_dismissed=True → баннер остаётся скрытым, БД не важна."""
+        """is_dismissed=True → баннер скрыт, БД не опрашивается.
+
+        Guard по is_dismissed стоит РАНЬШЕ обращения к БД (short-circuit);
+        мок get_db_session здесь страхует тест от смены порядка guard'ов:
+        если реализация начнёт ходить в БД до проверки dismissed, тест
+        останется корректным, а не упадёт с невнятной ошибкой подключения.
+        """
         with patch("app.components.dashboard.ctx") as mock_ctx:
             mock_ctx.triggered_id = "profile-updated"
 
-            result = toggle_balance_toast(
-                pathname="/dashboard",
-                is_open=False,
-                profile_updated=123456.0,
-                is_dismissed=True,
-            )
+            with patch("app.components.dashboard.get_db_session") as mock_session:
+                mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
+                mock_session.return_value.__exit__ = MagicMock(return_value=False)
+
+                result = toggle_balance_toast(
+                    pathname="/dashboard",
+                    is_open=False,
+                    profile_updated=123456.0,
+                    is_dismissed=True,
+                )
 
         assert result is False
+
+
+class TestLoadDashboardDataGreeting:
+    """Интеграция приветствия в load_dashboard_data."""
+
+    def test_returns_seven_values_with_greeting_last(self, db_session):
+        """Успешная загрузка возвращает 7 значений, последнее — приветствие."""
+        user = User(
+            email="seven@example.com",
+            name="Ольга",
+            starting_balance=10000,
+        )
+        db_session.add(user)
+        db_session.commit()
+
+        with patch("app.components.dashboard.get_db_session") as mock_session:
+            mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
+            mock_session.return_value.__exit__ = MagicMock(return_value=False)
+
+            result = load_dashboard_data(
+                pathname="/dashboard",
+                period_value="month",
+                profile_updated=123456.0,
+                period_state={"period": "month"},
+            )
+
+        assert len(result) == 7
+        assert result[6] == "Добро пожаловать, Ольга!"
+
+    def test_wrong_pathname_prevents_update(self, db_session):
+        """pathname вне дашборда → PreventUpdate (guard до работы с БД)."""
+        from dash.exceptions import PreventUpdate
+
+        with pytest.raises(PreventUpdate):
+            load_dashboard_data(
+                pathname="/goals",
+                period_value="month",
+                profile_updated=123456.0,
+                period_state={"period": "month"},
+            )

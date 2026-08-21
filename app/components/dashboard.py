@@ -79,9 +79,8 @@ def _build_balance_banner() -> dbc.Alert:
     )
 
 
-def create_dashboard_layout():
-    """Создает layout главной страницы дашборда."""
-    # NOTE: greeting обновляется только при навигации (inline read)
+def _build_greeting_text() -> str:
+    """Текст приветствия с именем пользователя (fallback — «Пользователь»)."""
     greeting_name = "Пользователь"
     try:
         with get_db_session() as session:
@@ -89,7 +88,11 @@ def create_dashboard_layout():
             greeting_name = profile["name"]
     except Exception:
         logger.warning("Failed to load user name for dashboard greeting", exc_info=True)
+    return f"Добро пожаловать, {greeting_name}!"
 
+
+def create_dashboard_layout():
+    """Создает layout главной страницы дашборда."""
     return html.Div(
         [
             # Hidden elements (не участвуют в flex layout)
@@ -105,7 +108,7 @@ def create_dashboard_layout():
                     html.Div(
                         [
                             html.H4(
-                                f"Добро пожаловать, {greeting_name}!",
+                                _build_greeting_text(),
                                 id="dashboard-greeting",
                                 className="mb-0 fw-semibold",
                             ),
@@ -1342,6 +1345,7 @@ def _load_dashboard_components(
         Output("dashboard-recent-transactions", "children"),
         Output("dashboard-upcoming-transactions", "children"),
         Output("dashboard-cushion-card", "children"),
+        Output("dashboard-greeting", "children"),
     ],
     [
         Input("url", "pathname"),
@@ -1356,7 +1360,14 @@ def load_dashboard_data(
     profile_updated: float | None,
     period_state: dict | None,
 ):
-    """Загружает данные дашборда при навигации, смене периода или обновлении профиля."""
+    """Загружает данные дашборда при навигации, смене периода или обновлении профиля.
+
+    Триггер profile-updated нужен, чтобы онбординг/правка профиля применялись
+    без перезагрузки страницы: от starting_balance зависят KPI и баннер,
+    от имени — приветствие (greeting здесь же, а не отдельным колбэком —
+    отдельный Output на элемент только этой страницы отклонён в 0024
+    из-за риска ReferenceError на других страницах).
+    """
     # Guard #1: только для страницы dashboard
     if pathname not in ["/", "/dashboard"]:
         raise PreventUpdate
@@ -1370,42 +1381,17 @@ def load_dashboard_data(
         period = "month"
 
     try:
-        return _load_dashboard_components(period, period_state)
+        return (
+            *_load_dashboard_components(period, period_state),
+            _build_greeting_text(),
+        )
     except Exception as e:
         logger.error(f"Ошибка загрузки дашборда: {e}")
         error_alert = dbc.Alert(
             "Не удалось загрузить данные. Попробуйте обновить страницу.",
             color="danger",
         )
-        return (error_alert,) * 6
-
-
-@callback(
-    Output("dashboard-greeting", "children"),
-    Input("profile-updated", "data"),
-    State("url", "pathname"),
-    prevent_initial_call=True,
-)
-def update_dashboard_greeting(
-    profile_updated: float | None,
-    pathname: str | None,
-) -> str:
-    """Обновляет приветствие после изменения профиля (онбординг, ProfileModal)."""
-    # Guard #1: событие обновления профиля ещё не наступало
-    if profile_updated is None:
-        raise PreventUpdate
-
-    # Guard #2: только для страницы dashboard
-    if pathname not in ["/", "/dashboard"]:
-        raise PreventUpdate
-
-    try:
-        with get_db_session() as session:
-            profile = OnboardingService(session).get_profile(DEFAULT_USER_ID)
-        return f"Добро пожаловать, {profile['name']}!"
-    except Exception:
-        logger.warning("Failed to refresh dashboard greeting", exc_info=True)
-        raise PreventUpdate
+        return (error_alert,) * 6 + (no_update,)
 
 
 @callback(
