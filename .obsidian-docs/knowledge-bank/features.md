@@ -610,6 +610,8 @@
 - OnboardingService расширен: complete(), update_profile(), get_profile(), _validate_profile_fields()
 - UserProfile TypedDict в app/schema/onboarding.py
 - Store("profile-updated") как event bus для реактивного обновления sidebar
+  и дашборда (протокол 0026: load_dashboard_data, toggle_balance_toast,
+  update_dashboard_greeting подписаны — онбординг применяется без перезагрузки)
 - complete_with_balance() deprecated wrapper
 - Миграция 007_avatar_id (idempotent)
 

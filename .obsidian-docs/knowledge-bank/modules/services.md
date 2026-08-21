@@ -765,7 +765,7 @@ with get_db_session() as session:
   - Возвращает статус onboarding пользователя
   - first_launch — требуется ли показ wizard
   - starting_balance — текущий баланс
-  - needs_balance_alert — показывать ли toast (balance=0 AND first_launch=False)
+  - needs_balance_alert — показывать ли toast (balance=0; условие first_launch убрано из кода — см. onboarding_service.py:80)
   - **NEW (0024)**: name, avatar_id — для sidebar и dashboard greeting
 - `complete(user_id, name, avatar_id, starting_balance)` → `None` **(NEW 0024 — заменяет complete_with_balance)**
   - Завершение onboarding с именем + аватаром + балансом
@@ -826,7 +826,7 @@ with get_db_session() as session:
 **Критичные детали**:
 - **Flush/commit contract**: сервис вызывает session.flush() для валидации и ID generation, caller управляет commit() через context manager
 - **Fail-closed DB strategy**: UI callback скрывает wizard при ошибке БД, не блокирует приложение
-- **needs_balance_alert logic**: True только если balance=0 И first_launch=False
+- **needs_balance_alert logic**: True если balance=0 (условие first_launch в коде отсутствует — onboarding_service.py:80; доки исправлены при ревью 0026)
 - **avatar_id валидация**: проверяется против `app/config/avatars.AVATARS` dict (не произвольные строки)
 
 **Unit тесты**: расширены в `tests/test_onboarding_service.py` (протокол 0024 добавил тесты для complete(), update_profile(), get_profile(), _validate_profile_fields())
