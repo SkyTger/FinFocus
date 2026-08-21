@@ -1252,10 +1252,14 @@ with get_db_session() as session:
 **Критичные детали**:
 - **Каскадная проверка**: min(balance[d:end_month]) для всех дней от кандидата до конца месяца
 - **Два критерия**: подушка (cushion) И отрицательный баланс (negative_balance)
+- **Fail-open при сбое настроек подушки** (протокол 0027): исключение в
+  CushionService.get_settings → критерий cushion отключается (threshold=0),
+  negative_balance продолжает действовать; сбой логируется warning с
+  трейсбеком через `logger.opt(exception=True)` (loguru игнорирует exc_info)
 - **Предрассчет hover**: ~200ms при открытии режима, hover < 1ms на клиенте (clientside JS)
 - **Decimal serialization**: все балансы → string для JSON Store
 
-**Unit тесты**: 11 тестов в `tests/test_purchase_recommendation.py`
+**Unit тесты**: 12 тестов в `tests/test_purchase_recommendation.py` (11 + fail-open, протокол 0027)
 - TestSafeDatesMap: 5 тестов (safe day, cushion violation, negative balance, both, cushion disabled)
 - TestPrecalculateHoverData: 4 теста (structure, base_balances, by_candidate, empty month)
 - TestEdgeCases: 2 теста (EOM dates, leap year)
