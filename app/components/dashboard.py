@@ -106,6 +106,7 @@ def create_dashboard_layout():
                         [
                             html.H4(
                                 f"Добро пожаловать, {greeting_name}!",
+                                id="dashboard-greeting",
                                 className="mb-0 fw-semibold",
                             ),
                             dbc.RadioItems(
@@ -1345,15 +1346,17 @@ def _load_dashboard_components(
     [
         Input("url", "pathname"),
         Input("period-switcher", "value"),
+        Input("profile-updated", "data"),
     ],
     [State("dashboard-period", "data")],
 )
 def load_dashboard_data(
     pathname: str,
     period_value: str | None,
+    profile_updated: float | None,
     period_state: dict | None,
 ):
-    """Загружает данные дашборда при навигации или смене периода."""
+    """Загружает данные дашборда при навигации, смене периода или обновлении профиля."""
     # Guard #1: только для страницы dashboard
     if pathname not in ["/", "/dashboard"]:
         raise PreventUpdate
@@ -1375,6 +1378,34 @@ def load_dashboard_data(
             color="danger",
         )
         return (error_alert,) * 6
+
+
+@callback(
+    Output("dashboard-greeting", "children"),
+    Input("profile-updated", "data"),
+    State("url", "pathname"),
+    prevent_initial_call=True,
+)
+def update_dashboard_greeting(
+    profile_updated: float | None,
+    pathname: str | None,
+) -> str:
+    """Обновляет приветствие после изменения профиля (онбординг, ProfileModal)."""
+    # Guard #1: событие обновления профиля ещё не наступало
+    if profile_updated is None:
+        raise PreventUpdate
+
+    # Guard #2: только для страницы dashboard
+    if pathname not in ["/", "/dashboard"]:
+        raise PreventUpdate
+
+    try:
+        with get_db_session() as session:
+            profile = OnboardingService(session).get_profile(DEFAULT_USER_ID)
+        return f"Добро пожаловать, {profile['name']}!"
+    except Exception:
+        logger.warning("Failed to refresh dashboard greeting", exc_info=True)
+        raise PreventUpdate
 
 
 @callback(
@@ -1474,6 +1505,7 @@ def open_create_from_chart(click_data, period_state):
     [
         Input("url", "pathname"),
         Input("balance-alert-toast", "is_open"),
+        Input("profile-updated", "data"),
     ],
     State("balance-toast-dismissed", "data"),
     prevent_initial_call=False,
@@ -1481,9 +1513,13 @@ def open_create_from_chart(click_data, period_state):
 def toggle_balance_toast(
     pathname: str | None,
     is_open: bool,
+    profile_updated: float | None,
     is_dismissed: bool,
 ) -> bool:
-    """Показывает Toast если balance=0 и не dismissed."""
+    """Показывает Toast если balance=0 и не dismissed.
+
+    Пересчитывается и при обновлении профиля (profile-updated).
+    """
     triggered_id = ctx.triggered_id
 
     # При закрытии через крестик
