@@ -170,6 +170,45 @@
 
 ---
 
+## ✅ Батч 22: Быстрые победы аудита кода — fail-open логирование + мёртвый блок (2026-08-21)
+
+**Дата**: 2026/08/21
+**Протокол**: 0027-audit-quick-wins
+**PR**: на ревью
+**Статус**: 🔄 На ревью
+
+### 🎯 Цель батча:
+Пп. 2-3 приоритизированного плана двойного аудита 2026-08-20
+(`knowledge-bank/analyses/2026-08-20-full.md`): тихий fail-open в
+рекомендациях покупок и мёртвый блок кода в аналитике.
+
+### ✅ Выполненные задачи:
+- `purchase_recommendation_service.get_safe_dates_map`: сбой чтения настроек
+  подушки теперь логируется `logger.opt(exception=True).warning(...)`
+  с трейсбеком; fail-open поведение (threshold=0 → критерий подушки
+  отключён) сохранено и задокументировано в докстринге
+- Попутная находка: `exc_info=True` — идиома `logging`, а не `loguru`;
+  loguru молча игнорирует этот параметр (трейсбек не пишется). Идиома
+  loguru — `opt(exception=True)` или `logger.exception(...)`. Существующие
+  `exc_info=True` в кодовой базе (dashboard.py и др.) остаются «пустыми» —
+  относятся к отложенному п.10 аудита (унификация логирования)
+- `analytics_service.py`: удалён мёртвый двойного вычисления блок
+  `end_of_month` (hardcoded fallback 28, сразу перезаписывался
+  `calendar.monthrange`-вариантом); `import calendar` поднят на уровень
+  модуля
+- +2 теста: fail-open подушки (mock сбоя настроек → проверка расчёта,
+  отсутствия критерия cushion, наличия warning с трейсбеком в логе) и
+  граница декабрь/январь в аналитике (регрессионная защита от
+  fallback-28 бага); 565 passed
+
+Файлы: `app/services/purchase_recommendation_service.py`,
+`app/services/analytics_service.py`,
+`tests/test_purchase_recommendation.py`, `tests/test_analytics_service.py`
+
+→ Отчёт аудита `knowledge-bank/analyses/2026-08-20-full.md`, пп. 2-3
+
+---
+
 ## ✅ Батч 21: Онбординг — мгновенное применение профиля (2026-08-21)
 
 **Дата**: 2026/08/21

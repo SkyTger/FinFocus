@@ -42,6 +42,12 @@ class PurchaseRecommendationService:
         покупку на сумму amount, не уходя в минус и не опуская баланс
         ниже порога подушки безопасности до конца месяца.
 
+        Fail-open при сбое настроек подушки: если получение порога подушки
+        (CushionService.get_settings) завершается исключением, критерий
+        cushion отключается (threshold=0, причина "cushion" не добавляется
+        ни для одного дня), а критерий negative_balance продолжает работать
+        в штатном режиме. Сбой логируется как warning с трейсбеком.
+
         Args:
             user_id: ID пользователя.
             amount: Сумма покупки.
@@ -67,6 +73,12 @@ class PurchaseRecommendationService:
             cushion = self._cushion_service.get_settings(user_id)
             threshold = cushion["threshold_amount"]
         except Exception:
+            # loguru игнорирует exc_info: трейсбек даёт opt(exception=True)
+            logger.opt(exception=True).warning(
+                f"Не удалось получить настройки подушки для user_id={user_id}: "
+                "критерий cushion отключён для этого расчёта, "
+                "negative_balance продолжает действовать"
+            )
             threshold = Decimal("0")
 
         result: dict[str, SafeDateInfo] = {}

@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
+from loguru import logger
 
 from app.models.database import Transaction, TransactionType
 from app.services.purchase_recommendation_service import (
@@ -221,3 +222,54 @@ def test_safe_dates_last_day_of_month(mock_date, service, test_user):
     result = service.get_safe_dates_map(test_user.id, Decimal("100"), 2026, 3)
     assert "2026-03-31" in result
     assert len(result) == 1
+
+
+@patch("app.services.purchase_recommendation_service.date")
+def test_safe_dates_cushion_failure_is_fail_open(mock_date, service, test_user):
+    """Сбой настроек подушки: fail-open сохраняется, сбой логируется.
+
+    При исключении в CushionService.get_settings() критерий cushion
+    должен отключаться (threshold=0), а критерий negative_balance
+    продолжает работать штатно. Сбой обязан попасть в лог как warning.
+    """
+    mock_date.today.return_value = date(2026, 3, 1)
+    mock_date.side_effect = lambda *a, **kw: date(*a, **kw)
+
+    logged_records: list = []
+    sink_id = logger.add(
+        lambda message: logged_records.append(message.record),
+        level="WARNING",
+    )
+
+    try:
+        with patch.object(
+            service._cushion_service,
+            "get_settings",
+            side_effect=RuntimeError("cushion settings unavailable"),
+        ):
+            # starting_balance=10000, покупка на 100 → баланс остаётся
+            # положительным, значит negative_balance не должен сработать,
+            # а cushion (даже если бы был настроен) отключён fail-open.
+            result = service.get_safe_dates_map(test_user.id, Decimal("100"), 2026, 3)
+    finally:
+        logger.remove(sink_id)
+
+    # (а) результат по-прежнему рассчитывается
+    assert len(result) == 31
+
+    # (б) критерий cushion не срабатывает ни для одного дня,
+    # negative_balance продолжает работать штатно (баланс положительный)
+    for info in result.values():
+        assert "cushion" not in info["reasons"]
+        assert info["safe"] is True
+
+    # (в) сбой попадает в лог как warning — с текстом И с трейсбеком
+    # (loguru пишет исключение через opt(exception=True); exc_info игнорирует)
+    cushion_records = [
+        rec
+        for rec in logged_records
+        if "настройки подушки" in rec["message"] or "cushion" in rec["message"].lower()
+    ]
+    assert cushion_records
+    assert cushion_records[0]["exception"] is not None
+    assert cushion_records[0]["exception"].type is RuntimeError
