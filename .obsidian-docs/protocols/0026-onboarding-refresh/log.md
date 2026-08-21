@@ -35,3 +35,21 @@
 - Проверки: py_compile OK, black OK, flake8 — новых замечаний нет
   (2 старых E501 в файле сместились 141→142, 147→148 — не наши),
   смоук `import app.main` OK (регистрация колбэков не падает).
+
+### Step 02 — Тесты (выполнен субагентом, проверен главным агентом)
+- Новый файл tests/test_dashboard_callbacks.py: 11 тестов, 3 класса
+  (контракт подписок / update_dashboard_greeting / toggle_balance_toast
+  с триггером profile-updated).
+- Контракт подписок зафиксирован через inspect.getsource (анализ блока
+  @callback перед функцией) — устойчивая альтернатива из спеки:
+  dash.callback_map ключуется по строке Output и хрупок вне запущенного
+  приложения.
+- Мок ctx.triggered_id — patch("app.components.dashboard.ctx"), по паттерну
+  существующих тестов (патчить модуль-импортёр, не место определения).
+- Прогон: 75 passed (новые + test_dashboard_service + test_onboarding_service),
+  регрессий нет; black/flake8 по новому файлу — чисто.
+- Найдено расхождение доков с кодом: KB (modules/ui-components.md,
+  services.md) описывает needs_balance_alert как «balance=0 AND
+  first_launch=False», в коде (onboarding_service.py:80) — только
+  starting_balance == 0. Код прав, поведение не меняли; кандидат
+  в /kb-update при финализации.
