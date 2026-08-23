@@ -1,11 +1,45 @@
 # FinFocus - Прогресс разработки
 
-## 📊 Общий статус проекта: Epic-09 IN PROGRESS + Epic-10 Планирование
+## 📊 Общий статус проекта: Epic-09 IN PROGRESS (Фаза 4 отложена) + Epic-10 Планирование
 
-**Последнее обновление**: 2026/08/21
-**Статус**: 🔄 Epic-09 (Фаза 1-3 завершены, Фаза 4 следующая) + Epic-10 UI Polish (планирование)
+**Последнее обновление**: 2026/08/23
+**Статус**: 🔄 Epic-09 (Фаза 1-3 завершены; Фаза 4 отложена до редизайна дашборда)
++ Epic-10 UI Polish (планирование) + редизайн дашборда «щиток» (концепт готов,
+эпик не оформлен)
 **Прогресс Epic-09**: 3/4 фаз завершено (75%)
 **GitHub**: https://github.com/SkyTger/FinFocus
+
+---
+
+## 🎨 Концепт-сессия: редизайн дашборда «щиток» (2026-08-23) — обсуждение закрыто, кода нет
+
+**Тип**: дизайн-обсуждение (`.obsidian-docs/discussions/`), без протокола и без правок `app/`.
+
+**Итог**: обсуждение «дашборд как меню» закрыто, концепция принята владельцем.
+Дашборд становится навигацией по метафоре электрощитка: шапка-вердикт
+«Свободно сегодня: N ₽», центральный график полос «Свободно / Платежи /
+Резерв целей и подушки» с вехами целей (полная замена текущего графика
+доходы/расходы + баланс), карточки-двери на все разделы меню (конституция
+щитка — каждый пункт меню обязан иметь карточку), компактная полоска-меню
+на остальных экранах вместо текущего сайдбара. Всего 20 решений.
+
+Визуальный эскиз собран через `/visual` (2 раунда, вердикт SHIP) и принят
+владельцем как основа реализации.
+
+**Секвенирование** (решение владельца): редизайн делается ДО бета-цикла;
+фаза 4 Epic-09 (сбор фидбека беты) — после редизайна, чтобы не тратить
+фидбек на экран, который всё равно выбрасывается.
+
+Закрыты открытые вопросы ROADMAP: №7 (переосмысление главного графика) —
+полностью; №9 (доработка инструмента vs заплатки) — дашборд-часть; пп. 5/7
+аудита (жизненный цикл целей) остаются открытыми отдельно.
+
+Файлы:
+- `.obsidian-docs/discussions/_archive/dashboard-as-menu-2026-08-23/design.md` — источник правды, 20 решений
+- `.visual/finfocus-panel-dashboard/` — эскиз (v3.html финал, v3.png рендер, brief.md, critique-v2/v3.md)
+- Артефакт эскиза: https://claude.ai/code/artifact/019f9b22-b13b-48f6-a362-f9f0b8735f62
+
+Следующий шаг: оформление редизайна отдельным эпиком (не сделано в этой сессии).
 
 ---
 
@@ -128,6 +162,8 @@
 - [x] ✅ Фаза 2: User Profile (2026/03/03, PR #24) — avatar config, extended onboarding, dynamic sidebar, profile modal
 - [x] ✅ Фаза 3: Delivery & Setup (2026/03/03, PR #25) — start.sh + start.bat, requirements split, BETA_README, RELEASE_GUIDE
 - [ ] Фаза 4: Bug fixes & Polish — резерв для багов из бета-тестирования
+  - ⚠️ Отложена (2026/08/23): бета-цикл идёт ПОСЛЕ редизайна дашборда
+    «щиток» — см. `.obsidian-docs/discussions/_archive/dashboard-as-menu-2026-08-23/design.md`
 
 ### Ключевые решения:
 1. Single-user архитектура сохраняется (DEFAULT_USER_ID=1)
@@ -231,39 +267,8 @@
 
 ---
 
-## ✅ Батч 19: User Profile (2026-03-03) — MERGED
-
-**Дата**: 2026/03/03
-**Протокол**: 0024-user-profile
-**PR**: https://github.com/SkyTger/FinFocus/pull/24
-**Статус**: ✅ Merged в main
-
-### 🎯 Цель батча:
-Персонализация приложения: расширить onboarding wizard (имя + аватарка + баланс), сделать sidebar динамическим, добавить profile modal для редактирования, приветствие на dashboard.
-
-### ✅ Выполненные задачи:
-
-1. **Data Layer** — app/config/avatars.py (10 emoji аватарок, DEFAULT_AVATAR_ID, get_avatar_emoji())
-2. **Migration + Bootstrap** — миграция 007_avatar_id, bootstrap с avatar_id="emoji-default"
-3. **Service Layer** — OnboardingService: complete(), update_profile(), get_profile(), _validate_profile_fields(), deprecated wrapper complete_with_balance()
-4. **Schema** — UserProfile TypedDict, name/avatar_id в OnboardingStatus
-5. **Onboarding UI** — перестроен wizard: имя + RadioItems аватарка + баланс, два callback'а
-6. **Sidebar + Profile Modal** — динамический профиль (Store-based), profile_modal.py (edit name/avatar)
-7. **Main + Dashboard** — Store("profile-updated"), dashboard greeting "Добро пожаловать, {name}!"
-8. **Tests** — test_avatars.py (5), test_migration_007.py (3), test_onboarding_service.py расширен до 15
-
-### 📊 Результат:
-- ✅ 546 unit и integration тестов (было 531, +15 новых)
-- ✅ 10 emoji аватарок с конфигом
-- ✅ Store("profile-updated") как event bus для sidebar
-- ✅ Inline DB read для dashboard greeting
-- ✅ Code review: Security 5/5, Quality 4/5
-- ✅ Critical fix: profile_modal.py — keep modal open on save error
-
----
-
-*Последнее обновление: 2026/08/21*
+*Последнее обновление: 2026/08/23*
 *Формат: Rolling Window (последние 5 батчей)*
 
-> Архив старых батчей: Батч 18 (Dashboard Layout Redesign) и ранее,
-> включая Epic-05-UI wrapper — см. feature_progress_archive.md
+> Архив старых батчей: Батч 19 (User Profile), Батч 18 (Dashboard Layout
+> Redesign) и ранее, включая Epic-05-UI wrapper — см. feature_progress_archive.md

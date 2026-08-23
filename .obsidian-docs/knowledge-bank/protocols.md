@@ -1,3 +1,10 @@
+---
+name: protocols
+description: История протоколов разработки FinFocus (0002-0027) — контекст, решения, реализация каждого; включая незапротоколированную packaging-работу
+type: reference
+originSessionId: -
+---
+
 # Протоколы разработки
 
 ## Суть
@@ -7,6 +14,83 @@
 Каждый протокол — изолированная задача в worktree с детальным планом (6 шагов), логом работы и commit-trail.
 
 ## Завершенные протоколы
+
+### Протокол 0027: Audit Quick Wins (2026-08-22)
+**Статус**: ✅ MERGED (`c6c5529`, ветка `0027-audit-quick-wins`)
+**Батч**: Quick wins из двойного аудита 2026-08-20 (UX + код)
+
+**Контекст**:
+- Двойной аудит проекта (2026-08-20) выявил несколько мелких, но
+  реальных проблем в существующем коде — не архитектурные, устранимые
+  точечно без нового батча
+
+**Решения и реализация**:
+- `app/services/purchase_recommendation_service.py`: fail-open стратегия —
+  при сбое чтения настроек подушки безопасности рекомендации покупок не
+  падают целиком, а логируют сбой с трейсбеком и продолжают без подушки
+- `app/services/analytics_service.py`: удалён мёртвый блок `end_of_month`
+- Обе точки логирования сбоев переведены на `logger.opt(exception=True)`
+  (см. `loguru-exc-info.md` в автопамяти — `exc_info=True` у loguru не
+  даёт трейсбек)
+- Тесты: `tests/test_analytics_service.py`, `tests/test_purchase_recommendation.py`
+
+**Референсы**:
+- План: `.obsidian-docs/protocols/0027-audit-quick-wins/plan.md`
+- Лог: `.obsidian-docs/protocols/0027-audit-quick-wins/log.md`
+
+---
+
+### Протокол 0026: Onboarding Refresh (2026-08-21)
+**Статус**: ✅ MERGED (`b209721`, ветка `0026-onboarding-refresh`)
+**Батч**: Epic-06 (User Profile), исправление UX-дефекта
+
+**Контекст**:
+- После редактирования профиля (имя, аватар) приветствие на дашборде
+  не обновлялось без перезагрузки страницы — дашборд не был подписан
+  на событие изменения профиля
+
+**Решения и реализация**:
+- `app/components/dashboard.py`: дашборд подписан на `dcc.Store("profile-updated")`
+  (event bus, введённый в протоколе 0024); приветствие — 7-й Output
+  в существующем `load_dashboard_data`, а не отдельный callback
+  (правка `cc68c18` в ревью — избежать дублирующего callback на одни
+  и те же данные)
+- `tests/test_dashboard_callbacks.py`: контракт подписок колбэка
+  зафиксирован через `inspect.getsource` (+10 тестов, 563 passed)
+
+**Референсы**:
+- План: `.obsidian-docs/protocols/0026-onboarding-refresh/plan.md`
+- Лог: `.obsidian-docs/protocols/0026-onboarding-refresh/log.md`
+
+---
+
+### Packaging: PyInstaller-сборка (2026-08, незапротоколировано)
+**Статус**: ✅ реализовано и работает в CI, но НЕ прошло через процесс
+протокола — нет plan.md/log.md, нет записи в ROADMAP/feature_progress на
+момент внедрения (см. открытый вопрос №1 ROADMAP)
+
+**Коммиты**: `92fffc7`..`3b6a8e0`, в т.ч. `d9e93c6` (feat(packaging): add
+PyInstaller support for standalone Windows build), `3b6a8e0`
+(feat(packaging): add macOS build to CI workflow)
+
+**Что сделано**:
+- `finfocus.spec` — конфиг PyInstaller, режим `onedir`, исключает
+  `alembic`/`tkinter`/`unittest`/`pytest`/`test`, собирает hidden imports
+  для Dash/Plotly/dbc
+- `.github/workflows/build.yml` — сборка на Windows и macOS runners,
+  триггер: push тега `v*` или ручной запуск; готовый ZIP прикладывается
+  к GitHub Release
+
+**ВАЖНО — расхождение с протоколом 0025**: 0025 явно отверг PyInstaller
+как альтернативу («сложная сборка Dash на 3 платформах») в пользу
+setup-скриптов. Эта запись решением протокола 0025 не отменяется
+автоматически — PyInstaller появился позже как второй, параллельный
+способ доставки, а не замена. **Какой способ доставки основной — открытый
+вопрос №1 ROADMAP, решение владельцем не принято.** Не выбирать сторону
+в документации; см. также врезку в `deployment.md` и раздел «Сборка
+standalone-бандла» в `tech-stack.md`.
+
+---
 
 ### Протокол 0025: Beta Delivery & Setup (2026-03-03)
 **Статус**: ЗАВЕРШЕН
@@ -53,10 +137,16 @@
 - **git archive для ZIP** — исключает .git, .venv, data/ автоматически через .gitattributes
 - **requirements-dev.txt** — pytest, black, flake8, coverage; не нужны пользователям
 
-**Альтернативы** (отвергнуты):
+**Альтернативы** (отвергнуты на момент протокола):
 - Python-launcher — проблема "курица и яйцо" (нужен Python для запуска Python)
 - Docker — слишком сложен для нетехнических пользователей
 - PyInstaller — сложная сборка Dash на 3 платформах (в Backlog post-beta)
+
+**⚠️ Решение по PyInstaller пересмотрено фактом**: несмотря на отказ
+здесь, PyInstaller позже реализован и работает в CI (см. запись
+«Packaging: PyInstaller-сборка» выше) — как второй способ доставки,
+не как замена setup-скриптов. Какой способ основной — открытый
+вопрос №1 ROADMAP, не решено.
 
 **Референсы**:
 - Рабочая директория: `/worktrees/0025-beta-delivery`

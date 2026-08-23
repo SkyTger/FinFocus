@@ -328,3 +328,34 @@
 > Более старые батчи (Батч 15 Wishlist и ранее) — см. историю git
 > `.obsidian-docs/reports/notes/feature_progress.md` до этой архивации,
 > либо ссылку в текущем feature_progress.md на момент их переноса.
+
+---
+
+## ✅ Батч 19: User Profile (2026-03-03) — MERGED
+
+**Дата**: 2026/03/03
+**Протокол**: 0024-user-profile
+**PR**: https://github.com/SkyTger/FinFocus/pull/24
+**Статус**: ✅ Merged в main
+
+### 🎯 Цель батча:
+Персонализация приложения: расширить onboarding wizard (имя + аватарка + баланс), сделать sidebar динамическим, добавить profile modal для редактирования, приветствие на dashboard.
+
+### ✅ Выполненные задачи:
+
+1. **Data Layer** — app/config/avatars.py (10 emoji аватарок, DEFAULT_AVATAR_ID, get_avatar_emoji())
+2. **Migration + Bootstrap** — миграция 007_avatar_id, bootstrap с avatar_id="emoji-default"
+3. **Service Layer** — OnboardingService: complete(), update_profile(), get_profile(), _validate_profile_fields(), deprecated wrapper complete_with_balance()
+4. **Schema** — UserProfile TypedDict, name/avatar_id в OnboardingStatus
+5. **Onboarding UI** — перестроен wizard: имя + RadioItems аватарка + баланс, два callback'а
+6. **Sidebar + Profile Modal** — динамический профиль (Store-based), profile_modal.py (edit name/avatar)
+7. **Main + Dashboard** — Store("profile-updated"), dashboard greeting "Добро пожаловать, {name}!"
+8. **Tests** — test_avatars.py (5), test_migration_007.py (3), test_onboarding_service.py расширен до 15
+
+### 📊 Результат:
+- ✅ 546 unit и integration тестов (было 531, +15 новых)
+- ✅ 10 emoji аватарок с конфигом
+- ✅ Store("profile-updated") как event bus для sidebar
+- ✅ Inline DB read для dashboard greeting
+- ✅ Code review: Security 5/5, Quality 4/5
+- ✅ Critical fix: profile_modal.py — keep modal open on save error

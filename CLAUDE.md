@@ -38,8 +38,8 @@ SQLite database location: `data/finfocus.db` (created automatically)
 
 - **`app/main.py`**: Dash app initialization, URL routing, page layout orchestration
 - **`app/models/database.py`**: SQLAlchemy ORM models (User, Transaction, Goal, GoalContribution)
-- **`app/components/`**: Reusable UI components (dashboard.py, sidebar.py)
-- **`app/services/`**: Business logic and data processing (future)
+- **`app/components/`**: Reusable UI components (dashboard.py, sidebar.py, calendar.py, goals.py, etc.)
+- **`app/services/`**: Business logic and data processing — ~30 сервисов (TransactionService, GoalService, CalendarService, DashboardService, AllocationService, RedistributionService, CushionService, OnboardingService, AnalyticsService, WishlistService и др.)
 - **`app/assets/`**: Static files (CSS, images)
 
 ### Data Model
@@ -76,8 +76,8 @@ Routing handled by `display_page()` callback responding to URL pathname changes.
 3. **Constraint**: Only edit files in current batch scope
 
 ### Project Context Files
-- **@ROADMAP.md**: Single source of truth for tasks/priorities (read at session start)
-- **@.reports/notes/feature_progress.md**: Active feature/batch summaries
+- **@.obsidian-docs/ROADMAP.md**: Single source of truth for tasks/priorities (read at session start)
+- **@.obsidian-docs/reports/notes/feature_progress.md**: Active feature/batch summaries
 - **docs/adr/*.md**: Architecture Decision Records for long-term decisions
 
 ### ROADMAP Management
@@ -99,15 +99,15 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 ## 📚 Что читать при старте
 
 **Обязательно в начале КАЖДОЙ сессии:**
-1. `@ROADMAP.md` - единый источник задач и приоритетов
-2. `@.reports/notes/feature_progress.md` - последние 5 батчей (краткая история)
+1. `@.obsidian-docs/ROADMAP.md` - единый источник задач и приоритетов
+2. `@.obsidian-docs/reports/notes/feature_progress.md` - последние 5 батчей (краткая история)
 
 **При необходимости:**
-3. `@.reports/epics/epic-XX/README.md` - цель текущего эпика
-4. `@.reports/epics/epic-XX/decisions.md` - критичные решения (КРИТИЧНО блоки)
+3. `@.obsidian-docs/reports/epics/epic-XX/README.md` - цель текущего эпика
+4. `@.obsidian-docs/reports/epics/epic-XX/decisions.md` - критичные решения (КРИТИЧНО блоки)
 
 **Детали работы с субагентами:**
-`@.reports/DELEGATION_GUIDE.md` - полное руководство по делегированию
+`@.obsidian-docs/reports/DELEGATION_GUIDE.md` - полное руководство по делегированию
 
 ## 🤖 Работа с субагентами
 
@@ -162,7 +162,7 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 - `@qa-engineer` - тестирование
 - `@doc-manager` - обновление документации
 
-**Детальное руководство**: `@.reports/DELEGATION_GUIDE.md`
+**Детальное руководство**: `@.obsidian-docs/reports/DELEGATION_GUIDE.md`
 
 ---
 
@@ -199,7 +199,7 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 - **decisions.md** - история решений и детальный контекст
 - **При конфликте**: ROADMAP.md > decisions.md
 
-**Детальные правила**: `@.reports/DELEGATION_GUIDE.md`
+**Детальные правила**: `@.obsidian-docs/reports/DELEGATION_GUIDE.md`
 
 ---
 
@@ -221,7 +221,7 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 
 **Ограничения**:
 - ❌ НЕ править файлы вне списка текущего батча
-- ❌ Длинные списки/логи сохранять в `.reports/notes/*.md`, а не в чат
+- ❌ Длинные списки/логи сохранять в `.obsidian-docs/reports/notes/*.md`, а не в чат
 ---
 
 ## 🚀 Быстрый старт для новой AI сессии
@@ -266,9 +266,9 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 
 | Файл | Назначение |
 |------|-----------|
-| `ROADMAP.md` | План развития и прогресс по эпикам |
-| `feature_progress.md` | Последние 5 батчей (краткая история) |
+| `.obsidian-docs/ROADMAP.md` | План развития и прогресс по эпикам |
+| `.obsidian-docs/reports/notes/feature_progress.md` | Последние 5 батчей (краткая история) |
 | `docs/adr/` | Architecture Decision Records |
-| `.reports/epics/epic-XX/` | Детали эпиков (README, decisions, progress, technical) |
-| `.reports/DELEGATION_GUIDE.md` | Полное руководство по работе с субагентами |
-| `.reports/DOCUMENTATION_PROMPT.md` | Промпт для документации других проектов |
+| `.obsidian-docs/reports/epics/epic-XX/` | Детали эпиков (README, decisions, progress, technical) |
+| `.obsidian-docs/reports/DELEGATION_GUIDE.md` | Полное руководство по работе с субагентами |
+| `.obsidian-docs/reports/DOCUMENTATION_PROMPT.md` | Промпт для документации других проектов |

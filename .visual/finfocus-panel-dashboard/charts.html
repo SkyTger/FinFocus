@@ -1,0 +1,245 @@
+<!-- ============================================================
+     charts.html — блоки графиков для эскиза дашборда FinFocus
+     Чистый инлайновый SVG, без внешних зависимостей и скриптов.
+     Вставлять блоки КАК ЕСТЬ внутрь соответствующих карточек.
+     Палитра из brief.md: #2ecc71 свободно / #f0b775 обещано
+     (приглушённый #f39c12) / #3498db резерв.
+     ============================================================ -->
+
+<!-- ========== БЛОК 1: центральный график «деньги с именами» ==========
+     Раздел брифа: п.2 (весь ряд, высота ~340px).
+     Ожидаемая ширина контейнера: 100% строки (~1180px при странице 1280px).
+     Высота: SVG масштабируется по ширине, при 1180px даёт ровно 340px.
+     Вёрстальщику: контейнер БЕЗ overflow:hidden и БЕЗ padding по бокам —
+     правые аннотации («Отпуск 15 окт →») используют внутреннее поле 136px,
+     они уже внутри viewBox и не обрежутся.
+     Ось Y: 0 … 160 000 ₽ при максимуме стопки 143 280 ₽ (запас ~11%). -->
+<div id="chart-main" style="width:100%;max-width:1180px;margin:0 auto">
+<svg viewBox="0 0 1180 340" width="100%" role="img" aria-label="Прогноз остатка по дням с 22 августа по 5 октября 2026: свободно, обещано, резерв целей и подушки" style="display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<rect x="74" y="42" width="970.0" height="240" fill="#ffffff"/>
+<line x1="74" y1="282.0" x2="1044.0" y2="282.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="286.0" text-anchor="end" font-size="11" fill="#7f8c8d">0</text>
+<line x1="74" y1="222.0" x2="1044.0" y2="222.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="226.0" text-anchor="end" font-size="11" fill="#7f8c8d">40 000</text>
+<line x1="74" y1="162.0" x2="1044.0" y2="162.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="166.0" text-anchor="end" font-size="11" fill="#7f8c8d">80 000</text>
+<line x1="74" y1="102.0" x2="1044.0" y2="102.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="106.0" text-anchor="end" font-size="11" fill="#7f8c8d">120 000</text>
+<line x1="74" y1="42.0" x2="1044.0" y2="42.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="46.0" text-anchor="end" font-size="11" fill="#7f8c8d">160 000</text>
+<text x="64" y="28" text-anchor="end" font-size="11" fill="#7f8c8d">₽</text>
+<rect x="77.7" y="234.00" width="14.2" height="48.00" fill="#2ecc71"/>
+<rect x="77.7" y="177.75" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="77.7" y="155.25" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="99.2" y="236.67" width="14.2" height="45.33" fill="#2ecc71"/>
+<rect x="99.2" y="180.42" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="99.2" y="157.92" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="120.8" y="239.46" width="14.2" height="42.54" fill="#2ecc71"/>
+<rect x="120.8" y="183.21" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="120.8" y="160.71" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="142.3" y="241.55" width="14.2" height="40.45" fill="#2ecc71"/>
+<rect x="142.3" y="230.30" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="142.3" y="207.80" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="163.9" y="244.06" width="14.2" height="37.94" fill="#2ecc71"/>
+<rect x="163.9" y="232.81" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="163.9" y="210.31" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="185.4" y="246.47" width="14.2" height="35.54" fill="#2ecc71"/>
+<rect x="185.4" y="235.22" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="185.4" y="212.72" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="207.0" y="249.44" width="14.2" height="32.56" fill="#2ecc71"/>
+<rect x="207.0" y="247.49" width="14.2" height="1.95" fill="#f0b775"/>
+<rect x="207.0" y="224.99" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="228.6" y="251.79" width="14.2" height="30.21" fill="#2ecc71"/>
+<rect x="228.6" y="249.84" width="14.2" height="1.95" fill="#f0b775"/>
+<rect x="228.6" y="227.34" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="250.1" y="254.46" width="14.2" height="27.54" fill="#2ecc71"/>
+<rect x="250.1" y="231.96" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="271.7" y="257.25" width="14.2" height="24.75" fill="#2ecc71"/>
+<rect x="271.7" y="234.75" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="293.2" y="259.33" width="14.2" height="22.66" fill="#2ecc71"/>
+<rect x="293.2" y="236.83" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="314.8" y="261.86" width="14.2" height="20.14" fill="#2ecc71"/>
+<rect x="314.8" y="239.36" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="336.3" y="264.25" width="14.2" height="17.75" fill="#2ecc71"/>
+<rect x="336.3" y="241.75" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="357.9" y="267.23" width="14.2" height="14.78" fill="#2ecc71"/>
+<rect x="357.9" y="244.73" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="379.4" y="157.83" width="14.2" height="124.17" fill="#2ecc71"/>
+<rect x="379.4" y="101.58" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="379.4" y="67.08" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="401.0" y="160.50" width="14.2" height="121.50" fill="#2ecc71"/>
+<rect x="401.0" y="104.25" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="401.0" y="69.75" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="422.6" y="163.29" width="14.2" height="118.71" fill="#2ecc71"/>
+<rect x="422.6" y="107.04" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="422.6" y="72.54" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="444.1" y="165.38" width="14.2" height="116.62" fill="#2ecc71"/>
+<rect x="444.1" y="109.12" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="444.1" y="74.62" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="465.7" y="167.89" width="14.2" height="114.11" fill="#2ecc71"/>
+<rect x="465.7" y="111.64" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="465.7" y="77.14" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="487.2" y="170.30" width="14.2" height="111.70" fill="#2ecc71"/>
+<rect x="487.2" y="114.05" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="487.2" y="79.55" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="508.8" y="173.26" width="14.2" height="108.73" fill="#2ecc71"/>
+<rect x="508.8" y="117.01" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="508.8" y="82.51" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="530.3" y="175.62" width="14.2" height="106.38" fill="#2ecc71"/>
+<rect x="530.3" y="119.37" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="530.3" y="84.87" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="551.9" y="178.29" width="14.2" height="103.71" fill="#2ecc71"/>
+<rect x="551.9" y="122.04" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="551.9" y="87.54" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="573.4" y="181.08" width="14.2" height="100.92" fill="#2ecc71"/>
+<rect x="573.4" y="124.83" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="573.4" y="90.33" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="595.0" y="183.16" width="14.2" height="98.84" fill="#2ecc71"/>
+<rect x="595.0" y="126.91" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="595.0" y="92.41" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="616.6" y="185.69" width="14.2" height="96.31" fill="#2ecc71"/>
+<rect x="616.6" y="129.44" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="616.6" y="94.94" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="638.1" y="188.08" width="14.2" height="93.92" fill="#2ecc71"/>
+<rect x="638.1" y="131.83" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="638.1" y="97.33" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="659.7" y="191.06" width="14.2" height="90.94" fill="#2ecc71"/>
+<rect x="659.7" y="134.81" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="659.7" y="100.31" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="681.2" y="193.41" width="14.2" height="88.59" fill="#2ecc71"/>
+<rect x="681.2" y="137.16" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="681.2" y="102.66" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="702.8" y="196.08" width="14.2" height="85.92" fill="#2ecc71"/>
+<rect x="702.8" y="139.83" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="702.8" y="105.33" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="724.3" y="198.87" width="14.2" height="83.13" fill="#2ecc71"/>
+<rect x="724.3" y="142.62" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="724.3" y="108.12" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="745.9" y="200.96" width="14.2" height="81.04" fill="#2ecc71"/>
+<rect x="745.9" y="144.71" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="745.9" y="110.21" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="767.4" y="203.47" width="14.2" height="78.53" fill="#2ecc71"/>
+<rect x="767.4" y="147.22" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="767.4" y="112.72" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="789.0" y="205.88" width="14.2" height="76.12" fill="#2ecc71"/>
+<rect x="789.0" y="149.62" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="789.0" y="115.12" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="810.6" y="208.84" width="14.2" height="73.16" fill="#2ecc71"/>
+<rect x="810.6" y="197.59" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="810.6" y="163.09" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="832.1" y="211.20" width="14.2" height="70.80" fill="#2ecc71"/>
+<rect x="832.1" y="199.95" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="832.1" y="165.45" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="853.7" y="213.87" width="14.2" height="68.13" fill="#2ecc71"/>
+<rect x="853.7" y="202.62" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="853.7" y="168.12" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="875.2" y="216.66" width="14.2" height="65.34" fill="#2ecc71"/>
+<rect x="875.2" y="214.71" width="14.2" height="1.95" fill="#f0b775"/>
+<rect x="875.2" y="180.21" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="896.8" y="218.75" width="14.2" height="63.25" fill="#2ecc71"/>
+<rect x="896.8" y="216.80" width="14.2" height="1.95" fill="#f0b775"/>
+<rect x="896.8" y="182.30" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="918.3" y="221.26" width="14.2" height="60.74" fill="#2ecc71"/>
+<rect x="918.3" y="186.76" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="939.9" y="223.67" width="14.2" height="58.33" fill="#2ecc71"/>
+<rect x="939.9" y="189.17" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="961.4" y="226.63" width="14.2" height="55.36" fill="#2ecc71"/>
+<rect x="961.4" y="192.13" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="983.0" y="228.99" width="14.2" height="53.01" fill="#2ecc71"/>
+<rect x="983.0" y="194.49" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="1004.6" y="231.66" width="14.2" height="50.34" fill="#2ecc71"/>
+<rect x="1004.6" y="197.16" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="1026.1" y="234.45" width="14.2" height="47.55" fill="#2ecc71"/>
+<rect x="1026.1" y="199.95" width="14.2" height="34.50" fill="#3498db"/>
+<line x1="74" y1="282" x2="1044.0" y2="282" stroke="#cfd6dc" stroke-width="1"/>
+<line x1="84.8" y1="282" x2="84.8" y2="287" stroke="#cfd6dc"/>
+<text x="84.8" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">22 авг</text>
+<line x1="149.4" y1="282" x2="149.4" y2="287" stroke="#cfd6dc"/>
+<text x="149.4" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">25 авг</text>
+<line x1="214.1" y1="282" x2="214.1" y2="287" stroke="#cfd6dc"/>
+<text x="214.1" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">28 авг</text>
+<line x1="300.3" y1="282" x2="300.3" y2="287" stroke="#cfd6dc"/>
+<text x="300.3" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">1 сент</text>
+<line x1="386.6" y1="282" x2="386.6" y2="287" stroke="#cfd6dc"/>
+<text x="386.6" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">5 сент</text>
+<line x1="494.3" y1="282" x2="494.3" y2="287" stroke="#cfd6dc"/>
+<text x="494.3" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">10 сент</text>
+<line x1="602.1" y1="282" x2="602.1" y2="287" stroke="#cfd6dc"/>
+<text x="602.1" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">15 сент</text>
+<line x1="709.9" y1="282" x2="709.9" y2="287" stroke="#cfd6dc"/>
+<text x="709.9" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">20 сент</text>
+<line x1="817.7" y1="282" x2="817.7" y2="287" stroke="#cfd6dc"/>
+<text x="817.7" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">25 сент</text>
+<line x1="925.4" y1="282" x2="925.4" y2="287" stroke="#cfd6dc"/>
+<text x="925.4" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">30 сент</text>
+<line x1="1033.2" y1="282" x2="1033.2" y2="287" stroke="#cfd6dc"/>
+<text x="1033.2" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">5 окт</text>
+<line x1="74.0" y1="34" x2="74.0" y2="284" stroke="#2c3e50" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="79.0" y="29" font-size="11" font-weight="600" fill="#2c3e50">сегодня</text>
+<!-- Событие «Аренда» 25 авг: верхний уровень выноски (y=127.5) -->
+<line x1="149.4" y1="204.8" x2="149.4" y2="131.5" stroke="#c3ccd4" stroke-width="1"/>
+<circle cx="149.4" cy="204.8" r="2.6" fill="#b9c3cc"/>
+<text x="149.4" y="127.5" text-anchor="middle" font-size="11" fill="#2c3e50"><tspan font-weight="600">Аренда</tspan> <tspan fill="#d9534f">−30 000 ₽</tspan></text>
+<!-- Событие «Коммуналка» 28 авг: НИЖНИЙ уровень выноски (y=175), подпись
+     центрирована по своей дате — не наслаивается на «Аренду» сверху. -->
+<line x1="214.1" y1="222.0" x2="214.1" y2="179.0" stroke="#c3ccd4" stroke-width="1"/>
+<circle cx="214.1" cy="222.0" r="2.6" fill="#b9c3cc"/>
+<text x="214.1" y="175.0" text-anchor="middle" font-size="11" fill="#2c3e50"><tspan font-weight="600">Коммуналка</tspan> <tspan fill="#d9534f">−6 200 ₽</tspan></text>
+<!-- Событие «Зарплата» 5 сент: самый верхний уровень (y=42.1) -->
+<line x1="386.6" y1="64.1" x2="386.6" y2="47.1" stroke="#c3ccd4" stroke-width="1"/>
+<circle cx="386.6" cy="64.1" r="2.6" fill="#b9c3cc"/>
+<text x="386.6" y="42.1" text-anchor="middle" font-size="11" fill="#2c3e50"><tspan font-weight="600">Зарплата</tspan> <tspan fill="#1e9e57">+120 000 ₽</tspan></text>
+<!-- Минимум свободного 4 сент. У самой точки — только маркер-кружок плюс
+     компактный ярлык «9 800 ₽» ПОД осью (полоса y 306–320 свободна: подписи
+     дат сидят на y=301, ярлык смещён ниже и левее «5 сент»), поэтому столбцы
+     28 авг–1 сент больше ничем не закрыты.
+     Развёрнутая плашка ушла в пустую зону правее 5 сент (x 844–1030,
+     y 104–140): стопки после 25 сент кончаются на y≈163, легенда выше на
+     y 42–58 — перекрытий нет. Линии-выноски у плашки нет вовсе: она
+     привязана к точке текстом даты, а любая линия отсюда шла бы через бары. -->
+<circle cx="365.0" cy="267.2" r="4.5" fill="#ffffff" stroke="#f39c12" stroke-width="2.5"/>
+<line x1="365.0" y1="272.5" x2="365.0" y2="306.0" stroke="#f39c12" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="365.0" y="319.0" text-anchor="middle" font-size="11" font-weight="600" fill="#8a5a12">9 800 ₽</text>
+<rect x="844.0" y="104.0" width="186" height="36" rx="5" fill="#fff8ec" stroke="#f39c12" stroke-width="1"/>
+<text x="854.0" y="119.0" font-size="11.5" font-weight="600" fill="#8a5a12">⚠ Минимум свободного</text>
+<text x="854.0" y="134.0" font-size="11.5" fill="#8a5a12">4 сент — 9 800 ₽</text>
+<!-- Веха «Цель Отпуск» за краем окна: усилена — кегль 11.5/11, флажок и весь
+     текст акцентным синим #3498db, стрелка толще. Держит правый край. -->
+<line x1="1044.0" y1="156.0" x2="1060.0" y2="156.0" stroke="#3498db" stroke-width="2" stroke-dasharray="3 3"/>
+<polygon points="1059.0,150.0 1071.0,156.0 1059.0,162.0" fill="#3498db"/>
+<text x="1052.0" y="187.0" font-size="11.5" font-weight="700" fill="#3498db">⚑ Цель «Отпуск»</text>
+<text x="1052.0" y="202.0" font-size="11" font-weight="600" fill="#3498db">15 окт →</text>
+<text x="1052.0" y="217.0" font-size="11" fill="#3498db">за краем окна</text>
+<rect x="614.0" y="47" width="11" height="11" rx="2" fill="#3498db"/>
+<text x="630.0" y="56" font-size="11.5" fill="#2c3e50">Резерв целей и подушки</text>
+<rect x="797.2" y="47" width="11" height="11" rx="2" fill="#f0b775"/>
+<text x="813.2" y="56" font-size="11.5" fill="#2c3e50">Обещано</text>
+<rect x="881.4" y="47" width="11" height="11" rx="2" fill="#2ecc71"/>
+<text x="897.4" y="56" font-size="11.5" fill="#2c3e50">Свободно</text>
+<text x="74" y="332" font-size="11" fill="#7f8c8d">Прогноз остатка по дням, ₽ · 22 авг — 5 окт 2026</text>
+</svg>
+</div>
+
+<!-- ========== БЛОК 2: мини-полоска структуры расходов ==========
+     Раздел брифа: п.3, карточка «Аналитика →».
+     Ожидаемая ширина карточки: ~260px (viewBox 260 = рендер 1:1,
+     текст 11px/10px остаётся читаемым; НЕ растягивать шире ~300px и
+     не сжимать уже 240px, иначе кегль уплывёт).
+     Высота блока: 62px (полоска + легенда в две строки).
+     Ставить под строкой «Продукты — 24 300 ₽ (31%)».
+     Топ-3 категории + серое «прочее» до итога 78 400 ₽. -->
+<div id="chart-analytics-mini" style="width:100%;max-width:260px">
+<svg viewBox="0 0 260 62" width="100%" role="img" aria-label="Структура расходов августа: Продукты 24 300 ₽ (31%), Транспорт 12 000 ₽ (15%), Кафе 8 500 ₽ (11%) из 78 400 ₽" style="display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<rect x="0.0" y="4" width="80.6" height="14" fill="#2ecc71"/>
+<rect x="80.6" y="4" width="39.8" height="14" fill="#3498db"/>
+<rect x="120.4" y="4" width="28.2" height="14" fill="#f39c12"/>
+<rect x="148.6" y="4" width="111.4" height="14" fill="#dfe6ea"/>
+<rect x="0.0" y="28" width="9" height="9" rx="2" fill="#2ecc71"/>
+<text x="13.0" y="36.5" font-size="11" fill="#2c3e50">Продукты <tspan fill="#7f8c8d">31%</tspan></text>
+<rect x="150.0" y="28" width="9" height="9" rx="2" fill="#3498db"/>
+<text x="163.0" y="36.5" font-size="11" fill="#2c3e50">Транспорт <tspan fill="#7f8c8d">15%</tspan></text>
+<rect x="0.0" y="46" width="9" height="9" rx="2" fill="#f39c12"/>
+<text x="13.0" y="54.5" font-size="11" fill="#2c3e50">Кафе <tspan fill="#7f8c8d">11%</tspan></text>
+<text x="260" y="54.5" text-anchor="end" font-size="10" fill="#7f8c8d">из 78 400 ₽</text>
+</svg>
+</div>

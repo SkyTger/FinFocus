@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinFocus — щиток</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* палитра FinFocus (brief.md) */
+  --free:#2ecc71;
+  --free-deep:#1e9e57;
+  --reserve:#3498db;
+  --warn:#f39c12;
+  --promised:#f0b775;
+  --risk:#e74c3c;
+  --ink:#2c3e50;
+  --ink-2:#7f8c8d;
+  --line:#e8ecef;
+  --line-soft:#f0f3f5;
+  --page:#f8fafb;
+  --card:#ffffff;
+
+  --r:14px;
+  --r-sm:10px;
+  --gap:16px;
+  --sans:'Manrope','DejaVu Sans','Segoe UI',system-ui,-apple-system,Arial,sans-serif;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--page);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.45;
+  font-variant-numeric:tabular-nums;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+
+.shell{
+  width:100%;
+  max-width:1280px;
+  margin:0 auto;
+  padding:16px 28px 16px;
+}
+
+/* ─── утилитарные метки «печать на щитке» ─────────────────────── */
+.tag{
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  color:var(--ink-2);
+}
+
+.money{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+.neg{color:var(--risk)}
+.pos{color:var(--free-deep)}
+/* маркер регулярной операции: 🔁 из брифа, но в кружке-«бирке»,
+   чтобы эмодзи не выпадал из ряда и читался при мелком кегле */
+.rec{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;
+  border-radius:50%;
+  background:var(--line-soft);
+  font-size:8.5px;line-height:1;
+  vertical-align:1px;
+  margin:0 1px;
+}
+
+/* ═══ 1. ШАПКА-ВЕРДИКТ — главный автомат щитка ═══════════════════ */
+.breaker{
+  position:relative;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  padding:16px 24px 15px;
+  display:flex;
+  align-items:flex-start;
+  gap:28px;
+  overflow:hidden;
+}
+/* сигнальная шина: широкая зелёная полоса слева = «линия под напряжением» */
+.breaker::before{
+  content:"";
+  position:absolute;
+  left:0;top:0;bottom:0;
+  width:5px;
+  background:var(--free);
+}
+
+.breaker-main{flex:1 1 auto;min-width:0;padding-left:8px}
+
+.verdict-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+
+.amount{
+  font-size:54px;
+  line-height:1.02;
+  font-weight:800;
+  letter-spacing:-.028em;
+  color:var(--ink);
+  white-space:nowrap;
+}
+.amount .cur{font-weight:600;color:var(--ink-2);font-size:.52em;margin-left:6px;letter-spacing:0}
+
+.chip{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  padding:7px 14px 7px 12px;
+  border-radius:999px;
+  background:#eafaf1;
+  border:1px solid #bfe9d0;
+  color:var(--free-deep);
+  font-size:13.5px;
+  font-weight:700;
+  white-space:nowrap;
+  margin-bottom:4px;
+}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--free);flex:0 0 auto}
+
+.breadcrumb{
+  margin-top:9px;
+  font-size:13px;
+  color:var(--ink-2);
+  display:flex;
+  align-items:center;
+  gap:9px;
+  flex-wrap:wrap;
+}
+.breadcrumb b{color:var(--ink);font-weight:600}
+.breadcrumb .op{color:#b3bec6;font-weight:600}
+
+/* ─── правый угол шапки: пользователь + шестерёнка ─────────────── */
+.who{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding-top:2px;
+}
+.avatar{
+  display:flex;align-items:center;gap:9px;
+  background:var(--page);
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:5px 14px 5px 6px;
+}
+.avatar .face{
+  width:30px;height:30px;border-radius:50%;
+  background:#fff;border:1px solid var(--line);
+  display:grid;place-items:center;font-size:16px;line-height:1;
+}
+.avatar .name{font-size:13.5px;font-weight:600;color:var(--ink)}
+.cog{
+  width:34px;height:34px;
+  border:1px solid var(--line);
+  border-radius:50%;
+  background:var(--card);
+  color:var(--ink-2);
+  display:grid;place-items:center;
+  cursor:pointer;
+}
+.cog svg{display:block}
+.cog:hover{color:var(--ink);border-color:#d5dde2}
+
+/* ═══ 2. ЦЕНТРАЛЬНЫЙ ГРАФИК ══════════════════════════════════════ */
+.meter{
+  margin-top:var(--gap);
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  padding:11px 16px 2px;
+}
+.meter-head{
+  display:flex;align-items:baseline;justify-content:space-between;
+  gap:16px;margin-bottom:0;padding:0 4px;
+}
+.meter-head h2{
+  margin:0;
+  font-size:16px;
+  font-weight:700;
+  letter-spacing:-.008em;
+}
+.meter-head .hint{font-size:12.5px;color:var(--ink-2)}
+.chart-wrap{width:100%}
+
+/* ═══ 3. РЯД КАРТОЧЕК-ДВЕРЕЙ ════════════════════════════════════ */
+.slots{
+  margin-top:var(--gap);
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:var(--gap);
+}
+
+.door{
+  position:relative;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--r);
+  padding:15px 16px 16px;
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  cursor:pointer;
+  transition:border-color .16s ease, transform .16s ease;
+}
+/* маркировка гнезда на щитке: цветная шина по верхней кромке карточки,
+   вписана внутрь скругления — не «висит» над карточкой */
+.door{overflow:hidden}
+.door::before{
+  content:"";
+  position:absolute;
+  left:0;right:0;top:0;
+  height:3px;
+  background:var(--slot,var(--line));
+}
+.door:hover{border-color:#d3dbe1;transform:translateY(-1px)}
+.door:hover .chev{transform:translateX(3px);color:var(--ink)}
+.door:focus-visible{outline:2px solid var(--reserve);outline-offset:2px}
+
+.door-head{
+  display:flex;align-items:center;gap:9px;
+  padding-bottom:10px;
+  border-bottom:1px solid var(--line-soft);
+  margin-bottom:11px;
+}
+.door-head .ico{
+  width:26px;height:26px;flex:0 0 auto;
+  border-radius:7px;
+  display:grid;place-items:center;
+  font-size:14px;line-height:1;
+  background:var(--slot-soft,var(--page));
+}
+.door-head h3{
+  margin:0;flex:1 1 auto;
+  font-size:15px;font-weight:700;
+  letter-spacing:-.005em;
+  white-space:nowrap;
+}
+.chev{
+  flex:0 0 auto;
+  font-size:15px;font-weight:700;
+  color:#a9b5bd;
+  transition:transform .16s ease,color .16s ease;
+}
+
+.door-body{flex:1 1 auto;display:flex;flex-direction:column;gap:9px}
+
+/* строка «ключ → значение» */
+.line{
+  display:flex;align-items:baseline;gap:8px;
+  font-size:13px;
+  min-width:0;
+}
+.line .k{color:var(--ink-2);flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.line .v{flex:0 0 auto;font-weight:600;white-space:nowrap}
+.line.now .k{color:var(--ink);font-weight:600}
+
+/* три мини-дня календаря */
+.days{display:flex;gap:8px}
+.day{
+  flex:1 1 0;min-width:0;
+  border:1px solid var(--line);
+  border-radius:var(--r-sm);
+  padding:7px 8px 8px;
+  text-align:center;
+  background:var(--page);
+}
+.day.today{background:#eafaf1;border-color:#c6ebd6}
+.day .d-lab{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2);white-space:nowrap}
+.day .d-date{font-size:10.5px;color:#9aa7af;margin-top:1px}
+.day .d-sum{font-size:13.5px;font-weight:700;margin-top:3px;white-space:nowrap}
+.day .d-note{font-size:10px;color:var(--ink-2);margin-top:1px;white-space:nowrap}
+.day.today .d-lab{color:var(--free-deep)}
+
+/* строка-маркер внимания */
+.flagline{
+  display:flex;align-items:center;gap:7px;
+  margin-top:auto;
+  background:#fff8ec;
+  border:1px solid #f6dcae;
+  border-radius:var(--r-sm);
+  padding:8px 10px;
+  font-size:12px;
+  color:#8a5a12;
+  line-height:1.35;
+}
+.flagline .wi{flex:0 0 auto;font-size:12px}
+.flagline b{font-weight:700}
+
+/* прогресс-бары */
+.goal-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.goal-name{font-size:14px;font-weight:700;display:flex;align-items:center;gap:5px}
+.goal-pct{font-size:14px;font-weight:800;color:var(--reserve)}
+.bar{
+  height:8px;border-radius:999px;background:#edf1f4;overflow:hidden;margin-top:7px;
+}
+.bar > i{display:block;height:100%;border-radius:999px;background:var(--reserve)}
+.bar.thin{height:6px;margin-top:5px}
+.bar.thin > i{background:var(--free)}
+.goal-sub{font-size:12px;color:var(--ink-2);margin-top:6px}
+.rule{height:1px;background:var(--line-soft);margin:2px 0}
+
+/* группы операций */
+.grp{font-size:9.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:#a2aeb6;margin-bottom:-2px}
+
+/* аналитика */
+.big-sum{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.1}
+/* мини-полоска структуры: viewBox 420 в карточке ~260px мельчит легенду.
+   Растягиваем блок на всю ширину карточки (за её паддинги) — так подписи
+   получают максимум доступного кегля без правки самого SVG. */
+.mini-slot{
+  margin:0 -16px -16px;
+  padding:11px 12px 12px;
+  border-top:1px solid var(--line-soft);
+  background:#fcfdfd;
+}
+.big-sum + .cap{font-size:12px;color:var(--ink-2);margin-top:2px}
+.top-cat{
+  display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  font-size:13px;
+}
+.top-cat .n{font-weight:600}
+.top-cat .a{font-weight:700}
+
+/* ═══ Wishlist — компактный виджет, НЕ дверь ════════════════════ */
+.wish{
+  margin-top:12px;
+  background:var(--card);
+  border:1px solid var(--line);
+  border-left:3px solid var(--free);
+  border-radius:var(--r);
+  padding:11px 18px;
+  display:flex;
+  align-items:center;
+  gap:14px;
+  flex-wrap:wrap;
+}
+.wish .w-tag{
+  font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--ink-2);
+  padding-right:14px;
+  border-right:1px solid var(--line);
+  white-space:nowrap;
+}
+.wish .w-item{font-size:14px;font-weight:600;white-space:nowrap}
+.wish .w-item .w-price{font-weight:800;margin-left:6px}
+.wish .w-verdict{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:12.5px;font-weight:600;color:var(--free-deep);
+  background:#eafaf1;border:1px solid #c6ebd6;
+  border-radius:999px;padding:4px 12px;
+  white-space:nowrap;
+}
+.wish .w-spacer{flex:1 1 auto}
+.wish .w-note{font-size:12px;color:var(--ink-2);white-space:nowrap}
+
+/* ─── адаптив: эскиз desktop-first, но не ломается ────────────── */
+@media (max-width:1180px){
+  .slots{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .amount{font-size:46px}
+  .shell{padding:20px 20px 32px}
+}
+@media (max-width:680px){
+  .slots{grid-template-columns:minmax(0,1fr)}
+  .breaker{flex-direction:column;gap:14px}
+  .amount{font-size:38px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none !important}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ═══════════ 1. ШАПКА-ВЕРДИКТ ═══════════ -->
+  <header class="breaker">
+    <div class="breaker-main">
+      <div class="tag">Свободно сегодня</div>
+      <div class="verdict-row">
+        <div class="amount money">32 000<span class="cur">₽</span></div>
+        <div class="chip"><span class="dot"></span>Всё в порядке</div>
+      </div>
+      <div class="breadcrumb">
+        <span>баланс <b class="money">84 500 ₽</b></span>
+        <span class="op">−</span>
+        <span>обещано <b class="money">37 500 ₽</b></span>
+        <span class="op">−</span>
+        <span>резерв целей <b class="money">15 000 ₽</b></span>
+      </div>
+    </div>
+
+    <div class="who">
+      <div class="avatar">
+        <span class="face" aria-hidden="true">🦊</span>
+        <span class="name">Иван</span>
+      </div>
+      <button class="cog" type="button" aria-label="Настройки">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══════════ 2. ЦЕНТРАЛЬНЫЙ ГРАФИК ═══════════ -->
+  <section class="meter">
+    <div class="meter-head">
+      <h2>Деньги с именами</h2>
+      <span class="hint">каждый рубль уже чем-то занят — полосы показывают чем</span>
+    </div>
+    <div class="chart-wrap">
+<div id="chart-main" style="width:100%;max-width:1180px;margin:0 auto">
+<svg viewBox="0 0 1180 340" width="100%" role="img" aria-label="Прогноз остатка по дням с 22 августа по 5 октября 2026: свободно, обещано, резерв целей и подушки" style="display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<rect x="74" y="42" width="970.0" height="240" fill="#ffffff"/>
+<line x1="74" y1="282.0" x2="1044.0" y2="282.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="286.0" text-anchor="end" font-size="11" fill="#7f8c8d">0</text>
+<line x1="74" y1="222.0" x2="1044.0" y2="222.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="226.0" text-anchor="end" font-size="11" fill="#7f8c8d">40 000</text>
+<line x1="74" y1="162.0" x2="1044.0" y2="162.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="166.0" text-anchor="end" font-size="11" fill="#7f8c8d">80 000</text>
+<line x1="74" y1="102.0" x2="1044.0" y2="102.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="106.0" text-anchor="end" font-size="11" fill="#7f8c8d">120 000</text>
+<line x1="74" y1="42.0" x2="1044.0" y2="42.0" stroke="#e8ecef" stroke-width="1"/>
+<text x="64" y="46.0" text-anchor="end" font-size="11" fill="#7f8c8d">160 000</text>
+<text x="64" y="28" text-anchor="end" font-size="11" fill="#7f8c8d">₽</text>
+<rect x="77.7" y="234.00" width="14.2" height="48.00" fill="#2ecc71"/>
+<rect x="77.7" y="177.75" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="77.7" y="155.25" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="99.2" y="236.67" width="14.2" height="45.33" fill="#2ecc71"/>
+<rect x="99.2" y="180.42" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="99.2" y="157.92" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="120.8" y="239.46" width="14.2" height="42.54" fill="#2ecc71"/>
+<rect x="120.8" y="183.21" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="120.8" y="160.71" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="142.3" y="241.55" width="14.2" height="40.45" fill="#2ecc71"/>
+<rect x="142.3" y="230.30" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="142.3" y="207.80" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="163.9" y="244.06" width="14.2" height="37.94" fill="#2ecc71"/>
+<rect x="163.9" y="232.81" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="163.9" y="210.31" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="185.4" y="246.47" width="14.2" height="35.54" fill="#2ecc71"/>
+<rect x="185.4" y="235.22" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="185.4" y="212.72" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="207.0" y="249.44" width="14.2" height="32.56" fill="#2ecc71"/>
+<rect x="207.0" y="247.49" width="14.2" height="1.95" fill="#f0b775"/>
+<rect x="207.0" y="224.99" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="228.6" y="251.79" width="14.2" height="30.21" fill="#2ecc71"/>
+<rect x="228.6" y="249.84" width="14.2" height="1.95" fill="#f0b775"/>
+<rect x="228.6" y="227.34" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="250.1" y="254.46" width="14.2" height="27.54" fill="#2ecc71"/>
+<rect x="250.1" y="231.96" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="271.7" y="257.25" width="14.2" height="24.75" fill="#2ecc71"/>
+<rect x="271.7" y="234.75" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="293.2" y="259.33" width="14.2" height="22.66" fill="#2ecc71"/>
+<rect x="293.2" y="236.83" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="314.8" y="261.86" width="14.2" height="20.14" fill="#2ecc71"/>
+<rect x="314.8" y="239.36" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="336.3" y="264.25" width="14.2" height="17.75" fill="#2ecc71"/>
+<rect x="336.3" y="241.75" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="357.9" y="267.23" width="14.2" height="14.78" fill="#2ecc71"/>
+<rect x="357.9" y="244.73" width="14.2" height="22.50" fill="#3498db"/>
+<rect x="379.4" y="157.83" width="14.2" height="124.17" fill="#2ecc71"/>
+<rect x="379.4" y="101.58" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="379.4" y="67.08" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="401.0" y="160.50" width="14.2" height="121.50" fill="#2ecc71"/>
+<rect x="401.0" y="104.25" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="401.0" y="69.75" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="422.6" y="163.29" width="14.2" height="118.71" fill="#2ecc71"/>
+<rect x="422.6" y="107.04" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="422.6" y="72.54" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="444.1" y="165.38" width="14.2" height="116.62" fill="#2ecc71"/>
+<rect x="444.1" y="109.12" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="444.1" y="74.62" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="465.7" y="167.89" width="14.2" height="114.11" fill="#2ecc71"/>
+<rect x="465.7" y="111.64" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="465.7" y="77.14" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="487.2" y="170.30" width="14.2" height="111.70" fill="#2ecc71"/>
+<rect x="487.2" y="114.05" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="487.2" y="79.55" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="508.8" y="173.26" width="14.2" height="108.73" fill="#2ecc71"/>
+<rect x="508.8" y="117.01" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="508.8" y="82.51" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="530.3" y="175.62" width="14.2" height="106.38" fill="#2ecc71"/>
+<rect x="530.3" y="119.37" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="530.3" y="84.87" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="551.9" y="178.29" width="14.2" height="103.71" fill="#2ecc71"/>
+<rect x="551.9" y="122.04" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="551.9" y="87.54" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="573.4" y="181.08" width="14.2" height="100.92" fill="#2ecc71"/>
+<rect x="573.4" y="124.83" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="573.4" y="90.33" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="595.0" y="183.16" width="14.2" height="98.84" fill="#2ecc71"/>
+<rect x="595.0" y="126.91" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="595.0" y="92.41" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="616.6" y="185.69" width="14.2" height="96.31" fill="#2ecc71"/>
+<rect x="616.6" y="129.44" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="616.6" y="94.94" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="638.1" y="188.08" width="14.2" height="93.92" fill="#2ecc71"/>
+<rect x="638.1" y="131.83" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="638.1" y="97.33" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="659.7" y="191.06" width="14.2" height="90.94" fill="#2ecc71"/>
+<rect x="659.7" y="134.81" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="659.7" y="100.31" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="681.2" y="193.41" width="14.2" height="88.59" fill="#2ecc71"/>
+<rect x="681.2" y="137.16" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="681.2" y="102.66" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="702.8" y="196.08" width="14.2" height="85.92" fill="#2ecc71"/>
+<rect x="702.8" y="139.83" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="702.8" y="105.33" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="724.3" y="198.87" width="14.2" height="83.13" fill="#2ecc71"/>
+<rect x="724.3" y="142.62" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="724.3" y="108.12" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="745.9" y="200.96" width="14.2" height="81.04" fill="#2ecc71"/>
+<rect x="745.9" y="144.71" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="745.9" y="110.21" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="767.4" y="203.47" width="14.2" height="78.53" fill="#2ecc71"/>
+<rect x="767.4" y="147.22" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="767.4" y="112.72" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="789.0" y="205.88" width="14.2" height="76.12" fill="#2ecc71"/>
+<rect x="789.0" y="149.62" width="14.2" height="56.25" fill="#f0b775"/>
+<rect x="789.0" y="115.12" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="810.6" y="208.84" width="14.2" height="73.16" fill="#2ecc71"/>
+<rect x="810.6" y="197.59" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="810.6" y="163.09" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="832.1" y="211.20" width="14.2" height="70.80" fill="#2ecc71"/>
+<rect x="832.1" y="199.95" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="832.1" y="165.45" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="853.7" y="213.87" width="14.2" height="68.13" fill="#2ecc71"/>
+<rect x="853.7" y="202.62" width="14.2" height="11.25" fill="#f0b775"/>
+<rect x="853.7" y="168.12" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="875.2" y="216.66" width="14.2" height="65.34" fill="#2ecc71"/>
+<rect x="875.2" y="214.71" width="14.2" height="1.95" fill="#f0b775"/>
+<rect x="875.2" y="180.21" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="896.8" y="218.75" width="14.2" height="63.25" fill="#2ecc71"/>
+<rect x="896.8" y="216.80" width="14.2" height="1.95" fill="#f0b775"/>
+<rect x="896.8" y="182.30" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="918.3" y="221.26" width="14.2" height="60.74" fill="#2ecc71"/>
+<rect x="918.3" y="186.76" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="939.9" y="223.67" width="14.2" height="58.33" fill="#2ecc71"/>
+<rect x="939.9" y="189.17" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="961.4" y="226.63" width="14.2" height="55.36" fill="#2ecc71"/>
+<rect x="961.4" y="192.13" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="983.0" y="228.99" width="14.2" height="53.01" fill="#2ecc71"/>
+<rect x="983.0" y="194.49" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="1004.6" y="231.66" width="14.2" height="50.34" fill="#2ecc71"/>
+<rect x="1004.6" y="197.16" width="14.2" height="34.50" fill="#3498db"/>
+<rect x="1026.1" y="234.45" width="14.2" height="47.55" fill="#2ecc71"/>
+<rect x="1026.1" y="199.95" width="14.2" height="34.50" fill="#3498db"/>
+<line x1="74" y1="282" x2="1044.0" y2="282" stroke="#cfd6dc" stroke-width="1"/>
+<line x1="84.8" y1="282" x2="84.8" y2="287" stroke="#cfd6dc"/>
+<text x="84.8" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">22 авг</text>
+<line x1="149.4" y1="282" x2="149.4" y2="287" stroke="#cfd6dc"/>
+<text x="149.4" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">25 авг</text>
+<line x1="214.1" y1="282" x2="214.1" y2="287" stroke="#cfd6dc"/>
+<text x="214.1" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">28 авг</text>
+<line x1="300.3" y1="282" x2="300.3" y2="287" stroke="#cfd6dc"/>
+<text x="300.3" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">1 сент</text>
+<line x1="386.6" y1="282" x2="386.6" y2="287" stroke="#cfd6dc"/>
+<text x="386.6" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">5 сент</text>
+<line x1="494.3" y1="282" x2="494.3" y2="287" stroke="#cfd6dc"/>
+<text x="494.3" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">10 сент</text>
+<line x1="602.1" y1="282" x2="602.1" y2="287" stroke="#cfd6dc"/>
+<text x="602.1" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">15 сент</text>
+<line x1="709.9" y1="282" x2="709.9" y2="287" stroke="#cfd6dc"/>
+<text x="709.9" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">20 сент</text>
+<line x1="817.7" y1="282" x2="817.7" y2="287" stroke="#cfd6dc"/>
+<text x="817.7" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">25 сент</text>
+<line x1="925.4" y1="282" x2="925.4" y2="287" stroke="#cfd6dc"/>
+<text x="925.4" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">30 сент</text>
+<line x1="1033.2" y1="282" x2="1033.2" y2="287" stroke="#cfd6dc"/>
+<text x="1033.2" y="301" text-anchor="middle" font-size="11" fill="#7f8c8d">5 окт</text>
+<line x1="74.0" y1="34" x2="74.0" y2="284" stroke="#2c3e50" stroke-width="1.5" stroke-dasharray="4 3"/>
+<text x="79.0" y="29" font-size="11" font-weight="600" fill="#2c3e50">сегодня</text>
+<line x1="149.4" y1="204.8" x2="149.4" y2="131.5" stroke="#c3ccd4" stroke-width="1"/>
+<circle cx="149.4" cy="204.8" r="2.6" fill="#b9c3cc"/>
+<text x="149.4" y="127.5" text-anchor="middle" font-size="11" fill="#2c3e50"><tspan font-weight="600">Аренда</tspan> <tspan fill="#d9534f">−30 000 ₽</tspan></text>
+<line x1="214.1" y1="222.0" x2="214.1" y2="148.0" stroke="#c3ccd4" stroke-width="1"/>
+<circle cx="214.1" cy="222.0" r="2.6" fill="#b9c3cc"/>
+<text x="214.1" y="144.0" text-anchor="start" font-size="11" fill="#2c3e50"><tspan font-weight="600">Коммуналка</tspan> <tspan fill="#d9534f">−6 200 ₽</tspan></text>
+<line x1="386.6" y1="64.1" x2="386.6" y2="47.1" stroke="#c3ccd4" stroke-width="1"/>
+<circle cx="386.6" cy="64.1" r="2.6" fill="#b9c3cc"/>
+<text x="386.6" y="42.1" text-anchor="middle" font-size="11" fill="#2c3e50"><tspan font-weight="600">Зарплата</tspan> <tspan fill="#1e9e57">+120 000 ₽</tspan></text>
+<circle cx="365.0" cy="267.2" r="4.5" fill="#ffffff" stroke="#f39c12" stroke-width="2.5"/>
+<line x1="360.0" y1="263.2" x2="335.0" y2="236.0" stroke="#f39c12" stroke-width="1"/>
+<rect x="149.0" y="210.0" width="186" height="34" rx="5" fill="#fff8ec" stroke="#f39c12" stroke-width="1"/>
+<text x="159.0" y="224.0" font-size="11.5" font-weight="600" fill="#8a5a12">⚠ Минимум свободного</text>
+<text x="159.0" y="238.0" font-size="11.5" fill="#8a5a12">4 сент — 9 800 ₽</text>
+<line x1="1044.0" y1="156.0" x2="1060.0" y2="156.0" stroke="#3498db" stroke-width="1.5" stroke-dasharray="3 3"/>
+<polygon points="1060.0,151.0 1070.0,156.0 1060.0,161.0" fill="#3498db"/>
+<text x="1052.0" y="138.0" font-size="11.5" font-weight="600" fill="#3498db">⚑ Цель «Отпуск»</text>
+<text x="1052.0" y="178.0" font-size="11" fill="#7f8c8d">15 окт →</text>
+<text x="1052.0" y="193.0" font-size="11" fill="#7f8c8d">за краем окна</text>
+<rect x="614.0" y="47" width="11" height="11" rx="2" fill="#3498db"/>
+<text x="630.0" y="56" font-size="11.5" fill="#2c3e50">Резерв целей и подушки</text>
+<rect x="797.2" y="47" width="11" height="11" rx="2" fill="#f0b775"/>
+<text x="813.2" y="56" font-size="11.5" fill="#2c3e50">Обещано</text>
+<rect x="881.4" y="47" width="11" height="11" rx="2" fill="#2ecc71"/>
+<text x="897.4" y="56" font-size="11.5" fill="#2c3e50">Свободно</text>
+<text x="74" y="332" font-size="11" fill="#7f8c8d">Прогноз остатка по дням, ₽ · 22 авг — 5 окт 2026</text>
+</svg>
+</div>
+    </div>
+  </section>
+
+  <!-- ═══════════ 3. РЯД КАРТОЧЕК-ДВЕРЕЙ ═══════════ -->
+  <section class="slots">
+
+    <!-- ── Календарь ── -->
+    <article class="door" tabindex="0" style="--slot:#2ecc71;--slot-soft:#eafaf1">
+      <div class="door-head">
+        <span class="ico" aria-hidden="true">📅</span>
+        <h3>Календарь</h3>
+        <span class="chev" aria-hidden="true">→</span>
+      </div>
+      <div class="door-body">
+        <div class="days">
+          <div class="day">
+            <div class="d-lab">Вчера</div>
+            <div class="d-date">21 авг</div>
+            <div class="d-sum neg money">−1 240 ₽</div>
+            <div class="d-note">&nbsp;</div>
+          </div>
+          <div class="day today">
+            <div class="d-lab">Сегодня</div>
+            <div class="d-date">22 авг</div>
+            <div class="d-sum neg money">−3 560 ₽</div>
+            <div class="d-note">2 операции</div>
+          </div>
+          <div class="day">
+            <div class="d-lab">Завтра</div>
+            <div class="d-date">23 авг</div>
+            <div class="d-sum neg money">−1 800 ₽</div>
+            <div class="d-note">план</div>
+          </div>
+        </div>
+        <div class="flagline">
+          <span class="wi" aria-hidden="true">⚠</span>
+          <span>Ближайшая просадка: <b>4 сент</b>, остаток <b class="money">9 800 ₽</b></span>
+        </div>
+      </div>
+    </article>
+
+    <!-- ── Цели ── -->
+    <article class="door" tabindex="0" style="--slot:#3498db;--slot-soft:#eaf4fc">
+      <div class="door-head">
+        <span class="ico" aria-hidden="true">🎯</span>
+        <h3>Цели</h3>
+        <span class="chev" aria-hidden="true">→</span>
+      </div>
+      <div class="door-body">
+        <div>
+          <div class="goal-top">
+            <span class="goal-name"><span aria-hidden="true">⚑</span>Отпуск</span>
+            <span class="goal-pct">68%</span>
+          </div>
+          <div class="bar"><i style="width:68%"></i></div>
+          <div class="goal-sub"><span class="money">102 000</span> из <span class="money">150 000 ₽</span> · к 15 окт</div>
+        </div>
+        <div class="rule"></div>
+        <div class="line">
+          <span class="k">Ещё 2 цели</span>
+          <span class="v pos">по плану</span>
+        </div>
+        <div style="margin-top:auto">
+          <div class="line">
+            <span class="k">Подушка</span>
+            <span class="v">78%</span>
+          </div>
+          <div class="bar thin"><i style="width:78%"></i></div>
+        </div>
+      </div>
+    </article>
+
+    <!-- ── Операции ── -->
+    <article class="door" tabindex="0" style="--slot:#c3ccd4;--slot-soft:#f0f3f5">
+      <div class="door-head">
+        <span class="ico" aria-hidden="true">🧾</span>
+        <h3>Операции</h3>
+        <span class="chev" aria-hidden="true">→</span>
+      </div>
+      <div class="door-body">
+        <div class="grp">Недавние</div>
+        <div class="line">
+          <span class="k">Продукты · сегодня</span>
+          <span class="v neg money">−2 340 ₽</span>
+        </div>
+        <div class="line">
+          <span class="k">Кафе · вчера</span>
+          <span class="v neg money">−1 220 ₽</span>
+        </div>
+        <div class="rule"></div>
+        <div class="grp">Предстоящие</div>
+        <div class="line">
+          <span class="k">Аренда <span class="rec" aria-label="регулярная">🔁</span> · 25 авг</span>
+          <span class="v neg money">−30 000 ₽</span>
+        </div>
+        <div class="line">
+          <span class="k">Зарплата <span class="rec" aria-label="регулярная">🔁</span> · 5 сент</span>
+          <span class="v pos money">+120 000 ₽</span>
+        </div>
+      </div>
+    </article>
+
+    <!-- ── Аналитика ── -->
+    <article class="door" tabindex="0" style="--slot:#f39c12;--slot-soft:#fff8ec">
+      <div class="door-head">
+        <span class="ico" aria-hidden="true">📊</span>
+        <h3>Аналитика</h3>
+        <span class="chev" aria-hidden="true">→</span>
+      </div>
+      <div class="door-body">
+        <div>
+          <div class="big-sum money">78 400 ₽</div>
+          <div class="cap">расходы августа</div>
+        </div>
+        <div class="rule"></div>
+        <div class="top-cat">
+          <span class="n">Продукты</span>
+          <span class="a money">24 300 ₽ · 31%</span>
+        </div>
+        <div class="cap" style="color:var(--ink-2);font-size:12px">крупнейшая категория месяца</div>
+        <div class="mini-slot" style="margin-top:auto">
+<div id="chart-analytics-mini" style="width:100%;max-width:420px">
+<svg viewBox="0 0 420 46" width="100%" role="img" aria-label="Структура расходов августа: Продукты 24 300 ₽, Транспорт 12 000 ₽, Кафе 8 500 ₽ из 78 400 ₽" style="display:block;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
+<rect x="0.0" y="6" width="130.2" height="14" fill="#2ecc71"/>
+<rect x="130.2" y="6" width="64.3" height="14" fill="#3498db"/>
+<rect x="194.5" y="6" width="45.5" height="14" fill="#f0b775"/>
+<rect x="240.0" y="6" width="180.0" height="14" fill="#dfe6ea"/>
+<rect x="0" y="6" width="420" height="14" rx="3" fill="none" stroke="#ffffff" stroke-width="0"/>
+<rect x="0.0" y="29" width="9" height="9" rx="2" fill="#2ecc71"/>
+<text x="13.0" y="38" font-size="11" fill="#2c3e50">Продукты <tspan fill="#7f8c8d">31%</tspan></text>
+<rect x="95.8" y="29" width="9" height="9" rx="2" fill="#3498db"/>
+<text x="108.8" y="38" font-size="11" fill="#2c3e50">Транспорт <tspan fill="#7f8c8d">15%</tspan></text>
+<rect x="198.2" y="29" width="9" height="9" rx="2" fill="#f0b775"/>
+<text x="211.2" y="38" font-size="11" fill="#2c3e50">Кафе <tspan fill="#7f8c8d">11%</tspan></text>
+<text x="420" y="38" text-anchor="end" font-size="11" fill="#7f8c8d">из 78 400 ₽</text>
+</svg>
+</div>
+        </div>
+      </div>
+    </article>
+
+  </section>
+
+  <!-- ═══════════ Wishlist — компактный виджет ═══════════ -->
+  <aside class="wish">
+    <span class="w-tag">Wishlist</span>
+    <span class="w-item">Наушники<span class="w-price money">18 500 ₽</span></span>
+    <span class="w-verdict"><span aria-hidden="true">✓</span>безопасно после 5 сент</span>
+    <span class="w-spacer"></span>
+    <span class="w-note">после зарплаты покупка не задевает цели и подушку</span>
+  </aside>
+
+</div>
+</body>
+</html>

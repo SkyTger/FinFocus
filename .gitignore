@@ -88,3 +88,6 @@ coverage.xml
 *.bak
 *.backup
 .obsidian-docs/.obsidian/
+
+# Архивы сборок/релизов
+*.zip
