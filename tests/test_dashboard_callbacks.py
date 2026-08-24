@@ -3,12 +3,15 @@
 Протокол: 0026-onboarding-refresh, шаг 2 (переработан после ревью 3-m).
 
 Регрессионная защита подписок дашборда на event bus `profile-updated`:
-приветствие, KPI/график/таблицы и баннер нулевого баланса должны
+щиток (шапка, график полос, таблицы) и баннер нулевого баланса должны
 обновляться сразу после онбординга/правки профиля, без ручной
-перезагрузки страницы. Приветствие обновляется внутри
-load_dashboard_data (7-й Output), а не отдельным колбэком — отдельный
-Output на элемент, существующий только на странице дашборда, отклонён
-ещё в протоколе 0024 (риск ReferenceError на других страницах).
+перезагрузки страницы.
+
+Приветствие снято решением владельца п. 3г (протокол 0028): главное
+место шапки отдано цифре «Свободно сегодня». Имя и аватар обновляются
+первым Output'ом того же колбэка — шапкой, а не отдельным колбэком:
+отдельный Output на элемент, существующий только на странице дашборда,
+отклонён ещё в протоколе 0024 (риск ReferenceError на других страницах).
 """
 
 import inspect
@@ -17,7 +20,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.components.dashboard import (
-    _build_greeting_text,
     load_dashboard_data,
     toggle_balance_toast,
 )
@@ -59,47 +61,15 @@ class TestCallbackContracts:
             toggle_balance_toast
         )
 
-    def test_load_dashboard_data_decorator_declares_greeting_output(self):
-        """Декоратор load_dashboard_data объявляет Output dashboard-greeting.
+    def test_load_dashboard_data_decorator_declares_header_output(self):
+        """Декоратор load_dashboard_data объявляет Output шапки щитка.
 
-        Приветствие обновляется 7-м Output'ом этого колбэка, НЕ отдельным
-        колбэком (решение 0024/0026 — см. докстринг модуля).
+        Имя и аватар обновляются первым Output'ом этого колбэка, НЕ
+        отдельным колбэком (решение 0024/0026 — см. докстринг модуля).
         """
-        assert 'Output("dashboard-greeting", "children")' in _decorator_source(
+        assert 'Output("dashboard-free-header", "children")' in _decorator_source(
             load_dashboard_data
         )
-
-
-class TestBuildGreetingText:
-    """Тесты хелпера _build_greeting_text (источник текста приветствия)."""
-
-    def test_valid_profile_returns_greeting_with_name(self, db_session):
-        """С валидным профилем в БД возвращает приветствие с именем."""
-        user = User(
-            email="greeting@example.com",
-            name="Иван",
-            starting_balance=10000,
-        )
-        db_session.add(user)
-        db_session.commit()
-
-        with patch("app.components.dashboard.get_db_session") as mock_session:
-            mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
-            mock_session.return_value.__exit__ = MagicMock(return_value=False)
-
-            result = _build_greeting_text()
-
-        assert result == "Добро пожаловать, Иван!"
-
-    def test_empty_db_falls_back_to_default_name(self, db_session):
-        """Пустая БД (пользователь не найден) → fallback «Пользователь»."""
-        with patch("app.components.dashboard.get_db_session") as mock_session:
-            mock_session.return_value.__enter__ = MagicMock(return_value=db_session)
-            mock_session.return_value.__exit__ = MagicMock(return_value=False)
-
-            result = _build_greeting_text()
-
-        assert result == "Добро пожаловать, Пользователь!"
 
 
 class TestToggleBalanceToastProfileUpdated:
@@ -182,11 +152,11 @@ class TestToggleBalanceToastProfileUpdated:
         assert result is False
 
 
-class TestLoadDashboardDataGreeting:
-    """Интеграция приветствия в load_dashboard_data."""
+class TestLoadDashboardDataProfile:
+    """Интеграция профиля в load_dashboard_data (шапка щитка)."""
 
-    def test_returns_seven_values_with_greeting_last(self, db_session):
-        """Успешная загрузка возвращает 7 значений, последнее — приветствие."""
+    def test_returns_five_values_with_profile_name_in_header(self, db_session):
+        """Успешная загрузка возвращает 5 значений; имя профиля — в шапке."""
         user = User(
             email="seven@example.com",
             name="Ольга",
@@ -201,13 +171,13 @@ class TestLoadDashboardDataGreeting:
 
             result = load_dashboard_data(
                 pathname="/dashboard",
-                period_value="month",
                 profile_updated=123456.0,
                 period_state={"period": "month"},
             )
 
-        assert len(result) == 7
-        assert result[6] == "Добро пожаловать, Ольга!"
+        assert len(result) == 5
+        # Имя профиля попадает в шапку — первый Output
+        assert "Ольга" in str(result[0])
 
     def test_wrong_pathname_prevents_update(self, db_session):
         """pathname вне дашборда → PreventUpdate (guard до работы с БД)."""
@@ -216,7 +186,6 @@ class TestLoadDashboardDataGreeting:
         with pytest.raises(PreventUpdate):
             load_dashboard_data(
                 pathname="/goals",
-                period_value="month",
                 profile_updated=123456.0,
                 period_state={"period": "month"},
             )

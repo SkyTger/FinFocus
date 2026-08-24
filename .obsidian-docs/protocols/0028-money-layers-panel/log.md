@@ -248,3 +248,65 @@ Restore context: protocol-0028#ctx-1
 - Проверки: py_compile OK; 634 passed; black — без изменений;
   flake8 — только 2 pre-existing E501
 
+### Step 07 — Переключение на модель слоёв + чистка (commit: 89592d4)
+Порядок соблюдён: сначала переключение колбэков, потом удаление —
+приложение поднималось на каждом промежуточном шаге.
+
+**Переключение:**
+- `_load_dashboard_components(period_state)` — параметр `period` снят
+  (писателя у Store не осталось). Внутри одно чтение профиля + одна
+  сборка модели → шапка и график питаются ОДНИМИ числами
+- `load_dashboard_data` — 5 Output'ов (шапка, график полос, недавние,
+  предстоящие, подушка); Output приветствия и Input `period-switcher`
+  сняты; ветка ошибки `(error_alert,) * 5` с `logger.opt(exception=True)`
+- `refresh_dashboard_after_crud` — те же 5 Output'ов, `opt(exception=True)`
+- `update_period_state` — удалён целиком
+- `open_create_from_chart` — перепривязан на `dashboard-layers-chart-graph`,
+  дата берётся из ISO-строки `point["x"]` (ось графика — даты).
+  Guard по режиму month снят: окно щитка пересекает границы месяцев,
+  прежняя сборка даты из года/месяца Store для него неверна
+
+**Удалено (мёртвый код):** `_build_greeting_text`, `build_overview_cards`,
+`_build_kpi_card`, `build_statistics_card`, `build_cashflow_chart`,
+`_build_daily_cashflow_chart`, `_build_yearly_cashflow_chart`,
+`create_ai_assistant_card`, `create_exchange_card`,
+`build_recent_transactions_card`; осиротевшие импорты (`OverviewMetrics`,
+`CashflowDataPoint`, `MONTH_NAMES_RU_SHORT`, `MonthlyCashflowData`,
+`YearlyCashflowData`)
+- **Попутная находка:** после удаления KPI-ряда осиротел clientside-триггер
+  кнопки `open-recon-from-dashboard-kpi-btn` — самой кнопки уже не было,
+  триггер висел на несуществующем элементе. Удалён (в плане шага не значился)
+
+**CSS:** `custom.css` 572 → 419 строк. Удалены `.kpi-*` (все), `.db-period-switcher`
+(все правила), `.db-glass-header`, `#dashboard-overview-cards .row`, включая
+их варианты внутри `@media` и `@supports`. Правило `.db-page { min-height: auto }`
+для узких экранов сохранено. `.an-period-switcher` в analytics не тронут
+(проверено: отдельный класс)
+
+**Тесты колбэков** — четыре позиции по плану: удалён класс
+`TestBuildGreetingText` (2 теста) и импорт хелпера; тест декоратора
+переориентирован на `Output("dashboard-free-header", "children")`;
+тест возврата → 5 значений с ассертом имени профиля в шапке;
+снят `period_value=` из вызовов; докстринг модуля переписан.
+Защита протокола 0026 (два теста про `profile-updated`) не тронута
+
+**Grep-проверки:** `period_value`, `TARGET_X_TICKS` (в коде),
+вердикт-типы, дашбордные останки (`kpi-`, `period-switcher`,
+`dashboard-overview-cards`, `dashboard-statistics-card`,
+`update_period_state`), `exc_info` в dashboard.py — **пусто**.
+Оставшиеся совпадения только в докстрингах, объясняющих, почему
+элемента больше нет, и `an-period-switcher` в аналитике
+
+**Функциональные проверки** (порт 8073): `/`, `/dashboard`, `/goals`,
+`/calendar`, `/transactions`, `/analytics` → все **200**, в логе
+**0 ошибок** и ни одного nonexistent object. Состав layout дашборда
+проверен программно: новые контейнеры ЕСТЬ, снятые — нет,
+wishlist / подушка / обе таблицы / Store на месте (C-1).
+Клик по столбцу: `{"x": "2026-09-15"}` → `(True, '2026-09-15', 'chart')`,
+вариант с временем разбирается тоже; без клика и без Store → PreventUpdate
+
+- **Тестов: 632** = 565 базовых − 2 (`TestBuildGreetingText`) + 69 новых —
+  совпадает с прогнозом плана
+- **C-3 подтверждён**: из тестов правился только `test_dashboard_callbacks.py`
+- black — переформатирован 1 файл; flake8 — только 2 pre-existing E501
+

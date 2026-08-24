@@ -191,81 +191,6 @@ body {
     font-weight: 500;
 }
 
-/* === ТИПОГРАФИКА KPI === */
-.kpi-card {
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--glass-border);
-    border-top: 1px solid var(--glass-border-top);
-    border-radius: 24px;
-    padding: 24px;
-    box-shadow: var(--shadow);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-    position: relative;
-    overflow: hidden;
-}
-
-.kpi-card:hover {
-    transform: translateY(-3px);
-    box-shadow: var(--shadow-hover);
-    background: var(--glass-bg-hover);
-}
-
-@supports not (backdrop-filter: blur(16px)) {
-    .kpi-card {
-        background: rgba(255, 255, 255, 0.92);
-    }
-}
-
-/* Декоративная иконка в углу KPI */
-.kpi-card-icon {
-    position: absolute;
-    right: -8px;
-    bottom: -8px;
-    font-size: 5rem;
-    opacity: 0.06;
-    transition: opacity 0.2s;
-    pointer-events: none;
-}
-
-.kpi-card:hover .kpi-card-icon {
-    opacity: 0.12;
-}
-
-/* Trend line under KPI number */
-.kpi-trend {
-    font-size: 13px;
-    font-weight: 600;
-    margin-top: 4px;
-}
-
-.kpi-trend.positive { color: var(--color-income); }
-.kpi-trend.negative { color: var(--color-expense); }
-.kpi-trend.warning { color: var(--color-warning); }
-
-.kpi-number {
-    font-size: 30px;
-    font-weight: 900;
-    color: var(--color-text-primary);
-    line-height: 1.2;
-    letter-spacing: -0.02em;
-}
-
-.kpi-title {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-}
-
-.kpi-subtitle {
-    font-size: 12px;
-    font-weight: 400;
-    color: var(--color-text-muted);
-}
-
 .table-amount {
     font-size: 14px;
     font-weight: 600;
@@ -432,76 +357,9 @@ body {
     margin-bottom: 0 !important;
 }
 
-#dashboard-overview-cards .row {
-    --bs-gutter-x: 8px;
-    --bs-gutter-y: 8px;
-}
-
-.db-glass-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: var(--glass-bg);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
-    border: 1px solid var(--glass-border);
-    border-top: 1px solid var(--glass-border-top);
-    border-radius: 24px;
-    box-shadow: var(--shadow);
-    padding: 14px 20px;
-}
-
 .db-header-subtitle {
     color: var(--color-text-secondary);
     font-size: 0.8rem;
-}
-
-/* Period switcher — pill buttons */
-.db-period-switcher {
-    display: flex;
-    gap: 4px;
-}
-
-.db-period-switcher .form-check {
-    padding-left: 0;
-    margin-right: 0;
-}
-
-.db-period-switcher .form-check-input {
-    display: none;
-}
-
-.db-period-switcher .form-check-label {
-    display: inline-block;
-    padding: 4px 18px;
-    border-radius: 10px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    cursor: pointer;
-    background: rgba(255, 255, 255, 0.3);
-    border: 1px solid rgba(0, 0, 0, 0.06);
-    color: var(--color-text-secondary);
-    transition: all 0.2s ease;
-    min-width: 72px;
-    text-align: center;
-}
-
-.db-period-switcher .form-check-label:hover {
-    background: rgba(255, 255, 255, 0.5);
-}
-
-.db-period-switcher .form-check-input:checked + .form-check-label {
-    background: var(--color-primary);
-    color: #fff;
-    border-color: var(--color-primary);
-}
-
-.kpi-card {
-    padding: 16px 18px;
-}
-
-.kpi-number {
-    font-size: 24px;
 }
 
 /* Main 8/4 row — stretches to fill remaining height */
@@ -552,21 +410,10 @@ body {
     background-color: rgba(46, 204, 113, 0.04);
 }
 
-/* === Responsive dashboard header === */
+/* === Responsive dashboard === */
 @media (max-width: 768px) {
-    .db-glass-header {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-    }
-
     .db-page {
         min-height: auto;
     }
 }
 
-@supports not (backdrop-filter: blur(16px)) {
-    .db-glass-header {
-        background: rgba(255, 255, 255, 0.92);
-    }
-}
