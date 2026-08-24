@@ -30,15 +30,24 @@ from app.services.dashboard_service import MONTH_NAMES_RU_SHORT
 from app.services.onboarding_service import OnboardingService
 from app.services.cushion_service import CushionService
 from app.schema.dashboard import MonthlyCashflowData, YearlyCashflowData
-from app.schema.money_layers import MoneyLayersData
+from app.schema.money_layers import (
+    MoneyLayersData,
+    LAYER_COLORS,
+    LAYER_LABELS,
+    MAX_X_TICKS,
+)
 from app.schema.onboarding import UserProfile
 from app.config.avatars import get_avatar_emoji
 from datetime import date
 from decimal import Decimal
+from math import ceil
 
 from app.utils.formatters import format_rub, format_date_human
 
 DEFAULT_USER_ID = 1
+
+# Максимум строк платежей в тултипе легенды — дальше «и ещё N»
+MAX_TOOLTIP_PAYMENTS = 8
 
 STATUS_COLORS: dict[str, str] = {
     "ok": "#27ae60",
@@ -275,6 +284,359 @@ def build_free_header(
             _build_header_who(profile),
         ],
         className="pnl-breaker",
+    )
+
+
+def _axis_tickvals(window_dates: list[date]) -> list[date]:
+    """Явные даты подписей оси X — без спорных единиц dtick.
+
+    Берёт каждый k-й день окна, где
+        k = max(1, ceil(len(window_dates) / MAX_X_TICKS)).
+    Для 45 дней k = 5 → индексы 0, 5, …, 40 → 9 подписей, плюс
+    принудительно добавляется window_end (последний день окна должен
+    быть подписан) → 10. Число подписей НИКОГДА не превышает
+    MAX_X_TICKS (critique-v3, замечание №5: прежняя формула
+    round(45/11) = 4 давала 12 подписей при константе с именем
+    TARGET_X_TICKS = 11 — имя обещало результат, которого функция
+    не давала). Константа переименована в MAX_X_TICKS, семантика —
+    потолок, и ceil делает потолок соблюдаемым по построению.
+
+    Точное воспроизведение эскиза невозможно и не является целью:
+    в v3.html 11 подписей с НЕРАВНОМЕРНЫМ шагом (семантически
+    значимые даты, а не сетка). Воспроизводима только плотность
+    подписей, и её честнее ограничить сверху.
+
+    Args:
+        window_dates: Дни окна по возрастанию.
+
+    Returns:
+        list[date]: Даты подписей; первая — reference_date,
+            последняя — window_end, дублей нет.
+    """
+    if not window_dates:
+        return []
+
+    step = max(1, ceil(len(window_dates) / MAX_X_TICKS))
+    ticks = window_dates[::step]
+
+    # Правый край окна обязан быть подписан — но только если он
+    # не попал в сетку сам (иначе дубль подписи на коротком окне)
+    if window_dates[-1] not in ticks:
+        ticks.append(window_dates[-1])
+
+    return ticks
+
+
+def _build_payments_tooltip(data: MoneyLayersData) -> list:
+    """Содержимое тултипа легенды «Платежи» — конкретные операции (AC-4).
+
+    Пользовательские описания вставляются ТОЛЬКО как текст внутри
+    html.Div: dangerously_allow_html и dcc.Markdown в этом пути
+    запрещены.
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        list: Строки тултипа.
+    """
+    payments = [
+        payment
+        for payment in data["upcoming_payments"]
+        if payment["date"] <= data["payments_end"]
+    ]
+
+    if not payments:
+        return [html.Div("До конца месяца платежей больше нет")]
+
+    rows: list = [html.Div("Ближайшие платежи до конца месяца:")]
+    for payment in payments[:MAX_TOOLTIP_PAYMENTS]:
+        title = payment["description"] or payment["category_name"] or "Операция"
+        prefix = "🔁 " if payment["is_recurring"] else ""
+        rows.append(
+            html.Div(
+                f"{prefix}{title} · {format_date_human(payment['date'])} · "
+                f"{format_rub(payment['amount'])}"
+            )
+        )
+
+    hidden = len(payments) - MAX_TOOLTIP_PAYMENTS
+    if hidden > 0:
+        rows.append(html.Div(f"…и ещё {hidden}"))
+
+    return rows
+
+
+def _build_reserve_tooltip(data: MoneyLayersData) -> list:
+    """Содержимое тултипа легенды «Резерв» — ФАКТ дня (решение владельца п. 3б).
+
+    Цифра тултипа всегда равна высоте полосы: если остатка меньше
+    настроенного резерва, тултип объясняет сжатие, а не утверждает
+    настройку, которой в остатке нет.
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        list: Строки тултипа.
+    """
+    if data["degraded"]:
+        return [
+            html.Div("Часть данных недоступна — состав резерва показан не полностью")
+        ]
+
+    fact = data["today"]["reserve"]
+    configured = data["reserve_configured_today"]
+
+    if fact < configured:
+        return [
+            html.Div(
+                f"В этот день на резерв остаётся {format_rub(fact)} "
+                f"из {format_rub(configured)} — вы залезаете в подушку"
+            )
+        ]
+
+    return [
+        html.Div(
+            f"Порог подушки {format_rub(data['cushion_threshold'])} + "
+            f"бюджет целей {format_rub(data['goals_reserve_today'])}"
+        )
+    ]
+
+
+def _build_layer_legend(data: MoneyLayersData) -> html.Div:
+    """HTML-легенда вне поля графика с тултипами-пояснениями (FR-4).
+
+    Легенда Plotly отключена (showlegend=False): нужны развёрнутые
+    пояснения и доступность с клавиатуры — элементы получают
+    tabIndex=0, тултипы срабатывают на hover и focus.
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        html.Div с классом pnl-legend.
+    """
+    tooltips = {
+        "free": [html.Div("Остаток минус платежи до конца месяца и резерв")],
+        "payments": _build_payments_tooltip(data),
+        "reserve": _build_reserve_tooltip(data),
+    }
+
+    items: list = []
+    for key in ("free", "payments", "reserve"):
+        element_id = f"pnl-legend-{key}"
+        items.append(
+            html.Span(
+                [
+                    html.Span(
+                        className=f"pnl-legend-swatch pnl-legend-swatch-{key}",
+                    ),
+                    html.Span(LAYER_LABELS[key]),
+                ],
+                id=element_id,
+                className="pnl-legend-item",
+                tabIndex=0,
+            )
+        )
+        items.append(
+            dbc.Tooltip(
+                tooltips[key],
+                target=element_id,
+                trigger="hover focus",
+                placement="top",
+            )
+        )
+
+    return html.Div(items, className="pnl-legend")
+
+
+def _build_chart_empty_state() -> html.Div:
+    """Пустое состояние графика — БЕЗ вызова Plotly (AC-5).
+
+    Отдаёт html.Div вместо dcc.Graph: Plotly не вызывается вовсе,
+    поэтому выродившиеся оси −1..1 и подписи вида «50.001k»
+    физически невозможны.
+
+    Returns:
+        html.Div с текстом и подсказкой.
+    """
+    return html.Div(
+        [
+            html.Div("График появится с первой операцией", className="pnl-empty-title"),
+            html.Div(
+                "Добавьте операцию или сверьте баланс — и здесь появится "
+                "разбор ваших денег на 45 дней вперёд",
+                className="pnl-empty-hint",
+            ),
+        ],
+        className="pnl-empty py-4",
+    )
+
+
+def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
+    """График полос: стопка Свободно/Платежи/Резерв по 45 дням (FR-3).
+
+    Три go.Bar в barmode="stack" (снизу вверх: free, payments, reserve)
+    по датам оси X, вертикальная линия «сегодня», маркер минимума слоя
+    «Свободно» (data['min_free_date']), вехи целей аннотациями (в окне +
+    стрелка за краем). Легенда Plotly отключена (showlegend=False) —
+    вынесена в HTML (заметка vision-критика + FR-4).
+
+    Args:
+        data: Модель слоёв из MoneyLayersService.
+
+    Returns:
+        dbc.Card с dcc.Graph(id="dashboard-layers-chart-graph") либо
+        пустым состоянием при data['is_empty'] (FR-6).
+    """
+    head = html.Div(
+        [
+            html.H2("Ваши деньги на 45 дней вперёд"),
+            html.Span(
+                f"по {format_date_human(data['window_end'])}",
+                className="pnl-meter-hint",
+            ),
+        ],
+        className="pnl-meter-head",
+    )
+
+    if data["is_empty"]:
+        return dbc.Card(
+            dbc.CardBody([head, _build_chart_empty_state()]),
+            className="pnl-meter",
+        )
+
+    dates = [day["date"] for day in data["days"]]
+    fig = go.Figure()
+
+    # Порядок трасс снизу вверх: свободно → платежи → резерв
+    for key in ("free", "payments", "reserve"):
+        fig.add_trace(
+            go.Bar(
+                x=dates,
+                y=[float(day[key]) for day in data["days"]],
+                name=LAYER_LABELS[key],
+                marker_color=LAYER_COLORS[key],
+                customdata=[format_rub(day[key]) for day in data["days"]],
+                hovertemplate=f"{LAYER_LABELS[key]}: %{{customdata}}<extra></extra>",
+            )
+        )
+
+    # Линия «сегодня» — левый край окна
+    fig.add_shape(
+        type="line",
+        x0=data["reference_date"],
+        x1=data["reference_date"],
+        y0=0,
+        y1=1,
+        yref="paper",
+        line=dict(color="#7f8c8d", width=1.5, dash="dash"),
+    )
+    fig.add_annotation(
+        x=data["reference_date"],
+        y=1,
+        yref="paper",
+        text="сегодня",
+        showarrow=False,
+        yshift=12,
+        font=dict(size=11, color="#7f8c8d"),
+    )
+
+    # Маркер минимума «Свободно» — со сдвигом, чтобы не липнуть к тику даты
+    fig.add_trace(
+        go.Scatter(
+            x=[data["min_free_date"]],
+            y=[float(data["min_free"])],
+            mode="markers",
+            marker=dict(
+                symbol="diamond",
+                size=11,
+                color=LAYER_COLORS["free"],
+                line=dict(width=2, color="white"),
+            ),
+            showlegend=False,
+            hoverinfo="skip",
+        )
+    )
+    fig.add_annotation(
+        x=data["min_free_date"],
+        y=float(data["min_free"]),
+        text=f"минимум: {format_rub(data['min_free'])}",
+        showarrow=True,
+        arrowhead=0,
+        arrowcolor="#7f8c8d",
+        ax=0,
+        ay=-32,
+        font=dict(size=11, color=LAYER_COLORS["free"]),
+        bgcolor="rgba(255,255,255,0.85)",
+    )
+
+    # Вехи целей: внутри окна — подписи у оси, за краем — стрелка справа
+    for milestone in data["milestones"]:
+        if milestone["beyond_window"]:
+            fig.add_annotation(
+                x=data["window_end"],
+                y=1,
+                yref="paper",
+                text=f"→ {milestone['name']} "
+                f"({format_date_human(milestone['target_date'])})",
+                showarrow=False,
+                xanchor="right",
+                yshift=12,
+                font=dict(size=11, color=LAYER_COLORS["reserve"]),
+            )
+        else:
+            fig.add_annotation(
+                x=milestone["target_date"],
+                y=0,
+                yref="paper",
+                text=f"🏁 {milestone['name']}",
+                showarrow=False,
+                yshift=-26,
+                font=dict(size=11, color=LAYER_COLORS["reserve"]),
+            )
+
+    fig.update_layout(
+        barmode="stack",
+        height=340,
+        margin=dict(l=50, r=30, t=34, b=48),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        hovermode="x unified",
+        showlegend=False,
+        bargap=0.15,
+        xaxis=dict(
+            type="date",
+            tickmode="array",
+            tickvals=_axis_tickvals(dates),
+            tickformat="%-d %b",
+            tickangle=0,
+            showgrid=False,
+        ),
+        yaxis=dict(
+            rangemode="tozero",
+            tickformat=",.0f",
+            separatethousands=True,
+            showgrid=True,
+            gridcolor="rgba(0,0,0,0.08)",
+            title=None,
+        ),
+    )
+
+    return dbc.Card(
+        dbc.CardBody(
+            [
+                head,
+                _build_layer_legend(data),
+                dcc.Graph(
+                    id="dashboard-layers-chart-graph",
+                    figure=fig,
+                    config={"displayModeBar": False},
+                ),
+            ]
+        ),
+        className="pnl-meter",
     )
 
 
