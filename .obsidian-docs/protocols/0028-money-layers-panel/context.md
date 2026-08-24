@@ -4,7 +4,7 @@
 - **Status**: Completed
 - **Last Action**: Шаг 8 — финализация: верификация, приёмка AC-1…AC-6 + 6 сценариев резерва + NFR, документация
 - **Next Action**: Ожидается `/protocol-review-merge`
-- **PR**: https://github.com/SkyTger/FinFocus/pull/28 (Draft)
+- **PR**: https://github.com/SkyTger/FinFocus/pull/28 (Ready for review)
 - **Tech Stack**: `Python 3.10–3.12 + Dash 2.17.1 + dbc + Plotly + SQLAlchemy 2.0.23 + SQLite` (python)
 - **Git Branch**: `0028-money-layers-panel`
 - **PROJECT_ROOT**: `/home/skytiger/Projects/FinFocus`
