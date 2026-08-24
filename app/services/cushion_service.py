@@ -88,6 +88,41 @@ class CushionService:
         cal_service = CalendarService(self.session)
         return cal_service.get_balance_on_date(user_id, date.today())
 
+    def get_threshold_amount(self, user_id: int) -> Decimal:
+        """Порог подушки без пересчёта баланса.
+
+        Лёгкая альтернатива get_settings() для потребителей, которым
+        нужен только порог: get_settings() внутри вызывает
+        _get_current_balance() → CalendarService.get_balance_on_date(),
+        а тот полностью обходит recurring-историю от самого раннего
+        шаблона (calendar_service.py:364-407). Для threshold_amount
+        баланс не нужен вовсе — формула target * percent / 100
+        (см. get_settings, строки 104-107; баланс участвует только
+        в current_amount и progress, :100 и :113-118).
+
+        Args:
+            user_id: ID пользователя.
+
+        Returns:
+            Decimal: Порог подушки; Decimal("0") если пользователь
+                не найден или подушка не настроена (target == 0).
+                Не бросает ValidationError — отсутствие пользователя
+                на чистой базе штатно (в отличие от _get_user).
+        """
+        # Импорт внутри метода для избежания circular import
+        from app.models.database import User
+
+        user = self.session.query(User).filter_by(id=user_id).first()
+        if not user:
+            return Decimal("0")
+
+        target = user.cushion_target or Decimal("0")
+        if target <= 0:
+            return Decimal("0")
+
+        threshold_percent = Percent(user.cushion_threshold_percent or 0)
+        return target * threshold_percent / 100
+
     def get_settings(self, user_id: int) -> CushionSettings:
         """Получить настройки подушки с вычисленными полями.
 
