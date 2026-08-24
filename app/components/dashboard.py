@@ -30,6 +30,9 @@ from app.services.dashboard_service import MONTH_NAMES_RU_SHORT
 from app.services.onboarding_service import OnboardingService
 from app.services.cushion_service import CushionService
 from app.schema.dashboard import MonthlyCashflowData, YearlyCashflowData
+from app.schema.money_layers import MoneyLayersData
+from app.schema.onboarding import UserProfile
+from app.config.avatars import get_avatar_emoji
 from datetime import date
 from decimal import Decimal
 
@@ -89,6 +92,190 @@ def _build_greeting_text() -> str:
     except Exception:
         logger.warning("Failed to load user name for dashboard greeting", exc_info=True)
     return f"Добро пожаловать, {greeting_name}!"
+
+
+def _build_recon_button(button_id: str) -> dbc.Button:
+    """Кнопка «Сверка» — открывает модал сверки через clientside-триггер.
+
+    Args:
+        button_id: ID кнопки (у каждой точки входа свой).
+
+    Returns:
+        dbc.Button: Кнопка «Сверка».
+    """
+    return dbc.Button(
+        [html.I(className="bi bi-check2-square me-1"), "Сверка"],
+        id=button_id,
+        color="success",
+        outline=True,
+        size="sm",
+        n_clicks=0,
+    )
+
+
+def _build_settings_cog() -> dbc.Button:
+    """Шестерёнка щитка — второй вход в модал профиля (решение владельца п. 5).
+
+    Первый вход (аватар в сайдбаре) остаётся рабочим: profile_modal
+    слушает оба источника.
+
+    Returns:
+        dbc.Button: Кнопка-шестерёнка.
+    """
+    return dbc.Button(
+        html.I(className="bi bi-gear"),
+        id="dashboard-settings-cog",
+        title="Профиль и настройки",
+        className="pnl-cog",
+        color="link",
+        n_clicks=0,
+    )
+
+
+def _build_header_who(profile: UserProfile) -> html.Div:
+    """Правый угол шапки: аватар с именем, «Сверка», шестерёнка.
+
+    Состав воспроизводит эскиз буквально
+    (.visual/finfocus-panel-dashboard/v3.html:415-418).
+
+    Args:
+        profile: Профиль пользователя — единственный источник имени
+            и аватара в шапке.
+
+    Returns:
+        html.Div с классом pnl-who.
+    """
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Span(
+                        get_avatar_emoji(profile["avatar_id"]),
+                        className="pnl-avatar-face",
+                        **{"aria-hidden": "true"},
+                    ),
+                    html.Span(profile["name"], className="pnl-avatar-name"),
+                ],
+                className="pnl-avatar",
+            ),
+            _build_recon_button("open-recon-from-dashboard-header-btn"),
+            _build_settings_cog(),
+        ],
+        className="pnl-who",
+    )
+
+
+def _build_header_empty_state(profile: UserProfile) -> html.Div:
+    """Шапка при полном отсутствии данных (FR-6).
+
+    Главного числа нет — показывать «0 ₽» как факт было бы неправдой:
+    у пользователя не ноль свободных денег, а незаполненная база.
+
+    Args:
+        profile: Профиль пользователя.
+
+    Returns:
+        html.Div с классом pnl-breaker.
+    """
+    return html.Div(
+        [
+            html.Div(
+                [
+                    html.Div("Пока нечего показать", className="pnl-empty-title"),
+                    html.Div(
+                        "Добавьте первую операцию или сверьте баланс",
+                        className="pnl-empty-hint",
+                    ),
+                    _build_recon_button("open-recon-from-dashboard-empty-btn"),
+                ],
+                className="pnl-breaker-main pnl-empty",
+            ),
+            _build_header_who(profile),
+        ],
+        className="pnl-breaker",
+    )
+
+
+def build_free_header(
+    data: MoneyLayersData,
+    profile: UserProfile,
+) -> html.Div:
+    """Шапка «Свободно сегодня: N ₽» (FR-2, FR-5).
+
+    Состав слева: метка «Свободно сегодня», сумма (tabular-nums),
+    разбор «баланс {balance} − платежи {payments} − резерв {reserve}».
+    Справа: аватар-эмодзи + имя, кнопка «Сверка»
+    (id="open-recon-from-dashboard-header-btn"), шестерёнка
+    (id="dashboard-settings-cog" → модал профиля).
+
+    ПРИВЕТСТВИЯ НЕТ (решение владельца п. 3г, 2026-08-24): главное
+    место отдано цифре, не вежливости. Состав справа воспроизводит
+    эскиз буквально (.visual/finfocus-panel-dashboard/v3.html:415-418
+    — аватар-эмодзи, имя, шестерёнка; приветствия в эскизе нет вовсе).
+    Хелпер _build_greeting_text() из шапки НЕ вызывается — он удалён
+    как мёртвый код вместе с элементом dashboard-greeting.
+
+    Вердикта НЕТ (решение владельца п. 3а): ни чипа, ни сигнальной
+    шины, ни оценочной подписи, ни окраски суммы по уровню. Сумма
+    рендерится нейтральным цветом текста; единственное исключение —
+    отрицательное значение показывается в цвете риска, потому что
+    это факт знака числа, а не оценка состояния.
+
+    При data['degraded'] под разбором добавляется нейтральная сноска
+    «часть данных недоступна, показано без бюджета целей» — деградация
+    обозначена, а не выдана за достоверную цифру.
+
+    Не дверь-переход: на контейнере нет dcc.Link, n_clicks,
+    cursor:pointer (FR-2.e).
+
+    Args:
+        data: Модель слоёв из MoneyLayersService.
+        profile: Профиль (name, avatar_id) из OnboardingService —
+            ЕДИНСТВЕННЫЙ источник имени и аватара в шапке. Второго
+            чтения профиля за рендер нет: прежний путь через
+            _build_greeting_text() открывал собственную сессию
+            (critique-v3, №3) и снят вместе с приветствием.
+
+    Returns:
+        html.Div с классом pnl-breaker.
+    """
+    if data["is_empty"]:
+        return _build_header_empty_state(profile)
+
+    today = data["today"]
+    amount_class = "pnl-amount pnl-money"
+    if today["free"] < 0:
+        amount_class += " pnl-negative"
+
+    breakdown = [
+        html.Span(["баланс ", html.B(format_rub(today["balance"]))]),
+        html.Span("−", className="pnl-op"),
+        html.Span(["платежи ", html.B(format_rub(today["payments"]))]),
+        html.Span("−", className="pnl-op"),
+        html.Span(["резерв ", html.B(format_rub(today["reserve"]))]),
+    ]
+
+    main_children = [
+        html.Div("Свободно сегодня", className="pnl-tag"),
+        html.Div(format_rub(today["free"]), className=amount_class),
+        html.Div(breakdown, className="pnl-breakdown"),
+    ]
+
+    if data["degraded"]:
+        main_children.append(
+            html.Div(
+                "Часть данных недоступна, показано без бюджета целей",
+                className="pnl-degraded-note",
+            )
+        )
+
+    return html.Div(
+        [
+            html.Div(main_children, className="pnl-breaker-main"),
+            _build_header_who(profile),
+        ],
+        className="pnl-breaker",
+    )
 
 
 def create_dashboard_layout():
@@ -1553,6 +1740,22 @@ clientside_callback(
     ClientsideFunction("triggers", "timestamp_trigger"),
     Output("open-recon-trigger", "data", allow_duplicate=True),
     Input("open-recon-from-dashboard-kpi-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+# Кнопка "Сверка" в шапке щитка → open-recon-trigger
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
+    Output("open-recon-trigger", "data", allow_duplicate=True),
+    Input("open-recon-from-dashboard-header-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+# Кнопка "Сверка" в пустом состоянии шапки → open-recon-trigger
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
+    Output("open-recon-trigger", "data", allow_duplicate=True),
+    Input("open-recon-from-dashboard-empty-btn", "n_clicks"),
     prevent_initial_call=True,
 )
 

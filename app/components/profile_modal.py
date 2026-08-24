@@ -94,6 +94,7 @@ def create_profile_modal() -> dbc.Modal:
     ],
     [
         Input("sidebar-profile-container", "n_clicks"),
+        Input("dashboard-settings-cog", "n_clicks"),
         Input("profile-save-btn", "n_clicks"),
         Input("profile-cancel-btn", "n_clicks"),
     ],
@@ -105,6 +106,7 @@ def create_profile_modal() -> dbc.Modal:
 )
 def handle_profile_modal(
     open_clicks: int | None,
+    cog_clicks: int | None,
     save_clicks: int | None,
     cancel_clicks: int | None,
     name_value: str | None,
@@ -115,8 +117,11 @@ def handle_profile_modal(
     if not triggered_id:
         raise PreventUpdate
 
-    # Open — загрузить данные из БД
-    if triggered_id == "sidebar-profile-container":
+    # Open — загрузить данные из БД.
+    # Два входа: аватар в сайдбаре и шестерёнка в шапке щитка
+    # (решение владельца п. 5). suppress_callback_exceptions
+    # снимает риск отсутствия шестерёнки вне дашборда.
+    if triggered_id in ("sidebar-profile-container", "dashboard-settings-cog"):
         try:
             with get_db_session() as session:
                 service = OnboardingService(session)

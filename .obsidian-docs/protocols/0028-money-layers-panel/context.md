@@ -1,9 +1,9 @@
 # Protocol Context: 0028-money-layers-panel
 
-- **Current Step**: 5
+- **Current Step**: 6
 - **Status**: In Progress
-- **Last Action**: Шаг 4 — 65 тестов модели, mutation-check пройден (5 порч), 634 теста зелёные
-- **Next Action**: Шаг 5 — стили `app/assets/panel.css` + шапка «Свободно сегодня» (`build_free_header`), правка `profile_modal.py`
+- **Last Action**: Шаг 5 — шапка «Свободно сегодня» + panel.css + вход в профиль, дашборд открывается
+- **Next Action**: Шаг 6 — график полос (`build_layers_chart`), HTML-легенда с тултипами, `_axis_tickvals`
 - **PR**: https://github.com/SkyTger/FinFocus/pull/28 (Draft)
 - **Tech Stack**: `Python 3.10–3.12 + Dash 2.17.1 + dbc + Plotly + SQLAlchemy 2.0.23 + SQLite` (python)
 - **Git Branch**: `0028-money-layers-panel`
