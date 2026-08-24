@@ -161,8 +161,26 @@ class MoneyLayersService:
             cushion_threshold = Decimal("0")
             degraded = True
 
-        # TODO(step-3): заменить заглушку на _goals_part_by_day()
-        goals_part: dict[date, Decimal] = {day: Decimal("0") for day in window_dates}
+        # Бюджет накоплений — часть слоя «Резерв», сбой деградирует fail-open
+        try:
+            from app.services.budget_reservation_service import (
+                BudgetReservationService,
+            )
+
+            monthly_budget = BudgetReservationService(self.session).get_settings(
+                user_id
+            )["monthly_budget"]
+        except Exception:
+            logger.opt(exception=True).warning(
+                f"Не удалось получить бюджет накоплений для user_id={user_id}, "
+                "слой «Резерв» посчитан без бюджета целей (degraded)"
+            )
+            monthly_budget = Decimal("0")
+            degraded = True
+
+        goals_part = self._goals_part_by_day(
+            savings_by_date, window_dates, monthly_budget
+        )
 
         days: list[DayLayers] = []
         for day in window_dates:
@@ -439,6 +457,145 @@ class MoneyLayersService:
             else:
                 result[day] = tail
             tail += by_day.get(day, Decimal("0"))
+
+        return result
+
+    def _goals_part_by_day(
+        self,
+        savings_by_date: dict[date, Decimal],
+        window_dates: list[date],
+        monthly_budget: Decimal,
+    ) -> dict[date, Decimal]:
+        """Бюджет целей, ещё лежащий в остатке на день D — ЕДИНАЯ формула.
+
+        Для каждого дня D окна (месяц берётся ПО ДНЮ D, никакого
+        наследования базы через границу месяца — critique-v2, блокер №2):
+
+            consumed(D)  = Σ savings_by_date[d], d в [month_start(D), D]
+            committed(D) = Σ savings_by_date[d], d в (D, month_end(D)]
+            goals(D)     = max(0, monthly_budget − consumed(D) − committed(D))
+
+        Смысл слагаемых:
+          * consumed(D) — savings-операции, уже вычтенные из balance(D)
+            кассовым календарём. Их нельзя держать в синем слое: денег
+            в остатке нет.
+          * committed(D) — savings-операции, которым ещё предстоит уйти
+            в пределах месяца дня D. Они лежат в слое «Платежи»
+            (та же операция — тот же список), поэтому вычитаются, чтобы
+            не удвоиться.
+        Каждая операция попадает РОВНО в одно слагаемое — по своей дате
+        относительно D. Двойного вычитания нет ни в одном режиме
+        резервирования: формула вообще не знает о режиме.
+
+        Note:
+            Суммирование НЕ ограничено границами окна (critique-v3, №2):
+            committed(D) считает до month_end(D) включительно, даже если
+            month_end(D) > window_end. Savings-операция, чья фактическая
+            дата лежит за правым краем окна, но внутри месяца дня D, —
+            это реальное «ещё предстоит уйти в этом месяце», и её учёт
+            уменьшает goals_part(D), то есть НЕ завышает «Свободно».
+            savings_by_date такие ключи содержит (см. _collect_operations),
+            и отбрасывать их нельзя.
+
+        Note:
+            Для D за границей месяца reference_date данные есть:
+            сбор операций идёт до window_end (см. _horizons). В v2 этой
+            ветке формулы не было чем считать (critique-v2, №6).
+
+        Note:
+            Прошлые месяцы в окно не попадают (окно начинается сегодня),
+            поэтому month_start(D) >= collect_start для всех D окна,
+            КРОМЕ вырожденного случая reference_date == 1-е число, где
+            они совпадают. Данных всегда достаточно.
+
+        Note:
+            ДОПУЩЕНИЕ «БЮДЖЕТ НЕ МЕНЯЛСЯ ВНУТРИ МЕСЯЦА»
+            (critique-v3, №1; решение владельца п. 3в).
+
+            monthly_savings_budget — ОДНА настройка на все месяцы
+            (users.monthly_savings_budget, database.py:99), месячной
+            истории бюджета в схеме нет (C-4). Поэтому budget(D) ==
+            monthly_budget для любого D.
+
+            При этом суммы savings-операций месяца зафиксированы
+            НА МОМЕНТ ПРОШЛЫХ ОПЕРАЦИЙ и при смене бюджета не
+            переписываются: BudgetReservationService
+            .sync_template_amount (:808-839) обновляет ТОЛЬКО
+            template.amount и существующие exceptions не трогает;
+            recalculate_current_month_exception вызывается из путей
+            взноса, а не из пути смены бюджета, и содержит guard
+            if reserve_date < date.today(): return (:263-265).
+
+            Следствие: формула отражает ТЕКУЩУЮ НАСТРОЙКУ, а не
+            историю. Два параметра поведения:
+
+            * бюджет УМЕНЬШЕН после частичного взноса (обещано целям
+              больше текущего бюджета): consumed + committed >
+              monthly_budget, и max(0, …) обрезает перерасход
+              ДО НУЛЯ. Признака «обещано сверх бюджета» в UI НЕТ —
+              решение владельца п. 3в: цифры остаются корректными
+              (деньги действительно сидят в слое «Платежи» и уйдут),
+              теряется только информация о превышении. Различие
+              «goals_part = 0, потому что бюджет исчерпан» и
+              «= 0, потому что обещано больше бюджета» модель
+              сознательно НЕ различает: жизненный цикл целей и
+              превышение — отдельный открытый вопрос ROADMAP №9.
+            * бюджет УВЕЛИЧЕН после полного взноса: goals_part
+              завышается на разницу, «Свободно» ЗАНИЖАЕТСЯ.
+              Направление безопасное (показать меньше свободных
+              денег, чем есть, не опасно — та же асимметрия, что
+              для правого края окна).
+
+            Оба параметра — в блоке A шага 6 с числами по трём слоям.
+
+        Note:
+            ОГРАНИЧЕНИЕ: перенесённый exception внутри текущего месяца
+            (critique-v3, №2, случай 3). Если savings-exception
+            перенесён с даты ДО reference_date на дату внутри окна,
+            наш сбор его видит (original_date >= collect_start), а
+            прогнозный остаток — нет: _get_recurring_daily_changes
+            (ref .. window_end) его не отбирает (original_date < ref),
+            а _calculate_recurring_before_date (calendar_service.py
+            :396-406) считает только income/expense и savings
+            ИГНОРИРУЕТ. Направление ошибки: лишнее слагаемое
+            уменьшает goals_part → уменьшает reserve → «Свободно»
+            ЗАВЫШАЕТСЯ. Инвариант AC-3 это не поймает (он слеп
+            к раскладке). Правка требует исправления
+            _calculate_recurring_before_date, что запрещено C-3 —
+            ограничение записано в осадок решений одним пунктом
+            с латентным дефектом, чьим следствием является.
+            Симметричный случай (original_date < collect_start,
+            дата внутри окна) расхождения НЕ даёт: его не видит
+            ни наш сбор, ни баланс — обе стороны используют одну
+            выборку get_instances_with_exceptions.
+
+        Args:
+            savings_by_date: Savings-операции по фактическим датам
+                (может содержать даты за границами окна).
+            window_dates: Дни окна по возрастанию.
+            monthly_budget: Текущая настройка бюджета накоплений.
+
+        Returns:
+            dict[date, Decimal]: {день окна: бюджет целей в остатке}.
+        """
+        result: dict[date, Decimal] = {}
+
+        for day in window_dates:
+            month_start = _month_start(day)
+            month_end = _month_end(day)
+
+            consumed = Decimal("0")
+            committed = Decimal("0")
+            # Границы суммирования — месяц дня D; committed НЕ обрезается
+            # правым краем окна (ключи за window_end учитываются)
+            for op_date, amount in savings_by_date.items():
+                if month_start <= op_date <= day:
+                    consumed += amount
+                elif day < op_date <= month_end:
+                    committed += amount
+
+            goals = monthly_budget - consumed - committed
+            result[day] = goals if goals > 0 else Decimal("0")
 
         return result
 
