@@ -15,9 +15,12 @@ from app.models.database import Transaction, TransactionType, User
 # Запас выборки recurring-инстансов вправо от границы расчёта:
 # exception, перенесённый с будущей исходной даты на прошлую
 # (original_date >= границы, transaction_date < границы), отдаётся
-# только выборкой, дотягивающейся до его original_date. Значение
-# согласовано с RecurringService.MAX_FORECAST_DAYS (протокол 0029).
-RECURRING_LOOKAHEAD_DAYS = 366
+# только выборкой, дотягивающейся до его original_date. Привязан
+# импортом к RecurringService.MAX_FORECAST_DAYS — горизонты выборки
+# и генерации инстансов меняются вместе (протокол 0029, ревью 3-m).
+from app.services.recurring_service import MAX_FORECAST_DAYS
+
+RECURRING_LOOKAHEAD_DAYS = MAX_FORECAST_DAYS
 
 
 class MonthSummary(TypedDict):
