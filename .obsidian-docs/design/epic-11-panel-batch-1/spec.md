@@ -10,8 +10,10 @@ originSessionId: 60234742-6433-41eb-8c50-46b7e902ff6c
 > Раскрой эпика: 3 куска (решение владельца 2026-08-24, габарит-гейт
 > /spec-prep). Кусок 2 — карточки-двери, кусок 3 — полоска-меню;
 > заготовки — `../epic-11-panel-batch-2/spec.md`,
-> `../epic-11-panel-batch-3/spec.md`. Осадок решений сбора —
-> `memory/spec-context/epic-11.md` (читать в /prep и /design-loop).
+> `../epic-11-panel-batch-3/spec.md`. Осадок решений сбора
+> (`memory/spec-context/epic-11.md`) удалён при закрытии протокола 0028;
+> решения владельца по эпику — в этой спеке и в `design.md` обсуждения
+> `dashboard-as-menu-2026-08-23`.
 
 ## Цель
 

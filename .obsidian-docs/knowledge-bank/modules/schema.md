@@ -14,7 +14,7 @@ originSessionId: -
 - `app/schema/__init__.py` - экспорты
 - `app/schema/goals.py` - TypedDicts для накопительных целей
 - `app/schema/onboarding.py` - UserProfile, OnboardingStatus (расширен в протоколе 0024)
-- `app/schema/money_layers.py` - контракт модели «свободно/платежи/резерв» (протокол 0028, на ревью)
+- `app/schema/money_layers.py` - контракт модели «свободно/платежи/резерв» (протокол 0028)
 
 ## Цели модуля
 
@@ -260,7 +260,7 @@ class YearlyCashflowData(TypedDict):
 их использовавший, больше не существует (заменён `MoneyLayersData`,
 см. ниже).
 
-## TypedDicts для MoneyLayers (Протокол 0028, на ревью)
+## TypedDicts для MoneyLayers (Протокол 0028)
 
 `app/schema/money_layers.py` — контракт модели «свободно/платежи/резерв»
 (Epic-11 «щиток», кусок 1 из 3). Докстринг модуля прямо предупреждает:
@@ -346,7 +346,7 @@ class MoneyLayersData(TypedDict):
 
 **Протокол 0024**: Добавлены UserProfile TypedDict; OnboardingStatus расширен полями name и avatar_id
 
-**Протокол 0028 (на ревью)**: Добавлен `app/schema/money_layers.py` —
+**Протокол 0028**: Добавлен `app/schema/money_layers.py` —
 контракт модели «свободно/платежи/резерв» (Epic-11, кусок 1). Новый
 модуль, не расширение существующего — реэкспорт добавлен в
 `app/schema/__init__.py` (12 имён + блок в `__all__`)

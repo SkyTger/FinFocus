@@ -11,7 +11,7 @@ originSessionId: -
 Сервисный слой с бизнес-логикой и валидацией для Transaction, Goal и Calendar операций
 
 ## Ключевые файлы
-- `app/services/money_layers_service.py` - MoneyLayersService, модель «свободно/платежи/резерв» (протокол 0028, на ревью)
+- `app/services/money_layers_service.py` - MoneyLayersService, модель «свободно/платежи/резерв» (протокол 0028)
 - `app/services/transaction_service.py` - TransactionService CRUD
 - `app/services/goal_service.py` - GoalService CRUD + contributions
 - `app/services/calendar_service.py` - CalendarService расчет остатков (Фаза 3)
@@ -1031,7 +1031,7 @@ VALID_CALC_MODES = {"sum", "max_scenario"}  # Режимы калькулято�
   - calc_mode="sum" — сумма всех сценариев
   - calc_mode="max_scenario" — максимальный из сценариев
   - Валидация: calc_mode in VALID_CALC_MODES
-- `get_threshold_amount(user_id)` → `Decimal` **(протокол 0028, на ревью)**
+- `get_threshold_amount(user_id)` → `Decimal` **(протокол 0028)**
   - Лёгкая альтернатива `get_settings()` для потребителей, которым нужен
     только порог подушки — не дёргает `_get_current_balance()` /
     `CalendarService.get_balance_on_date()` (тот пересчитывает всю
@@ -1286,7 +1286,7 @@ with get_db_session() as session:
 
 ---
 
-## MoneyLayersService (Протокол 0028, на ревью — Epic-11 «щиток», кусок 1 из 3)
+## MoneyLayersService (Протокол 0028 — Epic-11 «щиток», кусок 1 из 3)
 
 **Файл**: `app/services/money_layers_service.py` (~840 строк)
 
@@ -1368,7 +1368,7 @@ savings-операции стоят на этих датах».
 
 **Стабильность контракта**: спроектирован под кусок 1 (шапка + график).
 Стабильность до куска 2 (карточки-двери) НЕ гарантируется — осознанное
-решение (`memory/spec-context/epic-11.md`).
+решение (`.obsidian-docs/design/epic-11-panel-batch-1/spec.md`).
 
 **Unit тесты**: `tests/test_money_layers_service.py`, 65 тестов в 10
 блоках — таблица ожидаемых слоёв по 12 кейсам трассировки решения (в

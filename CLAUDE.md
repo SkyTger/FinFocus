@@ -54,17 +54,18 @@ Core domain entities with SQLAlchemy ORM:
 
 ### Routing System
 URL-based page routing in `app/main.py`:
-- `/` or `/dashboard` → Dashboard overview
-- `/calendar` → Cash calendar (stub)
-- `/goals` → Savings goals management (stub)
-- `/transactions` → Transaction list (stub)
+- `/` or `/dashboard` → Дашборд-«щиток»: шапка «Свободно сегодня» + график полос
+- `/calendar` → Кассовый календарь
+- `/goals` → Цели накопления и финансовая подушка
+- `/transactions` → Список операций
+- `/analytics` → Аналитика по категориям
 
 Routing handled by `display_page()` callback responding to URL pathname changes.
 
 ### UI Framework
 **Dash + Bootstrap** stack:
 - Dash Bootstrap Components (dbc) for layout/styling
-- Plotly for interactive charts (cashflow bars, donut charts)
+- Plotly for interactive charts (stacked layers bars, donut charts)
 - Bootstrap icons for UI elements
 - Custom CSS for brand theming (green/white palette)
 
