@@ -1,6 +1,6 @@
 """Тесты для CalendarService."""
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
@@ -820,3 +820,198 @@ class TestSavingsTypesInBalance:
         assert balances[date(2026, 1, 15)] == Decimal("40000.00")
         # 40000 на 31 января (баланс сохраняется)
         assert balances[date(2026, 1, 31)] == Decimal("40000.00")
+
+
+class TestRecurringBeforePeriodSavings:
+    """Регрессионные тесты протокола 0029: savings-типы и перенесённые
+    exceptions в расчёте остатка до начала периода.
+
+    Дефект: _calculate_recurring_before_date суммировал только
+    income/expense — recurring savings-операции, оказавшиеся раньше
+    начала окна расчёта, молча выпадали из базы остатка и завышали
+    баланс всего окна. Перенесённые exceptions (original_date и
+    transaction_date по разные стороны границы окна) терялись целиком
+    из-за выборки по original_date при раскладке по фактической дате.
+
+    Все даты — относительные (от date.today()) — защита от протухания
+    (открытый вопрос №6 ROADMAP).
+    """
+
+    def _make_weekly_template(
+        self, db_session, user_id, txn_type, amount, start_offset_days=-21
+    ):
+        """Weekly-шаблон со стартом offset дней от сегодня.
+
+        При старте −21 инстансы детерминированы при любом «сегодня»:
+        −21, −14, −7, 0, +7, ...
+        """
+        template = Transaction(
+            user_id=user_id,
+            amount=amount,
+            transaction_type=txn_type,
+            transaction_date=date.today() + timedelta(days=start_offset_days),
+            description="Шаблон 0029",
+            is_recurring=True,
+            recurring_period="weekly",
+        )
+        db_session.add(template)
+        db_session.commit()
+        return template
+
+    @pytest.mark.parametrize(
+        "savings_type",
+        [TransactionType.SAVINGS_RESERVE, TransactionType.SAVINGS_CONTRIBUTION],
+    )
+    def test_savings_instances_before_period_reduce_base(
+        self, db_session, test_user, savings_type
+    ):
+        """Прошлые recurring savings-инстансы уменьшают базу остатка.
+
+        Weekly-шаблон с −21 дня: три инстанса (−21, −14, −7) до начала
+        окна обязаны сидеть в базе, сегодняшний — в первом дне окна.
+        """
+        self._make_weekly_template(
+            db_session, test_user.id, savings_type, Decimal("1000.00")
+        )
+        service = CalendarService(db_session)
+        today = date.today()
+
+        balances = service.calculate_daily_balances(
+            test_user.id, today, today + timedelta(days=6)
+        )
+
+        # 10000 (starting) − 3×1000 (база) − 1000 (инстанс сегодня) = 6000
+        assert balances[today] == Decimal("6000.00")
+        # До следующего инстанса (+7) баланс не меняется
+        assert balances[today + timedelta(days=6)] == Decimal("6000.00")
+
+    def test_get_balance_on_date_includes_past_savings(self, db_session, test_user):
+        """get_balance_on_date видит прошлые savings-инстансы."""
+        self._make_weekly_template(
+            db_session,
+            test_user.id,
+            TransactionType.SAVINGS_RESERVE,
+            Decimal("1000.00"),
+        )
+        service = CalendarService(db_session)
+
+        balance = service.get_balance_on_date(test_user.id, date.today())
+
+        # 10000 − 4×1000 (−21, −14, −7, сегодня) = 6000
+        assert balance == Decimal("6000.00")
+
+    def test_savings_exception_moved_from_past_into_window(self, db_session, test_user):
+        """Перенос savings-exception из прошлого в окно: списание на
+        фактическую дату, база без него.
+
+        Кейс докстринга MoneyLayersService (ограничение куска 1
+        Epic-11): original_date до начала окна, transaction_date внутри.
+        До фикса операция выпадала из баланса целиком (завышение
+        с фактической даты до конца окна).
+        """
+        template = self._make_weekly_template(
+            db_session,
+            test_user.id,
+            TransactionType.SAVINGS_RESERVE,
+            Decimal("1000.00"),
+        )
+        today = date.today()
+        exception = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("2000.00"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=today + timedelta(days=3),
+            description="Перенесённый резерв",
+            recurring_parent_id=template.id,
+            original_date=today - timedelta(days=7),
+        )
+        db_session.add(exception)
+        db_session.commit()
+        service = CalendarService(db_session)
+
+        balances = service.calculate_daily_balances(
+            test_user.id, today, today + timedelta(days=6)
+        )
+
+        # База: −21, −14 (по 1000); инстанс −7 заменён exception,
+        # который фактически стоит на +3 → в базу не входит.
+        # today: 10000 − 2000 − 1000 (инстанс сегодня) = 7000
+        assert balances[today] == Decimal("7000.00")
+        assert balances[today + timedelta(days=2)] == Decimal("7000.00")
+        # Фактическая дата переноса: списание 2000 именно здесь
+        assert balances[today + timedelta(days=3)] == Decimal("5000.00")
+        assert balances[today + timedelta(days=6)] == Decimal("5000.00")
+
+    def test_savings_exception_moved_from_window_into_past(self, db_session, test_user):
+        """Перенос savings-exception из окна в прошлое: сумма в базе,
+        на исходной дате окна списания нет.
+
+        Зеркальный кейс: original_date внутри окна, transaction_date
+        до его начала. До фикса операция терялась (не попадала ни в
+        базу — original за границей выборки, ни в дни окна — guard
+        по фактической дате).
+        """
+        template = self._make_weekly_template(
+            db_session,
+            test_user.id,
+            TransactionType.SAVINGS_RESERVE,
+            Decimal("1000.00"),
+        )
+        today = date.today()
+        exception = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("2000.00"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=today - timedelta(days=2),
+            description="Досрочный резерв",
+            recurring_parent_id=template.id,
+            original_date=today,
+        )
+        db_session.add(exception)
+        db_session.commit()
+        service = CalendarService(db_session)
+
+        balances = service.calculate_daily_balances(
+            test_user.id, today, today + timedelta(days=6)
+        )
+
+        # База: −21, −14, −7 (по 1000) + exception 2000 (факт −2) = 5000.
+        # Сегодняшний инстанс заменён exception → в окне списаний нет.
+        assert balances[today] == Decimal("5000.00")
+        assert balances[today + timedelta(days=6)] == Decimal("5000.00")
+
+    def test_expense_exception_moved_from_past_into_window(self, db_session, test_user):
+        """Перенос EXPENSE-exception из прошлого в окно — тот же дефект
+        касается любых типов: до фикса сумма вычиталась в базу раньше
+        времени (по выборке original_date), а на фактической дате
+        списания не было.
+        """
+        template = self._make_weekly_template(
+            db_session,
+            test_user.id,
+            TransactionType.EXPENSE,
+            Decimal("1000.00"),
+        )
+        today = date.today()
+        exception = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("2000.00"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=today + timedelta(days=3),
+            description="Перенесённый платёж",
+            recurring_parent_id=template.id,
+            original_date=today - timedelta(days=7),
+        )
+        db_session.add(exception)
+        db_session.commit()
+        service = CalendarService(db_session)
+
+        balances = service.calculate_daily_balances(
+            test_user.id, today, today + timedelta(days=6)
+        )
+
+        # База: −21, −14 (по 1000) = −2000; сегодня: −1000 → 7000
+        assert balances[today] == Decimal("7000.00")
+        # Списание 2000 — на фактической дате +3, не раньше
+        assert balances[today + timedelta(days=2)] == Decimal("7000.00")
+        assert balances[today + timedelta(days=3)] == Decimal("5000.00")

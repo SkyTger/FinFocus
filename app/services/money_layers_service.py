@@ -340,10 +340,12 @@ class MoneyLayersService:
 
         ВАЖНО: ту же самую выборку с той же семантикой использует
         расчёт баланса (_get_recurring_daily_changes → тот же
-        get_instances_with_exceptions, раскладка по transaction_date,
-        calendar_service.py:353-357). Правила отбора у нас и у баланса
-        ОДИНАКОВЫ — расхождение возможно только из-за разных
-        диапазонов вызова, и разобрано в докстринге _goals_part_by_day.
+        get_instances_with_exceptions, раскладка по transaction_date).
+        С протокола 0029 баланс расширяет диапазоны выборки и фильтрует
+        по фактической дате, поэтому перенесённый exception виден
+        и нам, и балансу на одной и той же дате — прежнее расхождение
+        из-за разных диапазонов вызова снято (см. докстринг
+        _goals_part_by_day, Note).
 
         Достижимость переноса (проверено grep'ом): параметр
         create_exception(new_date=...) (recurring_service.py:405)
@@ -549,25 +551,20 @@ class MoneyLayersService:
             Оба параметра — в блоке A шага 6 с числами по трём слоям.
 
         Note:
-            ОГРАНИЧЕНИЕ: перенесённый exception внутри текущего месяца
-            (critique-v3, №2, случай 3). Если savings-exception
-            перенесён с даты ДО reference_date на дату внутри окна,
-            наш сбор его видит (original_date >= collect_start), а
-            прогнозный остаток — нет: _get_recurring_daily_changes
-            (ref .. window_end) его не отбирает (original_date < ref),
-            а _calculate_recurring_before_date (calendar_service.py
-            :396-406) считает только income/expense и savings
-            ИГНОРИРУЕТ. Направление ошибки: лишнее слагаемое
-            уменьшает goals_part → уменьшает reserve → «Свободно»
-            ЗАВЫШАЕТСЯ. Инвариант AC-3 это не поймает (он слеп
-            к раскладке). Правка требует исправления
-            _calculate_recurring_before_date, что запрещено C-3 —
-            ограничение записано в осадок решений одним пунктом
-            с латентным дефектом, чьим следствием является.
-            Симметричный случай (original_date < collect_start,
-            дата внутри окна) расхождения НЕ даёт: его не видит
-            ни наш сбор, ни баланс — обе стороны используют одну
-            выборку get_instances_with_exceptions.
+            Ограничение куска 1 «перенесённый exception внутри текущего
+            месяца» (critique-v3, №2, случай 3) СНЯТО протоколом 0029:
+            _calculate_recurring_before_date и _get_recurring_daily_changes
+            (calendar_service.py) теперь учитывают savings-типы и
+            раскладывают перенесённые exceptions по фактической дате —
+            прогнозный остаток видит такую операцию там же, где её видит
+            наш сбор, «Свободно» больше не завышается. Покрыто
+            регрессионными тестами (test_calendar_service.py
+            ::TestRecurringBeforePeriodSavings,
+            test_money_layers_service.py::TestMovedExceptionRegression).
+            Остаточная экзотика — exception, перенесённый с исходной
+            даты дальше RECURRING_LOOKAHEAD_DAYS (366) от границы
+            расчёта, — описана в докстринге
+            _calculate_recurring_before_date.
 
         Args:
             savings_by_date: Savings-операции по фактическим датам

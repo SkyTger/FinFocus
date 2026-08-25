@@ -1062,3 +1062,68 @@ class TestFailOpen:
 
         assert data["is_empty"] is True
         assert len(data["days"]) == WINDOW_DAYS
+
+
+# ===========================================================================
+# Блок K — регрессия протокола 0029: перенесённый savings-exception
+# ===========================================================================
+
+
+class TestMovedExceptionRegression:
+    """Снятое ограничение куска 1: перенос savings-exception внутри
+    текущего месяца с даты до reference_date.
+
+    До протокола 0029 прогнозный остаток не видел такую операцию вовсе
+    (выборка recurring до начала окна игнорировала savings-типы, а дни
+    окна отбирались по original_date) — «Свободно» завышалось со дня
+    фактической даты переноса до конца окна.
+    """
+
+    def test_moved_savings_exception_hits_forecast_balance(
+        self, db_session, service, layers_user
+    ):
+        """Списание перенесённого exception стоит на фактической дате.
+
+        Резерв 5 000 обычно списывается 10-го; пользователь перенёс его
+        на 20-е. reference_date = 15-е: на 19-е списания ещё нет,
+        на 20-е прогнозный остаток падает ровно на 5 000.
+        """
+        ref = date.today().replace(day=15)
+        prev_month_10th = (month_start(ref) - timedelta(days=1)).replace(day=10)
+        template = Transaction(
+            user_id=layers_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=prev_month_10th,
+            description="Резервирование бюджета",
+            is_recurring=True,
+            recurring_period="monthly",
+        )
+        db_session.add(template)
+        db_session.commit()
+        exception = Transaction(
+            user_id=layers_user.id,
+            amount=Decimal("5000.00"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=ref.replace(day=20),
+            description="Резервирование бюджета (перенос)",
+            recurring_parent_id=template.id,
+            original_date=ref.replace(day=10),
+        )
+        db_session.add(exception)
+        db_session.commit()
+
+        data = service.get_money_layers(layers_user.id, ref)
+
+        by_date = {d["date"]: d for d in data["days"]}
+        day_19 = by_date[ref.replace(day=19)]
+        day_20 = by_date[ref.replace(day=20)]
+        # Списание — ровно на фактической дате переноса
+        assert (day_19["forecast_balance"] - day_20["forecast_balance"]) == Decimal(
+            "5000.00"
+        )
+        # Инвариант AC-3 держится и на дне переноса
+        assert (
+            day_20["free"] + day_20["payments"] + day_20["reserve"]
+            == day_20["forecast_balance"]
+        )
