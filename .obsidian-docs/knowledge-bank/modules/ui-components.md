@@ -1,32 +1,23 @@
+---
+name: ui-components
+description: Dash UI компоненты FinFocus — дашборд-щиток (шапка+график полос), Sidebar, Transactions, Calendar, модалы
+type: reference
+originSessionId: -
+---
+
 # modules/ui-components.md
 
 ## Суть
-Dash компоненты для UI: Dashboard, Sidebar, Transactions с Bootstrap styling
+Dash компоненты для UI: Dashboard-щиток, Sidebar, Transactions с Bootstrap styling
 
 ## Ключевые файлы
-- `app/components/dashboard.py` - главная страница с метриками и графиками
+- `app/components/dashboard.py` - главная страница: шапка «Свободно сегодня» + график полос (протокол 0028)
 - `app/components/sidebar.py` - навигация
 - `app/components/transactions.py` - управление операциями (CRUD)
 
-## Dashboard Component
-
-**Layout**:
-- 4 metric cards (Balance, Income, Expense, Goals)
-- Cashflow bar chart (Plotly)
-- Expense structure donut chart (Plotly)
-- AI Assistant card (placeholder)
-
-**Callbacks**: Пока статические данные, интеграция с БД в Фазе 4
-
-**Ключевые элементы**:
-```python
-dbc.Card([
-    dbc.CardBody([
-        html.H4("Balance", className="text-muted"),
-        html.H2("₽125,000", className="text-success")
-    ])
-])
-```
+См. секцию «Dashboard Component» ниже (актуальная версия, протокол 0028)
+— первая версия этого раздела (статические metric-карточки без БД)
+описывала состояние Батча 0, давно неактуальна.
 
 ## Sidebar Component (Протокол 0023 — рефакторинг)
 
@@ -426,163 +417,111 @@ if ctx.triggered[0].get('value') is None:
 - **Mobile disabled** — tooltip скрыт на < 768px (нет hover)
 - **Placeholder -1** — template_id=-1 вместо None для Dash Pattern-Matching (None не поддерживается)
 
-## Dashboard Component (Фаза 4 + Epic-05-UI Протокол 0021-0023 — ЗАВЕРШЕНА)
+## Dashboard Component — щиток (Протокол 0028, на ревью — Epic-11, кусок 1 из 3)
+
+> **История**: до протокола 0028 дашборд состоял из ряда 4 KPI-карточек
+> (Баланс/Доходы/Расходы/Накопления) + переключаемого графика
+> доходы-расходы+баланс (Month/Year, dual Y-axis) — реализация протоколов
+> 0021-0023. Протокол 0028 заменил этот layout целиком на «щиток»:
+> шапка-вердикт «Свободно сегодня» + график полос
+> Свободно/Платежи/Резерв. Приветствие и переключатель периода убраны,
+> AI Assistant/Exchange остаются скрытыми. Раздел ниже описывает ТЕКУЩЕЕ
+> состояние; секции про KPI-карточки и dual-axis график ниже больше не
+> актуальны для дашборда (dual Y-axis остаётся общим Plotly-паттерном,
+> см. `patterns/plotly-charts.md`).
 
 **Файлы**:
-- `app/components/dashboard.py` — UI + callbacks (~1100 строк после протокола 0023)
-- `app/assets/dashboard.css` — стили
+- `app/components/dashboard.py` — UI + callbacks (~1270 строк)
+- `app/assets/panel.css` — стили щитка (новый, ~286 строк)
+- `app/assets/custom.css` — общие стили, почищен от `.kpi-*` и
+  `.db-period-switcher` (572 → 419 строк)
 
-**Layout** (обновлено в протоколе 0021-0023):
-- **Row 1**: 4 KPI cards (Total Balance, Income, Expense, Goals) с новым дизайном:
-  - Белый фон вместо градиентов
-  - Border и border-radius
-  - Типографика: .kpi-number, .kpi-title, .kpi-subtitle
-  - Русские label: "Обзор", "Доходы", "Расходы", "Накопления"
-  - **Кнопка "Сверка" на Total Balance** — открывает reconciliation modal (Протокол 0023)
-- **Row 2 (8/4 split)** **(Протокол 0023)**:
-  - **Левая колонна (8 cols)**:
-    - **Daily/Yearly cashflow chart (Plotly)** — дневной график для Month mode, месячный для Year mode (Протокол 0022):
-      - Grouped bars (доходы/расходы) + линия running balance
-      - Diamond маркер минимального баланса
-      - Today вертикальная линия (только Month mode)
-      - Current month highlight rect (только Year mode)
-      - Dual Y-axis (bars слева, balance справа)
-      - hovermode="x unified" с customdata + format_rub()
-      - Клик по bar → create-modal с preselected date (только Month mode)
-    - **Split Transactions Tables (50/50)** **(Протокол 0023)**:
-      - Недавние операции (до today) — последние 5, DESC sort
-      - Предстоящие операции (от today) — ближайшие 5, ASC sort
-      - format_date_human() для дат ("5 февраля")
-      - Иконка 🔁 для recurring instances
-      - Empty states с CTA кнопками "Добавить"
-      - Ссылка "Все операции" → /transactions
-  - **Правая колонна (4 cols)** **(Протокол 0023)**:
-    - **Wishlist Widget** — 5 фокусных хотелок (переиспользован из Протокола 0020)
-    - **Safety Cushion Card (readonly)** — прогресс подушки, link→/goals
-- Period switcher (month/year) через RadioItems
-- AI Assistant и Exchange cards — **скрыты** (TODO Epic-08)
+**Layout**:
+- **Шапка `dashboard-free-header`** — «Свободно сегодня: N ₽» + разбор
+  «баланс − платежи − резерв», справа аватар-эмодзи с именем, кнопка
+  «Сверка», шестерёнка (→ модал профиля). Приветствия и вердикта НЕТ
+  (решения владельца, см. ниже). Не дверь-переход: без `dcc.Link`,
+  `n_clicks`, `cursor:pointer`
+- **`dashboard-layers-chart`** — график полос (Plotly) на 45 дней:
+  Свободно/Платежи/Резерв в `barmode="stack"`, линия «сегодня», маркер
+  минимума слоя «Свободно», вехи целей аннотациями, HTML-легенда
+  с тултипами вместо легенды Plotly
+- **Левая колонка (8 cols, ниже графика)**: split-таблицы
+  «Недавние»/«Предстоящие операции» (50/50, без изменений с 0023)
+- **Правая колонка (4 cols)**: Wishlist Widget + readonly карточка
+  подушки (без изменений с 0023)
+- Переключателя Месяц/Год **больше нет** — `dcc.Store(id="dashboard-period")`
+  остался в layout только как guard для клика по графику (писателя нет)
+- AI Assistant и Exchange — по-прежнему скрыты (TODO Epic-08)
 
-**Callbacks** (протокол 0022-0023, 0026):
-- `load_dashboard_data()` — загрузка данных из DashboardService при открытии страницы
-  - **Рефакторинг (0022)**: использует _load_dashboard_components() helper
-  - **Расширен (0023)**: +2 Outputs (recent table, upcoming table)
-  - **Расширен (0026)**: +Input("profile-updated") — обновление после онбординга/правки профиля без перезагрузки
-- `update_dashboard_greeting()` — реактивное приветствие **(Протокол 0026)**
-  - Input: profile-updated, State: url.pathname, prevent_initial_call=True
-  - Guard'ы: data None / чужой pathname / ошибка БД → PreventUpdate
-  - H4 приветствия получил id="dashboard-greeting" (inline-имя в layout — начальное значение)
-- `toggle_balance_toast()` — **Расширен (0026)**: +Input("profile-updated") — баннер нулевого баланса скрывается сразу после ввода баланса в онбординге
-- `refresh_dashboard_after_crud()` — обновление после CRUD операций
-  - **Рефакторинг (0022)**: использует _load_dashboard_components() helper (устраняет дублирование)
-  - **Расширен (0023)**: +2 Outputs (recent table, upcoming table)
-- `update_period_state()` — обновление dcc.Store при смене периода
-  - **NEW (0022)**: Store теперь хранит {period, year, month} вместо просто period
-- `open_create_from_chart()` — Pattern-Matching callback для клика по bar (Протокол 0022)
-  - Inputs: {"type": "cashflow-bar", "date": ALL}.n_clicks, period-store, preselection Stores
-  - Outputs: create-modal is_open, preselected-date, 4x preselection resets
-  - **Только Month mode**: Year mode не поддерживает клик (guard clause)
-  - ADR-003 guard clauses #1-4 (triggered_id, type, n_clicks, period)
-- `open_create_from_empty()` — открытие create-modal из empty states **(Протокол 0023)**
-  - Inputs: empty-recent-add-btn, empty-upcoming-add-btn
-  - Output: create-modal is_open
-  - ADR-003 guard clauses
-- `open_recon_from_dashboard()` — открытие reconciliation modal **(Протокол 0023)**
-  - Inputs: open-recon-from-dashboard-btn (KPI button), open-recon-from-dashboard-banner-btn (banner button)
-  - Output: open-recon-trigger (timestamp)
-  - ADR-003 guard clauses
+**Единственный источник данных**: `MoneyLayersService.get_money_layers()`
+(см. `services.md`) — шапка и график строятся из ОДНОГО вызова за
+рендер, расхождение цифр между ними физически невозможно.
 
-**State Management**:
-- `dcc.Store(id="dashboard-period-store")` — хранит {period, year, month}
-- Preselection Stores (интеграция с transaction_modals.py):
-  - preselected-date, preselected-amount, preselected-description, preselected-risk-warning
+**Решения владельца, зафиксированные в UI** (`memory/spec-context/epic-11.md`):
+- Вердикта/светофора в шапке НЕТ — любой порог просадки произволен,
+  проблемные дни видны на самом графике (единственное исключение:
+  отрицательное «Свободно» красным — факт знака числа, не оценка)
+- Приветствия НЕТ — главное место отдано цифре
+- Признака перерасхода бюджета целей в тултипе НЕТ (см. ограничение
+  формулы резерва в `services.md` → MoneyLayersService)
 
-**Build Functions** (протокол 0021-0023):
-- `_build_kpi_card()` — новая функция для KPI-карточек (вместо create_metric_card)
-- `_build_daily_cashflow_chart()` — дневной график для Month mode (Протокол 0022)
-  - Grouped bars (go.Bar) для income/expense (yaxis)
-  - Balance line (go.Scatter) с yaxis2 (dual Y-axis)
-  - Diamond marker для минимального баланса (go.Scatter)
-  - Today вертикальная линия (go.Scatter vline)
-  - Hover customdata: (date_iso, income_str, expense_str, balance_str, status)
-  - Pattern-Matching IDs для bar clickable: {"type": "cashflow-bar", "date": date_iso}
-- `_build_yearly_cashflow_chart()` — годовой график для Year mode (Протокол 0022)
-  - Аналогичная структура, X=месяцы вместо дней
-  - Current month highlight rect (go.Scatter fill)
-  - Bars НЕ clickable (guard в callback)
-- `_load_dashboard_components()` — helper для устранения дублирования (Протокол 0022-0023)
-  - Единая точка загрузки: KPI, chart, recent/upcoming transactions
-  - **Расширен (0023)**: +get_upcoming_transactions(), +cushion card, +6 outputs
-  - Используется в load_dashboard_data И refresh_dashboard_after_crud
-- `_build_transactions_split_table()` — таблица для Recent/Upcoming **(Протокол 0023)**
-  - format_date_human() для дат ("5 февраля")
-  - Иконка 🔁 для recurring instances
-  - Без "Completed" бейджей (не нужны на Dashboard)
-  - Ссылка "Все операции" → /transactions
-- `_build_empty_state()` — пустое состояние с CTA **(Протокол 0023)**
-  - icon: bi-inbox или bi-calendar-plus
-  - message: текст подсказки
-  - button_id: для callback open_create_from_empty
-- `_build_cushion_card_readonly()` — readonly карточка подушки **(Протокол 0023)**
-  - CushionService.get_settings() для данных
-  - Прогресс-бар с 4 статусами (not_configured/danger/warning/info/success)
-  - Link → /goals (без edit функциональности)
+**Callbacks**:
+- `load_dashboard_data()` — 5 Output'ов (шапка, график, recent,
+  upcoming, подушка); Inputs: `url.pathname`, `profile-updated`.
+  Приветствия-Output больше нет — имя/аватар обновляются вместе с
+  шапкой через тот же Output
+- `refresh_dashboard_after_crud()` — те же 5 Output'ов, после CRUD
+- `open_create_from_chart()` — клик по столбцу графика → create-modal;
+  дата берётся из ISO-строки `point["x"]` (ось графика — `type="date"`),
+  а не из года/месяца Store — окно щитка пересекает границы месяцев
+- `toggle_balance_toast()` — без изменений логики, тот же баннер
+  нулевого баланса
 
-**Форматирование** (протокол 0021):
-- 12 inline замен на format_rub():
-  - KPI values (Total Balance, Income, Expense, Goals)
-  - Cashflow текст под графиком
-  - Transaction amounts в таблице
-- Python hardcoded colors: #28a745 → #27ae60, #17a2b8 → #e74c3c
-- .table-amount.positive / .negative классы для цветовой индикации
+**Build Functions**:
+- `_load_dashboard_components(period_state)` — единая точка загрузки:
+  один вызов профиля + один вызов `get_money_layers`, дальше сборка
+  шапки/графика/таблиц/подушки. Параметр `period_state` сохранён для
+  совместимости сигнатуры вызова, на состав щитка не влияет
+- `build_free_header(data, profile)` — шапка; `_build_header_who`,
+  `_build_header_empty_state`, `_build_recon_button`,
+  `_build_settings_cog` — хелперы шапки
+- `build_layers_chart(data)` — график полос; `_axis_tickvals`
+  (потолок подписей `MAX_X_TICKS`, не цель — см. `schema.md`),
+  `_build_layer_legend`, `_build_payments_tooltip`,
+  `_build_reserve_tooltip`, `_build_chart_empty_state`
+- `_build_transactions_split_table()`, `_build_cushion_card_readonly()`,
+  `_build_empty_state()` — без изменений с протокола 0023
 
-**Plotly Chart Patterns** (Протокол 0022):
-```python
-# STATUS_COLORS для индикации
-STATUS_COLORS = {
-    "ok": "#2ecc71",       # Зеленый (≥ 15000₽)
-    "attention": "#f39c12", # Оранжевый (5000-15000₽)
-    "risk": "#e74c3c"      # Красный (< 5000₽)
-}
+**Удалено протоколом 0028** (мёртвый код): `_build_greeting_text`,
+`build_overview_cards`, `_build_kpi_card`, `build_statistics_card`,
+`build_cashflow_chart`, `_build_daily_cashflow_chart`,
+`_build_yearly_cashflow_chart`, `create_ai_assistant_card`,
+`create_exchange_card`, `build_recent_transactions_card`,
+`update_period_state()` callback, `update_dashboard_greeting()`
+callback, элемент `dashboard-greeting`, Store `dashboard-period-store`
+(заменён на `dashboard-period` — не писателя).
 
-# Dual Y-axis
-fig.update_layout(
-    yaxis=dict(title="Доходы/Расходы (₽)", side="left"),
-    yaxis2=dict(title="Баланс (₽)", side="right", overlaying="y")
-)
+**Пустые состояния (FR-6)**:
+- Чистая база → `dcc.Graph` в дереве ОТСУТСТВУЕТ вовсе (Plotly не
+  вызывается — выродившиеся оси −1..1 физически невозможны)
+- История есть, но окно пустое (`window_is_flat=True`) → график
+  рисуется плоской стопкой, пустое состояние НЕ подменяет его
+- `data["degraded"]` → нейтральная сноска в шапке «Часть данных
+  недоступна, показано без бюджета целей» + тултип резерва честно
+  не утверждает состав
 
-# hovermode unified
-fig.update_layout(hovermode="x unified")
+**Второй вход в модал профиля — шестерёнка щитка**: см.
+`patterns/callbacks.md` → «Store-триггер для динамически рендеренных
+элементов (протокол 0028)» — прямой `Input` на элемент
+`dashboard-settings-cog` ломал бы модал профиля на всех страницах,
+кроме `/dashboard`.
 
-# Hover template с customdata
-hovertemplate=(
-    "<b>%{customdata[0]}</b><br>"
-    "Доходы: %{customdata[1]}<br>"
-    "Расходы: %{customdata[2]}<br>"
-    "Баланс: %{customdata[3]}<extra></extra>"
-)
-
-# Pattern-Matching ID для клика
-customdata=[...], ids={"type": "cashflow-bar", "date": date.isoformat()}
-```
-
-**Интеграция**:
-- DashboardService для данных (get_daily_cashflow, get_yearly_cashflow)
-- CalendarService для балансов
-- GoalService для savings (агрегация по всем ACTIVE целям)
-- format_rub() для форматирования всех денежных сумм
-- transaction_modals.py — preselection Store Pattern
-
-**Критичные изменения** (протокол 0021-0023):
-- Новый формат денег: $X,XXX.XX → X XXX ₽ (глобально)
-- CSS-переменные: --color-primary (#2ecc71), --color-secondary (#e74c3c)
-- AI Assistant/Exchange скрыты, НЕ удалены (будущий Epic-08)
-- **_load_dashboard_components() helper** — устраняет дублирование между load и refresh callbacks
-- **Единый Graph ID "daily-cashflow-chart"** — переиспользуется для Month и Year режимов
-- **Preselection Store Pattern** — для передачи даты в create-modal из chart click
-- **Reconciliation globalization (0023)** — modal доступен с Dashboard (не только Calendar)
-- **Split tables 50/50 (0023)** — recent (до today) + upcoming (от today)
-- **Empty states (0023)** — CTA кнопки для создания операций
-- **Layout 8/4 (0023)** — левая колонна (chart + tables), правая колонна (wishlist + cushion)
+**Unit тесты**: UI-слой (шапка, график, легенда, тултипы, расчёт
+подписей оси) тестами не покрыт — функции чистые, критерии приёмки
+проверены вручную (протокол 0028, шаг 3.5-m, advisory-замечание
+ревьюера). Колбэки покрыты в `test_dashboard_callbacks.py` (контракт
+Output'ов и подписок через `inspect.getsource`).
 
 ## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
 

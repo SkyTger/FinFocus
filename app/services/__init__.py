@@ -54,6 +54,7 @@ from .cushion_service import (
     VALID_CALC_MODES,
     _validate_percent,
 )
+from .money_layers_service import MoneyLayersService
 from .onboarding_service import OnboardingService
 from .budget_reservation_service import (
     BudgetReservationService,
@@ -109,6 +110,8 @@ __all__ = [
     "DEFAULT_THRESHOLD_PERCENT",
     "VALID_CALC_MODES",
     "_validate_percent",
+    # Money layers (EPIC-11, кусок 1)
+    "MoneyLayersService",
     # Onboarding
     "OnboardingService",
     # Budget Reservation

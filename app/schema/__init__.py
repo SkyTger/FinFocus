@@ -50,6 +50,21 @@ from app.schema.dashboard import (
     YearlyCashflowData,
 )
 
+from app.schema.money_layers import (
+    LayerKey,
+    WINDOW_DAYS,
+    MAX_MILESTONES_IN_WINDOW,
+    MAX_X_TICKS,
+    LAYER_COLORS,
+    LAYER_LABELS,
+    Horizons,
+    DayLayers,
+    UpcomingPayment,
+    GoalMilestone,
+    TodaySlice,
+    MoneyLayersData,
+)
+
 __all__ = [
     # Analytics
     "CategorySummary",
@@ -96,4 +111,17 @@ __all__ = [
     "MonthlyCashflowData",
     "MonthlyCashflow",
     "YearlyCashflowData",
+    # Money layers (EPIC-11, кусок 1)
+    "LayerKey",
+    "WINDOW_DAYS",
+    "MAX_MILESTONES_IN_WINDOW",
+    "MAX_X_TICKS",
+    "LAYER_COLORS",
+    "LAYER_LABELS",
+    "Horizons",
+    "DayLayers",
+    "UpcomingPayment",
+    "GoalMilestone",
+    "TodaySlice",
+    "MoneyLayersData",
 ]

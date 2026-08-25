@@ -129,6 +129,69 @@ class TestGetSettings:
         assert "не найден" in str(exc_info.value)
 
 
+class TestGetThresholdAmount:
+    """Тесты для метода get_threshold_amount()."""
+
+    def test_threshold_amount_by_percent(self, db_session, test_user):
+        """Порог считается как target * threshold_percent / 100."""
+        test_user.cushion_target = Decimal("100000")
+        test_user.cushion_threshold_percent = 30
+        db_session.commit()
+
+        service = CushionService(db_session)
+
+        assert service.get_threshold_amount(test_user.id) == Decimal("30000")
+
+    def test_threshold_amount_zero_when_target_zero(self, db_session, test_user):
+        """При target=0 подушка не настроена — порог Decimal("0")."""
+        test_user.cushion_target = Decimal("0")
+        db_session.commit()
+
+        service = CushionService(db_session)
+
+        assert service.get_threshold_amount(test_user.id) == Decimal("0")
+
+    def test_threshold_amount_zero_when_user_missing(self, db_session):
+        """Отсутствующий пользователь — тихий Decimal("0"), без исключения."""
+        service = CushionService(db_session)
+
+        assert service.get_threshold_amount(99999) == Decimal("0")
+
+    def test_threshold_amount_does_not_touch_balance(
+        self, db_session, test_user, monkeypatch
+    ):
+        """Порог считается без обхода календаря — в этом смысл метода.
+
+        get_settings() ради threshold_amount тянет _get_current_balance()
+        → CalendarService.get_balance_on_date(), а тот обходит всю
+        recurring-историю. Новый метод обязан не вызывать ни один из
+        тяжёлых расчётов календаря.
+        """
+        from app.services.calendar_service import CalendarService
+
+        calls: list[str] = []
+
+        def _fail_daily(*args, **kwargs):
+            calls.append("calculate_daily_balances")
+            raise AssertionError("calculate_daily_balances не должен вызываться")
+
+        def _fail_on_date(*args, **kwargs):
+            calls.append("get_balance_on_date")
+            raise AssertionError("get_balance_on_date не должен вызываться")
+
+        monkeypatch.setattr(CalendarService, "calculate_daily_balances", _fail_daily)
+        monkeypatch.setattr(CalendarService, "get_balance_on_date", _fail_on_date)
+
+        test_user.cushion_target = Decimal("200000")
+        test_user.cushion_threshold_percent = 10
+        db_session.commit()
+
+        service = CushionService(db_session)
+
+        assert service.get_threshold_amount(test_user.id) == Decimal("20000")
+        assert calls == []
+
+
 class TestUpdateSettings:
     """Тесты для метода update_settings()."""
 

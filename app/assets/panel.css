@@ -1,0 +1,286 @@
+/* ============================================================
+   PANEL — стили щитка (EPIC-11, кусок 1)
+   Шапка «Свободно сегодня», блок графика полос, HTML-легенда.
+
+   Классы сигнальной шины, чипа вердикта и приветствия НЕ заводятся:
+   вердикт снят решением владельца п. 3а (любой порог просадки
+   произволен — проблемные дни видны на самом графике), приветствие
+   снято п. 3г (главное место отдано цифре, не вежливости).
+   ============================================================ */
+
+:root {
+    /* Палитра слоёв — единственный источник правды в CSS.
+       Совпадает с LAYER_COLORS (app/schema/money_layers.py). */
+    --pnl-free: #2ecc71;
+    --pnl-free-deep: #1e9e57;
+    --pnl-payments: #f0b775;
+    --pnl-reserve: #3498db;
+
+    /* Ритм и скругления щитка (эскиз v3) */
+    --pnl-gap: 16px;
+    --pnl-radius: 14px;
+    --pnl-radius-sm: 10px;
+}
+
+/* === ЧИСЛА ================================================== */
+
+.pnl-money {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+}
+
+/* Отрицательная сумма — факт знака числа, а не оценка состояния */
+.pnl-negative {
+    color: var(--color-danger);
+}
+
+/* === 1. ШАПКА «СВОБОДНО СЕГОДНЯ» ============================ */
+
+.pnl-breaker {
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--pnl-radius);
+    padding: 16px 24px 15px;
+    display: flex;
+    align-items: flex-start;
+    gap: 28px;
+    overflow: hidden;
+}
+
+.pnl-breaker-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.pnl-tag {
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.pnl-amount {
+    font-size: 54px;
+    line-height: 1.02;
+    font-weight: 800;
+    letter-spacing: -0.028em;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+    margin-top: 2px;
+}
+
+.pnl-breakdown {
+    margin-top: 9px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    flex-wrap: wrap;
+}
+
+.pnl-breakdown b {
+    color: var(--color-text-primary);
+    font-weight: 600;
+}
+
+.pnl-breakdown .pnl-op {
+    color: var(--color-text-muted);
+    font-weight: 600;
+}
+
+/* Сноска деградации — нейтральная, не тревожная:
+   говорит «часть данных недоступна», а не «всё плохо» */
+.pnl-degraded-note {
+    margin-top: 7px;
+    font-size: 12.5px;
+    color: var(--color-text-muted);
+}
+
+/* --- правый угол шапки: пользователь + шестерёнка ------------ */
+
+.pnl-who {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 2px;
+}
+
+.pnl-avatar {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: var(--color-bg-page);
+    border: 1px solid var(--color-border-light);
+    border-radius: 999px;
+    padding: 5px 14px 5px 6px;
+}
+
+.pnl-avatar-face {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid var(--color-border-light);
+    display: grid;
+    place-items: center;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.pnl-avatar-name {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+
+.pnl-cog {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 50%;
+    background: var(--color-bg-card);
+    color: var(--color-text-secondary);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.pnl-cog:hover {
+    color: var(--color-text-primary);
+    border-color: var(--color-border);
+}
+
+.pnl-cog:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+/* === 2. БЛОК ГРАФИКА ПОЛОС =================================== */
+
+.pnl-meter {
+    margin-top: var(--pnl-gap);
+    background: var(--color-bg-card);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--pnl-radius);
+    padding: 11px 16px 2px;
+}
+
+.pnl-meter-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 0 4px;
+}
+
+.pnl-meter-head h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.008em;
+}
+
+.pnl-meter-hint {
+    font-size: 12.5px;
+    color: var(--color-text-secondary);
+}
+
+/* === 3. HTML-ЛЕГЕНДА ГРАФИКА ================================ */
+/* Вынесена из Plotly (showlegend=False): нужны тултипы с составом
+   платежей и доступность с клавиатуры (AC-4). */
+
+.pnl-legend {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 4px 4px 8px;
+}
+
+.pnl-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--color-text-secondary);
+    cursor: help;
+    border-radius: var(--pnl-radius-sm);
+    padding: 2px 4px;
+}
+
+.pnl-legend-item:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+}
+
+.pnl-legend-swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    flex: 0 0 auto;
+}
+
+.pnl-legend-swatch-free {
+    background: var(--pnl-free);
+}
+
+.pnl-legend-swatch-payments {
+    background: var(--pnl-payments);
+}
+
+.pnl-legend-swatch-reserve {
+    background: var(--pnl-reserve);
+}
+
+/* === 4. ПУСТЫЕ СОСТОЯНИЯ ==================================== */
+
+.pnl-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+}
+
+.pnl-empty-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+}
+
+.pnl-empty-hint {
+    font-size: 13.5px;
+    color: var(--color-text-secondary);
+    margin-bottom: 4px;
+}
+
+/* === 5. АДАПТИВНОСТЬ ======================================== */
+
+@media (max-width: 991px) {
+    .pnl-amount {
+        font-size: 46px;
+    }
+}
+
+@media (max-width: 767px) {
+    .pnl-breaker {
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .pnl-amount {
+        font-size: 38px;
+    }
+}
+
+/* === 6. ДОСТУПНОСТЬ ========================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    .pnl-cog {
+        transition: none;
+    }
+}

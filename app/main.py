@@ -93,6 +93,8 @@ app.layout = dbc.Container(
         dcc.Store(id="balance-toast-dismissed", data=False),
         # Trigger для автооткрытия reconciliation modal (timestamp-based)
         dcc.Store(id="open-recon-trigger", data=None),
+        # Trigger для открытия профиля из шестерёнки щитка (timestamp-based)
+        dcc.Store(id="open-profile-trigger", data=None),
         # Wishlist: ID активного элемента для планирования в календаре
         dcc.Store(id="wishlist-active-item", data=None),
     ],

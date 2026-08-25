@@ -1,3 +1,10 @@
+---
+name: schema
+description: TypedDict-контракты FinFocus (app/schema/) — Goals, Onboarding, Dashboard, MoneyLayers
+type: reference
+originSessionId: -
+---
+
 # modules/schema.md
 
 ## Суть
@@ -7,6 +14,7 @@
 - `app/schema/__init__.py` - экспорты
 - `app/schema/goals.py` - TypedDicts для накопительных целей
 - `app/schema/onboarding.py` - UserProfile, OnboardingStatus (расширен в протоколе 0024)
+- `app/schema/money_layers.py` - контракт модели «свободно/платежи/резерв» (протокол 0028, на ревью)
 
 ## Цели модуля
 
@@ -245,6 +253,87 @@ class YearlyCashflowData(TypedDict):
 - **end_balance**: для Year mode — баланс на конец месяца (EOM)
 - **Decimal serialization**: все денежные суммы → string для JSON
 
+**Замечание (протокол 0028)**: этот блок TypedDicts обслуживал старый
+дневной/годовой график дашборда (`_build_daily_cashflow_chart` и др.),
+который протокол 0028 удалил вместе с переключателем Месяц/Год. Типы
+здесь оставлены как есть — DashboardService их не потерял, но UI-слой,
+их использовавший, больше не существует (заменён `MoneyLayersData`,
+см. ниже).
+
+## TypedDicts для MoneyLayers (Протокол 0028, на ревью)
+
+`app/schema/money_layers.py` — контракт модели «свободно/платежи/резерв»
+(Epic-11 «щиток», кусок 1 из 3). Докстринг модуля прямо предупреждает:
+контракт спроектирован под кусок 1, стабильность до куска 2
+(карточки-двери) не гарантируется.
+
+### LayerKey / константы
+
+```python
+LayerKey = Literal["free", "payments", "reserve"]
+
+WINDOW_DAYS = 45                  # длина окна оси графика
+MAX_MILESTONES_IN_WINDOW = 3      # макс. вех целей внутри окна (+1 beyond_window)
+MAX_X_TICKS = 11                  # ПОТОЛОК подписей оси X (не цель — k = ceil(len/MAX_X_TICKS))
+
+LAYER_COLORS: dict[LayerKey, str] = {
+    "free": "#2ecc71", "payments": "#f0b775", "reserve": "#3498db"
+}
+LAYER_LABELS: dict[LayerKey, str] = {
+    "free": "Свободно", "payments": "Платежи", "reserve": "Резерв целей и подушки"
+}
+```
+
+### Horizons (NamedTuple)
+`collect_start` (1-е число месяца reference_date) / `window_end`
+(reference_date + 44) / `payments_end` (конец месяца reference_date).
+
+### DayLayers
+```python
+class DayLayers(TypedDict):
+    date: date
+    free: Decimal
+    payments: Decimal
+    reserve: Decimal                # ФАКТ дня после каскада _split_day
+    reserve_configured: Decimal     # ДО каскада — для честного тултипа
+    forecast_balance: Decimal
+```
+Инвариант: `free + payments + reserve == forecast_balance` (AC-3).
+
+### UpcomingPayment / GoalMilestone / TodaySlice
+- `UpcomingPayment` — date/amount (всегда > 0)/description/category_name/is_recurring — для тултипа легенды «Платежи»
+- `GoalMilestone` — goal_id/name/target_date/target_amount/progress_percent/beyond_window — материализован из ORM Goal ВНУТРИ сессии (иначе DetachedInstanceError на `progress_percentage`)
+- `TodaySlice` — free/balance/payments/reserve на reference_date, источник цифр шапки. **Полей вердикта (level/text/dip_threshold) НЕТ** — решение владельца, шапка не выносит оценок
+
+### MoneyLayersData — корневой контракт
+```python
+class MoneyLayersData(TypedDict):
+    days: list[DayLayers]
+    today: TodaySlice
+    min_free: Decimal
+    min_free_date: date
+    upcoming_payments: list[UpcomingPayment]
+    milestones: list[GoalMilestone]
+    reference_date: date
+    window_end: date
+    payments_end: date
+    cushion_threshold: Decimal
+    goals_reserve_today: Decimal
+    reserve_configured_today: Decimal
+    degraded: bool           # часть модели посчитана fail-open
+    is_empty: bool           # данных нет ВООБЩЕ (не «нули в окне»)
+    window_is_flat: bool     # данные есть, но окно без операций — график всё равно рисуется
+```
+
+**Критичные детали**:
+- Вердикт-типов (`ok`/`dip`/`problem`) в контракте НЕТ — снят решением
+  владельца, `min_free` используется только маркером минимума на графике
+- `is_empty` != `window_is_flat`: первое — «нет данных вообще» (чистая
+  база, пустое состояние вместо графика), второе — «данные есть, окно
+  пустое» (график рисуется плоской стопкой)
+- Единственный источник цифр и для шапки, и для графика — оба строятся
+  из одного `MoneyLayersData` за один вызов `get_money_layers`
+
 ## Критичные решения
 
 **Протокол 0006**: Централизация TypedDicts в отдельном модуле для DRY
@@ -257,8 +346,13 @@ class YearlyCashflowData(TypedDict):
 
 **Протокол 0024**: Добавлены UserProfile TypedDict; OnboardingStatus расширен полями name и avatar_id
 
+**Протокол 0028 (на ревью)**: Добавлен `app/schema/money_layers.py` —
+контракт модели «свободно/платежи/резерв» (Epic-11, кусок 1). Новый
+модуль, не расширение существующего — реэкспорт добавлен в
+`app/schema/__init__.py` (12 имён + блок в `__all__`)
+
 **Serialization**: Decimal → str через `app/utils/serializers.py` для JSON-совместимости
 
 ---
 
-Детали: `services.md` (DashboardService, AllocationService, RedistributionService), `ui-components.md` (Dashboard Component, Goals Component), `utils.md` (Serializers)
+Детали: `services.md` (DashboardService, MoneyLayersService, AllocationService, RedistributionService), `ui-components.md` (Dashboard-щиток, Goals Component), `utils.md` (Serializers)
