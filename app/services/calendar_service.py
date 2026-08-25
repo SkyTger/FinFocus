@@ -12,6 +12,16 @@ from sqlalchemy.orm import Session
 
 from app.models.database import Transaction, TransactionType, User
 
+# Запас выборки recurring-инстансов вправо от границы расчёта:
+# exception, перенесённый с будущей исходной даты на прошлую
+# (original_date >= границы, transaction_date < границы), отдаётся
+# только выборкой, дотягивающейся до его original_date. Привязан
+# импортом к RecurringService.MAX_FORECAST_DAYS — горизонты выборки
+# и генерации инстансов меняются вместе (протокол 0029, ревью 3-m).
+from app.services.recurring_service import MAX_FORECAST_DAYS
+
+RECURRING_LOOKAHEAD_DAYS = MAX_FORECAST_DAYS
+
 
 class MonthSummary(TypedDict):
     """Сводка по месяцу для статистических карточек."""
@@ -366,17 +376,33 @@ class CalendarService:
     ) -> Decimal:
         """Рассчитывает сумму recurring операций до указанной даты.
 
+        Суммирование — по ФАКТИЧЕСКОЙ дате инстанса (transaction_date
+        для exceptions): перенесённый exception учитывается там, где
+        операция реально стоит, а не там, откуда перенесена. Выборка
+        _get_recurring_instances_for_period отбирает exceptions по
+        original_date, поэтому расширена вправо на
+        RECURRING_LOOKAHEAD_DAYS — иначе exception, перенесённый
+        с будущей исходной даты на прошлую, не попадает в базу остатка.
+        Инстансы с фактической датой >= before_date отфильтровываются.
+
+        Savings-типы (SAVINGS_RESERVE, SAVINGS_CONTRIBUTION) уменьшают
+        баланс наравне с EXPENSE — симметрично _get_recurring_daily_changes
+        и _calculate_balance_before_date (протокол 0029; ранее savings
+        игнорировались, и база остатка завышалась).
+
+        Остаточное ограничение: exception с original_date дальше
+        RECURRING_LOOKAHEAD_DAYS от before_date невидим — выборка
+        по original_date живёт в RecurringService и здесь не правится.
+
         Args:
             user_id: ID пользователя
             before_date: Дата, до которой считать (не включительно)
 
         Returns:
-            Decimal: Сумма изменений (INCOME - EXPENSE) от recurring
+            Decimal: Сумма изменений (INCOME − EXPENSE − SAVINGS) от recurring
         """
         from app.services.recurring_service import RecurringService
 
-        # Определяем начало периода для recurring
-        # Берём самую раннюю дату шаблона или год назад (для безопасности)
         recurring_service = RecurringService(self.session)
         templates = recurring_service.get_templates_for_user(user_id)
 
@@ -390,18 +416,26 @@ class CalendarService:
         if before_date <= earliest_template_date:
             return Decimal("0")
 
-        # Получаем все recurring экземпляры от начала до before_date-1
+        # Выборка с запасом вправо: ловит exceptions, перенесённые
+        # с будущей исходной даты на дату до before_date
         instances = self._get_recurring_instances_for_period(
             user_id,
             earliest_template_date,
-            before_date - timedelta(days=1),
+            before_date + timedelta(days=RECURRING_LOOKAHEAD_DAYS - 1),
         )
 
         total = Decimal("0")
         for inst in instances:
+            # Фактическая дата решает: перенесённые в будущее — не в базе
+            if inst["date"] >= before_date:
+                continue
             if inst["transaction_type"] == "income":
                 total += inst["amount"]
-            elif inst["transaction_type"] == "expense":
+            elif inst["transaction_type"] in (
+                "expense",
+                "savings_reserve",
+                "savings_contribution",
+            ):
                 total -= inst["amount"]
 
         return total
@@ -411,6 +445,15 @@ class CalendarService:
     ) -> dict[date, Decimal]:
         """Получает изменения баланса от recurring операций по дням.
 
+        Раскладка — по ФАКТИЧЕСКОЙ дате инстанса, а выборка exceptions
+        в RecurringService идёт по original_date, поэтому левая граница
+        выборки расширена до самого раннего шаблона: exception,
+        перенесённый с даты до start_date на дату внутри периода,
+        отдаётся только выборкой, включающей его original_date
+        (протокол 0029; ранее такой инстанс терялся из расчёта).
+        Инстансы с фактической датой вне [start_date, end_date]
+        отфильтровываются — их учитывает база остатка.
+
         Args:
             user_id: ID пользователя
             start_date: Начало периода
@@ -419,12 +462,23 @@ class CalendarService:
         Returns:
             dict[date, Decimal]: Словарь {дата: изменение баланса за день}
         """
+        from app.services.recurring_service import RecurringService
+
+        templates = RecurringService(self.session).get_templates_for_user(user_id)
+        if not templates:
+            return {}
+
+        earliest_template_date = min(t.transaction_date for t in templates)
+
         instances = self._get_recurring_instances_for_period(
-            user_id, start_date, end_date
+            user_id, min(start_date, earliest_template_date), end_date
         )
 
         daily_changes: dict[date, Decimal] = defaultdict(Decimal)
         for inst in instances:
+            # Фактическая дата решает: вне периода — не сюда, а в базу
+            if not (start_date <= inst["date"] <= end_date):
+                continue
             if inst["transaction_type"] == "income":
                 daily_changes[inst["date"]] += inst["amount"]
             elif inst["transaction_type"] in (

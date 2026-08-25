@@ -124,9 +124,7 @@ def temp_db_without_avatar_id():
         "CREATE INDEX ix_wishlist_user_priority ON wishlist_items(user_id, priority)"
     )
 
-    cursor.execute(
-        "INSERT INTO users (email, name) VALUES ('test@test.com', 'Test')"
-    )
+    cursor.execute("INSERT INTO users (email, name) VALUES ('test@test.com', 'Test')")
     conn.commit()
     conn.close()
 

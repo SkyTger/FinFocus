@@ -305,9 +305,16 @@ def _axis_tickvals(window_dates: list[date]) -> list[date]:
     ticks = window_dates[::step]
 
     # Правый край окна обязан быть подписан — но только если он
-    # не попал в сетку сам (иначе дубль подписи на коротком окне)
+    # не попал в сетку сам (иначе дубль подписи на коротком окне).
+    # Если сетка уже упёрлась в потолок, край ЗАМЕНЯЕТ её последнюю
+    # подпись, а не добавляется сверх MAX_X_TICKS (протокол 0029:
+    # при len, кратной MAX_X_TICKS, сетка даёт ровно MAX_X_TICKS
+    # подписей и прежний append пробивал потолок)
     if window_dates[-1] not in ticks:
-        ticks.append(window_dates[-1])
+        if len(ticks) >= MAX_X_TICKS:
+            ticks[-1] = window_dates[-1]
+        else:
+            ticks.append(window_dates[-1])
 
     return ticks
 
