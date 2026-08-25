@@ -94,7 +94,7 @@ def create_profile_modal() -> dbc.Modal:
     ],
     [
         Input("sidebar-profile-container", "n_clicks"),
-        Input("dashboard-settings-cog", "n_clicks"),
+        Input("open-profile-trigger", "data"),
         Input("profile-save-btn", "n_clicks"),
         Input("profile-cancel-btn", "n_clicks"),
     ],
@@ -106,7 +106,7 @@ def create_profile_modal() -> dbc.Modal:
 )
 def handle_profile_modal(
     open_clicks: int | None,
-    cog_clicks: int | None,
+    cog_trigger: float | None,
     save_clicks: int | None,
     cancel_clicks: int | None,
     name_value: str | None,
@@ -118,10 +118,22 @@ def handle_profile_modal(
         raise PreventUpdate
 
     # Open — загрузить данные из БД.
-    # Два входа: аватар в сайдбаре и шестерёнка в шапке щитка
-    # (решение владельца п. 5). suppress_callback_exceptions
-    # снимает риск отсутствия шестерёнки вне дашборда.
-    if triggered_id in ("sidebar-profile-container", "dashboard-settings-cog"):
+    # Два входа: аватар в сайдбаре (есть всегда) и шестерёнка в шапке
+    # щитка (решение владельца п. 5). Шестерёнка рендерится динамически
+    # и вне /dashboard в DOM отсутствует, поэтому подключена не прямым
+    # Input, а через Store open-profile-trigger: прямой Input на
+    # отсутствующий элемент заставляет клиентский рендерер Dash молча
+    # не отправлять callback целиком — ломался бы и аватар в сайдбаре
+    # на всех страницах, кроме дашборда (suppress_callback_exceptions
+    # подавляет только СЕРВЕРНУЮ валидацию layout, не клиентскую).
+    if triggered_id in ("sidebar-profile-container", "open-profile-trigger"):
+        # Store сохраняет значение между переходами по разделам (layout
+        # приложения не пересоздаётся), поэтому открывать модал можно
+        # только на непустом триггере — иначе восстановленное значение
+        # переоткрывало бы профиль при каждой загрузке страницы.
+        if triggered_id == "open-profile-trigger" and not cog_trigger:
+            raise PreventUpdate
+
         try:
             with get_db_session() as session:
                 service = OnboardingService(session)

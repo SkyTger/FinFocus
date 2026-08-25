@@ -1219,6 +1219,17 @@ clientside_callback(
     prevent_initial_call=True,
 )
 
+# Шестерёнка в шапке щитка → open-profile-trigger (модал профиля).
+# Элемент рождается динамически внутри dashboard-free-header, поэтому
+# прямой Input в profile_modal сломал бы callback на всех страницах,
+# где шестерёнки нет в DOM (в т.ч. вход через аватар в сайдбаре).
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
+    Output("open-profile-trigger", "data", allow_duplicate=True),
+    Input("dashboard-settings-cog", "n_clicks"),
+    prevent_initial_call=True,
+)
+
 # Кнопка "Сверка" в пустом состоянии шапки → open-recon-trigger
 clientside_callback(
     ClientsideFunction("triggers", "timestamp_trigger"),
