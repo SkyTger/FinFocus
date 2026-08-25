@@ -1,3 +1,10 @@
+---
+name: plotly-charts
+description: Паттерны Plotly-графиков FinFocus — dual Y-axis, unified hover, stacked bars щитка, clickable bars, вехи-аннотации
+type: reference
+originSessionId: -
+---
+
 # patterns/plotly-charts.md
 
 ## Суть
@@ -5,7 +12,90 @@
 
 ## Ключевые паттерны
 
+### Stacked Layers Bar Pattern (Протокол 0028 — Dashboard-щиток)
+
+График полос «Свободно/Платежи/Резерв» — три `go.Bar` в
+`barmode="stack"`, легенда Plotly отключена и вынесена в HTML (нужны
+развёрнутые пояснения-тултипы и доступность с клавиатуры, чего
+встроенная легенда Plotly не даёт).
+
+```python
+fig = go.Figure()
+
+# Порядок трасс снизу вверх осмыслен: свободно → платежи → резерв
+for key in ("free", "payments", "reserve"):
+    fig.add_trace(
+        go.Bar(
+            x=dates,
+            y=[float(day[key]) for day in data["days"]],
+            name=LAYER_LABELS[key],
+            marker_color=LAYER_COLORS[key],
+            customdata=[format_rub(day[key]) for day in data["days"]],
+            hovertemplate=f"{LAYER_LABELS[key]}: %{{customdata}}<extra></extra>",
+        )
+    )
+
+fig.update_layout(
+    barmode="stack",
+    showlegend=False,  # легенда — HTML вне поля графика, см. ui-components.md
+    xaxis=dict(
+        type="date",
+        tickmode="array",
+        tickvals=_axis_tickvals(dates),  # см. ниже — потолок числа подписей
+    ),
+    yaxis=dict(
+        rangemode="tozero",
+        tickformat=",.0f",
+        separatethousands=True,  # против "50.001k" — P2 UX-аудита
+    ),
+)
+```
+
+**Явные tickvals вместо dtick** (`_axis_tickvals`, `dashboard.py`):
+спорные единицы `dtick` (день/неделя/месяц) на неравномерном 45-дневном
+окне дают либо слишком частую, либо слишком редкую сетку. Явный список
+дат с потолком (не целью!) числа подписей:
+
+```python
+def _axis_tickvals(window_dates: list[date]) -> list[date]:
+    step = max(1, ceil(len(window_dates) / MAX_X_TICKS))
+    ticks = window_dates[::step]
+    if window_dates[-1] not in ticks:  # правый край окна обязан быть подписан
+        ticks.append(window_dates[-1])
+    return ticks
+```
+
+**Пустое состояние без вызова Plotly**: на чистой базе функция
+построения графика возвращает `html.Div` вместо `dcc.Graph` —
+Plotly вообще не вызывается, поэтому выродившиеся оси −1..1 и
+подписи вида «50.001k» физически невозможны (не «скрыты стилями», а
+не могут возникнуть). Критерий пустоты — `MoneyLayersData["is_empty"]`,
+НЕ «данные есть, но окно без операций» (`window_is_flat`) — в этом
+случае график всё равно рисуется, просто плоской стопкой.
+
+**Безопасность тултипов**: пользовательские описания операций
+(название платежа, категория) вставляются ТОЛЬКО текстом внутри
+`html.Div`. `dangerously_allow_html` и `dcc.Markdown` в этом пути
+запрещены — источник текста пользовательский.
+
+**Критичные детали**:
+- Порядок трасс в стеке — продуктовое решение, не косметика (снизу
+  «то, что точно ваше», сверху «то, что уже не ваше»)
+- `MAX_X_TICKS` — имя-потолок, не имя-цель: предыдущее имя
+  `TARGET_X_TICKS` обещало результат, которого простой `round()` не
+  давал (см. `schema.md` → MoneyLayersData для истории переименования)
+- Легенда и тултипы — см. `ui-components.md` → Dashboard-щиток
+
+---
+
 ### Dual Y-Axis Pattern (Протокол 0022)
+
+> **Статус (протокол 0028)**: график доходы/расходы+баланс, для
+> которого писался этот паттерн, УДАЛЁН с дашборда вместе с
+> `_build_daily_cashflow_chart`/`_build_yearly_cashflow_chart` — заменён
+> графиком полос выше. Сам паттерн dual-axis остаётся общим приёмом
+> Plotly и может понадобиться где-то ещё; пример ниже не переписан,
+> но на дашборде больше не действует.
 
 Две оси Y для отображения данных разного масштаба (bars vs line).
 
@@ -226,6 +316,15 @@ fig.add_vrect(
 
 ### Pattern-Matching Clickable Bars (Протокол 0022)
 
+> **Статус (протокол 0028)**: на графике полос щитка клик реализован
+> ПРОЩЕ — через обычный `dcc.Graph.clickData` (Input на сам граф, не
+> Pattern-Matching ID), потому что ось теперь `type="date"` и
+> `point["x"]` приходит готовой ISO-строкой; Pattern-Matching ID по
+> дате был нужен старому графику с числовыми/категориальными осями.
+> Guard "только Month mode" тоже снят — щитка нет режимов. Пример ниже
+> — исторический, для графиков, где ось НЕ дата или нужен ID сложнее
+> одной даты.
+
 Клик по bar для открытия модала с предзаполненной датой.
 
 **Проблема**: Plotly clickData возвращает индекс точки, а не custom ID — неудобно для обработки.
@@ -337,6 +436,10 @@ fig.add_trace(go.Scatter(
 
 ## Критичные решения
 
+**Stacked Layers (протокол 0028)**: `showlegend=False` + HTML-легенда с тултипами вместо встроенной Plotly-легенды — нужны развёрнутые пояснения и клавиатурная доступность
+
+**Явные tickvals с потолком, не dtick**: на неравномерных многодневных окнах спорные единицы dtick дают то частую, то редкую сетку
+
 **Dual Y-Axis**: Обязателен при разном масштабе данных (50K bars vs 150K line)
 
 **hovermode="x unified"**: Улучшает UX — не нужно точно попадать на trace
@@ -351,4 +454,4 @@ fig.add_trace(go.Scatter(
 
 ---
 
-Детали: `ui-components.md` (Dashboard Component), `services.md` (DashboardService), `code-style.md` (ADR-003 Guard Clauses)
+Детали: `ui-components.md` (Dashboard-щиток), `services.md` (MoneyLayersService, DashboardService), `code-style.md` (ADR-003 Guard Clauses)

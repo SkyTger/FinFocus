@@ -1,9 +1,100 @@
+---
+name: callbacks
+description: Паттерны Dash callbacks FinFocus — helper-функции, ADR-003 guards, Store-триггеры для динамических элементов, selective refresh
+type: reference
+originSessionId: -
+---
+
 # patterns/callbacks.md
 
 ## Суть
 Паттерны организации Dash callbacks для устранения дублирования и безопасности
 
 ## Ключевые паттерны
+
+### Store-триггер для динамически рендеренных элементов (Протокол 0028)
+
+Расширяет известный проекту урок про `suppress_callback_exceptions`
+(см. `MEMORY.md`) конкретным подтверждённым кейсом: флаг подавляет
+только СЕРВЕРНУЮ валидацию layout, а не клиентский рендерер. Прямой
+`Input` на элемент, который рендерится динамически и отсутствует в
+DOM на части страниц, заставляет `dash-renderer.js` молча не
+отправлять callback ВООБЩЕ — без ошибки в консоли — на всех
+страницах, где элемента нет.
+
+**Кейс (протокол 0028, зафиксирован как регрессия на ревью)**: шестерёнка
+щитка (`dashboard-settings-cog`) рендерится только внутри
+`dashboard-free-header`, то есть только на `/dashboard`. Первая попытка
+подключить её к модалу профиля — прямой `Input("dashboard-settings-cog",
+"n_clicks")` в обычном серверном callback `handle_profile_modal` —
+сломала ВТОРОЙ, уже существующий вход (клик по аватару в сайдбаре) на
+всех страницах, кроме дашборда: клиентский рендерер не резолвил callback
+целиком, потому что один из его Input'ов отсутствовал в DOM.
+
+**Решение**: тот же приём, что уже применялся для кнопок «Сверка» на
+дашборде (протоколы 0021-0023) — clientside-триггер пишет timestamp
+в глобальный `dcc.Store`, а серверный callback слушает Store, а не
+элемент напрямую.
+
+```python
+# main.py — Store в глобальном layout (существует на всех страницах)
+dcc.Store(id="open-profile-trigger", data=None)
+
+# dashboard.py — clientside_callback пишет timestamp при клике
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
+    Output("open-profile-trigger", "data", allow_duplicate=True),
+    Input("dashboard-settings-cog", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+# profile_modal.py — серверный callback слушает Store, не элемент
+@callback(
+    ...,
+    [
+        Input("sidebar-profile-container", "n_clicks"),  # вход №1, есть везде
+        Input("open-profile-trigger", "data"),            # вход №2, через Store
+        ...,
+    ],
+)
+def handle_profile_modal(open_clicks, cog_trigger, ...):
+    triggered_id = ctx.triggered_id
+    if triggered_id in ("sidebar-profile-container", "open-profile-trigger"):
+        # ВАЖНО: guard на пустой триггер — Store хранит значение между
+        # переходами по разделам (layout Dash не пересоздаётся), без
+        # guard'а модал переоткрывался бы при КАЖДОЙ загрузке любой
+        # страницы после первого клика
+        if triggered_id == "open-profile-trigger" and not cog_trigger:
+            raise PreventUpdate
+        ...
+```
+
+**Второй побочный дефект того же паттерна — guard на пустой Store**:
+Store — не событие, а состояние: Dash не пересоздаёт layout при
+переходах между страницами (`url.pathname` меняется, но `dcc.Store`
+в корневом `app.layout` живёт всю сессию браузера). Значит после
+первого клика Store навсегда хранит непустое значение, и любой
+callback, слушающий его через `Input`, сработает заново при следующей
+загрузке страницы — если не проверить явно, что значение изменилось
+именно СЕЙЧАС. Образец guard'а — `toggle_reconciliation_modal`
+в `calendar.py:1309-1311`.
+
+**Когда применять**: любой второй (третий, …) вход в существующий
+callback через элемент, которого нет в начальном layout на части
+страниц — карточки-двери куска 2 Epic-11, скорее всего, дадут ещё
+несколько таких кейсов.
+
+**Критичные детали**:
+- `suppress_callback_exceptions=True` НЕ решает эту проблему — это
+  доказанный экспериментом факт (0 запросов `_dash-update-component`,
+  консоль браузера пуста, никакой ошибки не брошено), не переигрывать
+- Проверять эффект нужно вручную в браузере на реальной навигации между
+  страницами — юнит-тестом на колбэк-контракт (какие Input'ы объявлены)
+  эту регрессию не поймать, только её ОТСУТСТВИЕ повторной поломки
+- Docstring/комментарий, объясняющий выбор паттерна, обязателен —
+  иначе следующий разработчик повторит прямой Input
+
+---
 
 ### Helper Function for Component Loading (Протокол 0022)
 
@@ -165,6 +256,13 @@ def open_create_from_chart(n_clicks_list, period_store):
 ---
 
 ### Period Store Pattern (Протокол 0022)
+
+> **Статус (протокол 0028)**: конкретное применение на дашборде
+> (`dashboard-period-store`, переключатель Month/Year) СНЯТО вместе
+> со старым графиком — щиток показывает единое 45-дневное окно без
+> переключения периода. Паттерн Store-с-расширенной-структурой
+> остаётся общим приёмом, пример ниже сохранён как референс структуры,
+> но на дашборде больше не действует.
 
 State management через dcc.Store для сохранения контекста (period, year, month).
 
@@ -411,4 +509,4 @@ def refresh_dashboard_after_crud(trigger, pathname):
 
 ---
 
-Детали: `ui-components.md` (Dashboard, Calendar, Transactions), `code-style.md` (ADR-003), `architecture.md` (Presentation Layer)
+Детали: `ui-components.md` (Dashboard-щиток, Calendar, Transactions), `code-style.md` (ADR-003), `architecture.md` (Presentation Layer), `services.md` (MoneyLayersService)

@@ -1,9 +1,17 @@
+---
+name: services
+description: Сервисный слой FinFocus (~30 сервисов) — Transaction/Goal/Calendar/Dashboard/MoneyLayers и др., контракты и критичные решения
+type: reference
+originSessionId: -
+---
+
 # modules/services.md
 
 ## Суть
 Сервисный слой с бизнес-логикой и валидацией для Transaction, Goal и Calendar операций
 
 ## Ключевые файлы
+- `app/services/money_layers_service.py` - MoneyLayersService, модель «свободно/платежи/резерв» (протокол 0028, на ревью)
 - `app/services/transaction_service.py` - TransactionService CRUD
 - `app/services/goal_service.py` - GoalService CRUD + contributions
 - `app/services/calendar_service.py` - CalendarService расчет остатков (Фаза 3)
@@ -1023,6 +1031,18 @@ VALID_CALC_MODES = {"sum", "max_scenario"}  # Режимы калькулято�
   - calc_mode="sum" — сумма всех сценариев
   - calc_mode="max_scenario" — максимальный из сценариев
   - Валидация: calc_mode in VALID_CALC_MODES
+- `get_threshold_amount(user_id)` → `Decimal` **(протокол 0028, на ревью)**
+  - Лёгкая альтернатива `get_settings()` для потребителей, которым нужен
+    только порог подушки — не дёргает `_get_current_balance()` /
+    `CalendarService.get_balance_on_date()` (тот пересчитывает всю
+    recurring-историю от самого раннего шаблона)
+  - Формула: `target * threshold_percent / 100`, без обращения к балансу
+  - `Decimal("0")` тихо при отсутствии пользователя или `target <= 0` —
+    НЕ бросает `ValidationError` (в отличие от `_get_user()`), чистая
+    база — штатный случай для потребителя (MoneyLayersService)
+  - Единственное разрешённое отступление от правила «существующие
+    сервисы не менять» в протоколе 0028 (C-3); добавлен аддитивно,
+    остальные методы не тронуты
 
 **TypedDicts** (app/schema/cushion.py):
 ```python
@@ -1266,4 +1286,97 @@ with get_db_session() as session:
 
 ---
 
-Детали: `architecture.md` (Service Layer Pattern), `code-style.md` (Session Management Pattern), `schema.md` (TypedDicts)
+## MoneyLayersService (Протокол 0028, на ревью — Epic-11 «щиток», кусок 1 из 3)
+
+**Файл**: `app/services/money_layers_service.py` (~840 строк)
+
+**Суть**: read-only композиция над `CalendarService` (прогнозный остаток +
+операции), `BudgetReservationService` (только `monthly_budget`),
+`CushionService` (`get_threshold_amount`) и `GoalService` (вехи). Ни одного
+существующего метода не меняет и не пишет в БД. Раскладывает прогнозный
+остаток каждого дня окна на три слоя — **Свободно / Платежи / Резерв** —
+единой формулой от даты D, без ветвления по режиму резервирования
+(`fixed_date` / `from_balance`). Источник для нового дашборда-щитка
+(шапка «Свободно сегодня» + график полос), заменившего 4 KPI-карточки
+и график доходы/расходы+баланс.
+
+**Инициализация**: `MoneyLayersService(session)`
+
+**Публичный метод**:
+- `get_money_layers(user_id, reference_date=None)` → `MoneyLayersData`
+  - `reference_date` по умолчанию `date.today()`
+  - Никогда не бросает при отсутствии данных — `is_empty=True` (чистая база)
+  - Сбои части модели (бюджет целей, порог подушки, вехи) деградируют
+    fail-open: `degraded=True` + `logger.opt(exception=True)`. Сбой
+    расчёта самого остатка (`calculate_daily_balances`) НЕ глотается —
+    без остатка модели нет
+  - NFR-1: на 120 операциях сборка + рендер — 13 мс (порог 2000 мс);
+    `calculate_daily_balances` и `get_all_transactions_for_period`
+    вызываются РОВНО по 1 разу за сборку
+
+**Два горизонта** (решение владельца):
+| Горизонт | Длина | Смысл |
+|---|---|---|
+| Окно оси | `WINDOW_DAYS` = 45 дней от `reference_date` | эскиз v3 |
+| Слой «Платежи» | до конца календарного месяца `reference_date` (C-5) | за границей месяца `payments(D) == 0` — ограничение показано честно, а не скрыто сужением оси |
+
+**Инвариант AC-3**: для каждого дня D окна
+`free(D) + payments(D) + reserve(D) == CalendarService.balance(D)` —
+обеспечен конструктивно (`free` выводится вычитанием, каскад `_split_day`
+сохраняет сумму во всех ветках), а НЕ проверкой. Тест этого инварианта
+зелёный при любой, в т.ч. неверной, раскладке слоёв — корректность держит
+отдельная таблица ожидаемых значений в тестах, не сам инвариант.
+
+**Формула резерва** (`_goals_part_by_day`, ключевое решение протокола):
+```
+consumed(D)  = Σ savings-операций в [month_start(D), D]
+committed(D) = Σ savings-операций в (D, month_end(D)]
+goals(D)     = max(0, monthly_budget − consumed(D) − committed(D))
+reserve_configured(D) = cushion_threshold + goals(D)
+```
+Месяц берётся ПО ДНЮ D (без наследования базы через границу месяца).
+`committed` не обрезается правым краем окна — savings-операции за
+`window_end`, но внутри месяца D, учитываются. Формула одна для обоих
+режимов резервирования: не спрашивает у `BudgetReservationService`
+«сколько израсходовано за месяц» (тот отвечает на другой вопрос и даёт
+двойной счёт при частичном взносе), а у кассового календаря — «какие
+savings-операции стоят на этих датах».
+
+**Каскад сжатия** (`_split_day`, единственный механизм обрезки):
+1. `free = balance − payments − reserve`; если `>= 0` — готово.
+2. Иначе `free = 0`, дефицит гасится СНАЧАЛА из `reserve` (до нуля),
+   потом из `payments` — «сначала залезаете в подушку, потом не хватает
+   на платежи».
+3. Если `balance < 0` — `free = balance`, `payments = reserve = 0`.
+
+**Известные допущения и ограничение** (см. докстринги для деталей):
+- «Бюджет не менялся внутри месяца» — `monthly_savings_budget` одна
+  настройка без истории; при уменьшении бюджета после частичного взноса
+  перерасход обрезается до нуля БЕЗ индикации в UI (решение владельца);
+  при увеличении после полного взноса «Свободно» занижается (безопасное
+  направление ошибки)
+- «Фактическая дата savings-операции совпадает с датой в кассовом
+  календаре» — нарушается, если savings-exception перенесён с даты ДО
+  `reference_date` на дату внутри окна: `_calculate_recurring_before_date`
+  игнорирует savings-типы, из-за чего «Свободно» завышается. Править
+  запрещено (нарушило бы «существующие сервисы не менять»,
+  единственное исключение — `CushionService.get_threshold_amount`) —
+  **кандидат №1 в отдельный протокол до начала куска 2** (ROADMAP)
+
+**Контракт данных**: TypedDicts в `app/schema/money_layers.py` —
+см. `schema.md`.
+
+**Стабильность контракта**: спроектирован под кусок 1 (шапка + график).
+Стабильность до куска 2 (карточки-двери) НЕ гарантируется — осознанное
+решение (`memory/spec-context/epic-11.md`).
+
+**Unit тесты**: `tests/test_money_layers_service.py`, 65 тестов в 10
+блоках — таблица ожидаемых слоёв по 12 кейсам трассировки решения (в
+т.ч. частичный взнос, границы месяца, перенос exception), инвариант
+AC-3, таяние платежей, каскад, порог подушки, пустые состояния, типы
+операций, fail-open. Осмысленность подтверждена mutation-проверкой
+(5 порч формулы — все пойманы).
+
+---
+
+Детали: `architecture.md` (Service Layer Pattern), `code-style.md` (Session Management Pattern), `schema.md` (TypedDicts), `modules/ui-components.md` (Dashboard-щиток), `patterns/plotly-charts.md` (график полос)
