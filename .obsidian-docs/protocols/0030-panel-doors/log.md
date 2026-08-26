@@ -46,3 +46,43 @@ solution-v4 («Модель данных»), реэкспорт в `app/schema/_
 
 Проверки: py_compile OK, импорт из `app.schema` OK, black чист,
 flake8 без замечаний.
+
+## Шаг 2: Композитор данных (2026-08-26)
+
+Создан `app/services/panel_service.py` (~640 строк) —
+`DashboardPanelService.get_panel_data()`: один сбор PanelData за одну
+сессию, `get_money_layers` вне try/except (модель не деградирует),
+пять блоков — четыре в поблочных try/except с
+`logger.opt(exception=True)`. Экспорт в `app/services/__init__.py`.
+
+**По плану шага**: `_calendar_block` — чистая функция от layers
+(0 запросов, дни из days[0]/[1]); `_goals_block` — одно
+`session.get(User)` вместо трёх сервисных вызовов, `AllocationService()`
+без аргументов, подушка из layers без `CushionService.get_settings`;
+`_operations_block` — явные преобразования (ISO→date, kind по
+`TRANSACTION_KIND_MAP`, переименование is_recurring_instance, title с
+фолбэком); `_analytics_block` — month_label из reference_date;
+`_wishlist_block` — to_data внутри сессии; пять `_empty_*` по
+контракту (Optional→None, числа→0, строки→"", href как обычно).
+
+**Интерпретации, не расписанные в solution дословно** (задокументированы
+в докстрингах):
+- `operations_note`: «сегодня» — счётчик платежей дня из
+  `layers["upcoming_payments"]` со склонением («2 операции»),
+  «завтра» — «план» при наличии платежей, иначе None (RTM #62,
+  сведённый к двум окошкам)
+- EMPTY-критерий карточки «Календарь» — `layers["is_empty"]`
+  (собственные данные карточки и есть модель слоёв; иначе чистая база
+  дала бы «Сегодня — 0 ₽» — артефакт AC-5)
+- `cushion_label` = «N% из <format_rub(target)>»; формула progress
+  повторяет `CushionService.get_settings` (current<0 → 0, cap 100)
+- FAILED-срезы = `_empty_*` + подмена status (хелпер `_failed`)
+- Цвета мини-структуры — локальная копия первых цветов
+  CATEGORY_COLORS: services не импортирует components (C-2)
+- `total_count` wishlist = len(get_all)
+
+**Смоук** (in-memory SQLite): пустая база без User — все пять EMPTY;
+база с User/целями/операциями/wishlist — все пять OK, чтение всех
+полей после закрытия сессии без DetachedInstanceError.
+
+Проверки: py_compile OK, black чист, flake8 без замечаний.

@@ -55,6 +55,7 @@ from .cushion_service import (
     _validate_percent,
 )
 from .money_layers_service import MoneyLayersService
+from .panel_service import DashboardPanelService
 from .onboarding_service import OnboardingService
 from .budget_reservation_service import (
     BudgetReservationService,
@@ -112,6 +113,7 @@ __all__ = [
     "_validate_percent",
     # Money layers (EPIC-11, кусок 1)
     "MoneyLayersService",
+    "DashboardPanelService",
     # Onboarding
     "OnboardingService",
     # Budget Reservation
