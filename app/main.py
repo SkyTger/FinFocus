@@ -7,12 +7,26 @@ from app.core.paths import get_app_dir, get_assets_dir
 
 import dash
 import time
-from dash import dcc, html, Input, Output, State, callback
+from dash import (
+    dcc,
+    html,
+    Input,
+    Output,
+    State,
+    callback,
+    clientside_callback,
+    ClientsideFunction,
+)
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
+from loguru import logger
 
 from app.components.dashboard import create_dashboard_layout
 from app.components.sidebar import create_sidebar
+from app.config.avatars import DEFAULT_AVATAR_ID
+from app.core.database import get_db_session
+from app.schema.onboarding import UserProfile
+from app.services.onboarding_service import OnboardingService
 from app.components.transactions import (
     create_transactions_layout,
 )  # Сначала transactions
@@ -54,11 +68,9 @@ app.layout = dbc.Container(
         # Главная структура с sidebar
         html.Div(
             [
-                # Sidebar (левая панель навигации, fixed)
-                html.Div(
-                    create_sidebar(),
-                    className="sidebar-column",
-                ),
+                # Sidebar-слот: наполняется render_sidebar_slot;
+                # на дашборде пуст, колонку скрывает CSS :empty
+                html.Div(id="sidebar-slot", className="sidebar-column"),
                 # Основной контент
                 html.Div(
                     [
@@ -102,6 +114,76 @@ app.layout = dbc.Container(
     ],
     fluid=True,
     className="p-0 app-container",
+)
+
+
+DEFAULT_USER_ID = 1
+
+
+@callback(
+    Output("sidebar-slot", "children"),
+    Input("url", "pathname"),
+    Input("profile-updated", "data"),
+)
+def render_sidebar_slot(pathname: str | None, profile_updated: float | None):
+    """Сайдбар есть на всех страницах, КРОМЕ дашборда (FR-2, AC-1).
+
+    ЕДИНСТВЕННЫЙ колбэк сайдбара. Оба прежних — highlight_active_sidebar
+    (Output sidebar-nav) и update_sidebar_profile (Output
+    sidebar-profile-name/-avatar) — УДАЛЕНЫ (critique-v2, блокер №2;
+    Подход B критика, принят владельцем): после снятия сайдбара с
+    дашборда их Output'ы стали бы условно присутствующими, а гонку
+    с перерисовкой слота guard по pathname не снимает. Чтение профиля
+    переехало сюда, create_sidebar стала чистой функцией.
+
+    Оба Input'а — на элементы, присутствующие ВСЕГДА: dcc.Location
+    "url" и dcc.Store "profile-updated" живут в глобальном layout.
+    Правило C-6 соблюдено с обеих сторон: ни Input, ни Output не
+    смотрит на условно присутствующий узел.
+
+    profile-updated как Input, а не State: правка профиля обязана
+    перерисовать сайдбар (тот же Store уже слушает load_dashboard_data).
+    Guard'а на пустой Store здесь НЕ нужно — колбэк идемпотентен:
+    он не открывает модалов, а перерисовка сайдбара тем же
+    содержимым не наблюдаема.
+
+    ЦЕНА (стратегия загрузки solution-v4): одна сессия и одно чтение
+    профиля на каждый переход между разделами. На /dashboard сессии
+    НЕТ — возвращается [] до её открытия. Сбой чтения профиля НЕ
+    обрушивает сайдбар: except → профиль-заглушка + лог, навигация
+    остаётся рабочей (находимость разделов важнее имени).
+
+    Колонка скрывается ОДНИМ механизмом — CSS-правилом
+    .sidebar-column:empty { display: none } (critique-v1, №9),
+    поэтому className не переключается и Output'а на него нет.
+    """
+    if pathname in (None, "/", "/dashboard"):
+        return []  # сессия НЕ открывается
+
+    try:
+        with get_db_session() as session:
+            profile = OnboardingService(session).get_profile(DEFAULT_USER_ID)
+    except Exception:
+        logger.opt(exception=True).warning(
+            "Не удалось прочитать профиль для сайдбара — "
+            "рисуем сайдбар с профилем-заглушкой (навигация не теряется)"
+        )
+        profile = UserProfile(name="Пользователь", avatar_id=DEFAULT_AVATAR_ID)
+
+    return create_sidebar(pathname, profile)
+
+
+# Аватар в сайдбаре → open-profile-trigger (модал профиля).
+# Сайдбар рендерится динамически в sidebar-slot и на дашборде
+# отсутствует — прямой Input в handle_profile_modal молча отключил бы
+# колбэк на дашборде целиком, включая вход через шестерёнку (класс
+# регрессий C-6 «наоборот», риск R1 solution-v4). Тот же паттерн
+# Store-триггера, что у шестерёнки щитка (урок протокола 0028).
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
+    Output("open-profile-trigger", "data", allow_duplicate=True),
+    Input("sidebar-profile-container", "n_clicks"),
+    prevent_initial_call=True,
 )
 
 

@@ -1,13 +1,16 @@
 """Тесты колбэка модала профиля — контракт входов и guard триггера.
 
-Протокол: 0028-money-layers-panel, шаг 3.5-m-fix (правка на ревью).
+Протоколы: 0028 (шаг 3.5-m-fix, шестерёнка через Store) и 0030
+(кусок 2: сайдбар снят с дашборда — вход через аватар ТОЖЕ переведён
+на Store, прямых Input на динамические элементы не осталось).
 
-Регрессионная защита от дефекта, найденного на ревью 0028: шестерёнка
-щитка была подключена к колбэку профиля прямым Input'ом. Элемент
-рендерится динамически и вне /dashboard в DOM отсутствует, из-за чего
-клиентский рендерер Dash молча переставал отправлять колбэк целиком —
-переставал работать и второй вход, аватар в сайдбаре, на всех страницах
-кроме дашборда (ошибки в консоль при этом не пишется).
+Регрессионная защита от дефекта, найденного на ревью 0028: элемент,
+подключённый к колбэку прямым Input'ом, вне своей страницы в DOM
+отсутствует, из-за чего клиентский рендерер Dash молча перестаёт
+отправлять колбэк целиком — ломаются ВСЕ входы колбэка (ошибки в
+консоль при этом не пишется). После куска 2 динамическими стали оба
+входа: шестерёнка (рождается в dashboard-free-header) и аватар
+(сайдбар живёт в sidebar-slot и на дашборде отсутствует).
 
 Правильный паттерн проекта для динамических элементов — clientside
 timestamp trigger + Store (см. assets/clientside_triggers.js).
@@ -19,6 +22,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from dash.exceptions import PreventUpdate
 
+from app import main as main_module
 from app.components import dashboard as dashboard_module
 from app.components.profile_modal import handle_profile_modal
 
@@ -48,10 +52,21 @@ class TestProfileModalContract:
         source = _decorator_source(handle_profile_modal)
         assert 'Input("open-profile-trigger", "data")' in source
 
-    def test_sidebar_input_preserved(self):
-        """Вход через аватар в сайдбаре сохранён (есть на всех страницах)."""
+    def test_sidebar_avatar_is_not_a_direct_input(self):
+        """Прямого Input на аватар сайдбара быть не должно (протокол 0030).
+
+        Сайдбар рендерится динамически в sidebar-slot и на дашборде
+        отсутствует — прямой Input молча отключил бы колбэк на
+        дашборде целиком, включая вход через шестерёнку (риск R1).
+        """
         source = _decorator_source(handle_profile_modal)
+        assert 'Input("sidebar-profile-container"' not in source
+
+    def test_clientside_trigger_registered_for_sidebar_avatar(self):
+        """Аватар сайдбара пишет в Store через clientside-триггер (main.py)."""
+        source = inspect.getsource(main_module)
         assert 'Input("sidebar-profile-container", "n_clicks")' in source
+        assert 'Output("open-profile-trigger", "data", allow_duplicate=True)' in source
 
     def test_clientside_trigger_registered_for_cog(self):
         """Шестерёнка пишет в Store через clientside-триггер."""
@@ -74,7 +89,6 @@ class TestProfileModalTriggerGuard:
             mock_ctx.triggered_id = "open-profile-trigger"
             with pytest.raises(PreventUpdate):
                 handle_profile_modal(
-                    open_clicks=None,
                     cog_trigger=empty_value,
                     save_clicks=None,
                     cancel_clicks=None,
@@ -98,7 +112,6 @@ class TestProfileModalTriggerGuard:
                     "avatar_id": "smile",
                 }
                 is_open, name, avatar, _ = handle_profile_modal(
-                    open_clicks=None,
                     cog_trigger=1234567890.0,
                     save_clicks=None,
                     cancel_clicks=None,

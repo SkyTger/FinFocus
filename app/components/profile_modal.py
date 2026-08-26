@@ -93,7 +93,6 @@ def create_profile_modal() -> dbc.Modal:
         Output("profile-updated", "data", allow_duplicate=True),
     ],
     [
-        Input("sidebar-profile-container", "n_clicks"),
         Input("open-profile-trigger", "data"),
         Input("profile-save-btn", "n_clicks"),
         Input("profile-cancel-btn", "n_clicks"),
@@ -105,7 +104,6 @@ def create_profile_modal() -> dbc.Modal:
     prevent_initial_call=True,
 )
 def handle_profile_modal(
-    open_clicks: int | None,
     cog_trigger: float | None,
     save_clicks: int | None,
     cancel_clicks: int | None,
@@ -118,20 +116,20 @@ def handle_profile_modal(
         raise PreventUpdate
 
     # Open — загрузить данные из БД.
-    # Два входа: аватар в сайдбаре (есть всегда) и шестерёнка в шапке
-    # щитка (решение владельца п. 5). Шестерёнка рендерится динамически
-    # и вне /dashboard в DOM отсутствует, поэтому подключена не прямым
-    # Input, а через Store open-profile-trigger: прямой Input на
-    # отсутствующий элемент заставляет клиентский рендерер Dash молча
-    # не отправлять callback целиком — ломался бы и аватар в сайдбаре
-    # на всех страницах, кроме дашборда (suppress_callback_exceptions
-    # подавляет только СЕРВЕРНУЮ валидацию layout, не клиентскую).
-    if triggered_id in ("sidebar-profile-container", "open-profile-trigger"):
+    # ЕДИНСТВЕННЫЙ вход открытия — Store open-profile-trigger (протокол
+    # 0030): и шестерёнка щитка, и аватар сайдбара рендерятся динамически
+    # (сайдбар после куска 2 живёт в sidebar-slot и на дашборде
+    # отсутствует), а прямой Input на отсутствующий элемент заставляет
+    # клиентский рендерер Dash молча не отправлять callback целиком
+    # (suppress_callback_exceptions подавляет только СЕРВЕРНУЮ валидацию
+    # layout, не клиентскую). Оба входа пишут в Store clientside-
+    # триггерами (dashboard.py — шестерёнка, main.py — аватар).
+    if triggered_id == "open-profile-trigger":
         # Store сохраняет значение между переходами по разделам (layout
         # приложения не пересоздаётся), поэтому открывать модал можно
         # только на непустом триггере — иначе восстановленное значение
         # переоткрывало бы профиль при каждой загрузке страницы.
-        if triggered_id == "open-profile-trigger" and not cog_trigger:
+        if not cog_trigger:
             raise PreventUpdate
 
         try:
@@ -140,7 +138,7 @@ def handle_profile_modal(
                 profile = service.get_profile(DEFAULT_USER_ID)
             return True, profile["name"], profile["avatar_id"], None
         except Exception:
-            logger.error("Failed to load profile for modal", exc_info=True)
+            logger.opt(exception=True).error("Failed to load profile for modal")
             return True, "Пользователь", DEFAULT_AVATAR_ID, None
 
     # Save — обновить профиль
@@ -156,10 +154,10 @@ def handle_profile_modal(
                 session.commit()
             return False, None, None, time.time()
         except ValueError:
-            logger.warning("Invalid profile data", exc_info=True)
+            logger.opt(exception=True).warning("Invalid profile data")
             return True, name_value, avatar_value, None
         except Exception:
-            logger.error("Failed to save profile", exc_info=True)
+            logger.opt(exception=True).error("Failed to save profile")
             return True, name_value, avatar_value, None
 
     # Cancel

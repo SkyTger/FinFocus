@@ -11,6 +11,14 @@
     z-index: 100;
 }
 
+/* Дашборд живёт без сайдбара (Epic-11, кусок 2): render_sidebar_slot
+   возвращает [] — пустую колонку схлопывает ЭТО правило, и только оно.
+   Второй механизм (переключение d-none колбэком) не вводить: Output на
+   className был бы вторым источником правды видимости колонки. */
+.sidebar-column:empty {
+    display: none;
+}
+
 /* Sidebar Card — glassmorphism floating panel */
 .sidebar-card {
     background: rgba(255, 255, 255, 0.25);
