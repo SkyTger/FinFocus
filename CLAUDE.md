@@ -54,7 +54,7 @@ Core domain entities with SQLAlchemy ORM:
 
 ### Routing System
 URL-based page routing in `app/main.py`:
-- `/` or `/dashboard` → Дашборд-«щиток»: шапка «Свободно сегодня» + график полос
+- `/` or `/dashboard` → Дашборд-«щиток»: шапка «Свободно сегодня» + график полос + карточки-двери (навигация; сайдбара на дашборде нет)
 - `/calendar` → Кассовый календарь
 - `/goals` → Цели накопления и финансовая подушка
 - `/transactions` → Список операций
