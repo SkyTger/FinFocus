@@ -101,26 +101,53 @@
 
 ---
 
-### 4. Dashboard с метриками ✅
-**Статус**: Завершен (Протокол 0003)
+### 4. Dashboard-щиток ✅
+**Статус**: Завершен (Батч 0-3: протоколы 0003, 0021-0023 — устарело;
+Epic-11 кусок 1: протокол 0028, PR #28, смержено; долги куска 1:
+протокол 0029, PR #29, смержено; кусок 2: протокол 0030, PR #30, на
+ревью)
 
-**Возможности**:
-- 4 metric карточки: Balance, Income, Expense, Goals (с реальными данными)
-- Cashflow bar chart (Plotly):
-  - Переключатель month/year
-  - Последние 12 месяцев или 5 лет
-- Recent transactions table (последние 5)
-- Savings агрегация по всем ACTIVE целям
+> **История**: изначальная реализация (протокол 0003) — 4 metric-
+> карточки + cashflow bar chart с переключателем month/year, доросшая
+> до раскладки 8/4 (протоколы 0021-0023). Полностью заменена Epic-11 —
+> редизайн «щиток» переосмысляет дашборд как единственную навигацию по
+> разделам, а не набор метрик.
+
+**Возможности (текущее состояние)**:
+- Шапка «Свободно сегодня: N ₽» + разбор баланс−платежи−резерв,
+  аватар/имя, кнопка «Сверка», вход в профиль
+- График полос (Plotly, `barmode="stack"`) на 45 дней: Свободно/Платежи/
+  Резерв целей и подушки, линия «сегодня», вехи целей, HTML-легенда
+- Пять карточек-дверей под графиком (единственная точка входа в
+  разделы, протокол 0030): Календарь (сегодня/завтра), Цели (топ-цель
+  + подушка), Операции (недавние/предстоящие группами), Аналитика
+  (мини-структура расходов месяца), Wishlist (полоса хотелок,
+  двухуровневая дверь — тело → модал, хотелка → календарь)
+- Переходы с сохранением контекста: клик по «завтра» подсвечивает день
+  в календаре, клик по цели — карточку в разделе целей
+- Единственный источник данных для шапки/графика — `MoneyLayersService`;
+  для карточек — `DashboardPanelService` (обе модели независимы,
+  расчёт карточек НЕ затрагивает модель слоёв)
 
 **Технические детали**:
-- DashboardService: get_overview_metrics, get_cashflow_data, get_recent_transactions
-- Composition: использует CalendarService и GoalService
-- dcc.Store для хранения периода (month/year)
-- TypedDicts: OverviewMetrics, CashflowDataPoint, RecentTransaction
+- `MoneyLayersService.get_money_layers()` — read-only композиция,
+  раскладывает прогнозный остаток каждого дня на три слоя единой
+  формулой без ветвления по режиму резервирования
+- `DashboardPanelService.get_panel_data()` — один сбор `PanelData` за
+  одну сессию БД, пять блоков с поблочной деградацией (сбой одного не
+  роняет остальные)
+- Sidebar снят с дашборда, рендерится нулём колбэков (Подход B)
+- TypedDicts: `MoneyLayersData` (`app/schema/money_layers.py`),
+  контракты пяти карточек (`app/schema/panel.py`)
 
 **Файлы**:
-- `app/components/dashboard.py` (~685 строк)
-- `app/services/dashboard_service.py` (~290 строк)
+- `app/components/dashboard.py` — шапка + график + слот карточек
+- `app/components/panel_cards.py` — build-функции пяти карточек
+- `app/services/money_layers_service.py`, `app/services/panel_service.py`
+- `app/assets/panel.css`
+
+Детали: `modules/services.md`, `modules/ui-components.md` (секции
+Dashboard Component, Panel Cards), `modules/schema.md`
 
 ---
 
@@ -599,9 +626,12 @@
 **Возможности**:
 - Onboarding wizard расширен: имя + аватарка + стартовый баланс
 - 10 emoji аватарок (конфиг в app/config/avatars.py)
-- Динамический sidebar с именем и аватаркой (Store-based обновление)
-- Profile modal для редактирования имени и аватарки
-- Dashboard greeting "Добро пожаловать, {name}!"
+- Sidebar с именем и аватаркой — читает профиль при построении
+  (протокол 0030: sidebar стал чистой функцией без Store-подписки,
+  рендерится слотом `render_sidebar_slot(pathname, profile_updated)`
+  в main.py; см. `modules/ui-components.md`)
+- Profile modal для редактирования имени и аватарки — два входа
+  (шестерёнка щитка, аватар сайдбара), оба через Store-триггер
 - Bootstrap модуль (app/core/bootstrap.py) для инициализации БД
 - Idempotent миграции 001-007 (app/core/migrations.py)
 
@@ -609,9 +639,11 @@
 - User.avatar_id (String(20), nullable, default via bootstrap)
 - OnboardingService расширен: complete(), update_profile(), get_profile(), _validate_profile_fields()
 - UserProfile TypedDict в app/schema/onboarding.py
-- Store("profile-updated") как event bus для реактивного обновления sidebar
-  и дашборда (протокол 0026: load_dashboard_data, toggle_balance_toast,
-  update_dashboard_greeting подписаны — онбординг применяется без перезагрузки)
+- Store("profile-updated") как event bus реактивного обновления —
+  подписаны `load_dashboard_data` (щиток), `toggle_balance_toast`,
+  `render_sidebar_slot` (протокол 0030, заменил колбэк
+  `update_sidebar_profile`). Приветствия на дашборде больше нет
+  (снято протоколом 0028 вместе с редизайном «щиток»)
 - complete_with_balance() deprecated wrapper
 - Миграция 007_avatar_id (idempotent)
 
@@ -619,7 +651,7 @@
 - `app/config/avatars.py` — конфиг 10 аватарок (~30 строк)
 - `app/components/profile_modal.py` — модал редактирования (~150 строк)
 - `app/components/onboarding_wizard.py` — расширен (имя + аватарка)
-- `app/components/sidebar.py` — динамический профиль
+- `app/components/sidebar.py` — профиль из аргументов (чистая функция, протокол 0030)
 - `app/core/bootstrap.py` — инициализация БД (~45 строк)
 - `app/core/migrations.py` — миграции 001-007 (~180 строк)
 - `tests/test_avatars.py`, `tests/test_bootstrap.py`, `tests/test_migration_007.py`

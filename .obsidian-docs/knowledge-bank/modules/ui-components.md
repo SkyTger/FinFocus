@@ -426,10 +426,12 @@ if ctx.triggered[0].get('value') is None:
   Свободно/Платежи/Резерв в `barmode="stack"`, линия «сегодня», маркер
   минимума слоя «Свободно», вехи целей аннотациями, HTML-легенда
   с тултипами вместо легенды Plotly
-- **Левая колонка (8 cols, ниже графика)**: split-таблицы
-  «Недавние»/«Предстоящие операции» (50/50, без изменений с 0023)
-- **Правая колонка (4 cols)**: Wishlist Widget + readonly карточка
-  подушки (без изменений с 0023)
+- **`html.Div(id="dashboard-cards-row")`** — ряд из пяти карточек-дверей
+  (протокол 0030, см. секцию «Panel Cards» ниже). **Заменяет** прежнюю
+  раскладку 8/4: split-таблицы «Недавние»/«Предстоящие», wishlist-виджет
+  и readonly-карточку подушки — все три удалены целиком, вместе с
+  функциями `_build_transactions_split_table`, `_build_cushion_card_readonly`,
+  `build_wishlist_widget`, `_build_widget_item` (их больше нет в коде)
 - Переключателя Месяц/Год **больше нет** — `dcc.Store(id="dashboard-period")`
   остался в layout только как guard для клика по графику (писателя нет)
 - AI Assistant и Exchange — по-прежнему скрыты (TODO Epic-08)
@@ -447,11 +449,14 @@ if ctx.triggered[0].get('value') is None:
   формулы резерва в `services.md` → MoneyLayersService)
 
 **Callbacks**:
-- `load_dashboard_data()` — 5 Output'ов (шапка, график, recent,
-  upcoming, подушка); Inputs: `url.pathname`, `profile-updated`.
-  Приветствия-Output больше нет — имя/аватар обновляются вместе с
-  шапкой через тот же Output
-- `refresh_dashboard_after_crud()` — те же 5 Output'ов, после CRUD
+- `load_dashboard_data()` — 3 Output'а (шапка, график, ряд карточек);
+  Inputs: `url.pathname`, `profile-updated`. Приветствия-Output нет —
+  имя/аватар обновляются вместе с шапкой через тот же Output.
+  **Изменено протоколом 0030**: было 5 Output'ов (шапка, график,
+  recent, upcoming, подушка) — три последних снялись вместе со
+  split-таблицами/подушкой/wishlist-виджетом, их место заняла
+  единая карточка-ряд
+- `refresh_dashboard_after_crud()` — те же 3 Output'а, после CRUD
 - `open_create_from_chart()` — клик по столбцу графика → create-modal;
   дата берётся из ISO-строки `point["x"]` (ось графика — `type="date"`),
   а не из года/месяца Store — окно щитка пересекает границы месяцев
@@ -460,9 +465,10 @@ if ctx.triggered[0].get('value') is None:
 
 **Build Functions**:
 - `_load_dashboard_components(period_state)` — единая точка загрузки:
-  один вызов профиля + один вызов `get_money_layers`, дальше сборка
-  шапки/графика/таблиц/подушки. Параметр `period_state` сохранён для
-  совместимости сигнатуры вызова, на состав щитка не влияет
+  **протокол 0030** — один сбор через `DashboardPanelService.get_panel_data()`
+  (профиль + `MoneyLayersData` + `PanelData` за одну сессию БД), дальше
+  сборка шапки/графика/ряда карточек. Параметр `period_state` сохранён
+  для совместимости сигнатуры вызова, на состав щитка не влияет
 - `build_free_header(data, profile)` — шапка; `_build_header_who`,
   `_build_header_empty_state`, `_build_recon_button`,
   `_build_settings_cog` — хелперы шапки
@@ -470,6 +476,8 @@ if ctx.triggered[0].get('value') is None:
   (потолок подписей `MAX_X_TICKS`, не цель — см. `schema.md`),
   `_build_layer_legend`, `_build_payments_tooltip`,
   `_build_reserve_tooltip`, `_build_chart_empty_state`
+- `build_cards_row(panel_data)` (`panel_cards.py`) — ряд пяти
+  карточек-дверей, см. секцию «Panel Cards» ниже
 
 **Багфикс протокола 0029** — `_axis_tickvals` пробивал собственный
 потолок `MAX_X_TICKS`: при длине окна, кратной `MAX_X_TICKS` (например
@@ -479,8 +487,6 @@ if ctx.triggered[0].get('value') is None:
 подписей). Фикс: при упоре в потолок правый край ЗАМЕНЯЕТ последнюю
 подпись сетки, а не добавляется сверх неё. Найдено и исправлено при
 написании тестов визуального слоя (см. «Unit тесты» ниже).
-- `_build_transactions_split_table()`, `_build_cushion_card_readonly()`,
-  `_build_empty_state()` — без изменений с протокола 0023
 
 **Удалено протоколом 0028** (мёртвый код): `_build_greeting_text`,
 `build_overview_cards`, `_build_kpi_card`, `build_statistics_card`,
@@ -490,6 +496,14 @@ if ctx.triggered[0].get('value') is None:
 `update_period_state()` callback, `update_dashboard_greeting()`
 callback, элемент `dashboard-greeting`, Store `dashboard-period-store`
 (заменён на `dashboard-period` — не писателя).
+
+**Удалено протоколом 0030** (мёртвый код и раскладка 8/4, вытеснены
+рядом карточек-дверей): `_build_transactions_split_table`,
+`_build_cushion_card_readonly` (вместе с её сессией БД),
+`_build_empty_state`; в `wishlist.py` — `build_wishlist_widget`,
+`_build_widget_item` (вместе с сессией виджета из layout);
+в `custom.css` — `.db-main-row`, `.db-left-col`, `.db-right-col`,
+`.dashboard-split-table`.
 
 **Пустые состояния (FR-6)**:
 - Чистая база → `dcc.Graph` в дереве ОТСУТСТВУЕТ вовсе (Plotly не
