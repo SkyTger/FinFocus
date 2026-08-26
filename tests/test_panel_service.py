@@ -568,6 +568,24 @@ class TestMixedEmptiness:
         assert panel["goals"]["status"] == CardStatus.EMPTY
 
 
+class TestAnalyticsSectionConsistency:
+    """Цифра карточки «Аналитика» совпадает с разделом по построению.
+
+    Раздел (load_analytics_data) считает [1-е число, сегодня] — блок
+    обязан использовать ТЕ ЖЕ границы. Дефект пойман ручной сверкой
+    на шаге 9 протокола 0030: блок брал конец месяца, и завтрашний
+    расход входил в карточку, но не в раздел.
+    """
+
+    def test_future_expense_not_in_month_total(self, service, filled_user):
+        """Расход завтра (есть в фикстуре) не входит в цифру месяца."""
+        panel = service.get_panel_data(1)
+
+        # Фикстура: расходы 2 500 (позавчера) — прошлое; 4 000 (завтра)
+        # и 1 200 (+3 дня) — будущее, в цифру входить не должны
+        assert panel["analytics"]["month_total"] == Decimal("2500")
+
+
 class TestCushionConsistency:
     """R15: подушка карточки согласована с CushionService.get_settings."""
 

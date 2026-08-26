@@ -19,52 +19,32 @@ Dash компоненты для UI: Dashboard-щиток, Sidebar, Transactions
 — первая версия этого раздела (статические metric-карточки без БД)
 описывала состояние Батча 0, давно неактуальна.
 
-## Sidebar Component (Протокол 0023 — рефакторинг)
+## Sidebar Component (Протокол 0030 — ноль колбэков, Подход B)
 
-**Файл**: `app/components/sidebar.py` (~130 строк после протокола 0023)
+**Файл**: `app/components/sidebar.py`
 
-**Layout**:
-- dbc.Card контейнер (className="sidebar-card h-100") **(NEW)**
-- Логотип + заголовок
-- Навигационные ссылки (Dashboard, Calendar, Goals, Transactions)
-- User info block (username, logout button)
+> **История**: до протокола 0030 сайдбар стоял статически в layout
+> (main.py) и имел два колбэка — `highlight_active_sidebar` (подсветка)
+> и `update_sidebar_profile` (имя/аватар из БД). Кусок 2 Epic-11 снял
+> сайдбар с дашборда, и оба колбэка удалены: их Output'ы стали бы
+> условно присутствующими, а запись children в узлы, которые
+> render_sidebar_slot одновременно создаёт/удаляет, — гонка (порядок
+> применения Output'ов Dash не гарантирует).
 
-**Styling** (sidebar.css — NEW файл):
-- `.sidebar-card` — белый фон, border, padding, no shadow
-- `.sidebar-nav-item-active` — border-left 4px green для активного пункта
-
-**Callback** (NEW):
-- `highlight_active_sidebar()` — динамический active highlight
-  - Input: url.pathname
-  - Output: sidebar-nav.children
-  - Logic: перерисовывает NavLinks с active=True для текущего pathname
-
-**Константы**:
-```python
-MAIN_NAV_ITEMS = [
-    {"label": "Dashboard", "href": "/dashboard", "icon": "bi-house"},
-    {"label": "Calendar", "href": "/calendar", "icon": "bi-calendar3"},
-    {"label": "Goals", "href": "/goals", "icon": "bi-bullseye"},
-    {"label": "Transactions", "href": "/transactions", "icon": "bi-list-ul"}
-]
-
-ADDITIONAL_NAV_ITEMS = [
-    {"label": "Analytics", "href": "/analytics", "icon": "bi-bar-chart"}
-]
-```
-
-**Helper функция**:
-- `_build_nav_links(pathname)` — генерирует NavLinks с active=True для текущего pathname
-
-**Навигация**:
-```python
-dbc.NavLink(
-    "Dashboard",
-    href="/dashboard",
-    active=(pathname == "/dashboard"),  # Dynamic
-    className="sidebar-nav-item-active" if pathname == "/dashboard" else ""
-)
-```
+**Текущее состояние**:
+- `create_sidebar(pathname, profile)` — ЧИСТАЯ функция: ни БД, ни
+  колбэков, ни литералов профиля. Подсветка активного пункта и
+  имя/аватар вычисляются на построении из аргументов
+- Рендерится колбэком `render_sidebar_slot(pathname, profile_updated)`
+  в `app/main.py`: два Input'а на всегда присутствующие `url` и
+  `profile-updated`; на /dashboard возвращает `[]` ДО открытия сессии;
+  fail-open чтения профиля (заглушка + лог, навигация не теряется)
+- Колонку скрывает ОДНО CSS-правило `.sidebar-column:empty
+  { display: none }` (sidebar.css) — второй механизм не вводить
+- Клик по аватару → clientside timestamp_trigger (main.py) → Store
+  `open-profile-trigger` — единственный вход открытия модала профиля
+- Регрессионный якорь: `tests/test_sidebar.py` фиксирует «в модуле
+  sidebar нет ни одного @callback»
 
 ## Transactions Component (КРИТИЧНО, Протокол 0023 — расширен)
 
@@ -541,6 +521,58 @@ AC-5 пустые состояния без числовых артефакто�
 состоянием при `window_is_flat`; тултип резерва всегда утверждает
 настройку) — каждая поймана адресным тестом. Колбэки по-прежнему
 покрыты отдельно в `test_dashboard_callbacks.py`.
+
+## Panel Cards — карточки-двери щитка (Протокол 0030 — Epic-11, кусок 2 из 3)
+
+**Файлы**:
+- `app/components/panel_cards.py` — чистые build-функции пяти карточек
+- `app/assets/panel.css` — секции 7-10 (двери, wishlist-полоса, адаптив
+  1180/680, prefers-reduced-motion)
+
+**Состав**: `_door_shell` (каркас: цветная шина гнезда 3px, заголовок-
+dcc.Link, тело) + `build_calendar_card` / `build_goals_card` /
+`build_operations_card` / `build_analytics_card` / `build_wishlist_card`
++ `build_cards_row`. Данные приходят срезами `PanelData`
+(DashboardPanelService), сами функции о БД не знают.
+
+**Конституция щитка (FR-2)**: все пять карточек присутствуют ВСЕГДА —
+при пустых данных и при сбое блока меняется только содержимое.
+Единственный источник правды отрисовки — `<slot>["status"]`
+(CardStatus): общего признака пустоты в PanelData нет.
+
+**Ни одного серверного Input**: переходы делает dcc.Link; единственный
+интерактивный не-ссылочный элемент — тело двери Wishlist
+(`panel-wishlist-door`) → clientside timestamp_trigger → Store
+`open-wishlist-trigger` → `open_wishlist_modal` (wishlist.py,
+единственный Input + guard на пустой Store).
+
+**Карточка «Календарь»**: ДВА окошка (сегодня/завтра, «вчера» убрано
+решением владельца 2026-08-26), каждое — dcc.Link на
+`/calendar?focus_date=<ISO>`; маркер просадки только при status == OK
+(оговорка #91: на пустом окне min_free = (0, today) — без оговорки
+чистая база дала бы числовой артефакт); усиление
+`pnl-flagline-strong` — факт знака `dip_free <= 0`, порога нет.
+
+**Ограничение карточки «Операции»** (решение владельца 2026-08-25):
+только материализованные операции — виртуальные инстансы регулярных
+платежей не показываются (источник их не отдаёт, C-3); регулярные
+видны в календаре и графике полос. Маркер 🔁 — у материализованных
+recurring-инстансов.
+
+**Объявленное расхождение карточки «Аналитика»**: цифра месяца
+считается `AnalyticsService.get_expenses_by_category` (EXPENSE и
+is_recurring=False) — с разделом совпадает по построению, но с
+месячным слоем «Платежи» графика НЕ сопоставима (слой включает
+виртуальные регулярные и savings_*). Объявлено подписью «расходы
+{месяца} · без регулярных и взносов в цели», в докстринге
+AnalyticsCardData и в RTM #87. Показателя «Доходы» в карточке нет.
+
+**AC-4**: подушка — строка внутри карточки «Цели» (`margin-top:auto`,
+вертикальный ритм), отдельной карточки в ряду нет.
+
+**Тесты**: `tests/test_panel_cards_ui.py` (26, дерево без БД),
+`tests/test_panel_service.py` (19, композитор), `tests/test_sidebar.py`
+(11), `tests/test_panel_query_params.py` (14).
 
 ## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
 

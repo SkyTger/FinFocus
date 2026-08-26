@@ -22,8 +22,12 @@
 4 KPI-карточек и графика доходы/расходы+баланс. Протокол 0029 закрыл
 оба хвоста куска 1: багфикс `CalendarService` (база остатка завышалась
 savings-операциями до начала периода) и 47 тестов визуального слоя
-щитка, ранее проверявшегося только вручную. Куски 2 (карточки-двери)
-и 3 (полоска-меню вместо сайдбара) ещё не начаты. Источник решений:
+щитка, ранее проверявшегося только вручную. Кусок 2 (карточки-двери) реализован
+протоколом 0030 (PR #30, на ревью): пять карточек-дверей под графиком,
+DashboardPanelService (один сбор данных за одну сессию), сайдбар снят
+с дашборда (ноль колбэков), переходы с контекстом (?focus_date=/?goal=).
+Окошко «вчера» убрано решением владельца 2026-08-26 (отступление от
+FR-1.a спеки). Кусок 3 (полоска-меню вместо сайдбара) не начат. Источник решений:
 `../discussions/_archive/dashboard-as-menu-2026-08-23/design.md`,
 детали реализации: `modules/services.md` (MoneyLayersService,
 CalendarService), `modules/ui-components.md` (Dashboard-щиток),
@@ -59,7 +63,8 @@ CalendarService), `modules/ui-components.md` (Dashboard-щиток),
 
 ### Паттерны разработки (NEW, протокол 0022)
 - [patterns/plotly-charts.md] - Plotly chart patterns: dual Y-axis, unified hover, markers, clickable bars, status colors
-- [patterns/callbacks.md] - Dash callback patterns: helper functions, ADR-003 guards, stores, preselection, selective refresh
+- [patterns/callbacks.md] - Dash callback patterns: helper functions, ADR-003 guards, stores, preselection, selective refresh; правила условно присутствующих элементов (0030)
+- [patterns/services.md] - Паттерны сервисного слоя (0030): два вопроса к оконному хелперу, проверка __init__ перед передачей сессии
 
 ### Процессы и инструменты
 - [testing.md] - pytest, coverage, QA workflow
@@ -272,7 +277,8 @@ memory-bank/
 │   └── utils.md          # Утилиты
 └── patterns/             # Паттерны разработки (NEW, протокол 0022)
     ├── plotly-charts.md  # Plotly chart patterns
-    └── callbacks.md      # Dash callback patterns
+    ├── callbacks.md      # Dash callback patterns
+    └── services.md       # Паттерны сервисного слоя (0030)
 ```
 
 ---

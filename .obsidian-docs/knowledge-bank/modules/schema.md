@@ -334,6 +334,31 @@ class MoneyLayersData(TypedDict):
 - Единственный источник цифр и для шапки, и для графика — оба строятся
   из одного `MoneyLayersData` за один вызов `get_money_layers`
 
+## TypedDicts для Panel Cards (Протокол 0030)
+
+**Файл**: `app/schema/panel.py`
+
+Контракты пяти карточек-дверей щитка: `CardStatus` (Enum OK/EMPTY/FAILED —
+единственный источник правды отрисовки карточки), `CalendarDaySlice` /
+`CalendarCardData` (ДВА окошка — сегодня и завтра; «вчера» убрано решением
+владельца 2026-08-26), `GoalsCardData`, `OperationRow` / `OperationsCardData`
+(только материализованные операции — решение владельца 2026-08-25),
+`AnalyticsCategorySlice` / `AnalyticsCardData` (только расходы; объявленное
+расхождение с месячным слоем «Платежи» графика), `WishlistCardRow` /
+`WishlistCardData`, `PanelData` (без `is_new_user` — общего признака
+пустоты нет, каждая карточка честна сама за себя).
+
+**`TRANSACTION_KIND_MAP`** — сведение шести значений `TransactionType` к
+трём `kind` ("income"/"expense"/"other"): savings_* → expense (деньги
+уходят из остатка, та же трактовка, что у слоя «Платежи»); transfer и
+adjustment → other (направление определяется суммой, не типом). Неизвестное
+значение → "other" через `.get()`; тест на все шесть значений покраснеет
+при добавлении седьмого.
+
+Константы: `OPERATIONS_PER_GROUP = 3`, `MINI_STRUCTURE_CATEGORIES = 3`.
+Константы-порога усиления маркера просадки НЕТ — прямое `dip_free <= 0`
+(факт знака, решение владельца).
+
 ## Критичные решения
 
 **Протокол 0006**: Централизация TypedDicts в отдельном модуле для DRY

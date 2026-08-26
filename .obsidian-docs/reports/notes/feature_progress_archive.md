@@ -359,3 +359,37 @@
 - ✅ Inline DB read для dashboard greeting
 - ✅ Code review: Security 5/5, Quality 4/5
 - ✅ Critical fix: profile_modal.py — keep modal open on save error
+
+---
+
+## ✅ Батч 20: Beta Delivery & Setup (2026-03-03) — MERGED
+
+**Дата**: 2026/03/03
+**Протокол**: 0025-beta-delivery
+**PR**: https://github.com/SkyTger/FinFocus/pull/25
+**Статус**: ✅ Merged в main
+
+### 🎯 Цель батча:
+Обеспечить 1-click запуск FinFocus для нетехнических бета-тестеров: платформенные скрипты с авто-настройкой venv и зависимостей, инструкция для тестеров, процесс создания релизов.
+
+### ✅ Выполненные задачи:
+
+1. **Requirements split** — requirements.txt (runtime only) + requirements-dev.txt (pytest, black, flake8)
+2. **start.sh** (168 строк) — Python 3.10+ check, venv creation, deps marker (.deps_installed), port check (ss/lsof/netstat), trap handler, colored output, auto browser open
+3. **start.bat** (148 строк) — py -3/python fallback, version parsing, venv, deps marker (xcopy /D /L), netstat port check, pause on error
+4. **BETA_README.md** (86 строк) — 3 шага установки, 6 FAQ, ссылка на GitHub issues для bug reports
+5. **docs/RELEASE_GUIDE.md** (82 строк) — tag format v0.9.0-beta.N, git archive команда, Release Notes шаблон, checklist
+
+### 📊 Результат:
+- ✅ 546 тестов (без изменений — новый код не содержит Python)
+- ✅ start.sh + start.bat — 1-click запуск на 3 платформах
+- ✅ Идемпотентная установка зависимостей через маркер-файл
+- ✅ Проверка Python >= 3.10 и порта перед запуском
+
+### 💡 Ключевые решения:
+1. **Setup-скрипты, не Docker/PyInstaller** — minimal barrier для тестеров с Python
+2. **Deps marker** — .venv/.deps_installed, обновляется при изменении requirements.txt
+3. **Port check fallback chain** — ss → lsof → netstat (кроссплатформенность)
+4. **xcopy /D /L трюк** — Windows timestamp comparison без PowerShell
+
+---

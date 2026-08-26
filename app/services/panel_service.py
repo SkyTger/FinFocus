@@ -576,11 +576,17 @@ class DashboardPanelService:
         AnalyticsCardData. AnalyticsService не правится (C-3).
 
         month_label — из reference_date, не из результата запроса.
+
+        ГРАНИЦЫ ПЕРИОДА — [1-е число, ref], как у раздела «Аналитика»
+        (load_analytics_data: end_date = today), НЕ конец месяца:
+        иначе завтрашний расход входил бы в цифру карточки, но не
+        раздела, и «совпадение по построению» ломалось бы на любой
+        базе с запланированными расходами (дефект пойман ручной
+        сверкой карточки с разделом на шаге 9 протокола 0030).
         """
         month_start = ref.replace(day=1)
-        month_end = ref.replace(day=monthrange(ref.year, ref.month)[1])
         categories = AnalyticsService(self.session).get_expenses_by_category(
-            user_id, month_start, month_end
+            user_id, month_start, ref
         )
         if not categories:
             return _empty_analytics(ref)

@@ -488,6 +488,13 @@ with get_db_session() as session:
 
 ## AllocationService (Батч 2 — ЗАВЕРШЕН)
 
+**⚠️ ЕДИНСТВЕННЫЙ stateless-сервис проекта**: у класса НЕТ `__init__`,
+сессию не хранит, работает на переданном списке ORM Goal. Конструируется
+БЕЗ аргументов — `AllocationService()`. `AllocationService(session)` даст
+TypeError, который внутри блочного except молча превратится в FAILED
+(риск R20 протокола 0030). Stateless НЕ значит «можно вне сессии»:
+calculate_allocation читает атрибуты живых ORM-объектов.
+
 **Файл**: `app/services/allocation_service.py` (~200 строк)
 
 **Константы**:
@@ -1406,3 +1413,57 @@ AC-3, таяние платежей, каскад, порог подушки, п
 ---
 
 Детали: `architecture.md` (Service Layer Pattern), `code-style.md` (Session Management Pattern), `schema.md` (TypedDicts), `modules/ui-components.md` (Dashboard-щиток), `patterns/plotly-charts.md` (график полос)
+
+## DashboardPanelService (Протокол 0030 — Epic-11 «щиток», кусок 2 из 3)
+
+**Файл**: `app/services/panel_service.py`
+
+Read-only композитор данных щитка: `get_panel_data(user_id, reference_date)`
+собирает ВСЕ данные дашборда за один вызов и одну сессию — модель слоёв
+(`MoneyLayersService`) + пять блоков карточек-дверей. Возвращает `PanelData`
+(`app/schema/panel.py`). Ни один существующий сервис не менялся — только
+композиция.
+
+**Контракт материализации** (обязателен): каждый блок возвращает ТОЛЬКО
+примитивы (Decimal/date/str/bool/int); обращение к ORM-атрибутам — внутри
+сессии, внутри тела блока. `PanelData` живёт дольше сессии (build-функции
+вызываются после выхода из `with`), любая утечка ORM = `DetachedInstanceError`
+в проде, невидимый в тестах карточек. Проверяется тестом «читаем все поля
+после закрытия сессии».
+
+**Деградация (NFR-2)**: `get_money_layers` — вне try/except (без модели
+щитка нет); `_calendar_block` — чистая функция от layers, тоже без
+try/except; четыре блока с запросами (`_goals_block`, `_operations_block`,
+`_analytics_block`, `_wishlist_block`) — каждый в своём try/except →
+`CardStatus.FAILED` + нейтральные поля + `logger.opt(exception=True)`.
+
+**Контракт `_empty_*`** (пять функций): Optional → None; числовые → 0 /
+Decimal("0") / 0.0; строковые → "" (НЕ «Нет целей», НЕ «0%»); списки → [];
+href и month_label — как обычно (маршрут и подпись периода — не цифры).
+Текст пустого состояния рисует build-функция по status, не данные.
+«Нет пользователя в БД» — EMPTY, не FAILED (как `_user_data_markers`
+модели: чистая база штатна).
+
+**Стратегия загрузки** (перечень строится командой
+`grep -rn get_db_session app/components/ app/main.py`, не памятью):
+- открытие /dashboard: 3 сессии — композитор (dashboard.py,
+  `_load_dashboard_components`), онбординг-тост (`toggle_balance_toast`)
+  и онбординг-визард (`check_onboarding_and_validate`) — последние две
+  вне scope куска 2, существуют и до него. До куска 2 было 6 (плюс
+  readonly-подушка, wishlist-виджет из layout, профиль сайдбара)
+- переход на раздел: 1 сессия `render_sidebar_slot` (профиль сайдбара)
+  + визард + сессии самого раздела
+- замер 2026-08-26 (наполненная локальная база): композитор ~20 мс,
+  21 SQL; `get_money_layers` — ровно 1 вызов на рендер; сайдбар ~1 мс,
+  1 SQL. Бюджет NFR-1 — 2 секунды
+
+**Осознанные дубли**: `GoalService.get_all_by_user(ACTIVE)` вызывается и в
+модели (вехи), и в `_goals_block` (identity map той же сессии);
+`CushionService.get_settings` НЕ вызывается (второй расчёт баланса) —
+подушка из `layers["cushion_threshold"]` + `layers["today"]["balance"]` +
+`User.cushion_target`; `get_savings_budget`/`get_savings_mode` НЕ
+вызываются (бросают ValidationError при отсутствии пользователя) — одно
+`session.get(User)` даёт все три поля.
+
+**Кеша нет намеренно**: инвалидация — только global-transaction-trigger,
+он уже перерисовывает щиток целиком.
