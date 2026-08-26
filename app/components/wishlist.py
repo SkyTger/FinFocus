@@ -18,104 +18,6 @@ from app.services import (
 DEFAULT_USER_ID = 1
 
 
-# === Widget (Dashboard карточка) ===
-
-
-def build_wishlist_widget() -> dbc.Card:
-    """Виджет списка покупок для Dashboard.
-
-    Показывает до 5 фокусных покупок (priority=1) и кнопку «Все покупки».
-
-    Returns:
-        dbc.Card: Карточка виджета.
-    """
-    try:
-        with get_db_session() as session:
-            svc = WishlistService(session)
-            items = svc.get_focus(DEFAULT_USER_ID, limit=5)
-            items_data = [svc.to_data(i) for i in items]
-    except Exception as e:
-        logger.error(f"Error loading wishlist widget: {e}")
-        items_data = []
-
-    if not items_data:
-        body_content = [
-            html.P(
-                "Нет отложенных покупок",
-                className="text-muted text-center my-3",
-            ),
-        ]
-    else:
-        body_content = [_build_widget_item(item) for item in items_data]
-
-    return dbc.Card(
-        [
-            dbc.CardHeader(
-                html.Div(
-                    [
-                        html.H6(
-                            [
-                                html.I(className="bi bi-bag-heart me-2"),
-                                "Отложенные покупки",
-                            ],
-                            className="mb-0",
-                        ),
-                        dbc.Button(
-                            "Все покупки",
-                            id="open-wishlist-modal-btn",
-                            color="link",
-                            size="sm",
-                            className="p-0",
-                        ),
-                    ],
-                    className="d-flex justify-content-between align-items-center",
-                ),
-            ),
-            dbc.CardBody(body_content, className="wishlist-widget-body"),
-        ],
-        className="wishlist-widget mb-3",
-    )
-
-
-def _build_widget_item(item: dict) -> html.Div:
-    """Карточка одной покупки в виджете."""
-    status_badge = None
-    if item["status"] == "planned":
-        status_badge = dbc.Badge(
-            f"Запланировано: {item['planned_date']}"
-            if item["planned_date"]
-            else "Запланировано",
-            color="success",
-            className="ms-2",
-        )
-
-    icon = item.get("category_icon") or "bi-bag"
-
-    return html.Div(
-        [
-            html.Div(
-                [
-                    html.I(className=f"{icon} me-2 text-muted"),
-                    html.Span(item["name"], className="fw-medium"),
-                    status_badge,
-                ],
-                className="d-flex align-items-center",
-            ),
-            html.Span(
-                item["amount"],
-                className="text-nowrap fw-bold",
-            ),
-        ],
-        className=(
-            "d-flex justify-content-between align-items-center"
-            " py-2 border-bottom wishlist-widget-item"
-        ),
-    )
-
-
-# === Modal ===
-
-
 def create_wishlist_modal() -> html.Div:
     """Создаёт модал управления списком покупок.
 
@@ -420,12 +322,22 @@ def _build_modal_item(item: dict) -> dbc.Card:
     Output("wishlist-modal", "is_open", allow_duplicate=True),
     Output("wishlist-items-container", "children"),
     Output("wishlist-add-category", "options"),
-    Input("open-wishlist-modal-btn", "n_clicks"),
+    Input("open-wishlist-trigger", "data"),
     prevent_initial_call=True,
 )
-def open_wishlist_modal(n_clicks):
-    """Открывает модал и загружает данные."""
-    if not n_clicks:
+def open_wishlist_modal(trigger):
+    """Открывает модал управления wishlist по Store-триггеру.
+
+    ЕДИНСТВЕННЫЙ Input — Store open-wishlist-trigger: тело двери
+    Wishlist рождается динамически внутри dashboard-cards-row, и
+    прямой Input на него молча отключил бы колбэк на страницах без
+    двери (правило «удаляешь элемент — удаляй его Input», C-6;
+    прежний Input("open-wishlist-modal-btn") удалён вместе с
+    виджетом и его кнопкой). Guard на пустой Store: значение
+    сохраняется между переходами, без guard'а модал всплывал бы
+    при каждой загрузке страницы (урок протокола 0028).
+    """
+    if not trigger:
         raise PreventUpdate
 
     try:

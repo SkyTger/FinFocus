@@ -362,54 +362,6 @@ body {
     font-size: 0.8rem;
 }
 
-/* Main 8/4 row — stretches to fill remaining height */
-.db-main-row {
-    flex: 1;
-    --bs-gutter-y: 0;  /* vertical gap handled by db-page flex gap */
-}
-
-/* Override mb-3 on cards inside dashboard */
-.db-right-col .card {
-    margin-bottom: 0 !important;
-}
-
-/* Left column — flex column with uniform gap */
-.db-left-col {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    height: 100%;
-}
-
-/* Split tables stretch to fill remaining space */
-.db-left-col > .row {
-    flex: 1;
-    --bs-gutter-y: 0;
-}
-
-/* Right column — flex column with uniform gap */
-.db-right-col {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    height: 100%;
-}
-
-/* Last card in right col stretches to fill remaining space */
-.db-right-col > div:last-child {
-    flex: 1;
-}
-
-/* === DASHBOARD SPLIT TABLE === */
-.dashboard-split-table .table td {
-    padding: 0.5rem 0.4rem;
-    vertical-align: middle;
-}
-
-.dashboard-split-table .table tr:hover {
-    background-color: rgba(46, 204, 113, 0.04);
-}
-
 /* === Responsive dashboard === */
 @media (max-width: 768px) {
     .db-page {

@@ -156,3 +156,44 @@ dcc.Link на `/calendar?wishlist_item=<id>` (уровень 2); `build_cards_ro
 
 Проверки: py_compile OK, black чист, flake8 без замечаний,
 полный сьют 712 passed.
+
+## Шаг 5: Перестройка щитка (2026-08-26)
+
+`dashboard.py`: layout = шапка + график + `html.Div(id="dashboard-cards-row")`
+(сетка 8/4 снята целиком); удалены `_build_empty_state`,
+`_build_transactions_split_table`, `_build_cushion_card_readonly`
+(вместе с её сессией) — ~270 строк; `_load_dashboard_components` → 3
+значения через `DashboardPanelService` (одна сессия на сборку щитка:
+профиль + PanelData); оба колбэка (`load_dashboard_data`,
+`refresh_dashboard_after_crud`) → 3 Output'а; импорты вычищены
+(`build_wishlist_widget`, `DashboardService`, `RecentTransaction`,
+`CushionService`, `MoneyLayersService`, `Decimal`).
+
+`wishlist.py`: удалены `build_wishlist_widget` и `_build_widget_item`
+(вместе с сессией виджета из layout); `open_wishlist_modal` —
+единственный Input `open-wishlist-trigger` + guard на пустой Store
+(урок 0028 о повторном всплытии); `Input("open-wishlist-modal-btn")`
+удалён вместе с элементом. `components/__init__.py` — экспорт снят.
+`custom.css`: сняты `.db-main-row`, `.db-left-col`, `.db-right-col`
+(+ их подправила), `.dashboard-split-table`; `.db-page` остаётся —
+это flex-каркас страницы, не раскладка 8/4.
+
+**Отступления от буквы плана, по факту кода**:
+- «Четыре clientside-триггера пустых состояний»: физически удаляемых
+  два (`empty-recent-add-btn`, `empty-upcoming-add-btn` — их элементы
+  ушли со split-таблицами). Триггеры `open-recon-from-dashboard-empty-btn`
+  (пустое состояние ШАПКИ — кусок 1, шапка не правится) и
+  `open-recon-from-dashboard-banner-btn` (онбординг-тост, FR-4 «не
+  трогать») остаются вместе со своими живыми элементами
+- Store `open-wishlist-trigger` заведён в `main.py` УЖЕ на этом шаге
+  (план относил его к шагу 9): Output clientside-триггера двери не
+  может указывать на несуществующий Store — ветка осталась бы в
+  нерабочем промежуточном состоянии
+- Обновлён `tests/test_dashboard_callbacks.py`: тест контракта
+  «5 значений» → «3 значения» (переименован, докстринг объясняет
+  замену split-таблиц и подушки рядом карточек)
+
+Проверки: py_compile OK; residual-grep по всем удалённым идентификаторам
+чист (единственное упоминание — в докстринге-объяснении); 47 тестов
+щитка куска 1 зелёные БЕЗ правок; полный сьют 712 passed; black/flake8
+чисты; `import app.main` — колбэки регистрируются без конфликтов.
