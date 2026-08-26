@@ -155,8 +155,13 @@ class TestToggleBalanceToastProfileUpdated:
 class TestLoadDashboardDataProfile:
     """Интеграция профиля в load_dashboard_data (шапка щитка)."""
 
-    def test_returns_five_values_with_profile_name_in_header(self, db_session):
-        """Успешная загрузка возвращает 5 значений; имя профиля — в шапке."""
+    def test_returns_three_values_with_profile_name_in_header(self, db_session):
+        """Успешная загрузка возвращает 3 значения; имя профиля — в шапке.
+
+        Было 5 Output'ов (шапка, график, recent, upcoming, подушка);
+        протокол 0030 заменил split-таблицы и readonly-подушку рядом
+        карточек-дверей: (шапка, график, cards_row).
+        """
         user = User(
             email="seven@example.com",
             name="Ольга",
@@ -175,7 +180,7 @@ class TestLoadDashboardDataProfile:
                 period_state={"period": "month"},
             )
 
-        assert len(result) == 5
+        assert len(result) == 3
         # Имя профиля попадает в шапку — первый Output
         assert "Ольга" in str(result[0])
 

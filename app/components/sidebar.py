@@ -1,13 +1,17 @@
-"""Sidebar компонент - боковое меню навигации."""
+"""Sidebar компонент - боковое меню навигации.
+
+Куском 2 (протокол 0030) файл стал ЧИСТЫМ: оба колбэка удалены
+(highlight_active_sidebar, update_sidebar_profile), их обязанности
+переехали в построение create_sidebar(pathname, profile). Сайдбар
+рендерится колбэком render_sidebar_slot (app/main.py) и на дашборде
+отсутствует — Output на его узлы из другого колбэка был бы гонкой
+с render_sidebar_slot, а не шумом в логах (см. докстринг create_sidebar).
+"""
 import dash_bootstrap_components as dbc
-from dash import html, callback, Input, Output
-from loguru import logger
+from dash import html
 
 from app.config.avatars import get_avatar_emoji
-from app.core.database import get_db_session
-from app.services.onboarding_service import OnboardingService
-
-DEFAULT_USER_ID = 1
+from app.schema.onboarding import UserProfile
 
 # Определения пунктов меню
 MAIN_NAV_ITEMS = [
@@ -54,15 +58,46 @@ def _build_nav_links(active_pathname: str = "/dashboard") -> list:
     return nav_links
 
 
-def create_sidebar():
-    """Создает боковое меню навигации в card-контейнере (Stitch design)."""
+def create_sidebar(pathname: str | None, profile_data: UserProfile) -> dbc.Card:
+    """Сайдбар — ЧИСТАЯ функция: ни БД, ни колбэков, ни литералов профиля.
 
-    # Профиль пользователя (динамический, clickable)
+    Изменение куска 2 (critique-v2, блокер №2): оба колбэка файла
+    удалены, обе их обязанности переехали в построение.
+
+      * подсветка активного пункта: было highlight_active_sidebar
+        (Output "sidebar-nav") ← Input url.pathname; стало
+        _build_nav_links(pathname) на построении. Прежде
+        _build_nav_links получал захардкоженный "/dashboard", и без
+        колбэка подсветка была бы всегда на «Дашборде».
+      * имя и аватар: было update_sidebar_profile (Output
+        "sidebar-profile-name"/"-avatar") ← Input url.pathname
+        + profile-updated; стало — аргумент profile_data.
+
+    Почему не guard, а удаление: после FR-2 сайдбар рендерится
+    колбэком render_sidebar_slot по тому же Input("url", "pathname"),
+    и оба прежних колбэка писали бы children в узлы, которые
+    render_sidebar_slot в этот же момент создаёт или удаляет. Порядок
+    применения Output'ов Dash не гарантирует — это гонка, а не шум
+    в логах. Guard на pathname её не снимает, а лишь маскирует
+    (и во втором случае давал бы «Пользователь» + 😊 после каждого
+    перехода — регрессия Epic-09 фазы 2).
+    Результат: у сайдбара НЕТ ни одного серверного колбэка; клик по
+    аватару уходит clientside-триггером в Store open-profile-trigger
+    (app/main.py) — единственный вход открытия модала профиля.
+
+    Args:
+        pathname: Текущий путь для подсветки; None → "/dashboard"
+            (сохраняет прежнее поведение _build_nav_links).
+        profile_data: Имя и avatar_id пользователя. Аватар-эмодзи
+            получается get_avatar_emoji(profile_data["avatar_id"]) —
+            как в удалённом колбэке.
+    """
+    # Профиль пользователя (clickable — clientside-триггер в main.py)
     profile = html.Div(
         [
             html.Div(
                 html.Span(
-                    "\U0001f60a",
+                    get_avatar_emoji(profile_data["avatar_id"]),
                     id="sidebar-profile-avatar",
                 ),
                 className="d-flex align-items-center justify-content-center",
@@ -78,7 +113,7 @@ def create_sidebar():
             html.Div(
                 [
                     html.Div(
-                        "Пользователь",
+                        profile_data["name"],
                         id="sidebar-profile-name",
                         className="fw-bold",
                         style={"fontSize": "14px", "lineHeight": "1.2"},
@@ -103,7 +138,7 @@ def create_sidebar():
     nav = html.Div(
         [
             dbc.Nav(
-                _build_nav_links("/dashboard"),
+                _build_nav_links(pathname or "/dashboard"),
                 id="sidebar-nav",
                 vertical=True,
                 className="sidebar-nav px-2",
@@ -144,42 +179,3 @@ def create_sidebar():
         sidebar_content,
         className="sidebar-card",
     )
-
-
-# ==================== CALLBACKS ====================
-
-
-@callback(
-    Output("sidebar-nav", "children"),
-    Input("url", "pathname"),
-)
-def highlight_active_sidebar(pathname: str | None):
-    """Обновляет active state в sidebar при смене страницы."""
-    if pathname is None:
-        pathname = "/dashboard"
-    return _build_nav_links(pathname)
-
-
-@callback(
-    [
-        Output("sidebar-profile-name", "children"),
-        Output("sidebar-profile-avatar", "children"),
-    ],
-    [
-        Input("url", "pathname"),
-        Input("profile-updated", "data"),
-    ],
-)
-def update_sidebar_profile(
-    pathname: str | None, profile_updated: float | None
-) -> tuple[str, str]:
-    """Обновляет профиль в sidebar из БД."""
-    try:
-        with get_db_session() as session:
-            service = OnboardingService(session)
-            profile = service.get_profile(DEFAULT_USER_ID)
-            emoji = get_avatar_emoji(profile["avatar_id"])
-            return profile["name"], emoji
-    except Exception:
-        logger.warning("Failed to load sidebar profile", exc_info=True)
-        return "Пользователь", "\U0001f60a"

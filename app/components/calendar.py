@@ -322,6 +322,7 @@ def build_calendar_grid(
     year: int,
     balances: dict[date, Decimal],
     transactions: dict[date, list[TransactionInfo]],
+    focus_date: date | None = None,
 ) -> html.Div:
     """Создает календарную сетку с днями.
 
@@ -330,6 +331,8 @@ def build_calendar_grid(
         year: Год
         balances: {date: Decimal} — балансы по дням
         transactions: {date: [TransactionInfo, ...]} — данные транзакций по датам
+        focus_date: День, пришедший фокусом из двери щитка (FR-3), —
+            его ячейка получает класс calendar-day-focused
 
     Returns:
         html.Div: Сетка календаря
@@ -371,6 +374,7 @@ def build_calendar_grid(
                 is_today=is_today,
                 is_current_month=is_current_month,
                 is_weekend=is_weekend,
+                is_focused=(day_date == focus_date),
             )
             day_cells.append(day_cell)
 
@@ -578,6 +582,7 @@ def build_day_cell(
     is_today: bool = False,
     is_current_month: bool = True,
     is_weekend: bool = False,
+    is_focused: bool = False,
 ) -> html.Div:
     """Создает ячейку одного дня календаря.
 
@@ -588,6 +593,8 @@ def build_day_cell(
         is_today: Текущий день
         is_current_month: День текущего месяца
         is_weekend: Выходной день
+        is_focused: День пришёл фокусом из двери щитка (FR-3, протокол
+            0030) — подсвечивается классом calendar-day-focused
 
     Returns:
         html.Div: Ячейка дня (кликабельная)
@@ -600,6 +607,8 @@ def build_day_cell(
         css_classes.append("calendar-day-other-month")
     if is_weekend:
         css_classes.append("calendar-day-weekend")
+    if is_focused:
+        css_classes.append("calendar-day-focused")
 
     # Добавляем класс если есть виртуальные (recurring) транзакции
     has_virtual = any(t.get("is_virtual") for t in transactions)
@@ -771,6 +780,7 @@ DEFAULT_USER_ID = 1
         Input("next-month-btn", "n_clicks"),
         Input("today-btn", "n_clicks"),
         Input("wishlist-active-item", "data"),
+        Input("calendar-focus-date", "data"),
     ],
     [State("calendar-state", "data")],
 )
@@ -780,15 +790,34 @@ def load_and_navigate_calendar(
     next_clicks: int | None,
     today_clicks: int | None,
     wishlist_item_id: int | None,
+    focus_payload: dict | None,
     state: dict | None,
 ):
     """Загружает календарь и обрабатывает навигацию между месяцами.
+
+    Шестой Input — Store calendar-focus-date (двери щитка, FR-3
+    протокола 0030): payload {"value": ISO, "ts": мс}. ДВОЙНОЙ GUARD
+    идемпотентности (единая механика с goals-focus-goal):
+      1. реагируем ТОЛЬКО если ctx.triggered_id — сам Store: колбэк
+         срабатывает и на url.pathname (возврат в раздел по меню), а
+         Store хранит значение до перезагрузки страницы — без этой
+         проверки «ушёл в Операции, вернулся по меню» молча прыгало
+         бы на прошлый фокус;
+      2. и ТОЛЬКО если payload["ts"] != state.get("focus_applied_ts") —
+         защита от повторного применения того же события. Применённый
+         ts хранится в calendar-state рядом с current_month/balances.
+    Ветка except намеренно НЕ пишет focus_applied_ts (critique-v3, №4
+    solution-v4): если загрузка упала, повторный клик по двери должен
+    сработать; переприменения по другим Input'ам не будет из-за
+    первого условия guard'а.
 
     Args:
         pathname: Текущий URL путь
         prev_clicks: Клики на кнопку "назад"
         next_clicks: Клики на кнопку "вперед"
         today_clicks: Клики на кнопку "сегодня"
+        wishlist_item_id: Активная хотелка (режим покупок)
+        focus_payload: Фокус дня из двери щитка {"value", "ts"} | None
         state: Текущее состояние календаря
 
     Returns:
@@ -811,6 +840,20 @@ def load_and_navigate_calendar(
 
     # Определяем какая кнопка была нажата
     triggered_id = ctx.triggered_id
+
+    # Фокус дня из двери щитка (FR-3) — двойной guard, см. докстринг
+    focus_date_obj: date | None = None
+    if (
+        triggered_id == "calendar-focus-date"
+        and focus_payload
+        and focus_payload.get("ts") != state.get("focus_applied_ts")
+    ):
+        try:
+            focus_date_obj = date.fromisoformat(focus_payload["value"])
+            current_month = focus_date_obj.month
+            current_year = focus_date_obj.year
+        except (KeyError, TypeError, ValueError):
+            focus_date_obj = None
 
     if triggered_id == "prev-month-btn":
         new_date = current_date - relativedelta(months=1)
@@ -920,14 +963,27 @@ def load_and_navigate_calendar(
 
         if not wishlist_item_id or overlay is None:
             grid = build_calendar_grid(
-                current_month, current_year, balances, transactions_by_date
+                current_month,
+                current_year,
+                balances,
+                transactions_by_date,
+                focus_date=focus_date_obj,
             )
 
-        # Обновляем state
+        # Обновляем state (ключи фокуса — только при применённом фокусе,
+        # иначе переносим прежние: ts — ключ идемпотентности)
         new_state = {
             "current_month": current_month,
             "current_year": current_year,
             "balances": serialize_balances(balances),
+            "focus_date": (
+                focus_date_obj.isoformat()
+                if focus_date_obj
+                else state.get("focus_date")
+            ),
+            "focus_applied_ts": (
+                focus_payload["ts"] if focus_date_obj else state.get("focus_applied_ts")
+            ),
         }
 
         # Serialize hover_data to JSON string for JS access

@@ -26,5 +26,41 @@ window.dash_clientside.triggers = {
             return [window.dash_clientside.no_update, window.dash_clientside.no_update];
         }
         return [true, "dashboard"];
+    },
+
+    /**
+     * Фокус на карточке цели из двери щитка (FR-3, протокол 0030).
+     *
+     * Единая механика идемпотентности Store-фокусов (RTM #90):
+     * payload {"value": goal_id, "ts": ms}; применённый ts хранится в
+     * узле goals-focus-anchor (children) — при том же ts (F5, повторная
+     * отправка) фокус не переприменяется. Возврат в раздел по меню
+     * колбэк не дёргает вовсе: Input — только сам Store.
+     *
+     * Карточки целей рендерятся асинхронно (goal-card-container
+     * наполняется серверным колбэком) — ждём появления якоря
+     * с ретраями, а не падаем на первом промахе.
+     */
+    apply_goal_focus: function(payload, appliedTs) {
+        var nu = window.dash_clientside.no_update;
+        if (!payload || !payload.ts || !payload.value) { return nu; }
+        if (String(payload.ts) === String(appliedTs)) { return nu; }
+
+        var attempts = 0;
+        var tryFocus = function() {
+            var el = document.getElementById("goal-card-" + payload.value);
+            if (el) {
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                el.classList.add("goal-card-focused");
+                setTimeout(function() {
+                    el.classList.remove("goal-card-focused");
+                }, 2500);
+            } else if (attempts < 15) {
+                attempts += 1;
+                setTimeout(tryFocus, 200);
+            }
+        };
+        tryFocus();
+        return String(payload.ts);
     }
 };

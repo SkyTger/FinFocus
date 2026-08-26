@@ -6,7 +6,19 @@ from decimal import Decimal
 from typing import TypedDict
 
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, State, ctx, no_update, ALL
+from dash import (
+    html,
+    dcc,
+    callback,
+    clientside_callback,
+    ClientsideFunction,
+    Input,
+    Output,
+    State,
+    ctx,
+    no_update,
+    ALL,
+)
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
@@ -791,6 +803,9 @@ def _build_goal_card(goal_data: GoalDisplayData) -> html.Div:
                 className="goal-compact-footer",
             ),
         ],
+        # Якорный id для фокуса из двери щитка (FR-3, протокол 0030):
+        # чистый DOM-якорь, серверных колбэков на нём нет
+        id=f"goal-card-{goal_data['id']}",
         className="goal-compact-card",
     )
 
@@ -2059,9 +2074,27 @@ def create_goals_layout() -> html.Div:
             dcc.Store(id="cushion-settings-store", data=None),
             # Store для триггера обновления подушки
             dcc.Store(id="cushion-refresh-trigger", data=0),
+            # Узел состояния фокуса из двери щитка (FR-3): хранит
+            # применённый ts — ключ идемпотентности apply_goal_focus
+            html.Div(id="goals-focus-anchor", style={"display": "none"}),
         ],
         className="goals-container",
     )
+
+
+# Фокус на карточке цели из двери щитка (FR-3, протокол 0030).
+# Clientside: скролл к якорю goal-card-<id> возможен только в браузере,
+# серверный колбэк физически не умеет скроллить. Механика идемпотентности
+# та же, что у calendar-focus-date (RTM #90): реагирует только на
+# изменение самого Store, применённый ts хранится в goals-focus-anchor
+# и при совпадении фокус не переприменяется (F5, возврат по меню).
+clientside_callback(
+    ClientsideFunction("triggers", "apply_goal_focus"),
+    Output("goals-focus-anchor", "children"),
+    Input("goals-focus-goal", "data"),
+    State("goals-focus-anchor", "children"),
+    prevent_initial_call=True,
+)
 
 
 # --- Callbacks (все с prevent_initial_call=True) ---

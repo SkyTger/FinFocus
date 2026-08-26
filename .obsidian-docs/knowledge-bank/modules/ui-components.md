@@ -19,52 +19,32 @@ Dash компоненты для UI: Dashboard-щиток, Sidebar, Transactions
 — первая версия этого раздела (статические metric-карточки без БД)
 описывала состояние Батча 0, давно неактуальна.
 
-## Sidebar Component (Протокол 0023 — рефакторинг)
+## Sidebar Component (Протокол 0030 — ноль колбэков, Подход B)
 
-**Файл**: `app/components/sidebar.py` (~130 строк после протокола 0023)
+**Файл**: `app/components/sidebar.py`
 
-**Layout**:
-- dbc.Card контейнер (className="sidebar-card h-100") **(NEW)**
-- Логотип + заголовок
-- Навигационные ссылки (Dashboard, Calendar, Goals, Transactions)
-- User info block (username, logout button)
+> **История**: до протокола 0030 сайдбар стоял статически в layout
+> (main.py) и имел два колбэка — `highlight_active_sidebar` (подсветка)
+> и `update_sidebar_profile` (имя/аватар из БД). Кусок 2 Epic-11 снял
+> сайдбар с дашборда, и оба колбэка удалены: их Output'ы стали бы
+> условно присутствующими, а запись children в узлы, которые
+> render_sidebar_slot одновременно создаёт/удаляет, — гонка (порядок
+> применения Output'ов Dash не гарантирует).
 
-**Styling** (sidebar.css — NEW файл):
-- `.sidebar-card` — белый фон, border, padding, no shadow
-- `.sidebar-nav-item-active` — border-left 4px green для активного пункта
-
-**Callback** (NEW):
-- `highlight_active_sidebar()` — динамический active highlight
-  - Input: url.pathname
-  - Output: sidebar-nav.children
-  - Logic: перерисовывает NavLinks с active=True для текущего pathname
-
-**Константы**:
-```python
-MAIN_NAV_ITEMS = [
-    {"label": "Dashboard", "href": "/dashboard", "icon": "bi-house"},
-    {"label": "Calendar", "href": "/calendar", "icon": "bi-calendar3"},
-    {"label": "Goals", "href": "/goals", "icon": "bi-bullseye"},
-    {"label": "Transactions", "href": "/transactions", "icon": "bi-list-ul"}
-]
-
-ADDITIONAL_NAV_ITEMS = [
-    {"label": "Analytics", "href": "/analytics", "icon": "bi-bar-chart"}
-]
-```
-
-**Helper функция**:
-- `_build_nav_links(pathname)` — генерирует NavLinks с active=True для текущего pathname
-
-**Навигация**:
-```python
-dbc.NavLink(
-    "Dashboard",
-    href="/dashboard",
-    active=(pathname == "/dashboard"),  # Dynamic
-    className="sidebar-nav-item-active" if pathname == "/dashboard" else ""
-)
-```
+**Текущее состояние**:
+- `create_sidebar(pathname, profile)` — ЧИСТАЯ функция: ни БД, ни
+  колбэков, ни литералов профиля. Подсветка активного пункта и
+  имя/аватар вычисляются на построении из аргументов
+- Рендерится колбэком `render_sidebar_slot(pathname, profile_updated)`
+  в `app/main.py`: два Input'а на всегда присутствующие `url` и
+  `profile-updated`; на /dashboard возвращает `[]` ДО открытия сессии;
+  fail-open чтения профиля (заглушка + лог, навигация не теряется)
+- Колонку скрывает ОДНО CSS-правило `.sidebar-column:empty
+  { display: none }` (sidebar.css) — второй механизм не вводить
+- Клик по аватару → clientside timestamp_trigger (main.py) → Store
+  `open-profile-trigger` — единственный вход открытия модала профиля
+- Регрессионный якорь: `tests/test_sidebar.py` фиксирует «в модуле
+  sidebar нет ни одного @callback»
 
 ## Transactions Component (КРИТИЧНО, Протокол 0023 — расширен)
 
@@ -446,10 +426,12 @@ if ctx.triggered[0].get('value') is None:
   Свободно/Платежи/Резерв в `barmode="stack"`, линия «сегодня», маркер
   минимума слоя «Свободно», вехи целей аннотациями, HTML-легенда
   с тултипами вместо легенды Plotly
-- **Левая колонка (8 cols, ниже графика)**: split-таблицы
-  «Недавние»/«Предстоящие операции» (50/50, без изменений с 0023)
-- **Правая колонка (4 cols)**: Wishlist Widget + readonly карточка
-  подушки (без изменений с 0023)
+- **`html.Div(id="dashboard-cards-row")`** — ряд из пяти карточек-дверей
+  (протокол 0030, см. секцию «Panel Cards» ниже). **Заменяет** прежнюю
+  раскладку 8/4: split-таблицы «Недавние»/«Предстоящие», wishlist-виджет
+  и readonly-карточку подушки — все три удалены целиком, вместе с
+  функциями `_build_transactions_split_table`, `_build_cushion_card_readonly`,
+  `build_wishlist_widget`, `_build_widget_item` (их больше нет в коде)
 - Переключателя Месяц/Год **больше нет** — `dcc.Store(id="dashboard-period")`
   остался в layout только как guard для клика по графику (писателя нет)
 - AI Assistant и Exchange — по-прежнему скрыты (TODO Epic-08)
@@ -467,11 +449,14 @@ if ctx.triggered[0].get('value') is None:
   формулы резерва в `services.md` → MoneyLayersService)
 
 **Callbacks**:
-- `load_dashboard_data()` — 5 Output'ов (шапка, график, recent,
-  upcoming, подушка); Inputs: `url.pathname`, `profile-updated`.
-  Приветствия-Output больше нет — имя/аватар обновляются вместе с
-  шапкой через тот же Output
-- `refresh_dashboard_after_crud()` — те же 5 Output'ов, после CRUD
+- `load_dashboard_data()` — 3 Output'а (шапка, график, ряд карточек);
+  Inputs: `url.pathname`, `profile-updated`. Приветствия-Output нет —
+  имя/аватар обновляются вместе с шапкой через тот же Output.
+  **Изменено протоколом 0030**: было 5 Output'ов (шапка, график,
+  recent, upcoming, подушка) — три последних снялись вместе со
+  split-таблицами/подушкой/wishlist-виджетом, их место заняла
+  единая карточка-ряд
+- `refresh_dashboard_after_crud()` — те же 3 Output'а, после CRUD
 - `open_create_from_chart()` — клик по столбцу графика → create-modal;
   дата берётся из ISO-строки `point["x"]` (ось графика — `type="date"`),
   а не из года/месяца Store — окно щитка пересекает границы месяцев
@@ -480,9 +465,10 @@ if ctx.triggered[0].get('value') is None:
 
 **Build Functions**:
 - `_load_dashboard_components(period_state)` — единая точка загрузки:
-  один вызов профиля + один вызов `get_money_layers`, дальше сборка
-  шапки/графика/таблиц/подушки. Параметр `period_state` сохранён для
-  совместимости сигнатуры вызова, на состав щитка не влияет
+  **протокол 0030** — один сбор через `DashboardPanelService.get_panel_data()`
+  (профиль + `MoneyLayersData` + `PanelData` за одну сессию БД), дальше
+  сборка шапки/графика/ряда карточек. Параметр `period_state` сохранён
+  для совместимости сигнатуры вызова, на состав щитка не влияет
 - `build_free_header(data, profile)` — шапка; `_build_header_who`,
   `_build_header_empty_state`, `_build_recon_button`,
   `_build_settings_cog` — хелперы шапки
@@ -490,6 +476,8 @@ if ctx.triggered[0].get('value') is None:
   (потолок подписей `MAX_X_TICKS`, не цель — см. `schema.md`),
   `_build_layer_legend`, `_build_payments_tooltip`,
   `_build_reserve_tooltip`, `_build_chart_empty_state`
+- `build_cards_row(panel_data)` (`panel_cards.py`) — ряд пяти
+  карточек-дверей, см. секцию «Panel Cards» ниже
 
 **Багфикс протокола 0029** — `_axis_tickvals` пробивал собственный
 потолок `MAX_X_TICKS`: при длине окна, кратной `MAX_X_TICKS` (например
@@ -499,8 +487,6 @@ if ctx.triggered[0].get('value') is None:
 подписей). Фикс: при упоре в потолок правый край ЗАМЕНЯЕТ последнюю
 подпись сетки, а не добавляется сверх неё. Найдено и исправлено при
 написании тестов визуального слоя (см. «Unit тесты» ниже).
-- `_build_transactions_split_table()`, `_build_cushion_card_readonly()`,
-  `_build_empty_state()` — без изменений с протокола 0023
 
 **Удалено протоколом 0028** (мёртвый код): `_build_greeting_text`,
 `build_overview_cards`, `_build_kpi_card`, `build_statistics_card`,
@@ -510,6 +496,14 @@ if ctx.triggered[0].get('value') is None:
 `update_period_state()` callback, `update_dashboard_greeting()`
 callback, элемент `dashboard-greeting`, Store `dashboard-period-store`
 (заменён на `dashboard-period` — не писателя).
+
+**Удалено протоколом 0030** (мёртвый код и раскладка 8/4, вытеснены
+рядом карточек-дверей): `_build_transactions_split_table`,
+`_build_cushion_card_readonly` (вместе с её сессией БД),
+`_build_empty_state`; в `wishlist.py` — `build_wishlist_widget`,
+`_build_widget_item` (вместе с сессией виджета из layout);
+в `custom.css` — `.db-main-row`, `.db-left-col`, `.db-right-col`,
+`.dashboard-split-table`.
 
 **Пустые состояния (FR-6)**:
 - Чистая база → `dcc.Graph` в дереве ОТСУТСТВУЕТ вовсе (Plotly не
@@ -541,6 +535,69 @@ AC-5 пустые состояния без числовых артефакто�
 состоянием при `window_is_flat`; тултип резерва всегда утверждает
 настройку) — каждая поймана адресным тестом. Колбэки по-прежнему
 покрыты отдельно в `test_dashboard_callbacks.py`.
+
+## Panel Cards — карточки-двери щитка (Протокол 0030 — Epic-11, кусок 2 из 3)
+
+**Файлы**:
+- `app/components/panel_cards.py` — чистые build-функции пяти карточек
+- `app/assets/panel.css` — секции 7-10 (двери, wishlist-полоса, адаптив
+  1180/680, prefers-reduced-motion)
+
+**Состав**: `_door_shell` (каркас: цветная шина гнезда 3px, заголовок-
+dcc.Link, тело) + `build_calendar_card` / `build_goals_card` /
+`build_operations_card` / `build_analytics_card` / `build_wishlist_card`
++ `build_cards_row`. Данные приходят срезами `PanelData`
+(DashboardPanelService), сами функции о БД не знают.
+
+**Конституция щитка (FR-2)**: все пять карточек присутствуют ВСЕГДА —
+при пустых данных и при сбое блока меняется только содержимое.
+Единственный источник правды отрисовки — `<slot>["status"]`
+(CardStatus): общего признака пустоты в PanelData нет.
+
+**Ни одного серверного Input**: переходы делает dcc.Link; единственный
+интерактивный не-ссылочный элемент — слой-подложка двери Wishlist
+(`panel-wishlist-door`) → clientside timestamp_trigger → Store
+`open-wishlist-trigger` → `open_wishlist_modal` (wishlist.py,
+единственный Input + guard на пустой Store).
+
+**Двухуровневая дверь = слой-подложка, а не вложенность** (найдено на
+ревью 0030): пока кликабельный узел уровня 1 был КОНТЕЙНЕРОМ полосы,
+а ссылки-хотелки — его детьми, клик по хотелке всплывал в родителя и
+открывал модал ПОВЕРХ календаря (уровни смешивались). React-события
+всплывают от вложенной ссылки к родителю; `dcc.Link` делает
+`preventDefault`, но НЕ `stopPropagation`. Решение: уровень 1 —
+пустой absolute-слой `.pnl-wish-hitbox` внутри полосы, ссылки —
+его соседи, поднятые `z-index`. Правило общее: **кликабельный
+контейнер со ссылками внутри — всегда баг всплытия**; разводить
+уровни слоями, а не вложенностью.
+
+**Карточка «Календарь»**: ДВА окошка (сегодня/завтра, «вчера» убрано
+решением владельца 2026-08-26), каждое — dcc.Link на
+`/calendar?focus_date=<ISO>`; маркер просадки только при status == OK
+(оговорка #91: на пустом окне min_free = (0, today) — без оговорки
+чистая база дала бы числовой артефакт); усиление
+`pnl-flagline-strong` — факт знака `dip_free <= 0`, порога нет.
+
+**Ограничение карточки «Операции»** (решение владельца 2026-08-25):
+только материализованные операции — виртуальные инстансы регулярных
+платежей не показываются (источник их не отдаёт, C-3); регулярные
+видны в календаре и графике полос. Маркер 🔁 — у материализованных
+recurring-инстансов.
+
+**Объявленное расхождение карточки «Аналитика»**: цифра месяца
+считается `AnalyticsService.get_expenses_by_category` (EXPENSE и
+is_recurring=False) — с разделом совпадает по построению, но с
+месячным слоем «Платежи» графика НЕ сопоставима (слой включает
+виртуальные регулярные и savings_*). Объявлено подписью «расходы
+{месяца} · без регулярных и взносов в цели», в докстринге
+AnalyticsCardData и в RTM #87. Показателя «Доходы» в карточке нет.
+
+**AC-4**: подушка — строка внутри карточки «Цели» (`margin-top:auto`,
+вертикальный ритм), отдельной карточки в ряду нет.
+
+**Тесты**: `tests/test_panel_cards_ui.py` (26, дерево без БД),
+`tests/test_panel_service.py` (19, композитор), `tests/test_sidebar.py`
+(11), `tests/test_panel_query_params.py` (14).
 
 ## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
 

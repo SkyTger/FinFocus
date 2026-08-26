@@ -7,12 +7,28 @@ from app.core.paths import get_app_dir, get_assets_dir
 
 import dash
 import time
-from dash import dcc, html, Input, Output, State, callback
+from datetime import date
+from dash import (
+    dcc,
+    html,
+    Input,
+    Output,
+    State,
+    callback,
+    clientside_callback,
+    ClientsideFunction,
+    no_update,
+)
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
+from loguru import logger
 
 from app.components.dashboard import create_dashboard_layout
 from app.components.sidebar import create_sidebar
+from app.config.avatars import DEFAULT_AVATAR_ID
+from app.core.database import get_db_session
+from app.schema.onboarding import UserProfile
+from app.services.onboarding_service import OnboardingService
 from app.components.transactions import (
     create_transactions_layout,
 )  # Сначала transactions
@@ -54,11 +70,9 @@ app.layout = dbc.Container(
         # Главная структура с sidebar
         html.Div(
             [
-                # Sidebar (левая панель навигации, fixed)
-                html.Div(
-                    create_sidebar(),
-                    className="sidebar-column",
-                ),
+                # Sidebar-слот: наполняется render_sidebar_slot;
+                # на дашборде пуст, колонку скрывает CSS :empty
+                html.Div(id="sidebar-slot", className="sidebar-column"),
                 # Основной контент
                 html.Div(
                     [
@@ -95,44 +109,162 @@ app.layout = dbc.Container(
         dcc.Store(id="open-recon-trigger", data=None),
         # Trigger для открытия профиля из шестерёнки щитка (timestamp-based)
         dcc.Store(id="open-profile-trigger", data=None),
+        # Trigger для открытия модала wishlist из двери щитка (timestamp-based)
+        dcc.Store(id="open-wishlist-trigger", data=None),
         # Wishlist: ID активного элемента для планирования в календаре
         dcc.Store(id="wishlist-active-item", data=None),
+        # Фокус дня календаря из дверей щитка: {"value": ISO, "ts": мс}
+        dcc.Store(id="calendar-focus-date", data=None),
+        # Фокус цели из карточки щитка: {"value": goal_id, "ts": мс}
+        dcc.Store(id="goals-focus-goal", data=None),
     ],
     fluid=True,
     className="p-0 app-container",
 )
 
 
-# Единый callback для обработки query params (?open_recon=1, ?wishlist_item=ID)
+DEFAULT_USER_ID = 1
+
+
+@callback(
+    Output("sidebar-slot", "children"),
+    Input("url", "pathname"),
+    Input("profile-updated", "data"),
+)
+def render_sidebar_slot(pathname: str | None, profile_updated: float | None):
+    """Сайдбар есть на всех страницах, КРОМЕ дашборда (FR-2, AC-1).
+
+    ЕДИНСТВЕННЫЙ колбэк сайдбара. Оба прежних — highlight_active_sidebar
+    (Output sidebar-nav) и update_sidebar_profile (Output
+    sidebar-profile-name/-avatar) — УДАЛЕНЫ (critique-v2, блокер №2;
+    Подход B критика, принят владельцем): после снятия сайдбара с
+    дашборда их Output'ы стали бы условно присутствующими, а гонку
+    с перерисовкой слота guard по pathname не снимает. Чтение профиля
+    переехало сюда, create_sidebar стала чистой функцией.
+
+    Оба Input'а — на элементы, присутствующие ВСЕГДА: dcc.Location
+    "url" и dcc.Store "profile-updated" живут в глобальном layout.
+    Правило C-6 соблюдено с обеих сторон: ни Input, ни Output не
+    смотрит на условно присутствующий узел.
+
+    profile-updated как Input, а не State: правка профиля обязана
+    перерисовать сайдбар (тот же Store уже слушает load_dashboard_data).
+    Guard'а на пустой Store здесь НЕ нужно — колбэк идемпотентен:
+    он не открывает модалов, а перерисовка сайдбара тем же
+    содержимым не наблюдаема.
+
+    ЦЕНА (стратегия загрузки solution-v4): одна сессия и одно чтение
+    профиля на каждый переход между разделами. На /dashboard сессии
+    НЕТ — возвращается [] до её открытия. Сбой чтения профиля НЕ
+    обрушивает сайдбар: except → профиль-заглушка + лог, навигация
+    остаётся рабочей (находимость разделов важнее имени).
+
+    Колонка скрывается ОДНИМ механизмом — CSS-правилом
+    .sidebar-column:empty { display: none } (critique-v1, №9),
+    поэтому className не переключается и Output'а на него нет.
+    """
+    if pathname in (None, "/", "/dashboard"):
+        return []  # сессия НЕ открывается
+
+    try:
+        with get_db_session() as session:
+            profile = OnboardingService(session).get_profile(DEFAULT_USER_ID)
+    except Exception:
+        logger.opt(exception=True).warning(
+            "Не удалось прочитать профиль для сайдбара — "
+            "рисуем сайдбар с профилем-заглушкой (навигация не теряется)"
+        )
+        profile = UserProfile(name="Пользователь", avatar_id=DEFAULT_AVATAR_ID)
+
+    return create_sidebar(pathname, profile)
+
+
+# Аватар в сайдбаре → open-profile-trigger (модал профиля).
+# Сайдбар рендерится динамически в sidebar-slot и на дашборде
+# отсутствует — прямой Input в handle_profile_modal молча отключил бы
+# колбэк на дашборде целиком, включая вход через шестерёнку (класс
+# регрессий C-6 «наоборот», риск R1 solution-v4). Тот же паттерн
+# Store-триггера, что у шестерёнки щитка (урок протокола 0028).
+clientside_callback(
+    ClientsideFunction("triggers", "timestamp_trigger"),
+    Output("open-profile-trigger", "data", allow_duplicate=True),
+    Input("sidebar-profile-container", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+
+_OWNED_SEARCH_PATHS = frozenset({"/calendar", "/goals"})
+"""КОНТРАКТ ВЛАДЕНИЯ url.search (critique-v1, блокер №1 solution-v4).
+
+url.search — Input не только у handle_panel_query_params. Второй
+читатель — apply_url_date_filter (transactions.py): читает ?start=&end=
+для /transactions, в search НЕ пишет, работает с протокола 0023. Если
+бы этот колбэк чистил search на /transactions, фильтр периода перестал
+бы применяться (или применялся недетерминированно — гонка двух
+Output'ов на один Input), то есть сломалась бы уже работающая дверь
+Операций.
+
+Правило: чистим search ТОЛЬКО для путей, чьи параметры разобрали сами.
+Для /transactions — PreventUpdate. Идемпотентность там обеспечена самим
+разделом: повторное применение того же периода не наблюдаемо.
+"""
+
+
+# Единый callback для обработки query params дверей щитка
 @callback(
     [
         Output("open-recon-trigger", "data"),
         Output("wishlist-active-item", "data"),
+        Output("calendar-focus-date", "data"),
+        Output("goals-focus-goal", "data"),
         Output("url", "search"),
     ],
     Input("url", "search"),
     State("url", "pathname"),
     prevent_initial_call=True,
 )
-def handle_calendar_query_params(url_search: str | None, pathname: str | None):
-    """Обрабатывает query params и устанавливает triggers.
+def handle_panel_query_params(url_search: str | None, pathname: str | None):
+    """Разбирает query params дверей щитка и раскладывает по Store'ам.
 
-    - ?open_recon=1 → open-recon-trigger (timestamp)
-    - ?wishlist_item=ID → wishlist-active-item (int)
-    Очищает url.search после обработки.
+    Расширение механизма протоколов 0023/0028, а не новый механизм:
+
+      РАЗБИРАЕТ САМ и очищает search (_OWNED_SEARCH_PATHS):
+        /calendar?open_recon=1      → open-recon-trigger    (было)
+        /calendar?wishlist_item=ID  → wishlist-active-item  (было)
+        /calendar?focus_date=ISO    → calendar-focus-date   (НОВОЕ, FR-3)
+        /goals?goal=ID              → goals-focus-goal      (НОВОЕ, FR-3)
+
+      НЕ ТРОГАЕТ (PreventUpdate, search принадлежит разделу):
+        /transactions?start=&end=   → apply_url_date_filter (0023)
+        /analytics                  → params не нужны: раздел уже
+                                      открывается на текущем месяце
+
+    ФОРМАТ ЗНАЧЕНИЯ новых Store'ов — dict, не скаляр (critique-v2, №7):
+        {"value": <date ISO | goal_id>, "ts": <int мс>}
+    ts обязателен: два клика подряд по «завтра» должны сработать
+    дважды, а Store сравнивается по значению. Он же — ключ
+    идемпотентности приёмника (guard в load_and_navigate_calendar
+    и apply_goal_focus).
+
+    Битые значения (?focus_date=abc, ?goal=x) игнорируются молча —
+    не повод падать; если ни один параметр не распознан, PreventUpdate,
+    и search сохраняется.
     """
-    if not url_search:
+    if not url_search or pathname not in _OWNED_SEARCH_PATHS:
         raise PreventUpdate
 
     from urllib.parse import parse_qs
 
     params = parse_qs(url_search.lstrip("?"))
+    now_ms = int(time.time() * 1000)
     recon_trigger = None
     wishlist_item = None
+    focus_date = None
+    focus_goal = None
 
     if pathname == "/calendar":
         if "open_recon" in params:
-            recon_trigger = int(time.time() * 1000)
+            recon_trigger = now_ms
 
         if "wishlist_item" in params:
             try:
@@ -140,10 +272,35 @@ def handle_calendar_query_params(url_search: str | None, pathname: str | None):
             except (ValueError, IndexError):
                 pass
 
-    if recon_trigger is None and wishlist_item is None:
+        if "focus_date" in params:
+            try:
+                iso_value = params["focus_date"][0]
+                date.fromisoformat(iso_value)  # валидация, битое — молча мимо
+                focus_date = {"value": iso_value, "ts": now_ms}
+            except (ValueError, IndexError):
+                pass
+
+    if pathname == "/goals" and "goal" in params:
+        try:
+            focus_goal = {"value": int(params["goal"][0]), "ts": now_ms}
+        except (ValueError, IndexError):
+            pass
+
+    if all(v is None for v in (recon_trigger, wishlist_item, focus_date, focus_goal)):
         raise PreventUpdate
 
-    return recon_trigger, wishlist_item, ""
+    # Нераспознанные параметры → no_update, НЕ None: запись в Store —
+    # даже того же значения — триггерит его подписчиков. None в
+    # wishlist-active-item перерисовал бы календарь ВТОРОЙ раз, уже без
+    # фокуса (triggered_id сменился бы на wishlist-active-item), и
+    # подсветка дня гасла бы в той же секунде, что появилась.
+    return (
+        recon_trigger if recon_trigger is not None else no_update,
+        wishlist_item if wishlist_item is not None else no_update,
+        focus_date if focus_date is not None else no_update,
+        focus_goal if focus_goal is not None else no_update,
+        "",
+    )
 
 
 # Callback для роутинга страниц

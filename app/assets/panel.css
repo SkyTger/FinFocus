@@ -284,3 +284,558 @@
         transition: none;
     }
 }
+
+/* === 7. КАРТОЧКИ-ДВЕРИ (EPIC-11, кусок 2) =================== */
+
+.pnl-slots {
+    margin-top: var(--pnl-gap);
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--pnl-gap);
+}
+
+.pnl-door {
+    position: relative;
+    overflow: hidden;
+    background: #ffffff;
+    border: 1px solid var(--color-border, #e4e9ee);
+    border-radius: var(--pnl-radius);
+    padding: 15px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    transition: border-color 0.16s ease, transform 0.16s ease;
+}
+
+/* Маркировка гнезда: цветная шина 3px по верхней кромке (эскиз v3);
+   зелёный и синий — из палитры слоёв, единственного источника правды */
+.pnl-door::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 3px;
+    background: var(--pnl-slot, #e4e9ee);
+}
+
+.pnl-door-calendar {
+    --pnl-slot: var(--pnl-free);
+    --pnl-slot-soft: #eafaf1;
+}
+.pnl-door-goals {
+    --pnl-slot: var(--pnl-reserve);
+    --pnl-slot-soft: #eaf4fc;
+}
+.pnl-door-operations {
+    --pnl-slot: #c3ccd4;
+    --pnl-slot-soft: #f0f3f5;
+}
+.pnl-door-analytics {
+    --pnl-slot: #f39c12;
+    --pnl-slot-soft: #fff8ec;
+}
+
+.pnl-door:hover {
+    border-color: #d3dbe1;
+    transform: translateY(-1px);
+}
+.pnl-door:hover .pnl-door-chev {
+    transform: translateX(3px);
+    color: #2c3e50;
+}
+.pnl-door:focus-within {
+    outline: 2px solid var(--pnl-reserve);
+    outline-offset: 2px;
+}
+
+.pnl-door-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #eef2f5;
+    margin-bottom: 11px;
+    color: inherit;
+    text-decoration: none;
+}
+.pnl-door-head:hover {
+    color: inherit;
+    text-decoration: none;
+}
+
+.pnl-door-ico {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    border-radius: 7px;
+    display: grid;
+    place-items: center;
+    font-size: 14px;
+    line-height: 1;
+    background: var(--pnl-slot-soft, #f5f7f9);
+}
+
+.pnl-door-title {
+    flex: 1 1 auto;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+}
+
+.pnl-door-chev {
+    flex: 0 0 auto;
+    font-size: 15px;
+    font-weight: 700;
+    color: #a9b5bd;
+    transition: transform 0.16s ease, color 0.16s ease;
+}
+
+.pnl-door-body {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+/* Пустое и упавшее состояния карточки (FR-5, NFR-2):
+   текст рисует build-функция, данных с цифрами здесь нет (AC-5) */
+.pnl-door-empty {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #5d6b76;
+}
+.pnl-door-empty-hint {
+    font-size: 12px;
+    color: #8a97a0;
+}
+.pnl-door-failed {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #8a5a12;
+}
+.pnl-door-warn-ico {
+    flex: 0 0 auto;
+}
+
+/* Строка «ключ → значение» */
+.pnl-line {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 13px;
+    min-width: 0;
+}
+.pnl-line-k {
+    color: #5d6b76;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.pnl-line-v {
+    flex: 0 0 auto;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pnl-op-neg {
+    color: #c0392b;
+}
+.pnl-op-pos {
+    color: var(--pnl-free-deep);
+}
+
+.pnl-rule {
+    height: 1px;
+    background: #eef2f5;
+    margin: 2px 0;
+    flex: 0 0 auto;
+}
+
+/* --- Карточка «Календарь»: два окошка дня ------------------- */
+/* Эскиз рисовал три окошка; в реализации их два (решение владельца
+   2026-08-26) — ритм держит та же пара flex-правил: ряд забирает
+   свободную высоту, окошки распределяют содержимое по вертикали */
+.pnl-days {
+    display: flex;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.pnl-day {
+    flex: 1 1 0;
+    min-width: 0;
+    border: 1px solid #e4e9ee;
+    border-radius: var(--pnl-radius-sm);
+    padding: 9px 8px 10px;
+    text-align: center;
+    background: #f7f9fa;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    color: inherit;
+    text-decoration: none;
+}
+.pnl-day:hover {
+    color: inherit;
+    text-decoration: none;
+    border-color: #c6ebd6;
+}
+.pnl-day-today {
+    background: #eafaf1;
+    border-color: #c6ebd6;
+}
+.pnl-day-lab {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #5d6b76;
+    white-space: nowrap;
+}
+.pnl-day-today .pnl-day-lab {
+    color: var(--pnl-free-deep);
+}
+.pnl-day-date {
+    font-size: 10.5px;
+    color: #9aa7af;
+    margin-top: 1px;
+}
+.pnl-day-sum {
+    font-size: 14px;
+    font-weight: 700;
+    margin-top: 5px;
+    white-space: nowrap;
+}
+.pnl-day-free {
+    font-size: 10px;
+    color: var(--pnl-free-deep);
+    margin-top: 1px;
+    white-space: nowrap;
+}
+.pnl-day-note {
+    font-size: 10px;
+    color: #5d6b76;
+    margin-top: 1px;
+    white-space: nowrap;
+}
+
+/* Строка-маркер просадки (AC-7) */
+.pnl-flagline {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 0 0 auto;
+    background: #fff8ec;
+    border: 1px solid #f6dcae;
+    border-radius: var(--pnl-radius-sm);
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #8a5a12;
+    line-height: 1.35;
+    text-decoration: none;
+}
+.pnl-flagline:hover {
+    color: #8a5a12;
+    text-decoration: none;
+    border-color: #eecb8a;
+}
+.pnl-flag-ico {
+    flex: 0 0 auto;
+    font-size: 12px;
+}
+/* Усиление — факт знака числа (dip_free <= 0), не порог */
+.pnl-flagline-strong {
+    background: #fdecea;
+    border-color: #f4b8b0;
+    color: #a33025;
+}
+.pnl-flagline-strong:hover {
+    color: #a33025;
+    border-color: #eb9d93;
+}
+
+/* --- Карточка «Цели» ----------------------------------------- */
+.pnl-goal-link {
+    color: inherit;
+    text-decoration: none;
+    display: block;
+}
+.pnl-goal-link:hover {
+    color: inherit;
+    text-decoration: none;
+}
+.pnl-goal-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+}
+.pnl-goal-name {
+    font-size: 14px;
+    font-weight: 700;
+}
+.pnl-goal-pct {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--pnl-reserve);
+}
+.pnl-bar {
+    height: 8px;
+    border-radius: 999px;
+    background: #edf1f4;
+    overflow: hidden;
+    margin-top: 7px;
+}
+.pnl-bar > i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--pnl-reserve);
+}
+/* Мини-скейл подушки: вдвое тоньше и короче — индикатор состояния,
+   а не вторая равноправная цель (эскиз v3) */
+.pnl-bar-thin {
+    height: 4px;
+    width: 52%;
+    margin-top: 5px;
+    background: #eef2f5;
+}
+.pnl-bar-thin > i {
+    background: var(--pnl-free);
+}
+.pnl-goal-sub {
+    font-size: 12px;
+    color: #5d6b76;
+    margin-top: 6px;
+}
+.pnl-pillow .pnl-line-k,
+.pnl-pillow .pnl-line-v {
+    font-size: 12px;
+}
+.pnl-pillow .pnl-line-v {
+    font-weight: 600;
+    color: #5d6b76;
+}
+/* Вертикальный ритм карточки: подушка прижата к низу (RTM #66) */
+.pnl-goal-pillow {
+    margin-top: auto;
+}
+
+/* --- Карточка «Операции» ------------------------------------- */
+.pnl-grp {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: #a2aeb6;
+    margin-bottom: -2px;
+    text-decoration: none;
+}
+.pnl-grp:hover {
+    color: #5d6b76;
+    text-decoration: none;
+}
+.pnl-op-rec {
+    font-size: 11px;
+}
+
+/* --- Карточка «Аналитика» ------------------------------------ */
+.pnl-big-sum {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+}
+.pnl-note {
+    font-size: 12px;
+    color: #8a97a0;
+    margin-top: 2px;
+}
+.pnl-top-cat {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+}
+.pnl-top-cat-name {
+    font-weight: 600;
+}
+.pnl-top-cat-val {
+    font-weight: 700;
+    white-space: nowrap;
+}
+/* Мини-структура: CSS-полоска, без Plotly (RTM #70);
+   подвал карточки во всю ширину, как mini-slot эскиза */
+.pnl-mini-slot {
+    margin: auto -16px -16px;
+    padding: 10px 16px 12px;
+    border-top: 1px solid #eef2f5;
+    background: #fcfdfd;
+}
+.pnl-mini-bar {
+    display: flex;
+    height: 14px;
+    border-radius: 4px;
+    overflow: hidden;
+}
+.pnl-mini-seg {
+    height: 100%;
+    flex: 0 0 auto;
+}
+.pnl-mini-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: #2c3e50;
+}
+.pnl-mini-dot {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    margin-right: 4px;
+    vertical-align: baseline;
+}
+.pnl-mini-total {
+    margin-left: auto;
+    font-size: 10px;
+    color: #8a97a0;
+}
+
+/* === 8. WISHLIST-ПОЛОСА ====================================== */
+/* Полоса, не дверь в гриде: иерархия определяет размер и позицию,
+   но не факт присутствия (design.md, RTM #57). Уровень 1 — вся
+   полоса открывает модал (clientside-триггер через Store), уровень
+   2 — каждая хотелка ведёт в календарь режима покупок */
+
+.pnl-wish {
+    /* position: relative — опора слоя-подложки .pnl-wish-hitbox
+       (3.5-m-fix ревью 0030): кликабельный уровень 1 — не контейнер,
+       а absolute-ребёнок, чтобы клик по хотелке не «всплывал» в модал */
+    position: relative;
+    margin-top: 12px;
+    background: #ffffff;
+    border: 1px solid #e4e9ee;
+    border-left: 3px solid var(--pnl-free);
+    border-radius: var(--pnl-radius);
+    padding: 11px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+.pnl-wish-hitbox {
+    /* Слой уровня 1 (модал): вся площадь полосы. Ссылки-хотелки
+       подняты над ним z-index'ом — клик по ним минует слой;
+       некликабельные span'ы (tag/note/spacer/manage) остаются static
+       и потому НИЖЕ positioned-слоя — клик по ним попадает в слой. */
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    border-radius: var(--pnl-radius);
+}
+.pnl-wish-hitbox:focus-visible {
+    outline: 2px solid var(--pnl-reserve);
+    outline-offset: 2px;
+}
+.pnl-wish-tag {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: #5d6b76;
+    padding-right: 14px;
+    border-right: 1px solid #e4e9ee;
+    white-space: nowrap;
+}
+.pnl-wish-item {
+    /* Поверх слоя-подложки: клик по хотелке — только навигация,
+       уровень 1 (модал) не срабатывает (3.5-m-fix ревью 0030) */
+    position: relative;
+    z-index: 1;
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+    color: inherit;
+    text-decoration: none;
+}
+.pnl-wish-item:hover {
+    color: var(--pnl-free-deep);
+    text-decoration: none;
+}
+.pnl-wish-price {
+    font-weight: 800;
+    margin-left: 6px;
+}
+.pnl-wish-planned {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 8px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--pnl-free-deep);
+    background: #eafaf1;
+    border: 1px solid #c6ebd6;
+    border-radius: 999px;
+    padding: 2px 9px;
+    white-space: nowrap;
+}
+.pnl-wish-spacer {
+    flex: 1 1 auto;
+}
+.pnl-wish-note {
+    font-size: 12px;
+    color: #5d6b76;
+    white-space: nowrap;
+}
+.pnl-wish-manage {
+    font-size: 12px;
+    font-weight: 600;
+    color: #8a97a0;
+    white-space: nowrap;
+}
+.pnl-wish:hover .pnl-wish-manage {
+    color: #2c3e50;
+}
+
+/* === 9. АДАПТИВНОСТЬ ДВЕРЕЙ ================================= */
+/* Брейкпоинты эскиза v3 (RTM #73); полная адаптация — Epic-08 */
+
+@media (max-width: 1180px) {
+    .pnl-slots {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 680px) {
+    .pnl-slots {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* === 10. ДОСТУПНОСТЬ ДВЕРЕЙ ================================= */
+
+@media (prefers-reduced-motion: reduce) {
+    .pnl-door,
+    .pnl-door-chev {
+        transition: none;
+    }
+    .pnl-door:hover {
+        transform: none;
+    }
+    .pnl-door:hover .pnl-door-chev {
+        transform: none;
+    }
+}
