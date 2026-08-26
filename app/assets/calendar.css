@@ -612,3 +612,10 @@
         display: none;
     }
 }
+
+/* Фокус дня из двери щитка (FR-3, протокол 0030) */
+.calendar-day-focused {
+    outline: 2px solid #2ecc71;
+    outline-offset: -2px;
+    box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.18);
+}

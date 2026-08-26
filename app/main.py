@@ -7,6 +7,7 @@ from app.core.paths import get_app_dir, get_assets_dir
 
 import dash
 import time
+from datetime import date
 from dash import (
     dcc,
     html,
@@ -16,6 +17,7 @@ from dash import (
     callback,
     clientside_callback,
     ClientsideFunction,
+    no_update,
 )
 from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
@@ -111,6 +113,10 @@ app.layout = dbc.Container(
         dcc.Store(id="open-wishlist-trigger", data=None),
         # Wishlist: ID активного элемента для планирования в календаре
         dcc.Store(id="wishlist-active-item", data=None),
+        # Фокус дня календаря из дверей щитка: {"value": ISO, "ts": мс}
+        dcc.Store(id="calendar-focus-date", data=None),
+        # Фокус цели из карточки щитка: {"value": goal_id, "ts": мс}
+        dcc.Store(id="goals-focus-goal", data=None),
     ],
     fluid=True,
     className="p-0 app-container",
@@ -187,36 +193,78 @@ clientside_callback(
 )
 
 
-# Единый callback для обработки query params (?open_recon=1, ?wishlist_item=ID)
+_OWNED_SEARCH_PATHS = frozenset({"/calendar", "/goals"})
+"""КОНТРАКТ ВЛАДЕНИЯ url.search (critique-v1, блокер №1 solution-v4).
+
+url.search — Input не только у handle_panel_query_params. Второй
+читатель — apply_url_date_filter (transactions.py): читает ?start=&end=
+для /transactions, в search НЕ пишет, работает с протокола 0023. Если
+бы этот колбэк чистил search на /transactions, фильтр периода перестал
+бы применяться (или применялся недетерминированно — гонка двух
+Output'ов на один Input), то есть сломалась бы уже работающая дверь
+Операций.
+
+Правило: чистим search ТОЛЬКО для путей, чьи параметры разобрали сами.
+Для /transactions — PreventUpdate. Идемпотентность там обеспечена самим
+разделом: повторное применение того же периода не наблюдаемо.
+"""
+
+
+# Единый callback для обработки query params дверей щитка
 @callback(
     [
         Output("open-recon-trigger", "data"),
         Output("wishlist-active-item", "data"),
+        Output("calendar-focus-date", "data"),
+        Output("goals-focus-goal", "data"),
         Output("url", "search"),
     ],
     Input("url", "search"),
     State("url", "pathname"),
     prevent_initial_call=True,
 )
-def handle_calendar_query_params(url_search: str | None, pathname: str | None):
-    """Обрабатывает query params и устанавливает triggers.
+def handle_panel_query_params(url_search: str | None, pathname: str | None):
+    """Разбирает query params дверей щитка и раскладывает по Store'ам.
 
-    - ?open_recon=1 → open-recon-trigger (timestamp)
-    - ?wishlist_item=ID → wishlist-active-item (int)
-    Очищает url.search после обработки.
+    Расширение механизма протоколов 0023/0028, а не новый механизм:
+
+      РАЗБИРАЕТ САМ и очищает search (_OWNED_SEARCH_PATHS):
+        /calendar?open_recon=1      → open-recon-trigger    (было)
+        /calendar?wishlist_item=ID  → wishlist-active-item  (было)
+        /calendar?focus_date=ISO    → calendar-focus-date   (НОВОЕ, FR-3)
+        /goals?goal=ID              → goals-focus-goal      (НОВОЕ, FR-3)
+
+      НЕ ТРОГАЕТ (PreventUpdate, search принадлежит разделу):
+        /transactions?start=&end=   → apply_url_date_filter (0023)
+        /analytics                  → params не нужны: раздел уже
+                                      открывается на текущем месяце
+
+    ФОРМАТ ЗНАЧЕНИЯ новых Store'ов — dict, не скаляр (critique-v2, №7):
+        {"value": <date ISO | goal_id>, "ts": <int мс>}
+    ts обязателен: два клика подряд по «завтра» должны сработать
+    дважды, а Store сравнивается по значению. Он же — ключ
+    идемпотентности приёмника (guard в load_and_navigate_calendar
+    и apply_goal_focus).
+
+    Битые значения (?focus_date=abc, ?goal=x) игнорируются молча —
+    не повод падать; если ни один параметр не распознан, PreventUpdate,
+    и search сохраняется.
     """
-    if not url_search:
+    if not url_search or pathname not in _OWNED_SEARCH_PATHS:
         raise PreventUpdate
 
     from urllib.parse import parse_qs
 
     params = parse_qs(url_search.lstrip("?"))
+    now_ms = int(time.time() * 1000)
     recon_trigger = None
     wishlist_item = None
+    focus_date = None
+    focus_goal = None
 
     if pathname == "/calendar":
         if "open_recon" in params:
-            recon_trigger = int(time.time() * 1000)
+            recon_trigger = now_ms
 
         if "wishlist_item" in params:
             try:
@@ -224,10 +272,35 @@ def handle_calendar_query_params(url_search: str | None, pathname: str | None):
             except (ValueError, IndexError):
                 pass
 
-    if recon_trigger is None and wishlist_item is None:
+        if "focus_date" in params:
+            try:
+                iso_value = params["focus_date"][0]
+                date.fromisoformat(iso_value)  # валидация, битое — молча мимо
+                focus_date = {"value": iso_value, "ts": now_ms}
+            except (ValueError, IndexError):
+                pass
+
+    if pathname == "/goals" and "goal" in params:
+        try:
+            focus_goal = {"value": int(params["goal"][0]), "ts": now_ms}
+        except (ValueError, IndexError):
+            pass
+
+    if all(v is None for v in (recon_trigger, wishlist_item, focus_date, focus_goal)):
         raise PreventUpdate
 
-    return recon_trigger, wishlist_item, ""
+    # Нераспознанные параметры → no_update, НЕ None: запись в Store —
+    # даже того же значения — триггерит его подписчиков. None в
+    # wishlist-active-item перерисовал бы календарь ВТОРОЙ раз, уже без
+    # фокуса (triggered_id сменился бы на wishlist-active-item), и
+    # подсветка дня гасла бы в той же секунде, что появилась.
+    return (
+        recon_trigger if recon_trigger is not None else no_update,
+        wishlist_item if wishlist_item is not None else no_update,
+        focus_date if focus_date is not None else no_update,
+        focus_goal if focus_goal is not None else no_update,
+        "",
+    )
 
 
 # Callback для роутинга страниц

@@ -244,3 +244,55 @@ agent-browser, чистая база + наполненная)**:
 
 Проверки: py_compile OK, black/flake8 чисты, 713 passed,
 `import app.main` без конфликтов колбэков.
+
+## Шаг 7: Переходы с контекстом (2026-08-26)
+
+`main.py`: `_OWNED_SEARCH_PATHS = frozenset({"/calendar", "/goals"})`
+с докстрингом-контрактом владения url.search (второй читатель —
+`apply_url_date_filter` /transactions с 0023, его search не трогаем);
+`handle_calendar_query_params` → `handle_panel_query_params`: разбор
+`open_recon`/`wishlist_item`/`focus_date` (+валидация ISO) на /calendar
+и `goal` на /goals, payload новых Store'ов — `{"value", "ts"}`;
+PreventUpdate на всех прочих путях и при нераспознанных параметрах;
+два новых Store — `calendar-focus-date`, `goals-focus-goal`
+(`open-wishlist-trigger` заведён шагом 5).
+
+`calendar.py`: `Input("calendar-focus-date")` шестым Input'ом;
+двойной guard идемпотентности (triggered_id == Store И ts !=
+state.focus_applied_ts); ключи `focus_date`/`focus_applied_ts` в
+`calendar-state`; ветка except НЕ тронута (ts туда намеренно не
+пишется); `build_day_cell`/`build_calendar_grid` — параметр фокуса,
+класс `calendar-day-focused` (+стиль в calendar.css).
+
+`goals.py`: якорные id `goal-card-<id>` на карточках (чистые
+DOM-якоря, колбэков на них нет); узел `goals-focus-anchor` (хранит
+применённый ts); clientside `apply_goal_focus`
+(clientside_triggers.js) — та же механика идемпотентности; скролл
+серверно невозможен, поэтому приёмник клиентский: scrollIntoView +
+класс `goal-card-focused` на 2.5 с (+стиль в goals.css), ретраи
+ожидания асинхронно рендерящихся карточек. `transactions.py`/
+`analytics.py` не тронуты (C-1).
+
+**Дефект, найденный ручной проверкой и исправленный до коммита**:
+первый прогон «клик "завтра" → фокус дня» дал подсветку 0 —
+`handle_panel_query_params` возвращал None в нераспознанные Store'ы,
+а запись в Store (даже того же значения) триггерит подписчиков:
+календарь перерисовывался ВТОРОЙ раз по `wishlist-active-item`, уже
+без фокуса. Исправлено: нераспознанные → `no_update` (комментарий
+в коде). После фикса подсветка работает.
+
+**Ручная проверка (живой браузер)**: клик «завтра» → /calendar, день
+27 подсвечен, search очищен; клик по группе «Недавние» →
+/transactions?start=&end=, фильтр применён (4 строки), F5 — search
+СОХРАНЁН (владение не нарушено), ошибок нет; клик по цели →
+/goals, карточка подсвечена и проскроллена; возврат в раздел по
+меню — фокус НЕ переприменяется (и календарь, и цели); повторный
+клик по той же двери — фокус срабатывает снова (новый ts).
+Замечание: «пролистал на октябрь, ушёл, вернулся → октябрь остался»
+из чек-листа невыполнимо и в main — `calendar-state` живёт в layout
+раздела и пересоздаётся при каждом входе (поведение до куска 2, не
+регрессия); ключевая часть — отсутствие переприменения — выполнена.
+
+Проверки: py_compile OK, black/flake8 чисты (E501 goals.py —
+pre-existing строка вопроса №5, сместилась с 3052 на 3085),
+713 passed, `import app.main` OK.
