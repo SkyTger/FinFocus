@@ -267,21 +267,18 @@ class DashboardPanelService:
         Raises:
             Любое исключение MoneyLayersService — базовая модель
             остатка НЕ деградирует (правило куска 1, NFR-2).
-            Сбои остальных блоков ловятся поблочно и превращаются
-            в CardStatus.FAILED с логом logger.opt(exception=True).
+            Сбои четырёх блоков с запросами ловятся поблочно и
+            превращаются в CardStatus.FAILED с логом
+            logger.opt(exception=True); _calendar_block — без
+            try/except: чистая функция от уже валидной MoneyLayersData.
         """
         ref = reference_date or date.today()
 
         # Вне try/except: без модели слоёв щитка нет (NFR-2)
         layers = MoneyLayersService(self.session).get_money_layers(user_id, ref)
 
-        try:
-            calendar_card = self._calendar_block(layers)
-        except Exception:
-            logger.opt(exception=True).warning(
-                "Сбор блока «Календарь» упал, карточка деградирует"
-            )
-            calendar_card = _failed(_empty_calendar())
+        # Без try/except: чистая функция от уже валидной модели
+        calendar_card = self._calendar_block(layers)
 
         try:
             goals_card = self._goals_block(user_id, layers)
