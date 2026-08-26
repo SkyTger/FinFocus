@@ -4,7 +4,7 @@
 О БД и сервисах не знают. Ни одна карточка не заводит серверный Input —
 переходы делает сам dcc.Link, поэтому класс регрессий C-6 (колбэк на
 условно присутствующий элемент) не создаётся вообще. Единственный
-интерактивный не-ссылочный элемент — тело двери Wishlist
+интерактивный не-ссылочный элемент — слой-подложка двери Wishlist
 (id="panel-wishlist-door"), его обслуживает clientside-триггер через
 Store (паттерн проекта, шаги 6-7 протокола).
 """
@@ -483,18 +483,37 @@ def build_analytics_card(data: AnalyticsCardData) -> html.Div:
 def build_wishlist_card(data: WishlistCardData) -> html.Div:
     """Полоса «Wishlist» — двухуровневая дверь (FR-1.e, AC-8).
 
-    Уровень 1: тело полосы (id="panel-wishlist-door") открывает модал
-    управления wishlist — через clientside timestamp_trigger в Store
-    open-wishlist-trigger (паттерн проекта для динамических элементов);
-    серверного Input на сам элемент нет.
+    Уровень 1: тело полосы открывает модал управления wishlist — через
+    clientside timestamp_trigger в Store open-wishlist-trigger (паттерн
+    проекта для динамических элементов); серверного Input на сам
+    элемент нет.
     Уровень 2: каждая хотелка — dcc.Link на /calendar?wishlist_item=<id>:
     календарь в режиме покупок с фокусом на хотелке (механизм 0023).
+
+    Разделение уровней — слоем-подложкой (ревью 0030, 3.5-m-fix):
+    кликабельный узел уровня 1 (id="panel-wishlist-door") — НЕ контейнер
+    полосы, а её первый ребёнок, absolute-слой на всю площадь
+    (.pnl-wish-hitbox). Ссылки-хотелки лежат ПОВЕРХ него как соседи
+    (z-index в CSS), а не дети — клику по хотелке физически нечем
+    «всплыть» в кнопку модала. Когда id висел на контейнере, клик по
+    хотелке открывал И календарь, И модал поверх него (React-события
+    всплывают от вложенной ссылки к родителю; dcc.Link делает
+    preventDefault, но не stopPropagation).
 
     Wishlist — полоса, а не дверь в гриде: иерархия определяет размер
     и позицию, но не факт присутствия (design.md, RTM #57); полоса
     присутствует всегда, как и карточки (FR-2).
     """
-    children: list = [html.Span("Wishlist", className="pnl-wish-tag")]
+    children: list = [
+        # Уровень 1 двери: слой-подложка под всей полосой (см. докстринг)
+        html.Div(
+            id="panel-wishlist-door",
+            className="pnl-wish-hitbox",
+            role="button",
+            tabIndex="0",
+        ),
+        html.Span("Wishlist", className="pnl-wish-tag"),
+    ]
 
     if data["status"] == CardStatus.FAILED:
         children.append(
@@ -542,13 +561,7 @@ def build_wishlist_card(data: WishlistCardData) -> html.Div:
     children.append(html.Span(className="pnl-wish-spacer"))
     children.append(html.Span("Управлять →", className="pnl-wish-manage"))
 
-    return html.Div(
-        children,
-        id="panel-wishlist-door",
-        className="pnl-wish",
-        role="button",
-        tabIndex="0",
-    )
+    return html.Div(children, className="pnl-wish")
 
 
 def build_cards_row(data: PanelData) -> html.Div:

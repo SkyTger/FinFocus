@@ -454,9 +454,31 @@ class TestDoorHrefs:
         assert "/calendar?wishlist_item=1" in hrefs  # хотелка, уровень 2
 
     def test_wishlist_door_node_present(self):
-        """Уровень 1 двери Wishlist — узел для clientside-триггера."""
+        """Уровень 1 двери Wishlist — узел для clientside-триггера.
+
+        Узел — слой-подложка ВНУТРИ полосы, а не сам контейнер
+        (3.5-m-fix ревью 0030): id на контейнере ловил всплытие клика
+        от вложенных ссылок-хотелок и открывал модал поверх календаря.
+        """
         tree = build_wishlist_card(make_wishlist())
-        assert getattr(tree, "id", None) == "panel-wishlist-door"
+        assert getattr(tree, "id", None) is None  # контейнер без id
+        door = find_by_id(tree, "panel-wishlist-door")
+        assert door is not None
+        assert "pnl-wish-hitbox" in (door.className or "")
+
+    def test_wishlist_links_not_inside_door_node(self):
+        """AC-8: хотелки — НЕ потомки узла уровня 1 (регрессия 3.5-m-fix).
+
+        Клик по dcc.Link, вложенному в кликабельный узел, всплывает и
+        инкрементит его n_clicks — модал открывался поверх календаря.
+        Слой-подложка обязан быть пустым, ссылки — его соседями.
+        """
+        tree = build_wishlist_card(make_wishlist())
+        door = find_by_id(tree, "panel-wishlist-door")
+        # внутри узла двери нет НИЧЕГО — тем более ссылок
+        assert list(iter_tree(door)) == [door]
+        # ссылки-хотелки при этом в полосе есть
+        assert "/calendar?wishlist_item=1" in all_hrefs(tree)
 
 
 # ===========================================================================

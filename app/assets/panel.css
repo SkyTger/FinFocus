@@ -721,6 +721,10 @@
    2 — каждая хотелка ведёт в календарь режима покупок */
 
 .pnl-wish {
+    /* position: relative — опора слоя-подложки .pnl-wish-hitbox
+       (3.5-m-fix ревью 0030): кликабельный уровень 1 — не контейнер,
+       а absolute-ребёнок, чтобы клик по хотелке не «всплывал» в модал */
+    position: relative;
     margin-top: 12px;
     background: #ffffff;
     border: 1px solid #e4e9ee;
@@ -731,9 +735,18 @@
     align-items: center;
     gap: 14px;
     flex-wrap: wrap;
-    cursor: pointer;
 }
-.pnl-wish:focus-visible {
+.pnl-wish-hitbox {
+    /* Слой уровня 1 (модал): вся площадь полосы. Ссылки-хотелки
+       подняты над ним z-index'ом — клик по ним минует слой;
+       некликабельные span'ы (tag/note/spacer/manage) остаются static
+       и потому НИЖЕ positioned-слоя — клик по ним попадает в слой. */
+    position: absolute;
+    inset: 0;
+    cursor: pointer;
+    border-radius: var(--pnl-radius);
+}
+.pnl-wish-hitbox:focus-visible {
     outline: 2px solid var(--pnl-reserve);
     outline-offset: 2px;
 }
@@ -748,6 +761,10 @@
     white-space: nowrap;
 }
 .pnl-wish-item {
+    /* Поверх слоя-подложки: клик по хотелке — только навигация,
+       уровень 1 (модал) не срабатывает (3.5-m-fix ревью 0030) */
+    position: relative;
+    z-index: 1;
     font-size: 14px;
     font-weight: 600;
     white-space: nowrap;
