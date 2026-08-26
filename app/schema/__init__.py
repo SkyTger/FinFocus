@@ -50,6 +50,23 @@ from app.schema.dashboard import (
     YearlyCashflowData,
 )
 
+from app.schema.panel import (
+    OPERATIONS_PER_GROUP,
+    MINI_STRUCTURE_CATEGORIES,
+    TRANSACTION_KIND_MAP,
+    CardStatus,
+    CalendarDaySlice,
+    CalendarCardData,
+    GoalsCardData,
+    OperationRow,
+    OperationsCardData,
+    AnalyticsCategorySlice,
+    AnalyticsCardData,
+    WishlistCardRow,
+    WishlistCardData,
+    PanelData,
+)
+
 from app.schema.money_layers import (
     LayerKey,
     WINDOW_DAYS,
@@ -111,6 +128,21 @@ __all__ = [
     "MonthlyCashflowData",
     "MonthlyCashflow",
     "YearlyCashflowData",
+    # Panel cards (EPIC-11, кусок 2)
+    "OPERATIONS_PER_GROUP",
+    "MINI_STRUCTURE_CATEGORIES",
+    "TRANSACTION_KIND_MAP",
+    "CardStatus",
+    "CalendarDaySlice",
+    "CalendarCardData",
+    "GoalsCardData",
+    "OperationRow",
+    "OperationsCardData",
+    "AnalyticsCategorySlice",
+    "AnalyticsCardData",
+    "WishlistCardRow",
+    "WishlistCardData",
+    "PanelData",
     # Money layers (EPIC-11, кусок 1)
     "LayerKey",
     "WINDOW_DAYS",
