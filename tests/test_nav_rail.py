@@ -316,23 +316,30 @@ class TestNavRailAccessibility:
         for link in links:
             assert link.title, f"без доступного имени: {link.href}"
 
-    def test_avatar_has_accessible_name_and_role(self):
-        """Аватар — html.Div, поэтому aria-атрибуты ему доступны."""
-        tree = create_nav_rail("/calendar", PROFILE)
+    @pytest.mark.parametrize("pathname", SECTION_PATHS)
+    def test_avatar_has_accessible_name_and_role(self, pathname):
+        """Аватар — html.Div, поэтому aria-атрибуты ему доступны.
+
+        Параметризован по всем разделам (AC-7).
+        """
+        tree = create_nav_rail(pathname, PROFILE)
 
         avatar = _find_by_id(tree, "nav-rail-avatar")
         props = avatar.to_plotly_json()["props"]
         assert props.get("aria-label")
         assert props.get("role") == "button"
 
-    def test_avatar_is_keyboard_reachable(self):
+    @pytest.mark.parametrize("pathname", SECTION_PATHS)
+    def test_avatar_is_keyboard_reachable(self, pathname):
         """Аватар обходится по Tab — иначе в профиль не попасть с клавиатуры.
 
         Аватар — html.Div, а не ссылка или кнопка: без явного
         tabIndex он выпадает из обхода целиком (поймано живой
         проверкой на шаге 11).
+
+        Параметризован по всем разделам (AC-7).
         """
-        tree = create_nav_rail("/calendar", PROFILE)
+        tree = create_nav_rail(pathname, PROFILE)
 
         avatar = _find_by_id(tree, "nav-rail-avatar")
         assert avatar.tabIndex == 0
@@ -357,9 +364,10 @@ class TestNavRailAccessibility:
         assert "Enter" in source
         assert ".click()" in source
 
-    def test_avatar_has_profile_tip(self):
-        """У аватара свой язычок «Профиль»."""
-        tree = create_nav_rail("/calendar", PROFILE)
+    @pytest.mark.parametrize("pathname", SECTION_PATHS)
+    def test_avatar_has_profile_tip(self, pathname):
+        """У аватара свой язычок «Профиль» на каждом разделе (AC-7)."""
+        tree = create_nav_rail(pathname, PROFILE)
 
         avatar = _find_by_id(tree, "nav-rail-avatar")
         assert "Профиль" in _joined_text(avatar)
@@ -376,9 +384,14 @@ class TestNavRailAccessibility:
 class TestNavRailProfileEntry:
     """Единственный вход в профиль — Store-триггер (инвариант 3)."""
 
-    def test_avatar_node_is_clickable(self):
-        """В дереве есть nav-rail-avatar с n_clicks."""
-        tree = create_nav_rail("/calendar", PROFILE)
+    @pytest.mark.parametrize("pathname", SECTION_PATHS)
+    def test_avatar_node_is_clickable(self, pathname):
+        """В дереве есть nav-rail-avatar с n_clicks.
+
+        Параметризован по всем разделам: AC-7 требует, чтобы вход в
+        профиль проверялся «на каждом из разделов, а не на одном».
+        """
+        tree = create_nav_rail(pathname, PROFILE)
 
         avatar = _find_by_id(tree, "nav-rail-avatar")
         assert avatar is not None
