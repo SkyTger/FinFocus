@@ -16,6 +16,7 @@ from dash import html, dcc, callback, Input, Output, State, no_update, ctx, ALL
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
+from app.components.transactions import _is_system_transaction
 from app.core import get_db_session, ValidationError
 from app.models.database import TransactionType
 from app.services import TransactionService, RecurringService, CategoryService
@@ -1343,6 +1344,16 @@ def handle_delete_click(n_clicks_list):
         tx = service.get_by_id(transaction_id)
 
         if not tx:
+            raise PreventUpdate
+
+        # Guard (протокол 0032): служебные операции не удаляются из списка —
+        # прямое удаление минует каскад GoalService (Contribution →
+        # Transaction → Goal) и рассинхронизирует накопленную сумму цели
+        if _is_system_transaction(tx):
+            logger.debug(
+                f"Delete транзакции {transaction_id} заблокирован: "
+                f"тип {tx.transaction_type.name}"
+            )
             raise PreventUpdate
 
         # Проверяем: является ли recurring (шаблон или экземпляр серии)
