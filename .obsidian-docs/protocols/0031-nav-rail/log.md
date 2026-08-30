@@ -520,3 +520,109 @@ Sub-task 7 (шестерёнка щитка) — проверена живьём
 (регрессионный барьер AC-10 зелёный без правок, как требует Workflow).
 Полная сюита: **811 passed, 1 xfailed** (было 776: +39 новых, −4
 переехавших). black и flake8 чисты.
+
+---
+
+### Step 08 — Разворот и живая приёмка AC-5 / AC-6
+
+**Ключевой шаг протокола: механизм встретился с реальностью и
+сработал.** AC-5 и AC-6 выполнены, план Б2 не понадобился.
+
+#### Что сделано
+
+В `nav_rail.css` добавлены секция 10 (`@keyframes nav-rail-unfold` +
+`animation` на `.nav-rail-inner`) и правило `animation: none` в блоке
+`prefers-reduced-motion`. Анимация — 220ms `cubic-bezier(.2,.8,.2,1)`,
+`clip-path: inset()` сверху вниз + `opacity` от .35 к 1.
+
+`backwards`, а НЕ `both` — проверено эмпирически, см. ниже: `both`
+оставил бы `to`-кадр `clip-path: inset(0)` навсегда, а он режет по
+border-box и срезал бы язычки после каждого разворота.
+
+#### ЖИВАЯ ПРИЁМКА AC-5 — результат дословно
+
+Счётчик `animationstart` с фильтром по `animationName ===
+'nav-rail-unfold'`, переходы настоящими кликами мыши.
+
+**(а) `/dashboard` → дверь «Календарь» — разворот играет:**
+```
+{"url":"/calendar","rail":true,"unfoldCount":1,"unfoldLog":["/calendar"],
+ "residualClipInner":"none","residualClipRail":"none"}
+```
+
+**(б) переходы раздел→раздел — разворот НЕ повторяется (главное):**
+```
+→ /goals       : {"url":"/goals","unfold":1,"sameNode":true}
+→ /analytics   : {"url":"/analytics","unfold":1,"sameNode":true}
+→ /transactions: {"url":"/transactions","unfold":1,"sameNode":true}
+→ /calendar    : {"url":"/calendar","unfold":1,"sameNode":true}
+→ /goals       : {"url":"/goals","unfold":1,"sameNode":true}
+```
+Пять переходов подряд — счётчик остался **1**, узел всё это время
+физически ТОТ ЖЕ объект (`sameNode: true`). Механизм, предсказанный
+пробой шага 1 (стабильный React-ключ через `id` + единственный
+ребёнок слота), работает на реальной анимации.
+
+**(в) возврат через дашборд — разворот играет снова:**
+```
+/goals → логотип → /dashboard: {"rail":false,"unfold":1,"oldNodeInDoc":false}
+/dashboard → /analytics:       {"unfold":2,"unfoldLog":["/calendar","/analytics"],
+                                "newNode":true,"residualClip":"none"}
+```
+На дашборде узел уничтожается, при возврате монтируется заново —
+и разворот играет (1 → 2).
+
+#### Sub-task 4 — остаточного отсечения нет
+
+После завершения разворота: `clip-path` = `none` И на `.nav-rail`,
+И на `.nav-rail-inner`. Язычок при наведении:
+```
+{"text":"Календарь","visibility":"visible","opacity":"1",
+ "fullyOutsideRail":true,"widthNotClipped":true,
+ "clipInner":"none","clipRail":"none"}
+```
+Ровно та проблема, ради которой взят `backwards`, не возникла.
+
+#### ЖИВАЯ ПРИЁМКА AC-6 (prefers-reduced-motion)
+
+```
+{"url":"/calendar","reduceActive":true,"unfoldPlayed":0,
+ "animationName":"none","clipPath":"none","opacity":"1",
+ "innerHeight":527,"slots":4,"avatarVisible":true}
+```
+Разворот не сыграл ни разу, `animation-name: none` (обнулена целиком,
+не только длительность), первый кадр НЕ залип: полоска сразу целиком,
+все четыре слота и аватар на месте. Язычок в этом режиме тоже цел:
+`{"tipFullyOutsideRail":true,"tipWidth":82,"tipTransition":"0s"}`.
+
+#### Как включалась эмуляция reduced-motion (грабли)
+
+`agent-browser set media reduce` рапортует «✓ Done», но
+`matchMedia('(prefers-reduced-motion: reduce)').matches` остаётся
+`false` — команда управляет цветовой схемой, не анимацией.
+**Рапорт инструмента об успехе ≠ применённая настройка**, проверять
+надо результат.
+
+Обошёл через CDP напрямую (`Emulation.setEmulatedMedia` с feature
+`prefers-reduced-motion`). Порт браузера нашёлся в `ss -ltnp`
+(36573). `websocket-client` в окружении нет — ставить пакет в
+проектное окружение ради одной проверки не стал, написал минимальный
+WebSocket-клиент на стандартной библиотеке
+(`scratchpad/cdp.py`, вне репозитория). Эмуляция снята после проверки.
+
+Для будущих протоколов: тот же приём годится для любой эмуляции
+DevTools, которой нет в agent-browser.
+
+#### Отступление от раскадровки эскиза — зафиксировано
+
+Анимируется `.nav-rail-inner`, а не кожух: в эскизе схлопывалась сама
+стеклянная плашка, но это требует обрезки по её краю и срезало бы
+язычки постоянно. Решение владельца Р5 (2026-08-28), RTM #72 —
+подписи важнее буквального роста плашки. Записано комментарием в CSS,
+чтобы не «вернули как в эскизе».
+
+#### Проверки
+
+Баланс скобок CSS OK; `both` встречается только в комментарии,
+объясняющем, почему он НЕ взят. Сюита **811 passed, 1 xfailed**,
+black чист, flake8 — те же 4 pre-existing замечания.
