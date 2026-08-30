@@ -24,7 +24,7 @@ import dash_bootstrap_components as dbc
 from loguru import logger
 
 from app.components.dashboard import create_dashboard_layout
-from app.components.sidebar import create_sidebar
+from app.components.nav_rail import create_nav_rail
 from app.config.avatars import DEFAULT_AVATAR_ID
 from app.core.database import get_db_session
 from app.schema.onboarding import UserProfile
@@ -67,12 +67,12 @@ app.layout = dbc.Container(
     [
         # URL компонент для роутинга
         dcc.Location(id="url", refresh=False),
-        # Главная структура с sidebar
+        # Главная структура: полоска-меню + контент
         html.Div(
             [
-                # Sidebar-слот: наполняется render_sidebar_slot;
+                # Слот полоски-меню: наполняется render_nav_rail_slot;
                 # на дашборде пуст, колонку скрывает CSS :empty
-                html.Div(id="sidebar-slot", className="sidebar-column"),
+                html.Div(id="nav-rail-slot", className="nav-rail-column"),
                 # Основной контент
                 html.Div(
                     [
@@ -101,7 +101,7 @@ app.layout = dbc.Container(
         create_onboarding_wizard(),
         # Profile modal (глобальный — редактирование профиля)
         create_profile_modal(),
-        # Store для обновления sidebar при изменении профиля
+        # Store для обновления полоски-меню при изменении профиля
         dcc.Store(id="profile-updated", data=None),
         # Глобальный store для toast dismissal (до перезагрузки)
         dcc.Store(id="balance-toast-dismissed", data=False),
@@ -127,20 +127,21 @@ DEFAULT_USER_ID = 1
 
 
 @callback(
-    Output("sidebar-slot", "children"),
+    Output("nav-rail-slot", "children"),
     Input("url", "pathname"),
     Input("profile-updated", "data"),
 )
-def render_sidebar_slot(pathname: str | None, profile_updated: float | None):
-    """Сайдбар есть на всех страницах, КРОМЕ дашборда (FR-2, AC-1).
+def render_nav_rail_slot(pathname: str | None, profile_updated: float | None):
+    """Полоска-меню есть на всех страницах, КРОМЕ дашборда (FR-2, AC-1).
 
-    ЕДИНСТВЕННЫЙ колбэк сайдбара. Оба прежних — highlight_active_sidebar
-    (Output sidebar-nav) и update_sidebar_profile (Output
-    sidebar-profile-name/-avatar) — УДАЛЕНЫ (critique-v2, блокер №2;
-    Подход B критика, принят владельцем): после снятия сайдбара с
-    дашборда их Output'ы стали бы условно присутствующими, а гонку
-    с перерисовкой слота guard по pathname не снимает. Чтение профиля
-    переехало сюда, create_sidebar стала чистой функцией.
+    ЕДИНСТВЕННЫЙ колбэк навигации. Оба прежних колбэка сайдбара —
+    highlight_active_sidebar (Output sidebar-nav) и
+    update_sidebar_profile (Output sidebar-profile-name/-avatar) —
+    были удалены ещё куском 2 (critique-v2, блокер №2; Подход B
+    критика, принят владельцем): после снятия навигации с дашборда
+    их Output'ы стали бы условно присутствующими, а гонку с
+    перерисовкой слота guard по pathname не снимает. Чтение профиля
+    живёт здесь, create_nav_rail — чистая функция.
 
     Оба Input'а — на элементы, присутствующие ВСЕГДА: dcc.Location
     "url" и dcc.Store "profile-updated" живут в глобальном layout.
@@ -148,19 +149,28 @@ def render_sidebar_slot(pathname: str | None, profile_updated: float | None):
     смотрит на условно присутствующий узел.
 
     profile-updated как Input, а не State: правка профиля обязана
-    перерисовать сайдбар (тот же Store уже слушает load_dashboard_data).
-    Guard'а на пустой Store здесь НЕ нужно — колбэк идемпотентен:
-    он не открывает модалов, а перерисовка сайдбара тем же
-    содержимым не наблюдаема.
+    перерисовать полоску (тот же Store уже слушает
+    load_dashboard_data). Guard'а на пустой Store здесь НЕ нужно —
+    колбэк идемпотентен: он не открывает модалов, а перерисовка
+    полоски тем же содержимым не наблюдаема.
+
+    ВОЗВРАТ — РОВНО ОДИН КОМПОНЕНТ, НЕ СПИСОК. Это часть механизма
+    FR-2: React сопоставляет старый и новый узел по ключу обёртки
+    (`stringifyId(props.id)` — отсюда id="nav-rail") И по позиции
+    среди детей. Единственный ребёнок держит позицию стабильной, и
+    полоска при переходе раздел→раздел патчится, а не пересоздаётся —
+    иначе анимация разворота (шаг 8) играла бы на каждом переходе.
+    Обернуть возврат в список — значит сломать это молча: визуально
+    всё останется на месте, поедет только анимация.
 
     ЦЕНА (стратегия загрузки solution-v4): одна сессия и одно чтение
     профиля на каждый переход между разделами. На /dashboard сессии
     НЕТ — возвращается [] до её открытия. Сбой чтения профиля НЕ
-    обрушивает сайдбар: except → профиль-заглушка + лог, навигация
-    остаётся рабочей (находимость разделов важнее имени).
+    обрушивает полоску: except → профиль-заглушка + лог, навигация
+    остаётся рабочей (находимость разделов важнее аватара).
 
     Колонка скрывается ОДНИМ механизмом — CSS-правилом
-    .sidebar-column:empty { display: none } (critique-v1, №9),
+    .nav-rail-column:empty { display: none } (critique-v1, №9),
     поэтому className не переключается и Output'а на него нет.
     """
     if pathname in (None, "/", "/dashboard"):
@@ -171,16 +181,16 @@ def render_sidebar_slot(pathname: str | None, profile_updated: float | None):
             profile = OnboardingService(session).get_profile(DEFAULT_USER_ID)
     except Exception:
         logger.opt(exception=True).warning(
-            "Не удалось прочитать профиль для сайдбара — "
-            "рисуем сайдбар с профилем-заглушкой (навигация не теряется)"
+            "Не удалось прочитать профиль для полоски-меню — "
+            "рисуем полоску с профилем-заглушкой (навигация не теряется)"
         )
         profile = UserProfile(name="Пользователь", avatar_id=DEFAULT_AVATAR_ID)
 
-    return create_sidebar(pathname, profile)
+    return create_nav_rail(pathname, profile)
 
 
-# Аватар в сайдбаре → open-profile-trigger (модал профиля).
-# Сайдбар рендерится динамически в sidebar-slot и на дашборде
+# Аватар в полоске-меню → open-profile-trigger (модал профиля).
+# Полоска рендерится динамически в nav-rail-slot и на дашборде
 # отсутствует — прямой Input в handle_profile_modal молча отключил бы
 # колбэк на дашборде целиком, включая вход через шестерёнку (класс
 # регрессий C-6 «наоборот», риск R1 solution-v4). Тот же паттерн
@@ -188,7 +198,7 @@ def render_sidebar_slot(pathname: str | None, profile_updated: float | None):
 clientside_callback(
     ClientsideFunction("triggers", "timestamp_trigger"),
     Output("open-profile-trigger", "data", allow_duplicate=True),
-    Input("sidebar-profile-container", "n_clicks"),
+    Input("nav-rail-avatar", "n_clicks"),
     prevent_initial_call=True,
 )
 

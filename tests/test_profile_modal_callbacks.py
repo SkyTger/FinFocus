@@ -64,10 +64,15 @@ class TestProfileModalContract:
         source = _decorator_source(handle_profile_modal)
         assert 'Input("sidebar-profile-container"' not in source
 
-    def test_clientside_trigger_registered_for_sidebar_avatar(self):
-        """Аватар сайдбара пишет в Store через clientside-триггер (main.py)."""
+    def test_clientside_trigger_registered_for_nav_rail_avatar(self):
+        """Аватар полоски-меню пишет в Store через clientside-триггер.
+
+        Куском 3 (протокол 0031) вход переехал с аватара сайдбара
+        (sidebar-profile-container) на аватар полоски — сам паттерн
+        Store-триггера не изменился.
+        """
         source = inspect.getsource(main_module)
-        assert 'Input("sidebar-profile-container", "n_clicks")' in source
+        assert 'Input("nav-rail-avatar", "n_clicks")' in source
         assert 'Output("open-profile-trigger", "data", allow_duplicate=True)' in source
 
     def test_clientside_trigger_registered_for_cog(self):
