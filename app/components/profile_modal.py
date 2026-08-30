@@ -6,6 +6,7 @@ from dash import callback, ctx, html, Input, Output, State
 from dash.exceptions import PreventUpdate
 from loguru import logger
 
+from app import __version__
 from app.config.avatars import AVATARS, DEFAULT_AVATAR_ID
 from app.core.database import get_db_session
 from app.services.onboarding_service import OnboardingService
@@ -61,6 +62,23 @@ def create_profile_modal() -> dbc.Modal:
             ),
             dbc.ModalFooter(
                 [
+                    # Версия проекта (FR-5/AC-9). Вычисляется на ПОСТРОЕНИИ:
+                    # модал живёт в глобальном layout и присутствует всегда,
+                    # поэтому ни колбэка, ни Store не нужно.
+                    #
+                    # ВНИМАНИЕ: этот импорт — единственное, что делает
+                    # app/version.py достижимым по статическому графу
+                    # импортов от run.py, то есть попадающим в
+                    # PyInstaller-бандл (run.py -> app.main ->
+                    # app.components.profile_modal -> from app import
+                    # __version__). Убирать строку версии отсюда без
+                    # переноса импорта в другое достижимое место нельзя:
+                    # в исходниках всё продолжит работать, а собранный
+                    # бандл упадёт на импорте уже у пользователя.
+                    html.Span(
+                        f"FinFocus v{__version__}",
+                        className="profile-modal-version text-muted small me-auto",
+                    ),
                     dbc.Button(
                         "Отмена",
                         id="profile-cancel-btn",
