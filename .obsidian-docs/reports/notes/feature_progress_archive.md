@@ -581,3 +581,28 @@
 ---
 
 
+
+
+<!-- Перенесено из feature_progress.md 2026-08-30 (rolling window) -->
+
+## ✅ Батч 22: Быстрые победы аудита кода — fail-open логирование + мёртвый блок (2026-08-21)
+
+Багфикс fail-open в `purchase_recommendation_service.get_safe_dates_map`
+(теперь логируется `logger.opt(exception=True).warning(...)` с
+трейсбеком; loguru игнорирует `exc_info=True`) + удалён мёртвый
+двойного вычисления блок `end_of_month` в `analytics_service.py`.
+565 тестов (+2).
+Файлы: `app/services/purchase_recommendation_service.py`, `app/services/analytics_service.py`
+→ Протокол 0027, PR #27, смержено 2026-08-21 (c6c5529)
+
+---
+
+## ✅ Батч 21: Онбординг — мгновенное применение профиля (2026-08-21)
+
+Дашборд подписан на event bus `profile-updated`: приветствие/баланс/
+баннер сверки обновляются без ручного F5 после онбординга. 563 теста (+10).
+Файлы: `app/components/dashboard.py`, `tests/test_dashboard_callbacks.py`
+→ Протокол 0026, PR #26, смержено 2026-08-21 (b209721); ROADMAP.md P1 закрыт
+
+---
+
