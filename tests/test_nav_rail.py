@@ -325,6 +325,38 @@ class TestNavRailAccessibility:
         assert props.get("aria-label")
         assert props.get("role") == "button"
 
+    def test_avatar_is_keyboard_reachable(self):
+        """Аватар обходится по Tab — иначе в профиль не попасть с клавиатуры.
+
+        Аватар — html.Div, а не ссылка или кнопка: без явного
+        tabIndex он выпадает из обхода целиком (поймано живой
+        проверкой на шаге 11).
+        """
+        tree = create_nav_rail("/calendar", PROFILE)
+
+        avatar = _find_by_id(tree, "nav-rail-avatar")
+        assert avatar.tabIndex == 0
+
+    def test_keyboard_activation_handler_exists(self):
+        """Enter/Space на аватаре превращаются в клик.
+
+        От элемента с role="button" этого ждут; у html.Div нативной
+        клавиатурной активации нет.
+        """
+        import pathlib
+
+        handler = (
+            pathlib.Path(__file__).resolve().parent.parent
+            / "app"
+            / "assets"
+            / "nav_rail_keyboard.js"
+        )
+        source = handler.read_text(encoding="utf-8")
+
+        assert "nav-rail-avatar" in source
+        assert "Enter" in source
+        assert ".click()" in source
+
     def test_avatar_has_profile_tip(self):
         """У аватара свой язычок «Профиль»."""
         tree = create_nav_rail("/calendar", PROFILE)
@@ -374,6 +406,41 @@ class TestNavRailProfileEntry:
 
         assert "nav-rail-avatar" not in source
         assert 'Input("open-profile-trigger", "data")' in source
+
+
+class TestRailIcons:
+    """Иконки разделов существуют в Bootstrap Icons."""
+
+    # Имена, которых в Bootstrap Icons НЕТ, хотя они кажутся
+    # очевидными. Пойманы живой проверкой: bi-target достался
+    # полоске по наследству от сайдбара и не отрисовывался вовсе
+    # (`content: none`) — в сайдбаре это скрывала подпись рядом,
+    # в полоске 60px слот превращался в пустой кружок.
+    NONEXISTENT_ICONS = frozenset(
+        {"bi-target", "bi-crosshair", "bi-home", "bi-settings", "bi-chart"}
+    )
+
+    def test_no_nonexistent_icon_names(self):
+        """Ни один раздел не использует несуществующее имя иконки.
+
+        Полноценная проверка требует шрифта Bootstrap Icons (грузится
+        с CDN), поэтому здесь — якорь на известные ловушки. Живая
+        проверка: `getComputedStyle(el, '::before').content !== 'none'`.
+        """
+        for section in RAIL_SECTIONS:
+            assert (
+                section["icon"] not in self.NONEXISTENT_ICONS
+            ), f"иконки {section['icon']!r} не существует — слот будет пустым"
+
+    def test_every_section_has_bootstrap_icon(self):
+        """У каждого раздела задана иконка в формате Bootstrap Icons."""
+        for section in RAIL_SECTIONS:
+            assert section["icon"].startswith("bi-")
+
+    def test_icons_are_unique(self):
+        """Иконки разделов не повторяются — иначе слоты неразличимы."""
+        icons = [section["icon"] for section in RAIL_SECTIONS]
+        assert len(icons) == len(set(icons))
 
 
 class TestSidebarRetired:

@@ -49,7 +49,12 @@ RAIL_SECTIONS: list[RailSection] = [
     {"label": "Календарь", "icon": "bi-calendar3", "href": "/calendar"},
     {"label": "Операции", "icon": "bi-list-ul", "href": "/transactions"},
     {"label": "Аналитика", "icon": "bi-bar-chart", "href": "/analytics"},
-    {"label": "Цели", "icon": "bi-target", "href": "/goals"},
+    # bi-bullseye, НЕ bi-target: иконки с именем bi-target в Bootstrap
+    # Icons нет — глиф не отрисовывается (content: none), слот выглядит
+    # пустым кружком. В прежнем сайдбаре это было незаметно, потому что
+    # рядом стояла подпись (P3 UX-аудита «у пункта Цели нет иконки»);
+    # в полоске 60px подписи нет, и дефект становится критичным.
+    {"label": "Цели", "icon": "bi-bullseye", "href": "/goals"},
 ]
 
 
@@ -142,6 +147,13 @@ def _build_avatar(profile_data: UserProfile) -> html.Div:
         id="nav-rail-avatar",
         n_clicks=0,
         className="nav-rail-avatar",
+        # tabIndex обязателен: аватар — html.Div, а не ссылка или
+        # кнопка, поэтому без него он выпадает из обхода по Tab и в
+        # профиль нельзя попасть с клавиатуры вовсе. Enter/Space на
+        # нём превращает в клик небольшой обработчик в
+        # assets/nav_rail_keyboard.js — этого ждут от любого элемента
+        # с role="button".
+        tabIndex=0,
         **{"aria-label": "Открыть профиль", "role": "button"},
     )
 
