@@ -329,7 +329,7 @@ git commit -m "docs: update ROADMAP.md with Phase 2 completion"
 
 **Ограничения**:
 - ❌ НЕ править файлы вне списка батча
-- ❌ Длинные списки/логи сохранять в `.reports/notes/*.md`, НЕ в чат
+- ❌ Длинные списки/логи сохранять в `.obsidian-docs/reports/notes/*.md`, НЕ в чат
 
 ## Minimal Changes Principle
 

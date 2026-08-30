@@ -20,8 +20,8 @@ type: reference
 до 0028 — 565 базовых, проверено 2026-08-21, Python 3.10.12).
 Тестов в `tests/`: 44 файла (`test_*.py`, без подкаталогов), включая
 `test_panel_service.py` (19), `test_panel_cards_ui.py` (26),
-`test_nav_rail.py` (43), `test_version.py` (7),
-`test_panel_query_params.py` (14).
+`test_nav_rail.py` (60 — параметризованы по всем разделам на ревью
+0031, было 43), `test_version.py` (7), `test_panel_query_params.py` (14).
 
 Запуск:
 ```bash

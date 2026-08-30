@@ -595,7 +595,7 @@ standalone-бандла» в `tech-stack.md`.
 **Референсы**:
 - План: `.protocols/0020-postponed-purchases/plan.md`
 - Лог: `.protocols/0020-postponed-purchases/log.md`
-- Спецификация: `.reports/epics/epic-04-advanced/postponed-purchases-spec.md`
+- Спецификация: `.obsidian-docs/reports/epics/epic-04-advanced/postponed-purchases-spec.md`
 - Design brief: `.design/brief.md`
 - Solution v3: `.design/solution-v3.md`
 
@@ -714,7 +714,7 @@ standalone-бандла» в `tech-stack.md`.
 **Референсы**:
 - План: `.protocols/0018-budget-reservation-bugfix/plan.md`
 - Лог: `.protocols/0018-budget-reservation-bugfix/log.md`
-- Спецификация: `.reports/epics/epic-04-advanced/spec-budget-reservation-bugfix.md`
+- Спецификация: `.obsidian-docs/reports/epics/epic-04-advanced/spec-budget-reservation-bugfix.md`
 - Solution v3: `.design/solution-v3.md`
 
 ---
@@ -793,7 +793,7 @@ standalone-бандла» в `tech-stack.md`.
 **Референсы**:
 - План: `.protocols/0017-budget-ui-improvements/plan.md`
 - Лог: `.protocols/0017-budget-ui-improvements/log.md`
-- Спецификация: `.reports/epics/epic-04-advanced/spec-budget-ui-improvements.md`
+- Спецификация: `.obsidian-docs/reports/epics/epic-04-advanced/spec-budget-ui-improvements.md`
 
 ---
 
@@ -898,7 +898,7 @@ standalone-бандла» в `tech-stack.md`.
 - Лог: `.protocols/0016-budget-calendar/log.md`
 - Brief: `.design/brief.md`
 - Solution v2: `.design/solution-v2.md`
-- Спецификация: `.reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
+- Спецификация: `.obsidian-docs/reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
 
 ---
 
@@ -1252,7 +1252,7 @@ standalone-бандла» в `tech-stack.md`.
 **Референсы**:
 - План: `.protocols/0012-quick-add-chips/plan.md`
 - Лог: `.protocols/0012-quick-add-chips/log.md`
-- Спецификация: `.reports/epics/epic-04-advanced/spec-quick-add-chips.md`
+- Спецификация: `.obsidian-docs/reports/epics/epic-04-advanced/spec-quick-add-chips.md`
 - Design doc: `.design/solution-v3.md`
 
 ---

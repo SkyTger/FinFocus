@@ -85,7 +85,8 @@ Dash компоненты для UI: Dashboard-щиток, Nav Rail, Transaction
 компромисса: активный раздел не помечен `aria-current` для скринридера.
 У аватара (`html.Div`) полноценные `aria-label` и `role="button"`.
 
-**Регрессионный якорь**: `tests/test_nav_rail.py` (43) — контракт
+**Регрессионный якорь**: `tests/test_nav_rail.py` (60 — на ревью
+протокола 0031 параметризованы по всем разделам, было 43) — контракт
 входов слот-колбэка, «в модуле nav_rail нет ни одного @callback»,
 чистота построения, fail-open, предпосылки реконсиляции, доступность.
 Визуальный слой и сам разворот тестами НЕ покрыты — только живьём.
@@ -455,10 +456,15 @@ if ctx.triggered[0].get('value') is None:
 > см. `patterns/plotly-charts.md`).
 
 **Файлы**:
-- `app/components/dashboard.py` — UI + callbacks (~1270 строк)
-- `app/assets/panel.css` — стили щитка (новый, ~286 строк)
+- `app/components/dashboard.py` — UI + callbacks (922 строки)
+- `app/assets/panel.css` — стили щитка (841 строка — секции 1-6 куска 1
+  + секции 7-10 карточек-дверей куска 2)
 - `app/assets/custom.css` — общие стили, почищен от `.kpi-*` и
-  `.db-period-switcher` (572 → 419 строк)
+  `.db-period-switcher` (346 строк)
+
+> Размеры файлов меняются с каждым протоколом — приведены как ориентир
+> на момент актуализации 2026-08-30, не как инвариант; при расхождении
+> сверяться с `wc -l`, а не с этой цифрой.
 
 **Layout**:
 - **Шапка `dashboard-free-header`** — «Свободно сегодня: N ₽» + разбор
@@ -641,7 +647,7 @@ AnalyticsCardData и в RTM #87. Показателя «Доходы» в кар
 
 **Тесты**: `tests/test_panel_cards_ui.py` (26, дерево без БД),
 `tests/test_panel_service.py` (19, композитор), `tests/test_nav_rail.py`
-(43), `tests/test_panel_query_params.py` (14).
+(60, см. секцию Nav Rail выше), `tests/test_panel_query_params.py` (14).
 
 ## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
 

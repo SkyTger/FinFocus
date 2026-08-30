@@ -36,37 +36,40 @@ DOM на части страниц, заставляет `dash-renderer.js` мо
 в глобальный `dcc.Store`, а серверный callback слушает Store, а не
 элемент напрямую.
 
+Пример ниже — состояние на момент протокола 0028 (два Input'а: прямой
+на аватар сайдбара + Store на шестерёнку). Кусок 3 (протокол 0031,
+после переезда навигации в `nav_rail.py`) свёл ОБА входа на один и тот
+же Store — аватар полоски-меню тоже рендерится динамически (сайдбар
+живёт в слоте и на части страниц отсутствует), поэтому прямой Input на
+него страдал бы той же болезнью. Актуальный код (`profile_modal.py`):
+
 ```python
 # main.py — Store в глобальном layout (существует на всех страницах)
 dcc.Store(id="open-profile-trigger", data=None)
 
-# dashboard.py — clientside_callback пишет timestamp при клике
+# nav_rail.py / dashboard.py — оба clientside-триггера пишут в один Store
 clientside_callback(
     ClientsideFunction("triggers", "timestamp_trigger"),
     Output("open-profile-trigger", "data", allow_duplicate=True),
-    Input("dashboard-settings-cog", "n_clicks"),
+    Input("dashboard-settings-cog", "n_clicks"),  # шестерёнка щитка
     prevent_initial_call=True,
 )
+# аналогичный clientside-триггер для аватара nav_rail пишет в тот же Store
 
-# profile_modal.py — серверный callback слушает Store, не элемент
+# profile_modal.py — ЕДИНСТВЕННЫЙ серверный вход, слушает Store, не элемент
 @callback(
     ...,
-    [
-        Input("sidebar-profile-container", "n_clicks"),  # вход №1, есть везде
-        Input("open-profile-trigger", "data"),            # вход №2, через Store
-        ...,
-    ],
+    Input("open-profile-trigger", "data"),
 )
-def handle_profile_modal(open_clicks, cog_trigger, ...):
+def handle_profile_modal(cog_trigger, ...):
     triggered_id = ctx.triggered_id
-    if triggered_id in ("sidebar-profile-container", "open-profile-trigger"):
-        # ВАЖНО: guard на пустой триггер — Store хранит значение между
-        # переходами по разделам (layout Dash не пересоздаётся), без
-        # guard'а модал переоткрывался бы при КАЖДОЙ загрузке любой
-        # страницы после первого клика
-        if triggered_id == "open-profile-trigger" and not cog_trigger:
-            raise PreventUpdate
-        ...
+    if not triggered_id:
+        raise PreventUpdate
+    # ВАЖНО: guard на пустой триггер — Store хранит значение между
+    # переходами по разделам (layout Dash не пересоздаётся), без
+    # guard'а модал переоткрывался бы при КАЖДОЙ загрузке любой
+    # страницы после первого клика
+    ...
 ```
 
 **Второй побочный дефект того же паттерна — guard на пустой Store**:

@@ -516,8 +516,8 @@ Dashboard Component, Panel Cards), `modules/schema.md`
 - Пользователь видит, как накопления влияют на остаток по дням
 
 **Детали**:
-- `.reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
-- `.reports/epics/epic-04-advanced/spec-budget-ui-improvements.md`
+- `.obsidian-docs/reports/epics/epic-04-advanced/spec-budget-calendar-integration.md`
+- `.obsidian-docs/reports/epics/epic-04-advanced/spec-budget-ui-improvements.md`
 
 ---
 

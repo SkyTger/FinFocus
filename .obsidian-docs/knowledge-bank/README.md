@@ -31,7 +31,7 @@ Knowledge Bank обеспечивает:
 Описания 20-30 строк для каждого модуля, детали — по ссылке внутри:
 
 - **[modules/database.md](modules/database.md)** — SQLAlchemy ORM модели
-- **[modules/services.md](modules/services.md)** — бизнес-логика (~18 сервисов)
+- **[modules/services.md](modules/services.md)** — бизнес-логика (17 сервисов)
 - **[modules/ui-components.md](modules/ui-components.md)** — Dash UI компоненты
 - **[modules/routing.md](modules/routing.md)** — URL-based routing
 - **[modules/schema.md](modules/schema.md)** — TypedDicts для типизации
@@ -117,7 +117,7 @@ Knowledge Bank обеспечивает:
 **Knowledge Bank** — краткая справка для AI
 **ROADMAP.md** — план задач и прогресс
 **feature_progress.md** — история последних батчей
-**docs/adr/** — детальные архитектурные решения (не путать с `adrs/` внутри KB)
+**.obsidian-docs/adr/** — детальные архитектурные решения (не путать с `adrs/` внутри KB)
 
 **Приоритет при конфликте**: ROADMAP.md > Knowledge Bank > feature_progress.md;
 KB расходится с кодом → доверять коду.

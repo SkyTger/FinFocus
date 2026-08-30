@@ -50,9 +50,10 @@ Panel Cards, Nav Rail), `modules/schema.md` (panel.py),
 сбор фидбека, откладывается до завершения всего эпика-11).
 См. также `architecture.md` → «Планируемые изменения».
 
-**Последнее обновление**: 2026-08-26 (протокол 0030 смержен — кусок 2
-Epic-11: карточки-двери, DashboardPanelService, сайдбар без
-колбэков, переходы с контекстом; 693 → 766 тестов)
+**Последнее обновление**: 2026-08-30 (протокол 0031 смержен — кусок 3
+Epic-11: полоска-меню 60px вместо сайдбара 228px, `nav_rail.py`, версия
+из `app/version.py` в окне профиля; Epic-11 «щиток» закрыт целиком —
+все три куска смержены; 766 → 825 тестов)
 
 ## Быстрые ссылки на разделы
 
@@ -92,8 +93,8 @@ Epic-11: карточки-двери, DashboardPanelService, сайдбар бе
 
 **Файлы контекста**:
 - `ROADMAP.md` - Single Source of Truth для задач
-- `.reports/notes/feature_progress.md` - последние 5 батчей (rolling window)
-- `docs/adr/*.md` - Architecture Decision Records
+- `.obsidian-docs/reports/notes/feature_progress.md` - последние 5 батчей (rolling window)
+- `.obsidian-docs/adr/*.md` - Architecture Decision Records
 
 **Git workflow**:
 - Branches: `feature/...`, `bugfix/...`, `hotfix/...`
@@ -102,9 +103,9 @@ Epic-11: карточки-двери, DashboardPanelService, сайдбар бе
 ## Инструкция для AI "с чего начать"
 
 **При старте новой сессии (ОБЯЗАТЕЛЬНО, 3-5 минут)**:
-1. Прочитать `@ROADMAP.md` - актуальные приоритеты
-2. Прочитать `@.reports/notes/feature_progress.md` - история последних 5 батчей
-3. Прочитать `@memory-bank/index.md` (этот файл) - понимание проекта
+1. Прочитать `@.obsidian-docs/ROADMAP.md` - актуальные приоритеты
+2. Прочитать `@.obsidian-docs/reports/notes/feature_progress.md` - история последних 5 батчей
+3. Прочитать `@.obsidian-docs/knowledge-bank/index.md` (этот файл) - понимание проекта
 
 **При работе над задачей**:
 1. Определить тип задачи → прочитать соответствующий модуль в `modules/`
@@ -113,7 +114,7 @@ Epic-11: карточки-двери, DashboardPanelService, сайдбар бе
 4. После батча → обновить `feature_progress.md` + `ROADMAP.md`
 
 **При изменении scope**:
-1. Записать решение в `.reports/epics/epic-XX/decisions.md` с блоком **КРИТИЧНО**
+1. Записать решение в `.obsidian-docs/reports/epics/epic-XX/decisions.md` с блоком **КРИТИЧНО**
 2. СРАЗУ обновить `ROADMAP.md`
 3. Если изменились формулы/термины → обновить `CLAUDE.md`
 
@@ -309,9 +310,9 @@ memory-bank/
 
 ---
 
-**Версия Memory Bank**: 4.5
+**Версия Memory Bank**: 4.6
 **Дата создания**: 2026-01-17
-**Последнее обновление**: 2026-08-26 (протокол 0030 смержен: кусок 2
-Epic-11 — карточки-двери, DashboardPanelService, сайдбар
-без колбэков, переходы с контекстом; 693 → 766 тестов)
+**Последнее обновление**: 2026-08-30 (протокол 0031 смержен: кусок 3
+Epic-11 — полоска-меню вместо сайдбара, Epic-11 «щиток» закрыт целиком;
+766 → 825 тестов)
 **GitHub**: https://github.com/SkyTger/FinFocus

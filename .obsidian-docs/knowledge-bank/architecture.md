@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: Архитектура FinFocus — слои Dash-приложения, сервисы, ORM, редизайн дашборда «щиток» (куски 1-2 и долги куска 1 смержены, кусок 3 не начат)
+description: Архитектура FinFocus — слои Dash-приложения, сервисы, ORM, редизайн дашборда «щиток» — Epic-11 закрыт целиком (куски 1-3 смержены)
 type: reference
 originSessionId: -
 ---
@@ -501,5 +501,7 @@ Keeper'а про реестр контрактов). Если в проекте 
 ---
 
 Референсы:
-- Детали Pattern-Matching Callbacks: `docs/adr/ADR-003-pattern-matching-callbacks-issue.md`
-- История архитектурных решений: `.reports/epics/epic-01-coreMVP/decisions.md`, `.reports/epics/epic-02-enhancedPlanning/decisions.md`
+- Детали Pattern-Matching Callbacks: `.obsidian-docs/adr/ADR-003-pattern-matching-callbacks-issue.md`
+- История архитектурных решений: `.obsidian-docs/reports/epics/epic-01-coreMVP/decisions.md`
+  (директории `epic-02-enhancedPlanning/` в проекте нет — решения Батча 2
+  учтены в `epic-01-coreMVP/decisions.md` либо в `protocols.md` этого KB)
