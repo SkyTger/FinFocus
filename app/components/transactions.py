@@ -16,7 +16,7 @@ from app.core.exceptions import ValidationError
 from loguru import logger
 
 from app.core import get_db_session
-from app.models.database import TransactionType
+from app.models.database import Transaction, TransactionType
 from app.services import TransactionService, CategoryService
 from app.services.transaction_service import TYPE_LABELS
 from app.utils.formatters import format_amount, format_date, ICON_TO_EMOJI
@@ -65,6 +65,37 @@ def _is_system_transaction(tx) -> bool:
         bool: True для SAVINGS_RESERVE / SAVINGS_CONTRIBUTION
     """
     return tx.transaction_type in SYSTEM_TRANSACTION_TYPES
+
+
+def _drop_system_ids(tx_ids: list[int]) -> list[int]:
+    """Отсекает id служебных транзакций из bulk-выборки.
+
+    UI не рендерит чекбоксы у служебных строк, но выборка могла прийти
+    с устаревшего DOM или из второй вкладки — страховочный guard
+    фильтрует по типам из БД (протокол 0032).
+
+    Args:
+        tx_ids: Список id из checkbox-состояния
+
+    Returns:
+        list[int]: Те же id без служебных, порядок сохранён
+    """
+    if not tx_ids:
+        return tx_ids
+    with get_db_session() as session:
+        system_ids = {
+            row.id
+            for row in session.query(Transaction.id).filter(
+                Transaction.id.in_(tx_ids),
+                Transaction.transaction_type.in_(list(SYSTEM_TRANSACTION_TYPES)),
+            )
+        }
+    if system_ids:
+        logger.debug(
+            f"Из bulk-выборки отсечены служебные транзакции: {sorted(system_ids)}"
+        )
+        return [tx_id for tx_id in tx_ids if tx_id not in system_ids]
+    return tx_ids
 
 
 # Дефолтные категории для Quick-add chips (name, type)
@@ -1126,6 +1157,19 @@ def open_edit_modal(edit_clicks_list):
         if not tx:
             raise PreventUpdate
 
+        # Guard (протокол 0032): служебные операции и ADJUSTMENT (решение
+        # Р1 — модал не умеет тип) не редактируются из списка; страховка
+        # от устаревшего DOM / второй вкладки
+        if (
+            _is_system_transaction(tx)
+            or tx.transaction_type == TransactionType.ADJUSTMENT
+        ):
+            logger.debug(
+                f"Edit транзакции {transaction_id} заблокирован: "
+                f"тип {tx.transaction_type.name}"
+            )
+            raise PreventUpdate
+
         # Проверяем, является ли транзакция recurring
         is_recurring_tx = tx.is_recurring or tx.recurring_parent_id is not None
 
@@ -1267,6 +1311,13 @@ def chip_assign_category(n_clicks_list, filter_no_category, frequent_categories)
 
     with get_db_session() as session:
         service = TransactionService(session)
+
+        # Guard (протокол 0032): категоризация служебной операции игнорируется
+        target_tx = service.get_by_id(tx_id)
+        if target_tx is None or _is_system_transaction(target_tx):
+            logger.debug(f"Chip-категоризация транзакции {tx_id} игнорирована")
+            raise PreventUpdate
+
         service.update_transaction(transaction_id=tx_id, category_id=cat_id)
         session.commit()
 
@@ -1335,6 +1386,13 @@ def chip_dropdown_assign_category(values, filter_no_category, frequent_categorie
 
     with get_db_session() as session:
         service = TransactionService(session)
+
+        # Guard (протокол 0032): категоризация служебной операции игнорируется
+        target_tx = service.get_by_id(tx_id)
+        if target_tx is None or _is_system_transaction(target_tx):
+            logger.debug(f"Dropdown-категоризация транзакции {tx_id} игнорирована")
+            raise PreventUpdate
+
         service.update_transaction(transaction_id=tx_id, category_id=cat_id)
         session.commit()
 
@@ -1398,8 +1456,8 @@ def update_selection_state(
     # Select All toggled
     if triggered == "select-all-checkbox":
         if select_all:
-            # Выбрать все видимые транзакции
-            return [cid["index"] for cid in checkbox_ids]
+            # Выбрать все видимые транзакции (guard 0032: без служебных)
+            return _drop_system_ids([cid["index"] for cid in checkbox_ids])
         else:
             return []
 
@@ -1408,7 +1466,7 @@ def update_selection_state(
     for cid, value in zip(checkbox_ids, checkbox_values):
         if value:
             selected.append(cid["index"])
-    return selected
+    return _drop_system_ids(selected)
 
 
 @callback(

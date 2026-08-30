@@ -303,3 +303,223 @@ class TestUserRowsRegression:
         tbody = build_single_row_table(make_tx(TransactionType.EXPENSE))
         rows = [n for n in iter_tree(tbody) if isinstance(n, html.Tr)]
         assert rows[0].className != "tx-system-row"
+
+
+# ===========================================================================
+# Серверные guard'ы (шаг 2 протокола 0032)
+# ===========================================================================
+
+from contextlib import contextmanager  # noqa: E402
+from datetime import date as date_cls  # noqa: E402,F401
+from unittest.mock import MagicMock, patch  # noqa: E402
+
+from dash.exceptions import PreventUpdate  # noqa: E402
+
+from app.components.transaction_modals import handle_delete_click  # noqa: E402
+from app.components.transactions import (  # noqa: E402
+    _drop_system_ids,
+    chip_assign_category,
+    chip_dropdown_assign_category,
+    open_edit_modal,
+    update_selection_state,
+)
+
+
+def _mock_session_cm():
+    """Мок контекст-менеджера get_db_session()."""
+    mock_session = MagicMock()
+    mock_session.__enter__ = MagicMock(return_value=mock_session)
+    mock_session.__exit__ = MagicMock(return_value=False)
+    return mock_session
+
+
+class TestEditGuard:
+    """open_edit_modal игнорирует служебные операции и ADJUSTMENT (Р1)."""
+
+    @pytest.mark.parametrize(
+        "tx_type",
+        [
+            TransactionType.SAVINGS_RESERVE,
+            TransactionType.SAVINGS_CONTRIBUTION,
+            TransactionType.ADJUSTMENT,
+        ],
+    )
+    def test_edit_blocked(self, tx_type):
+        tx = make_tx(tx_type, tx_id=5)
+        with patch("app.components.transactions.ctx") as mock_ctx, patch(
+            "app.components.transactions.get_db_session",
+            return_value=_mock_session_cm(),
+        ), patch("app.components.transactions.TransactionService") as mock_svc:
+            mock_ctx.triggered_id = {"type": "edit-btn", "index": 5}
+            mock_ctx.triggered = [{"value": 1}]
+            mock_svc.return_value.get_by_id.return_value = tx
+            with pytest.raises(PreventUpdate):
+                open_edit_modal([1])
+
+    def test_edit_allows_expense_regression(self):
+        """Регрессия: EXPENSE редактируется как раньше (модал открыт)."""
+        tx = make_tx(TransactionType.EXPENSE, tx_id=6)
+        with patch("app.components.transactions.ctx") as mock_ctx, patch(
+            "app.components.transactions.get_db_session",
+            return_value=_mock_session_cm(),
+        ), patch("app.components.transactions.TransactionService") as mock_svc, patch(
+            "app.components.transactions.CategoryService"
+        ) as mock_cat:
+            mock_ctx.triggered_id = {"type": "edit-btn", "index": 6}
+            mock_ctx.triggered = [{"value": 1}]
+            mock_svc.return_value.get_by_id.return_value = tx
+            mock_cat.return_value.get_for_dropdown.return_value = []
+            result = open_edit_modal([1])
+        assert result[0] is True  # edit-modal is_open
+
+
+class TestDeleteGuard:
+    """handle_delete_click игнорирует служебные операции."""
+
+    @pytest.mark.parametrize(
+        "tx_type",
+        [TransactionType.SAVINGS_RESERVE, TransactionType.SAVINGS_CONTRIBUTION],
+    )
+    def test_delete_blocked(self, tx_type):
+        tx = make_tx(tx_type, tx_id=5)
+        with patch("app.components.transaction_modals.ctx") as mock_ctx, patch(
+            "app.components.transaction_modals.get_db_session",
+            return_value=_mock_session_cm(),
+        ), patch("app.components.transaction_modals.TransactionService") as mock_svc:
+            mock_ctx.triggered_id = {"type": "delete-btn", "index": 5}
+            mock_ctx.triggered = [{"value": 1}]
+            mock_svc.return_value.get_by_id.return_value = tx
+            with pytest.raises(PreventUpdate):
+                handle_delete_click([1])
+            mock_svc.return_value.delete_transaction.assert_not_called()
+
+    def test_delete_allows_expense_regression(self):
+        """Регрессия: EXPENSE удаляется как раньше."""
+        tx = make_tx(TransactionType.EXPENSE, tx_id=7)
+        with patch("app.components.transaction_modals.ctx") as mock_ctx, patch(
+            "app.components.transaction_modals.get_db_session",
+            return_value=_mock_session_cm(),
+        ), patch("app.components.transaction_modals.TransactionService") as mock_svc:
+            mock_ctx.triggered_id = {"type": "delete-btn", "index": 7}
+            mock_ctx.triggered = [{"value": 1}]
+            mock_svc.return_value.get_by_id.return_value = tx
+            mock_svc.return_value.delete_transaction.return_value = True
+            modal_open, context, trigger = handle_delete_click([1])
+        mock_svc.return_value.delete_transaction.assert_called_once_with(7)
+        assert modal_open is False
+        assert trigger["action"] == "delete"
+
+    def test_delete_allows_adjustment(self):
+        """Р1: корректировку сверки пользователь вправе откатить."""
+        tx = make_tx(TransactionType.ADJUSTMENT, tx_id=8)
+        with patch("app.components.transaction_modals.ctx") as mock_ctx, patch(
+            "app.components.transaction_modals.get_db_session",
+            return_value=_mock_session_cm(),
+        ), patch("app.components.transaction_modals.TransactionService") as mock_svc:
+            mock_ctx.triggered_id = {"type": "delete-btn", "index": 8}
+            mock_ctx.triggered = [{"value": 1}]
+            mock_svc.return_value.get_by_id.return_value = tx
+            mock_svc.return_value.delete_transaction.return_value = True
+            handle_delete_click([1])
+        mock_svc.return_value.delete_transaction.assert_called_once_with(8)
+
+
+class TestChipsGuards:
+    """Chips-callbacks игнорируют назначение категории служебной операции."""
+
+    @pytest.mark.parametrize(
+        "tx_type",
+        [TransactionType.SAVINGS_RESERVE, TransactionType.SAVINGS_CONTRIBUTION],
+    )
+    def test_chip_btn_blocked(self, tx_type):
+        tx = make_tx(tx_type, tx_id=5)
+        with patch("app.components.transactions.ctx") as mock_ctx, patch(
+            "app.components.transactions.get_db_session",
+            return_value=_mock_session_cm(),
+        ), patch("app.components.transactions.TransactionService") as mock_svc:
+            mock_ctx.triggered_id = {"type": "chip-btn", "tx_id": 5, "cat_id": 2}
+            mock_ctx.triggered = [{"value": 1}]
+            mock_svc.return_value.get_by_id.return_value = tx
+            with pytest.raises(PreventUpdate):
+                chip_assign_category([1], False, {})
+            mock_svc.return_value.update_transaction.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "tx_type",
+        [TransactionType.SAVINGS_RESERVE, TransactionType.SAVINGS_CONTRIBUTION],
+    )
+    def test_chip_dropdown_blocked(self, tx_type):
+        tx = make_tx(tx_type, tx_id=5)
+        with patch("app.components.transactions.ctx") as mock_ctx, patch(
+            "app.components.transactions.get_db_session",
+            return_value=_mock_session_cm(),
+        ), patch("app.components.transactions.TransactionService") as mock_svc:
+            mock_ctx.triggered_id = {"type": "chip-dropdown", "tx_id": 5}
+            mock_ctx.triggered = [{"value": 2}]
+            mock_svc.return_value.get_by_id.return_value = tx
+            with pytest.raises(PreventUpdate):
+                chip_dropdown_assign_category([2], False, {})
+            mock_svc.return_value.update_transaction.assert_not_called()
+
+
+class TestSelectionGuard:
+    """Служебные id не попадают в bulk-выборку (страховка поверх UI)."""
+
+    @contextmanager
+    def _fake_get_db_session(self, session):
+        yield session
+
+    def _make_db_pair(self, db_session, test_user):
+        """EXPENSE + SAVINGS_RESERVE в БД, возвращает (exp_id, sav_id)."""
+        expense = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("100"),
+            transaction_type=TransactionType.EXPENSE,
+            transaction_date=date.today(),
+            is_recurring=False,
+        )
+        savings = Transaction(
+            user_id=test_user.id,
+            amount=Decimal("200"),
+            transaction_type=TransactionType.SAVINGS_RESERVE,
+            transaction_date=date.today(),
+            is_recurring=False,
+        )
+        db_session.add_all([expense, savings])
+        db_session.flush()
+        return expense.id, savings.id
+
+    def test_drop_system_ids(self, db_session, test_user):
+        exp_id, sav_id = self._make_db_pair(db_session, test_user)
+        with patch(
+            "app.components.transactions.get_db_session",
+            new=lambda: self._fake_get_db_session(db_session),
+        ):
+            assert _drop_system_ids([exp_id, sav_id]) == [exp_id]
+
+    def test_drop_system_ids_empty(self):
+        """Пустая выборка — без обращения к БД."""
+        assert _drop_system_ids([]) == []
+
+    def test_select_all_excludes_system(self, db_session, test_user):
+        """Select All с устаревшим DOM не захватывает служебные."""
+        exp_id, sav_id = self._make_db_pair(db_session, test_user)
+        checkbox_ids = [{"index": exp_id}, {"index": sav_id}]
+        with patch("app.components.transactions.ctx") as mock_ctx, patch(
+            "app.components.transactions.get_db_session",
+            new=lambda: self._fake_get_db_session(db_session),
+        ):
+            mock_ctx.triggered_id = "select-all-checkbox"
+            selected = update_selection_state([True, True], True, checkbox_ids)
+        assert selected == [exp_id]
+
+    def test_individual_selection_excludes_system(self, db_session, test_user):
+        exp_id, sav_id = self._make_db_pair(db_session, test_user)
+        checkbox_ids = [{"index": exp_id}, {"index": sav_id}]
+        with patch("app.components.transactions.ctx") as mock_ctx, patch(
+            "app.components.transactions.get_db_session",
+            new=lambda: self._fake_get_db_session(db_session),
+        ):
+            mock_ctx.triggered_id = {"type": "tx-checkbox", "index": sav_id}
+            selected = update_selection_state([True, True], None, checkbox_ids)
+        assert selected == [exp_id]

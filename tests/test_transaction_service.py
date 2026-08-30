@@ -532,3 +532,82 @@ class TestExportToCsv:
         # Только заголовок
         assert len(lines) == 1
         assert lines[0] == "Дата,Тип,Сумма,Описание,Категория"
+
+
+class TestBulkUpdateCategoryTypeFilter:
+    """Протокол 0032: некатегоризируемые типы фильтруются молча."""
+
+    def _make_typed_tx(self, db_session, user_id: int, tx_type: TransactionType):
+        """Транзакция произвольного типа напрямую в БД (мимо валидаций)."""
+        from app.models.database import Transaction
+
+        tx = Transaction(
+            user_id=user_id,
+            amount=Decimal("100.00"),
+            transaction_type=tx_type,
+            transaction_date=date.today(),
+            is_recurring=False,
+        )
+        db_session.add(tx)
+        db_session.flush()
+        return tx
+
+    def test_mixed_ids_update_only_categorizable(self, db_session, test_user):
+        """Смешанный список: обновляются только INCOME/EXPENSE, счётчик честный."""
+        category = Category(name="Еда-0032", type="expense")
+        db_session.add(category)
+        db_session.flush()
+
+        service = TransactionService(db_session)
+        expense = self._make_typed_tx(db_session, test_user.id, TransactionType.EXPENSE)
+        reserve = self._make_typed_tx(
+            db_session, test_user.id, TransactionType.SAVINGS_RESERVE
+        )
+        contribution = self._make_typed_tx(
+            db_session, test_user.id, TransactionType.SAVINGS_CONTRIBUTION
+        )
+        transfer = self._make_typed_tx(
+            db_session, test_user.id, TransactionType.TRANSFER
+        )
+        adjustment = self._make_typed_tx(
+            db_session, test_user.id, TransactionType.ADJUSTMENT
+        )
+
+        affected = service.bulk_update_category(
+            user_id=test_user.id,
+            transaction_ids=[
+                expense.id,
+                reserve.id,
+                contribution.id,
+                transfer.id,
+                adjustment.id,
+            ],
+            category_id=category.id,
+        )
+
+        assert affected == 1  # только EXPENSE
+        db_session.expire_all()
+        assert service.get_by_id(expense.id).category_id == category.id
+        for tx_id in (reserve.id, contribution.id, transfer.id, adjustment.id):
+            assert service.get_by_id(tx_id).category_id is None
+
+    def test_only_system_ids_returns_zero(self, db_session, test_user):
+        """Список из одних служебных — 0 обновлённых, без исключения."""
+        category = Category(name="Прочее-0032", type="expense")
+        db_session.add(category)
+        db_session.flush()
+
+        service = TransactionService(db_session)
+        reserve = self._make_typed_tx(
+            db_session, test_user.id, TransactionType.SAVINGS_RESERVE
+        )
+
+        affected = service.bulk_update_category(
+            user_id=test_user.id,
+            transaction_ids=[reserve.id],
+            category_id=category.id,
+        )
+
+        assert affected == 0
+        db_session.expire_all()
+        assert service.get_by_id(reserve.id).category_id is None

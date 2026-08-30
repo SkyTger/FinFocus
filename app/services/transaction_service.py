@@ -25,6 +25,12 @@ TYPE_LABELS: dict[TransactionType, str] = {
     TransactionType.SAVINGS_CONTRIBUTION: "Накопления",
 }
 
+# Типы, которым можно назначать категорию: служебные savings-типы,
+# TRANSFER и ADJUSTMENT не категоризируются (протокол 0032)
+CATEGORIZABLE_TRANSACTION_TYPES: frozenset[TransactionType] = frozenset(
+    {TransactionType.INCOME, TransactionType.EXPENSE}
+)
+
 
 class TransactionService:
     """Сервис для операций с финансовыми транзакциями."""
@@ -309,7 +315,9 @@ class TransactionService:
             category_id: ID новой категории (или None для сброса).
 
         Returns:
-            Количество обновленных записей.
+            Количество обновленных записей. Некатегоризируемые типы
+            (savings, TRANSFER, ADJUSTMENT) молча исключаются из
+            обновления и в счётчик не входят (протокол 0032).
 
         Raises:
             ValidationError:
@@ -336,24 +344,47 @@ class TransactionService:
                     field="category_id",
                 )
 
-        # 3. Bulk UPDATE с проверкой ownership
-        affected = (
-            self.session.query(Transaction)
+        # 3. Выборка кандидатов с проверкой ownership: (id, тип)
+        candidates = (
+            self.session.query(Transaction.id, Transaction.transaction_type)
             .filter(
                 Transaction.id.in_(transaction_ids),
                 Transaction.user_id == user_id,
                 Transaction.is_recurring == False,  # noqa: E712
             )
-            .update({"category_id": category_id}, synchronize_session=False)
+            .all()
         )
 
-        # 4. Проверка что все транзакции обновлены
-        if affected != len(transaction_ids):
+        # 4. Проверка что все запрошенные транзакции доступны
+        if len(candidates) != len(transaction_ids):
             raise ValidationError(
                 f"Не все операции принадлежат пользователю или являются шаблонами "
-                f"(запрошено: {len(transaction_ids)}, обновлено: {affected})",
+                f"(запрошено: {len(transaction_ids)}, доступно: {len(candidates)})",
                 field="transaction_ids",
             )
+
+        # 5. Фильтрация по типу (протокол 0032): служебные savings-типы,
+        #    TRANSFER и ADJUSTMENT молча исключаются — не ошибка
+        eligible_ids = [
+            tx_id
+            for tx_id, tx_type in candidates
+            if tx_type in CATEGORIZABLE_TRANSACTION_TYPES
+        ]
+        skipped = len(candidates) - len(eligible_ids)
+        if skipped:
+            logger.debug(
+                f"Bulk update category: {skipped} некатегоризируемых операций "
+                f"исключено из обновления"
+            )
+        if not eligible_ids:
+            return 0
+
+        # 6. Bulk UPDATE только подходящих — честный счётчик обновлённых
+        affected = (
+            self.session.query(Transaction)
+            .filter(Transaction.id.in_(eligible_ids))
+            .update({"category_id": category_id}, synchronize_session=False)
+        )
 
         self.session.flush()
 
