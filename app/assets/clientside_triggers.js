@@ -10,7 +10,13 @@ window.dash_clientside = window.dash_clientside || {};
 window.dash_clientside.triggers = {
     /**
      * Возвращает Date.now() при клике (timestamp trigger pattern).
-     * Используется для: recon buttons (Calendar, Dashboard KPI).
+     *
+     * Общая функция для ЛЮБОГО динамически отрисованного элемента,
+     * которому нужно разбудить серверный колбэк. Список пользователей
+     * открытый — на момент правки это кнопки сверки (календарь,
+     * шапка щитка), шестерёнка щитка и аватар полоски-меню
+     * (nav-rail-avatar) — но добавлять сюда новых можно, не трогая
+     * саму функцию: она ничего не знает о вызывающем.
      */
     timestamp_trigger: function(n_clicks) {
         if (!n_clicks) { return window.dash_clientside.no_update; }

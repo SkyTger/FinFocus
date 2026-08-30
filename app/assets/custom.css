@@ -98,27 +98,6 @@ body {
     }
 }
 
-/* === SIDEBAR СТИЛИ === */
-.sidebar-nav .nav-link {
-    border-radius: 9999px !important;
-    margin-bottom: 4px;
-    padding: 12px 16px !important;
-    transition: all 0.2s ease;
-    font-weight: 500;
-}
-
-.sidebar-nav .nav-link:hover {
-    background-color: rgba(255, 255, 255, 0.3) !important;
-    color: var(--color-text-primary) !important;
-}
-
-.sidebar-nav .nav-link.active {
-    background-color: var(--primary-green) !important;
-    color: var(--color-text-primary) !important;
-    font-weight: 700;
-    box-shadow: 0 2px 8px rgba(46, 204, 113, 0.2);
-}
-
 /* === КАРТОЧКИ === */
 .card {
     border: none;
@@ -229,10 +208,6 @@ body {
 
 /* === АДАПТИВНОСТЬ === */
 @media (max-width: 768px) {
-    .sidebar-nav {
-        font-size: 0.9rem;
-    }
-
     .card-title {
         font-size: 1.1rem;
     }
@@ -341,12 +316,12 @@ body {
 
 /* === DASHBOARD LAYOUT === */
 
-/* Dashboard page — flex column, fills sidebar height */
+/* Dashboard page — flex column, fills nav-rail height */
 .db-page {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    min-height: calc(100vh - 48px);  /* match sidebar-column height */
+    min-height: calc(100vh - 48px);  /* match nav-rail-column height */
 }
 
 /* Reset ALL Bootstrap margins inside dashboard — flex gap handles spacing */

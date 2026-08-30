@@ -112,7 +112,8 @@ originSessionId: a7066508-1d51-418c-a40d-a34902bde2ab
 **Статус**: Завершен (Батч 0-3: протоколы 0003, 0021-0023 — устарело;
 Epic-11 кусок 1: протокол 0028, PR #28, смержено; долги куска 1:
 протокол 0029, PR #29, смержено; кусок 2: протокол 0030, PR #30,
-смержено 2026-08-26, коммит 33c8a11)
+смержено 2026-08-26, коммит 33c8a11; кусок 3 — полоска-меню:
+протокол 0031, PR #31)
 
 > **История**: изначальная реализация (протокол 0003) — 4 metric-
 > карточки + cashflow bar chart с переключателем month/year, доросшая
@@ -143,7 +144,8 @@ Epic-11 кусок 1: протокол 0028, PR #28, смержено; долг�
 - `DashboardPanelService.get_panel_data()` — один сбор `PanelData` за
   одну сессию БД, пять блоков с поблочной деградацией (сбой одного не
   роняет остальные)
-- Sidebar снят с дашборда, рендерится нулём колбэков (Подход B)
+- Навигация снята с дашборда, рендерится нулём колбэков (Подход B);
+  куском 3 сайдбар заменён полоской-меню 60px (`nav_rail.py`)
 - TypedDicts: `MoneyLayersData` (`app/schema/money_layers.py`),
   контракты пяти карточек (`app/schema/panel.py`)
 
@@ -633,12 +635,16 @@ Dashboard Component, Panel Cards), `modules/schema.md`
 **Возможности**:
 - Onboarding wizard расширен: имя + аватарка + стартовый баланс
 - 10 emoji аватарок (конфиг в app/config/avatars.py)
-- Sidebar с именем и аватаркой — читает профиль при построении
-  (протокол 0030: sidebar стал чистой функцией без Store-подписки,
-  рендерится слотом `render_sidebar_slot(pathname, profile_updated)`
-  в main.py; см. `modules/ui-components.md`)
+- Аватарка в навигации — читается при построении (протокол 0030:
+  навигация стала чистой функцией без Store-подписки, рендерится
+  слотом `render_nav_rail_slot(pathname, profile_updated)` в main.py;
+  см. `modules/ui-components.md`). Имя пользователя ушло из навигации
+  вместе с переходом на полоску 60px (протокол 0031) — не помещается,
+  компенсируется окном профиля
 - Profile modal для редактирования имени и аватарки — два входа
-  (шестерёнка щитка, аватар сайдбара), оба через Store-триггер
+  (шестерёнка щитка, аватар полоски-меню), оба через Store-триггер.
+  Там же показывается версия приложения из `app/version.py`
+  (протокол 0031)
 - Bootstrap модуль (app/core/bootstrap.py) для инициализации БД
 - Idempotent миграции 001-007 (app/core/migrations.py)
 
@@ -648,8 +654,9 @@ Dashboard Component, Panel Cards), `modules/schema.md`
 - UserProfile TypedDict в app/schema/onboarding.py
 - Store("profile-updated") как event bus реактивного обновления —
   подписаны `load_dashboard_data` (щиток), `toggle_balance_toast`,
-  `render_sidebar_slot` (протокол 0030, заменил колбэк
-  `update_sidebar_profile`). Приветствия на дашборде больше нет
+  `render_nav_rail_slot` (протокол 0030 — заменил колбэк
+  `update_sidebar_profile`; протокол 0031 — переименован вместе с
+  переходом на полоску). Приветствия на дашборде больше нет
   (снято протоколом 0028 вместе с редизайном «щиток»)
 - complete_with_balance() deprecated wrapper
 - Миграция 007_avatar_id (idempotent)
@@ -658,7 +665,10 @@ Dashboard Component, Panel Cards), `modules/schema.md`
 - `app/config/avatars.py` — конфиг 10 аватарок (~30 строк)
 - `app/components/profile_modal.py` — модал редактирования (~150 строк)
 - `app/components/onboarding_wizard.py` — расширен (имя + аватарка)
-- `app/components/sidebar.py` — профиль из аргументов (чистая функция, протокол 0030)
+- `app/components/nav_rail.py` — полоска-меню, профиль из аргументов
+  (чистая функция, протокол 0031)
+- `app/components/sidebar.py` — файл-надгробие, одна константа
+  `ADDITIONAL_NAV_ITEMS` (протокол 0031)
 - `app/core/bootstrap.py` — инициализация БД (~45 строк)
 - `app/core/migrations.py` — миграции 001-007 (~180 строк)
 - `tests/test_avatars.py`, `tests/test_bootstrap.py`, `tests/test_migration_007.py`

@@ -24,7 +24,9 @@ from dash.exceptions import PreventUpdate
 
 from app import main as main_module
 from app.components import dashboard as dashboard_module
-from app.components.profile_modal import handle_profile_modal
+from app import __version__
+from app.components import profile_modal as profile_modal_module
+from app.components.profile_modal import create_profile_modal, handle_profile_modal
 
 
 def _decorator_source(func) -> str:
@@ -62,10 +64,15 @@ class TestProfileModalContract:
         source = _decorator_source(handle_profile_modal)
         assert 'Input("sidebar-profile-container"' not in source
 
-    def test_clientside_trigger_registered_for_sidebar_avatar(self):
-        """Аватар сайдбара пишет в Store через clientside-триггер (main.py)."""
+    def test_clientside_trigger_registered_for_nav_rail_avatar(self):
+        """Аватар полоски-меню пишет в Store через clientside-триггер.
+
+        Куском 3 (протокол 0031) вход переехал с аватара сайдбара
+        (sidebar-profile-container) на аватар полоски — сам паттерн
+        Store-триггера не изменился.
+        """
         source = inspect.getsource(main_module)
-        assert 'Input("sidebar-profile-container", "n_clicks")' in source
+        assert 'Input("nav-rail-avatar", "n_clicks")' in source
         assert 'Output("open-profile-trigger", "data", allow_duplicate=True)' in source
 
     def test_clientside_trigger_registered_for_cog(self):
@@ -122,3 +129,77 @@ class TestProfileModalTriggerGuard:
         assert is_open is True
         assert name == "Тест"
         assert avatar == "smile"
+
+
+def _iter_tree(component):
+    """Обход дерева Dash-компонентов (сам узел + все children)."""
+    yield component
+    children = getattr(component, "children", None)
+    if children is None:
+        return
+    if not isinstance(children, (list, tuple)):
+        children = [children]
+    for child in children:
+        if hasattr(child, "children") or hasattr(child, "_prop_names"):
+            yield from _iter_tree(child)
+        else:
+            yield child
+
+
+def _joined_text(component) -> str:
+    """Все строковые узлы дерева одной строкой."""
+    return " | ".join(node for node in _iter_tree(component) if isinstance(node, str))
+
+
+class TestProfileModalVersion:
+    """FR-5/AC-9: версия проекта показывается в окне профиля."""
+
+    def test_version_present_in_modal_tree(self):
+        """В дереве модала есть строка с версией из app/version.py."""
+        modal = create_profile_modal()
+
+        assert f"FinFocus v{__version__}" in _joined_text(modal)
+
+    def test_version_is_taken_from_project_not_hardcoded(self):
+        """Версия берётся из источника правды, а не зашита строкой.
+
+        Подменяем константу в модуле компонента и убеждаемся, что
+        модал показывает подменённое значение: если бы версия была
+        захардкожена, тест бы этого не заметил.
+        """
+        with patch.object(profile_modal_module, "__version__", "9.9.9-test"):
+            modal = create_profile_modal()
+
+        assert "FinFocus v9.9.9-test" in _joined_text(modal)
+
+    def test_version_span_is_left_aligned(self):
+        """Версия прижата влево (me-auto) — не смешивается с кнопками.
+
+        Футер модала имеет justify-content-end, поэтому без me-auto
+        строка версии прилипла бы к кнопкам справа.
+        """
+        modal = create_profile_modal()
+
+        spans = [
+            node
+            for node in _iter_tree(modal)
+            if "profile-modal-version" in (getattr(node, "className", None) or "")
+        ]
+        assert len(spans) == 1, "ожидается ровно одна строка версии"
+        assert "me-auto" in spans[0].className
+
+    def test_version_import_keeps_version_module_reachable(self):
+        """Регрессионный якорь: импорт версии в модуле модала жив.
+
+        Этот импорт — единственное, что делает app/version.py
+        достижимым по статическому графу импортов от run.py, то есть
+        попадающим в PyInstaller-бандл. Уберут строку версии отсюда,
+        не перенеся импорт, — в исходниках всё продолжит работать,
+        а собранный бандл упадёт на импорте уже у пользователя.
+        """
+        source = inspect.getsource(profile_modal_module)
+
+        assert "from app import __version__" in source
+        assert "__version__" in inspect.getsource(
+            profile_modal_module.create_profile_modal
+        )

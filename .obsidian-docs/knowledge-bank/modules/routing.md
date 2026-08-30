@@ -11,20 +11,27 @@ originSessionId: a7066508-1d51-418c-a40d-a34902bde2ab
 URL-based routing через Dash Location component и display_page callback
 
 ## Ключевые файлы
-- `app/main.py:311-340` - `display_page()` callback и route mapping
+- `app/main.py:317-355` — `display_page()` callback и route mapping
+- `app/main.py:129-189` — `render_nav_rail_slot()` — слот полоски-меню
+- `app/main.py:224-315` — `handle_panel_query_params()` — переходы с контекстом
+- `app/main.py:198-203` — clientside-триггер аватара → Store `open-profile-trigger`
 
 ## Роутинг
 
 **Маршруты**:
-- `/` или `/dashboard` → Dashboard-щиток
+- `/` или `/dashboard` → Дашборд-«щиток» (шапка, график полос, карточки-двери)
 - `/calendar` → Кассовый календарь
-- `/goals` → Накопительные цели
-- `/transactions` → Управление операциями (CRUD)
+- `/goals` → Цели накопления и финансовая подушка
+- `/transactions` → Список операций
 - `/analytics` → Аналитика по категориям
 - `other` → 404 page
 
-**Callback** (реальная elif-цепочка, заголовок страницы встроен в
-glass-header каждого layout — второй Output почти всегда пустой div):
+Маршрута `/settings` НЕ существует — пункт «Настройки» убран из
+навигации протоколом 0031 (P1 UX-аудита: вёл на 404). Константа
+`ADDITIONAL_NAV_ITEMS` ждёт появления реального маршрута в
+файле-надгробии `app/components/sidebar.py`.
+
+**Callback**:
 ```python
 @callback(
     [Output("page-content", "children"), Output("page-header", "children")],
@@ -47,26 +54,26 @@ def display_page(pathname):
 
 ## Layout Structure
 
-**Главный layout** (`app/main.py:66-123`, обновлено протоколом 0030 —
-Подход B, сайдбар снят с дашборда):
+**Главный layout** (`app/main.py:66-123`):
 ```
-Container (fluid, className="p-0 app-container")
-  ├── dcc.Location(id="url")
-  ├── Div (className="app-layout")
-  │    ├── Div (id="sidebar-slot") — наполняется render_sidebar_slot();
-  │    │    на дашборде остаётся пустым ([]), колонку скрывает CSS :empty
-  │    └── Div (className="main-content")
-  │         ├── page-header (почти всегда пустой div — заголовок встроен
-  │         │    в glass-header каждого layout)
-  │         └── page-content (динамический контент, display_page())
-  ├── глобальные модалы (transaction, wishlist, reconciliation,
-  │    onboarding, profile) — доступны с любой страницы
-  └── глобальные dcc.Store (profile-updated, open-*-trigger,
-       calendar-focus-date, goals-focus-goal и др.)
+Container (fluid, .app-container)
+  └── Div (.app-layout)
+       ├── Div#nav-rail-slot (.nav-rail-column, 60px)
+       │    └── наполняется render_nav_rail_slot;
+       │       на дашборде ПУСТ — колонку скрывает
+       │       CSS-правило .nav-rail-column:empty
+       └── Div (.main-content)
+            ├── page-header (заголовок страницы)
+            └── page-content (динамический контент)
+  + глобальные модалы (transaction, wishlist, reconciliation,
+    onboarding, profile) — доступны с любой страницы
+  + глобальные dcc.Store (profile-updated, open-*-trigger,
+    calendar-focus-date, goals-focus-goal и др.)
 ```
 
-`sidebar-slot` заполняется отдельным callback'ом `render_sidebar_slot(pathname, profile_updated)`
-(`app/main.py:129-134`), не жёстко зашит в layout — см. `modules/ui-components.md` (Sidebar).
+`nav-rail-slot` заполняется отдельным callback'ом
+`render_nav_rail_slot(pathname, profile_updated)` (`app/main.py:129-189`),
+не жёстко зашит в layout — см. `modules/ui-components.md` (Nav Rail).
 
 **URL Component**:
 ```python
@@ -75,8 +82,14 @@ dcc.Location(id="url", refresh=False)  # SPA режим, без перезагр
 
 ## Навигация
 
-**Sidebar links / карточки-двери дашборда** → изменяют URL →
-`display_page()` callback → рендер нового контента
+**Ссылки полоски-меню** (`dcc.Link`) → изменяют URL → `display_page()`
+callback → рендер нового контента. Полоска перерисовывается своим
+слот-колбэком по тому же `Input("url", "pathname")`.
+
+На дашборде навигации сбоку нет вовсе — её роль играют карточки-двери
+щитка (Epic-11, кусок 2). Переходы с контекстом (`?focus_date=`,
+`?goal=`, `?wishlist_item=`, `?open_recon=1`) обслуживает
+`handle_panel_query_params`.
 
 **Пример flow**:
 ```
@@ -136,11 +149,16 @@ def create_page_header(title: str, subtitle: str = ""):
 
 ## Планируемые изменения
 
-Все 5 маршрутов активны, query-параметры для фильтров реализованы
-(см. секцию выше про переходы с контекстом, протокол 0030, и
-`/transactions?start=&end=`, протокол 0023). Следующее изменение
-роутинга ожидается в куске 3 Epic-11 (полоска-меню вместо сайдбара) —
-без изменения набора маршрутов.
+Прежний список («активировать `/calendar`», «активировать `/goals`»,
+«query parameters через `dcc.Location`») выполнен целиком: все пять
+маршрутов работают, переходы с контекстом через query params —
+протоколы 0023/0028/0030, см. раздел выше.
+
+Открыто:
+- **`/settings`** — маршрута нет, пункт убран из навигации протоколом
+  0031 (P1 UX-аудита). Появится маршрут — вернуть пункт из
+  `ADDITIONAL_NAV_ITEMS` (`app/components/sidebar.py`, файл-надгробие).
+- **`/help`** — там же, справки пока нет.
 
 ---
 
