@@ -13,7 +13,8 @@ Dash компоненты для UI: Dashboard-щиток, Nav Rail, Transaction
 ## Ключевые файлы
 - `app/components/dashboard.py` - главная страница: шапка «Свободно сегодня» + график полос (протокол 0028)
 - `app/components/nav_rail.py` — навигация (полоска-меню 60px)
-- `app/components/transactions.py` - управление операциями (CRUD)
+- `app/components/transactions.py` - управление операциями (CRUD),
+  маркировка и защита служебных операций (протокол 0032)
 
 См. секцию «Dashboard Component» ниже (актуальная версия, протокол 0028)
 — первая версия этого раздела (статические metric-карточки без БД)
@@ -91,7 +92,7 @@ Dash компоненты для UI: Dashboard-щиток, Nav Rail, Transaction
 чистота построения, fail-open, предпосылки реконсиляции, доступность.
 Визуальный слой и сам разворот тестами НЕ покрыты — только живьём.
 
-## Transactions Component (КРИТИЧНО, Протокол 0023 — расширен)
+## Transactions Component (КРИТИЧНО, Протокол 0023 — расширен, Протокол 0032 — служебные операции)
 
 **Layout**:
 - Header с кнопками "Добавить операцию" и "Экспорт CSV"
@@ -220,6 +221,104 @@ content = TransactionService.export_to_csv(session, user_id, include_uncategoriz
 - Учитывает filter-no-category
 - UTF-8 BOM для корректного отображения кириллицы в Excel
 - Timestamp в имени файла
+
+## Служебные операции — маркировка и защита (Протокол 0032)
+
+Список операций выбирает ВСЕ шесть типов транзакций
+(`get_all_by_user` без фильтра типа), но до протокола 0032 рендер
+различал только INCOME/EXPENSE — служебные `SAVINGS_RESERVE`,
+`SAVINGS_CONTRIBUTION` показывались как обычный «Расход» с активными
+кнопками редактирования/удаления. Прямое удаление минует каскад
+`GoalService` (Contribution → Transaction → Goal) и рассинхронизирует
+накопленную сумму цели. Календарь эту проблему уже решал (readonly-
+строка, `calendar.py:437-500`) — список приведён к тому же принципу.
+
+**Единственный источник правды «служебности»** — предикат в
+`transactions.py`:
+```python
+SYSTEM_TRANSACTION_TYPES: frozenset[TransactionType] = frozenset(
+    {TransactionType.SAVINGS_RESERVE, TransactionType.SAVINGS_CONTRIBUTION}
+)
+
+def _is_system_transaction(tx) -> bool:
+    return tx.transaction_type in SYSTEM_TRANSACTION_TYPES
+```
+Импортируется в `transaction_modals.py` для delete-guard'а — второго
+независимого предиката нет.
+
+**Двухуровневая защита** (не подменяют друг друга — оба уровня нужны):
+1. **UI не рендерит контролы** для служебных строк: нет чекбокса, нет
+   кнопок edit/delete, нет chips категоризации. Вместо кнопок —
+   значок замка́ с `title`-пояснением («управляется через Цели» /
+   «через настройку резервирования»), описание получает суффикс
+   «(авто)», строка целиком — класс `.tx-system-row` (opacity 0.75,
+   `transactions.css`, по образцу `.readonly` календаря).
+2. **Серверные guard'ы в callbacks** — страховка от устаревшего DOM
+   или второй открытой вкладки: `open_edit_modal` и
+   `handle_delete_click` (в `transaction_modals.py`) проверяют
+   `_is_system_transaction(tx)` СРАЗУ после загрузки транзакции из БД
+   и делают `PreventUpdate`, если тип служебный.
+
+**Критичный порядок в `open_edit_modal`**: guard «служебная ли
+операция» стоит ДО ветвления на recurring/обычная операция — шаблон
+резервирования бюджета реально бывает повторяющейся операцией
+(`is_recurring=True`), и если бы guard стоял после ветвления на
+scope-modal, служебная recurring-операция открыла бы диалог выбора
+scope раньше проверки. Порядок проверок здесь не второстепенная
+деталь реализации.
+
+**Bulk-операции** — двойная страховка:
+- `TransactionService.bulk_update_category` фильтрует кандидатов по
+  `CATEGORIZABLE_TRANSACTION_TYPES = {INCOME, EXPENSE}` ПОСЛЕ проверки
+  ownership (существующий тест ownership не сломан) — некатегоризируемые
+  типы молча исключаются, счётчик обновлённых — честный (не включает
+  исключённые), пустой остаток после фильтрации → `0`, не ошибка.
+- `_drop_system_ids()` в `transactions.py` — страховка на уровне
+  формирования bulk-выборки: один SQL-запрос по факту id из БД (не по
+  тому, что нарисовано в DOM), фильтрует служебные, порядок id
+  сохраняется. Вызывается из `update_selection_state`.
+- Chips-callbacks (`chip_assign_category`, `chip_dropdown_assign_category`)
+  загружают транзакцию до записи и делают `PreventUpdate`, если
+  `_is_system_transaction(target_tx)` — тот же принцип «проверка после
+  чтения из БД, не по data-атрибутам DOM».
+
+**Единый источник подписей типов** — `TYPE_LABELS` в
+`transaction_service.py` (модульная константа, не метод): используется
+и бейджами списка операций, и CSV-экспортом (`export_to_csv`) — раньше
+экспорт держал свой отдельный `type_labels` dict, теперь один словарь
+на двоих. Savings-типы получили общую подпись «Накопления» (раньше
+CSV показывал сырой `str(enum)`).
+
+**Знак и цвет суммы по типу** (не только INCOME/EXPENSE как раньше):
+INCOME — зелёный `+`; EXPENSE — красный `-`; ADJUSTMENT — по значению
+суммы (как в сверке календаря, может быть и `+`, и `-`); savings-типы —
+приглушённый `-` (уменьшают баланс); TRANSFER — приглушённый, без
+знака (баланс не меняет).
+
+**Решение Р1 (ADJUSTMENT)**: dropdown типов edit-модала умеет только
+INCOME/EXPENSE — у ADJUSTMENT кнопка редактирования скрыта, delete
+оставлен (откат корректировки сверки — законное действие
+пользователя). TRANSFER той же болезнью страдает (тот же dropdown),
+но по решению протокола не тронут — полноценная пользовательская
+операция, ограничение модала вне scope.
+
+**Принятый техдолг** (зафиксирован на ревью, не блокер): существуют
+ДВА независимых списка «что нельзя категоризировать/что служебное» —
+`SYSTEM_TRANSACTION_TYPES` в `transactions.py` (UI-слой, 2 типа) и
+`CATEGORIZABLE_TRANSACTION_TYPES` в `transaction_service.py`
+(сервисный слой, инвертированный список — что МОЖНО, 2 типа из 6).
+При добавлении седьмого `TransactionType` оба списка нужно обновлять
+руками — есть риск молчаливого расхождения, автоматической сверки
+между ними нет.
+
+**Тесты**: `tests/test_transactions_system_ops.py` (51 тест) — рендер
+(бейджи, скрытие контролов, знак суммы, «(авто)»), guard'ы callbacks
+(edit/delete/chips/selection) без БД, где возможно (Transaction в
+памяти, относительные даты); `tests/test_transaction_service.py`
+(+2: смешанный список bulk — обновлён только EXPENSE; список из одних
+служебных — счётчик `0` без исключения). Mutation smoke: предикат
+`_is_system_transaction` → `return False` ловится 14 тестами;
+delete-guard → `if False` ловится 2 тестами.
 
 **Form Validation**:
 - amount > 0 (frontend: type="number", min=0)
