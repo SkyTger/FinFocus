@@ -10,8 +10,9 @@
 доставки сосуществуют — setup-скрипты `start.sh`/`start.bat` (протокол 0025)
 и PyInstaller-сборка в CI (незапротоколированная работа, коммиты
 `d9e93c6`/`3b6a8e0`); какой основной — открытый вопрос №1 ROADMAP, решение
-не принято. Выпущен релиз `v0.9.0-beta.1`. 766 unit-тестов, все зелёные
-(протокол 0030 смержен 2026-08-26 — 693 протоколом 0029 + 73 новых).
+не принято. Выпущен релиз `v0.9.0-beta.1`. 766 unit-тестов в main, все
+зелёные (протокол 0030 смержен 2026-08-26 — 693 протоколом 0029 + 73
+новых); на ветке протокола 0031 (PR #31 на ревью) — 825.
 
 **Epic-11 «щиток», куски 1-2 и долги куска 1 — СМЕРЖЕНЫ** (протокол 0028
 PR #28, протокол 0029 PR #29, протокол 0030 PR #30 — смержен 2026-08-26,
@@ -44,7 +45,7 @@ savings-операциями до начала периода) и 47 тесто�
 DashboardPanelService), `modules/ui-components.md` (Dashboard-щиток,
 Panel Cards, Nav Rail), `modules/schema.md` (panel.py),
 `modules/routing.md` (переходы с контекстом), `protocols.md`
-(0028, 0029, 0030).
+(0028, 0029, 0030, 0031).
 Секвенирование: редизайн — до следующего бета-цикла (фаза 4 Epic-09,
 сбор фидбека, откладывается до завершения всего эпика-11).
 См. также `architecture.md` → «Планируемые изменения».
@@ -209,7 +210,7 @@ Epic-11: карточки-двери, DashboardPanelService, сайдбар бе
 `modules/services.md` (MoneyLayersService, DashboardPanelService),
 `modules/ui-components.md` (Dashboard-щиток, Panel Cards, Nav Rail),
 `modules/schema.md` (panel.py), `modules/routing.md` (переходы с
-контекстом), `protocols.md` (0028, 0029, 0030)
+контекстом), `protocols.md` (0028, 0029, 0030, 0031)
 и в `../discussions/_archive/dashboard-as-menu-2026-08-23/design.md`.
 
 **Прочий бэклог** (не секвенирован):
