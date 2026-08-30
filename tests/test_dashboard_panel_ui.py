@@ -512,8 +512,16 @@ class TestLegendAndTooltips:
         }
 
     def test_payments_tooltip_lists_operations(self):
-        """AC-4: тултип «Платежи» — конкретные операции с датой и суммой."""
-        data = make_layers_data()
+        """AC-4: тултип «Платежи» — конкретные операции с датой и суммой.
+
+        reference_date задаётся явно на начало месяца: фикстура кладёт
+        платежи на `+2` и `+4` дня, а тултип отсекает по концу месяца.
+        На `date.today()` тест был бы красным в последние дни месяца
+        (открытый вопрос №6 ROADMAP — самоотключение/протухание тестов
+        по датам). Проверяется наполненный тултип, а не граница месяца —
+        для границы есть отдельный тест ниже.
+        """
+        data = make_layers_data(reference_date=date.today().replace(day=1))
 
         rows = _build_payments_tooltip(data)
 
