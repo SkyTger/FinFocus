@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>FinFocus — полоска-меню</title>
+<style>
+/* ============================================================
+   ЭСКИЗ-СПЕЦИФИКАЦИЯ: полоска-меню (Epic-11, кусок 3)
+   Значения палитры, скруглений и стекла — копия :root проекта
+   (app/assets/custom.css, app/assets/panel.css). Переносится 1:1.
+   ============================================================ */
+:root{
+  --color-primary:#2ecc71;
+  --color-primary-dark:#27ae60;
+  --color-secondary:#3498db;
+  --color-text-primary:#2c3e50;
+  --color-text-secondary:#64748b;
+  --color-text-muted:#94a3b8;
+  --color-bg-card:#ffffff;
+  --color-bg-page-from:#eaf2ee;
+  --color-bg-page-to:#dce8e0;
+  --color-border-light:#ecf0f1;
+
+  --glass-bg:rgba(255,255,255,0.25);
+  --glass-border:rgba(255,255,255,0.5);
+  --glass-border-top:rgba(255,255,255,0.8);
+  --glass-blur:blur(16px);
+  --shadow:0 8px 32px 0 rgba(31,38,135,0.07);
+
+  --pnl-radius:14px;
+  --pnl-radius-sm:10px;
+
+  /* Геометрия полоски — предмет утверждения */
+  --rail-w:60px;
+  --rail-icon:22px;
+  --rail-slot:44px;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;
+  background:linear-gradient(135deg,var(--color-bg-page-from) 0%,var(--color-bg-page-to) 100%);
+  color:var(--color-text-primary);
+  -webkit-font-smoothing:antialiased;
+}
+.page{width:1280px;margin:0 auto;padding:44px 56px 64px;}
+
+/* --- Титул листа --- */
+.sheet-head{display:flex;align-items:flex-end;justify-content:space-between;
+  gap:24px;padding-bottom:16px;border-bottom:1px solid rgba(44,62,80,0.10);}
+.sheet-title{font-size:27px;font-weight:800;letter-spacing:-0.02em;margin:0;}
+.sheet-sub{margin:6px 0 0;font-size:13.5px;color:var(--color-text-secondary);max-width:640px;line-height:1.5;}
+.sheet-meta{font-size:11.5px;color:var(--color-text-muted);text-align:right;line-height:1.7;
+  font-variant-numeric:tabular-nums;white-space:nowrap;}
+.sheet-meta b{color:var(--color-text-secondary);font-weight:600;}
+
+/* --- Секции --- */
+.section{margin-top:40px;}
+.sec-head{display:flex;align-items:baseline;gap:12px;margin-bottom:16px;}
+.sec-num{width:23px;height:23px;flex:0 0 23px;border-radius:9999px;
+  background:var(--color-primary);color:#fff;font-size:12.5px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;transform:translateY(2px);}
+.sec-title{font-size:17.5px;font-weight:700;letter-spacing:-0.01em;margin:0;}
+.sec-note{font-size:12.5px;color:var(--color-text-secondary);margin-left:auto;}
+
+.card{
+  background:var(--glass-bg);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  border-top:1px solid var(--glass-border-top);
+  border-radius:var(--pnl-radius);
+  box-shadow:var(--shadow);
+  padding:22px 24px;
+}
+@supports not (backdrop-filter:blur(16px)){.card{background:rgba(255,255,255,0.72);}}
+
+/* ============================================================
+   ПОЛОСКА — эталонная геометрия
+   ============================================================ */
+.rail{
+  width:var(--rail-w);
+  background:var(--glass-bg);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-border);
+  border-top:1px solid var(--glass-border-top);
+  border-radius:var(--pnl-radius);
+  box-shadow:var(--shadow);
+  display:flex;flex-direction:column;align-items:center;
+  padding:10px 0 12px;
+  overflow:hidden;
+}
+@supports not (backdrop-filter:blur(16px)){.rail{background:rgba(255,255,255,0.72);}}
+
+/* Логотип-«щиток» — ведёт на дашборд, визуально выделен */
+.rail-logo{
+  width:var(--rail-slot);height:var(--rail-slot);flex:0 0 var(--rail-slot);
+  border-radius:12px;
+  background:linear-gradient(160deg,var(--color-primary) 0%,var(--color-primary-dark) 100%);
+  box-shadow:0 3px 10px rgba(46,204,113,0.30);
+  display:flex;align-items:center;justify-content:center;color:#fff;
+}
+.rail-sep{
+  width:26px;height:1px;flex:0 0 1px;margin:11px 0 9px;
+  background:linear-gradient(90deg,transparent,rgba(44,62,80,0.16),transparent);
+}
+.rail-nav{display:flex;flex-direction:column;align-items:center;gap:7px;}
+.rail-spacer{flex:1 1 auto;min-height:16px;}
+
+/* Пункт */
+.slot{
+  position:relative;
+  width:var(--rail-slot);height:var(--rail-slot);flex:0 0 var(--rail-slot);
+  border-radius:9999px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--color-text-secondary);
+}
+.slot svg{width:var(--rail-icon);height:var(--rail-icon);display:block;}
+.slot--hover{background:rgba(46,204,113,0.10);color:var(--color-text-primary);}
+.slot--active{
+  background:var(--color-primary);color:#fff;
+  box-shadow:0 2px 8px rgba(46,204,113,0.20);
+}
+
+/* Язычок-подпись при наведении */
+.tip{
+  position:absolute;left:calc(100% + 9px);top:50%;transform:translateY(-50%);
+  background:var(--color-text-primary);color:#fff;
+  font-size:12.5px;font-weight:600;line-height:1;white-space:nowrap;
+  padding:8px 11px;border-radius:var(--pnl-radius-sm);
+  box-shadow:0 4px 14px rgba(31,38,135,0.18);
+  z-index:5;
+}
+.tip::before{
+  content:"";position:absolute;right:100%;top:50%;transform:translateY(-50%);
+  border:5px solid transparent;border-right-color:var(--color-text-primary);
+}
+
+/* Аватар */
+.rail-avatar{
+  width:var(--rail-slot);height:var(--rail-slot);flex:0 0 var(--rail-slot);
+  border-radius:9999px;background:rgba(46,204,113,0.15);
+  border:1px solid rgba(46,204,113,0.28);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;line-height:1;
+}
+
+/* ============================================================
+   БЛОК 1 — полоска целиком
+   ============================================================ */
+/* Три колонки фиксированной ширины: сцена → выноски → таблица.
+   Ширины заданы явно, поэтому текст выноски физически не может
+   попасть в область таблицы ни при каком переносе. */
+.b1{display:flex;gap:0;align-items:stretch;}
+.b1-stage{
+  flex:0 0 112px;display:flex;align-items:flex-start;
+  padding:20px 0 20px 26px;position:relative;
+}
+.b1-rail{height:716px;}
+/* Размерная выноска ширины */
+.dim{position:absolute;left:26px;top:0;width:var(--rail-w);
+  display:flex;align-items:center;justify-content:center;}
+.dim::before,.dim::after{content:"";position:absolute;top:9px;width:1px;height:9px;
+  background:var(--color-text-muted);}
+.dim::before{left:0;} .dim::after{right:0;}
+.dim i{position:absolute;top:13px;left:0;right:0;height:1px;background:var(--color-text-muted);}
+.dim span{position:absolute;top:-4px;font-size:11px;font-weight:700;color:var(--color-text-secondary);
+  background:#e6efe9;padding:0 5px;border-radius:4px;white-space:nowrap;}
+/* Выноски к элементам полоски.
+   Колонка 216px = 26px усик + 190px текста; плюс 40px правого поля
+   до таблицы. Текст ограничен max-width и clip'ится по колонке,
+   поэтому в зону таблицы не заходит даже при длинном переносе. */
+.callouts{
+  flex:0 0 216px;position:relative;padding:20px 0;
+  margin-right:40px;
+  /* Клип только по горизонтали: вертикаль должна оставаться видимой,
+     иначе абсолютно спозиционированные выноски обрезаются по высоте
+     колонки. clip:auto по Y даёт скролл-контекст без обрезки. */
+  overflow-x:clip;overflow-y:visible;
+}
+.co{position:absolute;left:0;right:0;font-size:12px;line-height:1.45;
+  color:var(--color-text-secondary);padding-left:26px;max-width:190px;}
+.co b{display:block;color:var(--color-text-primary);font-size:12.5px;font-weight:700;margin-bottom:1px;}
+.co .mono{white-space:normal;overflow-wrap:anywhere;}
+.co::before{content:"";position:absolute;left:0;top:8px;width:18px;height:1px;
+  background:rgba(44,62,80,0.22);}
+.co::after{content:"";position:absolute;left:0;top:5.5px;width:5px;height:5px;border-radius:9999px;
+  background:var(--color-primary);}
+
+/* Правая колонка блока 1 — таблица спецификации */
+.b1-spec{flex:1 1 auto;min-width:0;}
+.spec-table{width:100%;border-collapse:collapse;font-size:13px;}
+.spec-table th{
+  text-align:left;font-size:10.5px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;
+  color:var(--color-text-muted);padding:0 12px 8px 0;border-bottom:1px solid rgba(44,62,80,0.10);
+}
+.spec-table td{padding:8px 12px 8px 0;border-bottom:1px solid rgba(44,62,80,0.06);
+  vertical-align:top;color:var(--color-text-secondary);}
+.spec-table td:first-child{color:var(--color-text-primary);font-weight:600;white-space:nowrap;}
+.mono{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:12px;
+  color:var(--color-text-primary);background:rgba(44,62,80,0.055);
+  padding:1.5px 6px;border-radius:5px;white-space:nowrap;}
+.notlist{margin:18px 0 0;padding:14px 16px;border-radius:var(--pnl-radius-sm);
+  background:rgba(244,63,94,0.055);border:1px solid rgba(244,63,94,0.16);}
+.notlist h4{margin:0 0 7px;font-size:12px;font-weight:700;letter-spacing:0.04em;
+  text-transform:uppercase;color:#b3364a;}
+.notlist ul{margin:0;padding-left:17px;font-size:12.5px;line-height:1.65;color:var(--color-text-secondary);}
+.notlist b{color:var(--color-text-primary);font-weight:600;}
+
+/* ============================================================
+   БЛОК 2 — состояния
+   ============================================================ */
+.states{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.state{
+  background:var(--color-bg-card);border:1px solid var(--color-border-light);
+  border-radius:var(--pnl-radius);padding:20px 22px 18px;
+}
+.state-stage{
+  height:118px;border-radius:var(--pnl-radius-sm);
+  background:linear-gradient(135deg,#eef4f0 0%,#e2ece5 100%);
+  display:flex;align-items:center;padding-left:26px;position:relative;overflow:hidden;
+}
+.state-strip{
+  width:var(--rail-w);padding:8px 0;border-radius:12px;
+  background:rgba(255,255,255,0.55);border:1px solid var(--glass-border);
+  display:flex;justify-content:center;
+}
+.state-name{font-size:14.5px;font-weight:700;margin:14px 0 4px;}
+.state-desc{font-size:12.5px;line-height:1.55;color:var(--color-text-secondary);margin:0;}
+.state-desc code{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:11.5px;
+  background:rgba(44,62,80,0.055);padding:1px 5px;border-radius:4px;color:var(--color-text-primary);}
+
+/* ============================================================
+   БЛОК 3 — раскадровка разворота
+   ============================================================ */
+.frames{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+.frame{
+  background:var(--color-bg-card);border:1px solid var(--color-border-light);
+  border-radius:var(--pnl-radius);padding:18px 20px 16px;
+}
+.frame-stage{
+  height:250px;border-radius:var(--pnl-radius-sm);
+  background:linear-gradient(135deg,#eef4f0 0%,#e2ece5 100%);
+  padding:14px 0 14px 26px;overflow:hidden;position:relative;
+}
+.frame-rail{height:100%;}
+.frame-rail.cut{height:118px;}
+.frame-rail.cut-2{height:186px;}
+.frame-tag{display:flex;align-items:center;gap:8px;margin:13px 0 4px;}
+.frame-t{font-size:11px;font-weight:700;color:#fff;background:var(--color-text-muted);
+  border-radius:9999px;padding:2.5px 8px;font-variant-numeric:tabular-nums;}
+.frame-name{font-size:13.5px;font-weight:700;}
+.frame-desc{font-size:12.5px;line-height:1.55;color:var(--color-text-secondary);margin:0;}
+.rules{
+  margin-top:18px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px;
+}
+.rule{font-size:12.5px;line-height:1.55;color:var(--color-text-secondary);
+  padding-left:13px;border-left:2px solid var(--color-primary);}
+.rule b{color:var(--color-text-primary);font-weight:700;}
+
+/* ============================================================
+   БЛОК 4 — варианты логотипа
+   ============================================================ */
+.logos{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+.logo-card{
+  background:var(--color-bg-card);border:1px solid var(--color-border-light);
+  border-radius:var(--pnl-radius);padding:20px;display:flex;flex-direction:column;
+}
+.logo-num{
+  width:22px;height:22px;border-radius:9999px;border:1.5px solid var(--color-text-muted);
+  color:var(--color-text-secondary);font-size:12px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;margin-bottom:14px;
+  font-variant-numeric:tabular-nums;
+}
+.logo-stage{
+  height:104px;border-radius:var(--pnl-radius-sm);
+  background:linear-gradient(135deg,#eef4f0 0%,#e2ece5 100%);
+  display:flex;align-items:center;justify-content:center;gap:20px;
+}
+/* левая — в кожухе полоски (реальный размер), правая — знак крупно */
+.logo-inrail{
+  width:var(--rail-w);padding:8px 0;border-radius:12px;
+  background:rgba(255,255,255,0.55);border:1px solid var(--glass-border);
+  display:flex;justify-content:center;
+}
+.logo-zoom{opacity:0.28;color:var(--color-text-primary);}
+.logo-zoom svg{width:52px;height:52px;display:block;}
+.logo-name{font-size:14px;font-weight:700;margin:15px 0 5px;}
+.logo-id{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:11.5px;
+  color:var(--color-text-muted);margin:0 0 8px;}
+.logo-why{font-size:12.5px;line-height:1.55;color:var(--color-text-secondary);margin:0;}
+.logo-why b{color:var(--color-text-primary);font-weight:600;}
+
+/* Монограмма */
+.mono-f{font-size:23px;font-weight:800;letter-spacing:-0.03em;line-height:1;color:#fff;}
+.mono-f-zoom{font-size:54px;font-weight:800;letter-spacing:-0.03em;line-height:1;}
+
+.footnote{margin-top:34px;padding-top:14px;border-top:1px solid rgba(44,62,80,0.10);
+  font-size:11.5px;line-height:1.7;color:var(--color-text-muted);}
+.footnote b{color:var(--color-text-secondary);font-weight:600;}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ======================= ТИТУЛ ======================= -->
+  <header class="sheet-head">
+    <div>
+      <h1 class="sheet-title">Полоска-меню вместо сайдбара</h1>
+      <p class="sheet-sub">Эскиз-спецификация навигации на не-дашборд экранах.
+      Epic-11, кусок 3 — FR-1, FR-2, NFR-2, NFR-4. Значения взяты из
+      <span class="mono">custom.css</span> и <span class="mono">panel.css</span>, переносятся в код без пересчёта.</p>
+    </div>
+    <div class="sheet-meta">
+      Ширина полоски <b>60&nbsp;px</b><br>
+      Было: сайдбар <b>288&nbsp;px</b><br>
+      Возврат содержимому <b>228&nbsp;px</b>
+    </div>
+  </header>
+
+  <!-- ======================= 1. ПОЛОСКА ЦЕЛИКОМ ======================= -->
+  <section class="section">
+    <div class="sec-head">
+      <span class="sec-num">1</span>
+      <h2 class="sec-title">Полоска целиком</h2>
+      <span class="sec-note">Натуральный масштаб · активный раздел «Календарь»</span>
+    </div>
+
+    <div class="card b1">
+      <!-- сцена с полоской в реальном размере -->
+      <div class="b1-stage">
+        <div class="dim"><i></i><span>60&nbsp;px</span></div>
+
+        <div class="rail b1-rail">
+          <!-- Логотип-«щиток» → дашборд -->
+          <a class="rail-logo" href="#" aria-label="На дашборд">
+            <svg viewBox="0 0 16 16" fill="currentColor" width="24" height="24" aria-hidden="true">
+              <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13Zm0 1h13a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5Z"/>
+              <path d="M4.25 4.25a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v.69a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Z"/>
+              <path d="M2.75 11.25h10.5a.5.5 0 0 1 0 1H2.75a.5.5 0 0 1 0-1Z"/>
+            </svg>
+          </a>
+
+          <div class="rail-sep"></div>
+
+          <nav class="rail-nav">
+            <!-- Календарь — АКТИВНЫЙ -->
+            <span class="slot slot--active" aria-label="Календарь" aria-current="page">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M2 1.4h12a2 2 0 0 1 2 2v10.6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3.4a2 2 0 0 1 2-2Zm0 1.4a.6.6 0 0 0-.6.6v10.6a.6.6 0 0 0 .6.6h12a.6.6 0 0 0 .6-.6V3.4a.6.6 0 0 0-.6-.6H2Z"/><path d="M1 4h14v2H1V4Z"/><path d="M4.5 0a.65.65 0 0 1 .65.65V2.4a.65.65 0 1 1-1.3 0V.65A.65.65 0 0 1 4.5 0Zm7 0a.65.65 0 0 1 .65.65V2.4a.65.65 0 1 1-1.3 0V.65A.65.65 0 0 1 11.5 0Z"/><path d="M4.6 8.2a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2ZM4.6 11.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/>
+              </svg>
+            </span>
+            <!-- Операции -->
+            <span class="slot" aria-label="Операции">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M5 11.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm-3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+              </svg>
+            </span>
+            <!-- Аналитика -->
+            <span class="slot" aria-label="Аналитика">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M4 11H2v3h2v-3zm5-4H7v7h2V7zm5-5v12h-2V2h2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1h-2zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3z"/>
+              </svg>
+            </span>
+            <!-- Цели -->
+            <span class="slot" aria-label="Цели">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm0-1A7 7 0 1 1 8 1a7 7 0 0 1 0 14z"/>
+                <path d="M8 13A5 5 0 1 0 8 3a5 5 0 0 0 0 10zm0-1A4 4 0 1 1 8 4a4 4 0 0 1 0 8z"/>
+                <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+              </svg>
+            </span>
+          </nav>
+
+          <div class="rail-spacer"></div>
+
+          <!-- Аватар → окно профиля -->
+          <span class="rail-avatar" aria-label="Профиль пользователя">🦊</span>
+        </div>
+
+        <!-- выноски -->
+        <div class="callouts">
+          <div class="co" style="top:14px;">
+            <b>Логотип-«щиток»</b>44×44, radius 12px, градиент бренда. Ведёт на дашборд (AC-8)
+          </div>
+          <div class="co" style="top:107px;">
+            <b>Активный</b>Пилюля <span class="mono">#2ecc71</span>, radius 9999px, знак белый
+          </div>
+          <div class="co" style="top:196px;">
+            <b>4 раздела</b>Календарь · Операции · Аналитика · Цели. Слот 44×44, шаг 7px
+          </div>
+          <div class="co" style="top:472px;">
+            <b>Распорка</b>Прижимает аватар к низу при любой высоте окна
+          </div>
+          <div class="co" style="top:684px;">
+            <b>Аватар</b>Круг 44×44, подклад <span class="mono">rgba(46,204,113,.15)</span>. Открывает профиль (AC-7)
+          </div>
+        </div>
+      </div>
+
+      <!-- спецификация -->
+      <div class="b1-spec">
+        <table class="spec-table">
+          <thead>
+            <tr><th style="width:31%">Параметр</th><th style="width:31%">Значение</th><th>Источник / примечание</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Ширина полоски</td><td><span class="mono">60px</span></td><td>Ориентир FR-1; колонка <span class="mono">flex:0 0 60px</span></td></tr>
+            <tr><td>Позиционирование</td><td><span class="mono">sticky; top:24px</span></td><td>Как <span class="mono">.sidebar-column</span>, высота <span class="mono">calc(100vh - 48px)</span></td></tr>
+            <tr><td>Подложка</td><td><span class="mono">rgba(255,255,255,0.25)</span></td><td><span class="mono">--glass-bg</span></td></tr>
+            <tr><td>Размытие</td><td><span class="mono">blur(16px)</span></td><td><span class="mono">--glass-blur</span> + fallback <span class="mono">@supports not</span></td></tr>
+            <tr><td>Граница</td><td><span class="mono">1px rgba(255,255,255,.5)</span></td><td>Верхняя — <span class="mono">.8</span> (<span class="mono">--glass-border-top</span>)</td></tr>
+            <tr><td>Тень</td><td><span class="mono">0 8px 32px rgba(31,38,135,.07)</span></td><td><span class="mono">--shadow</span></td></tr>
+            <tr><td>Скругление кожуха</td><td><span class="mono">14px</span></td><td><span class="mono">--pnl-radius</span> (у сайдбара было 24px)</td></tr>
+            <tr><td>Слот пункта</td><td><span class="mono">44×44</span>, шаг <span class="mono">7px</span></td><td>Зона нажатия ≥ 44px</td></tr>
+            <tr><td>Знак в слоте</td><td><span class="mono">22px</span></td><td>Логотип — <span class="mono">24px</span> (выделен размером и заливкой)</td></tr>
+            <tr><td>Активная пилюля</td><td><span class="mono">#2ecc71</span> / <span class="mono">9999px</span></td><td>Совпадает с <span class="mono">.sidebar-nav-item-active</span></td></tr>
+            <tr><td>Доступное имя</td><td><span class="mono">aria-label</span> на каждом</td><td>NFR-4: язычок не единственный носитель смысла</td></tr>
+            <tr><td>Активный раздел</td><td><span class="mono">aria-current="page"</span></td><td>Подсветка не только цветом</td></tr>
+          </tbody>
+        </table>
+
+        <div class="notlist">
+          <h4>В полоске нет — по решению владельца</h4>
+          <ul>
+            <li><b>«Настройки»</b> — маршрута <span class="mono">/settings</span> не существует, пункт вёл на 404 (FR-4, P1 аудита)</li>
+            <li><b>Номера версии</b> — переехал в окно профиля, берётся из проекта (FR-5, P3 аудита)</li>
+            <li><b>Дашборда отдельным пунктом</b> — на него ведёт логотип вверху; разделов в полоске четыре, не пять</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 2. СОСТОЯНИЯ ======================= -->
+  <section class="section">
+    <div class="sec-head">
+      <span class="sec-num">2</span>
+      <h2 class="sec-title">Состояния пункта</h2>
+      <span class="sec-note">Раздел «Аналитика» во всех трёх</span>
+    </div>
+
+    <div class="states">
+      <!-- обычное -->
+      <div class="state">
+        <div class="state-stage">
+          <div class="state-strip">
+            <span class="slot" aria-label="Аналитика">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 11H2v3h2v-3zm5-4H7v7h2V7zm5-5v12h-2V2h2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1h-2zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3z"/></svg>
+            </span>
+          </div>
+        </div>
+        <p class="state-name">Обычное</p>
+        <p class="state-desc">Знак <code>--color-text-secondary</code> <code>#64748b</code>, фона нет. Полоска не перетягивает внимание с содержимого страницы.</p>
+      </div>
+
+      <!-- наведение -->
+      <div class="state">
+        <div class="state-stage">
+          <div class="state-strip">
+            <span class="slot slot--hover" aria-label="Аналитика">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 11H2v3h2v-3zm5-4H7v7h2V7zm5-5v12h-2V2h2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1h-2zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3z"/></svg>
+              <span class="tip">Аналитика</span>
+            </span>
+          </div>
+        </div>
+        <p class="state-name">При наведении — язычок</p>
+        <p class="state-desc">Подкладка <code>rgba(46,204,113,.10)</code>; справа выезжает подпись: фон <code>#2c3e50</code>, текст белый 12.5px/600, radius 10px, отступ 9px, треугольный носик. Слой поверх содержимого (AC-3).</p>
+      </div>
+
+      <!-- активное -->
+      <div class="state">
+        <div class="state-stage">
+          <div class="state-strip">
+            <span class="slot slot--active" aria-label="Аналитика" aria-current="page">
+              <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 11H2v3h2v-3zm5-4H7v7h2V7zm5-5v12h-2V2h2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1h-2zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3z"/></svg>
+            </span>
+          </div>
+        </div>
+        <p class="state-name">Активное</p>
+        <p class="state-desc">Пилюля <code>#2ecc71</code>, radius <code>9999px</code>, знак белый, тень <code>0 2px 8px rgba(46,204,113,.20)</code>. Вычисляется на построении из адреса — обработчика нет (C-1).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================= 3. РАЗВОРОТ ======================= -->
+  <section class="section">
+    <div class="sec-head">
+      <span class="sec-num">3</span>
+      <h2 class="sec-title">Разворот при входе в раздел</h2>
+      <span class="sec-note">Раскадровка · CSS-переход высоты сверху вниз</span>
+    </div>
+
+    <div class="frames">
+      <div class="frame">
+        <div class="frame-stage">
+          <div class="rail frame-rail cut">
+            <a class="rail-logo" href="#" aria-label="На дашборд">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="24" height="24" aria-hidden="true">
+                <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13Zm0 1h13a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5Z"/>
+                <path d="M4.25 4.25a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v.69a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Z"/>
+                <path d="M2.75 11.25h10.5a.5.5 0 0 1 0 1H2.75a.5.5 0 0 1 0-1Z"/>
+              </svg>
+            </a>
+            <div class="rail-sep"></div>
+          </div>
+        </div>
+        <div class="frame-tag"><span class="frame-t">0 мс</span><span class="frame-name">Только логотип</span></div>
+        <p class="frame-desc">Кожух схлопнут до высоты знака. Стартовое состояние перехода.</p>
+      </div>
+
+      <div class="frame">
+        <div class="frame-stage">
+          <div class="rail frame-rail cut-2">
+            <a class="rail-logo" href="#" aria-label="На дашборд">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="24" height="24" aria-hidden="true">
+                <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13Zm0 1h13a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5Z"/>
+                <path d="M4.25 4.25a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v.69a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Z"/>
+                <path d="M2.75 11.25h10.5a.5.5 0 0 1 0 1H2.75a.5.5 0 0 1 0-1Z"/>
+              </svg>
+            </a>
+            <div class="rail-sep"></div>
+            <nav class="rail-nav">
+              <span class="slot slot--active" aria-label="Календарь" aria-current="page">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 1.4h12a2 2 0 0 1 2 2v10.6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3.4a2 2 0 0 1 2-2Zm0 1.4a.6.6 0 0 0-.6.6v10.6a.6.6 0 0 0 .6.6h12a.6.6 0 0 0 .6-.6V3.4a.6.6 0 0 0-.6-.6H2Z"/><path d="M1 4h14v2H1V4Z"/><path d="M4.5 0a.65.65 0 0 1 .65.65V2.4a.65.65 0 1 1-1.3 0V.65A.65.65 0 0 1 4.5 0Zm7 0a.65.65 0 0 1 .65.65V2.4a.65.65 0 1 1-1.3 0V.65A.65.65 0 0 1 11.5 0Z"/><path d="M4.6 8.2a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2ZM4.6 11.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>
+              </span>
+              <span class="slot" aria-label="Операции">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 11.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm-3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+              </span>
+            </nav>
+          </div>
+        </div>
+        <div class="frame-tag"><span class="frame-t">~110 мс</span><span class="frame-name">Половина</span></div>
+        <p class="frame-desc">Кожух растёт вниз, пункты открываются по мере появления места. Собственной анимации у пунктов нет.</p>
+      </div>
+
+      <div class="frame">
+        <div class="frame-stage">
+          <div class="rail frame-rail">
+            <a class="rail-logo" href="#" aria-label="На дашборд">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="24" height="24" aria-hidden="true">
+                <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13Zm0 1h13a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5Z"/>
+                <path d="M4.25 4.25a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v.69a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Z"/>
+                <path d="M2.75 11.25h10.5a.5.5 0 0 1 0 1H2.75a.5.5 0 0 1 0-1Z"/>
+              </svg>
+            </a>
+            <div class="rail-sep"></div>
+            <nav class="rail-nav">
+              <span class="slot slot--active" aria-label="Календарь" aria-current="page">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M2 1.4h12a2 2 0 0 1 2 2v10.6a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V3.4a2 2 0 0 1 2-2Zm0 1.4a.6.6 0 0 0-.6.6v10.6a.6.6 0 0 0 .6.6h12a.6.6 0 0 0 .6-.6V3.4a.6.6 0 0 0-.6-.6H2Z"/><path d="M1 4h14v2H1V4Z"/><path d="M4.5 0a.65.65 0 0 1 .65.65V2.4a.65.65 0 1 1-1.3 0V.65A.65.65 0 0 1 4.5 0Zm7 0a.65.65 0 0 1 .65.65V2.4a.65.65 0 1 1-1.3 0V.65A.65.65 0 0 1 11.5 0Z"/><path d="M4.6 8.2a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2ZM4.6 11.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Zm3.4 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2Z"/></svg>
+              </span>
+              <span class="slot" aria-label="Операции">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5 11.5a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h9a.5.5 0 0 1 0 1h-9a.5.5 0 0 1-.5-.5zm-3 1a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm0 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+              </span>
+              <span class="slot" aria-label="Аналитика">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4 11H2v3h2v-3zm5-4H7v7h2V7zm5-5v12h-2V2h2zm-2-1a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1V2a1 1 0 0 0-1-1h-2zM6 7a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm-5 4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3z"/></svg>
+              </span>
+              <span class="slot" aria-label="Цели">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm0-1A7 7 0 1 1 8 1a7 7 0 0 1 0 14z"/>
+                  <path d="M8 13A5 5 0 1 0 8 3a5 5 0 0 0 0 10zm0-1A4 4 0 1 1 8 4a4 4 0 0 1 0 8z"/>
+                  <path d="M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                </svg>
+              </span>
+            </nav>
+            <div class="rail-spacer"></div>
+            <span class="rail-avatar" aria-label="Профиль пользователя">🦊</span>
+          </div>
+        </div>
+        <div class="frame-tag"><span class="frame-t">~220 мс</span><span class="frame-name">Полностью</span></div>
+        <p class="frame-desc">Конечное состояние: аватар прижат к низу распоркой. Дальше полоска не двигается.</p>
+      </div>
+    </div>
+
+    <div class="rules">
+      <p class="rule"><b>Когда проигрывается.</b> Только при входе с дашборда, где полоски нет вовсе. Разворот показывает появление навигации, а не смену раздела.</p>
+      <p class="rule"><b>Когда не повторяется.</b> Переходы между разделами: полоска уже на экране, меняется только подсветка активного пункта.</p>
+      <p class="rule"><b>Уменьшенное движение.</b> При системной настройке <code style="font-size:11.5px">prefers-reduced-motion</code> перехода нет — полоска сразу в конечном состоянии (NFR-2, AC-6).</p>
+    </div>
+  </section>
+
+  <!-- ======================= 4. ЛОГОТИП ======================= -->
+  <section class="section">
+    <div class="sec-head">
+      <span class="sec-num">4</span>
+      <h2 class="sec-title">Варианты логотипа — выбор владельца</h2>
+      <span class="sec-note">Слева — в реальном размере полоски (24px в кожухе 44px), справа — знак крупно</span>
+    </div>
+
+    <div class="logos">
+      <!-- 1 -->
+      <div class="logo-card">
+        <span class="logo-num">1</span>
+        <div class="logo-stage">
+          <div class="logo-inrail">
+            <span class="rail-logo" aria-label="На дашборд">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="24" height="24" aria-hidden="true">
+                <path d="M8.5 5.034v1.1l.953-.55.5.867L9 7l.953.55-.5.866-.953-.55v1.1h-1v-1.1l-.953.55-.5-.866L7 7l-.953-.55.5-.866.953.55v-1.1h1zM6 1.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
+                <path d="M8 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm0 1A7 7 0 1 1 8 2a7 7 0 0 1 0 14z"/>
+                <path d="M13.879 4.828 15.293 3.414a1 1 0 0 0-1.414-1.414l-1.414 1.414.707.707.707.707z"/>
+              </svg>
+            </span>
+          </div>
+          <div class="logo-zoom">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8.5 5.034v1.1l.953-.55.5.867L9 7l.953.55-.5.866-.953-.55v1.1h-1v-1.1l-.953.55-.5-.866L7 7l-.953-.55.5-.866.953.55v-1.1h1zM6 1.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5z"/>
+              <path d="M8 15a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm0 1A7 7 0 1 1 8 2a7 7 0 0 1 0 14z"/>
+              <path d="M13.879 4.828 15.293 3.414a1 1 0 0 0-1.414-1.414l-1.414 1.414.707.707.707.707z"/>
+            </svg>
+          </div>
+        </div>
+        <p class="logo-name">Спидометр</p>
+        <p class="logo-id">bi-speedometer2</p>
+        <p class="logo-why">Нынешняя иконка дашборда — <b>преемственность</b> без переучивания. Но метафора «приборной панели», а не щитка: показывает измерение, не управление. Стрелка в 24px читается хуже остальных.</p>
+      </div>
+
+      <!-- 2 -->
+      <div class="logo-card">
+        <span class="logo-num">2</span>
+        <div class="logo-stage">
+          <div class="logo-inrail">
+            <span class="rail-logo" aria-label="На дашборд">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="24" height="24" aria-hidden="true">
+                <path d="M4.5 9a3.5 3.5 0 1 0 0 7h7a3.5 3.5 0 1 0 0-7h-7zm7 6a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+                <path d="M4.5 0a3.5 3.5 0 1 0 0 7h7a3.5 3.5 0 1 0 0-7h-7zm0 6a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+              </svg>
+            </span>
+          </div>
+          <div class="logo-zoom">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M4.5 9a3.5 3.5 0 1 0 0 7h7a3.5 3.5 0 1 0 0-7h-7zm7 6a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+              <path d="M4.5 0a3.5 3.5 0 1 0 0 7h7a3.5 3.5 0 1 0 0-7h-7zm0 6a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5z"/>
+            </svg>
+          </div>
+        </div>
+        <p class="logo-name">Рубильники</p>
+        <p class="logo-id">bi-toggles</p>
+        <p class="logo-why">Прямая метафора щитка: <b>два переключателя в разных положениях</b>. Читается в 24px. Риск: тумблер — устоявшийся знак «Настройки», а пункт настроек как раз убран (FR-4) — можно спутать назначение.</p>
+      </div>
+
+      <!-- 3 -->
+      <div class="logo-card">
+        <span class="logo-num">3</span>
+        <div class="logo-stage">
+          <div class="logo-inrail">
+            <span class="rail-logo" aria-label="На дашборд">
+              <span class="mono-f">F</span>
+            </span>
+          </div>
+          <div class="logo-zoom"><span class="mono-f-zoom">F</span></div>
+        </div>
+        <p class="logo-name">Монограмма «F»</p>
+        <p class="logo-id">текстовый знак, вес 800</p>
+        <p class="logo-why">Единственный вариант, который <b>именует продукт</b>, а не описывает функцию: ни с чем не спутать и не пересечься с иконками разделов. Метафоры щитка в нём нет; шрифт тянет за собой зависимость от системного стека.</p>
+      </div>
+
+      <!-- 4 -->
+      <div class="logo-card">
+        <span class="logo-num">4</span>
+        <div class="logo-stage">
+          <div class="logo-inrail">
+            <span class="rail-logo" aria-label="На дашборд">
+              <svg viewBox="0 0 16 16" fill="currentColor" width="24" height="24" aria-hidden="true">
+                <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13Zm0 1h13a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5Z"/>
+                <path d="M4.25 4.25a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v.69a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Z"/>
+                <path d="M2.75 11.25h10.5a.5.5 0 0 1 0 1H2.75a.5.5 0 0 1 0-1Z"/>
+              </svg>
+            </span>
+          </div>
+          <div class="logo-zoom">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M1.5 2A1.5 1.5 0 0 0 0 3.5v9A1.5 1.5 0 0 0 1.5 14h13a1.5 1.5 0 0 0 1.5-1.5v-9A1.5 1.5 0 0 0 14.5 2h-13Zm0 1h13a.5.5 0 0 1 .5.5v9a.5.5 0 0 1-.5.5h-13a.5.5 0 0 1-.5-.5v-9a.5.5 0 0 1 .5-.5Z"/>
+              <path d="M4.25 4.25a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v.69a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Zm3.75 0a.75.75 0 0 1 .75.75v2.19a1.25 1.25 0 1 1-1.5 0V5a.75.75 0 0 1 .75-.75Z"/>
+              <path d="M2.75 11.25h10.5a.5.5 0 0 1 0 1H2.75a.5.5 0 0 1 0-1Z"/>
+            </svg>
+          </div>
+        </div>
+        <p class="logo-name">Щиток с автоматами</p>
+        <p class="logo-id">инлайновый SVG, авторский</p>
+        <p class="logo-why">Собственный знак под метафору: <b>корпус щитка, три автомата в разных положениях, шина снизу</b>. Отвечает названию концепции буквально и не занят другим смыслом в интерфейсе. Требует отрисовки и проверки на 24px — самая мелкая деталь здесь на пределе.</p>
+      </div>
+    </div>
+  </section>
+
+  <p class="footnote">
+    <b>Что решается по этому листу:</b> номер варианта логотипа (блок 4) и утверждение геометрии — ширина 60&nbsp;px, слот 44&nbsp;px, знак 22&nbsp;px (блок 1).
+    &nbsp;·&nbsp; <b>Вне листа:</b> мобильная адаптация (Epic-08), анимация перехода дашборд↔раздел (Epic-10), страница <span class="mono">/settings</span> — по Out of scope спеки.
+    &nbsp;·&nbsp; <b>Реализация:</b> компонент без серверных обработчиков (C-1), схлопывание колонки одним правилом <span class="mono">:empty</span> (C-2), вход в профиль только через Store-триггер (C-3).
+  </p>
+
+</div>
+</body>
+</html>

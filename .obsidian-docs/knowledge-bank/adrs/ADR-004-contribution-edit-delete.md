@@ -1,3 +1,10 @@
+---
+name: adr-004-contribution-edit-delete
+description: ADR-004 — решение о редактировании и удалении взносов в цели (GoalContribution), каскадная синхронизация с Transaction/Goal
+type: project
+originSessionId: a7066508-1d51-418c-a40d-a34902bde2ab
+---
+
 # ADR-004: Редактирование и удаление взносов в цели
 
 **Статус**: Принято

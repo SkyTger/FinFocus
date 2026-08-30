@@ -1,6 +1,6 @@
 ---
 name: services
-description: Сервисный слой FinFocus (~30 сервисов) — Transaction/Goal/Calendar/Dashboard/MoneyLayers и др., контракты и критичные решения
+description: Сервисный слой FinFocus (17 сервисов) — Transaction/Goal/Calendar/Dashboard/MoneyLayers/DashboardPanel и др., контракты и критичные решения
 type: reference
 originSessionId: -
 ---
@@ -8,13 +8,28 @@ originSessionId: -
 # modules/services.md
 
 ## Суть
-Сервисный слой с бизнес-логикой и валидацией для Transaction, Goal и Calendar операций
+Сервисный слой с бизнес-логикой и валидацией для Transaction, Goal, Calendar и остальных доменных операций
 
 ## Ключевые файлы
-- `app/services/money_layers_service.py` - MoneyLayersService, модель «свободно/платежи/резерв» (протокол 0028)
-- `app/services/transaction_service.py` - TransactionService CRUD
-- `app/services/goal_service.py` - GoalService CRUD + contributions
-- `app/services/calendar_service.py` - CalendarService расчет остатков (Фаза 3)
+Все 17 сервисов в `app/services/`, детально описаны ниже в этом файле:
+
+- `transaction_service.py` - TransactionService CRUD + bulk-операции, экспорт CSV
+- `goal_service.py` - GoalService CRUD + contributions
+- `calendar_service.py` - CalendarService расчёт остатков (Фаза 3 + протокол 0015)
+- `recurring_service.py` - RecurringService, Anchored-алгоритм повторяющихся операций
+- `dashboard_service.py` - DashboardService агрегация метрик и cashflow
+- `allocation_service.py` - AllocationService жадный алгоритм распределения бюджета
+- `redistribution_service.py` - RedistributionService, Temporary Status Pattern
+- `category_service.py` - CategoryService справочник категорий
+- `reconciliation_service.py` - ReconciliationService сверки факт vs прогноз
+- `analytics_service.py` - AnalyticsService агрегация по категориям
+- `onboarding_service.py` - OnboardingService онбординг + профиль
+- `budget_reservation_service.py` - BudgetReservationService интеграция бюджета с календарём
+- `cushion_service.py` - CushionService финансовая подушка
+- `wishlist_service.py` - WishlistService отложенные покупки
+- `purchase_recommendation_service.py` - PurchaseRecommendationService рекомендации покупок
+- `money_layers_service.py` - MoneyLayersService, модель «свободно/платежи/резерв» (протокол 0028)
+- `panel_service.py` - DashboardPanelService, композитор данных щитка (протокол 0030)
 
 ## TransactionService
 

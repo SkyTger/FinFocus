@@ -329,13 +329,13 @@ FinFocus
 
 ## Planned Additions (Roadmap)
 
-**Батч 3** (Analytics):
-- `pandas` - для аналитики и aggregations
-- `openpyxl` - для Excel export
-
-**Батч 4** (Advanced):
-- `celery` - для background tasks (импорт банковских выписок)
-- `redis` - для celery broker
+**Батч 3 (Analytics) и Батч 4 (Advanced) — завершены без этих зависимостей**:
+- `pandas`, `openpyxl` планировались для аналитики и Excel-экспорта —
+  не понадобились: агрегация сделана через SQL `GROUP BY` в SQLAlchemy
+  (`AnalyticsService`), экспорт — CSV с UTF-8 BOM (`TransactionService.export_to_csv`)
+- `celery`, `redis` планировались для фоновых задач (импорт банковских
+  выписок) — фича импорта не реализована (см. ROADMAP.md Backlog),
+  зависимости не добавлены
 
 **Production**:
 - `gunicorn` - WSGI server для production

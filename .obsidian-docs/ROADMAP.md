@@ -557,6 +557,15 @@ protocols.md (записи 0025-0027 + врезка packaging со ссылко�
 состояния), CLAUDE.md (пути `.reports/` → `.obsidian-docs/reports/`,
 описание сервисного слоя). Ниже — история долга на момент парковки.
 
+Остаточные хвосты Knowledge Bank (README, роутинг, frontmatter в
+7 файлах, статус протокола 0030, решение об отсутствии contracts.md,
+состав сервисов, planned additions в tech-stack) закрыты прогонами
+/kb-audit + /kb-update 2026-08-27. Тем же прогоном в CLAUDE.md сняты
+2 мёртвые ссылки на несуществующий раздел «Profit Calculation Logic»
+(заменены на Data Model / Routing System) и неверное упоминание
+«пароли ClickHouse» для `.env` (файл на деле содержит DATABASE_URL/
+DEBUG/PORT); список из 17 сервисов приведён к факту.
+
 Обновлены `testing.md`, `tech-stack.md`, `deployment.md`. Осталось (по
 результатам `/kb-audit`):
 - `index.md` — «Статус проекта» отстаёт на 2 протокола (0024, 0025) +

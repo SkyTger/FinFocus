@@ -1,3 +1,10 @@
+---
+name: utils
+description: Утилиты FinFocus — форматирование (format_rub, format_date_human) и сериализация TypedDicts для dcc.Store
+type: reference
+originSessionId: a7066508-1d51-418c-a40d-a34902bde2ab
+---
+
 # modules/utils.md
 
 ## Суть

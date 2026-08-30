@@ -1,3 +1,10 @@
+---
+name: database
+description: SQLAlchemy ORM модели FinFocus — User, Transaction, Goal, GoalContribution, Category, WishlistItem, поля и связи
+type: reference
+originSessionId: a7066508-1d51-418c-a40d-a34902bde2ab
+---
+
 # modules/database.md
 
 ## Суть

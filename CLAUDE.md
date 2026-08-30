@@ -39,7 +39,7 @@ SQLite database location: `data/finfocus.db` (created automatically)
 - **`app/main.py`**: Dash app initialization, URL routing, page layout orchestration
 - **`app/models/database.py`**: SQLAlchemy ORM models (User, Transaction, Goal, GoalContribution)
 - **`app/components/`**: Reusable UI components (dashboard.py, sidebar.py, calendar.py, goals.py, etc.)
-- **`app/services/`**: Business logic and data processing — ~30 сервисов (TransactionService, GoalService, CalendarService, DashboardService, AllocationService, RedistributionService, CushionService, OnboardingService, AnalyticsService, WishlistService и др.)
+- **`app/services/`**: Business logic and data processing — 17 сервисов (TransactionService, GoalService, CalendarService, RecurringService, DashboardService, AllocationService, RedistributionService, CategoryService, ReconciliationService, AnalyticsService, BudgetReservationService, CushionService, OnboardingService, WishlistService, PurchaseRecommendationService, MoneyLayersService, DashboardPanelService)
 - **`app/assets/`**: Static files (CSS, images)
 
 ### Data Model
@@ -177,9 +177,9 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 ```
 
 **При изменении бизнес-логики** - обновить CLAUDE.md:
-- Profit Calculation Logic - если изменились формулы
-- Data Architecture - если изменилась терминология
-- Code Patterns - если появился новый паттерн
+- Data Model - если изменилась терминология или добавились сущности
+- Routing System - если изменились маршруты/страницы
+- Development Workflow - если появился новый паттерн разработки
 
 **После каждого батча** - обновить feature_progress.md:
 ```markdown
@@ -239,7 +239,7 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 1. Записать решение в `decisions.md` с блоком **КРИТИЧНО**
 2. **СРАЗУ** обновить `ROADMAP.md` (не ждать завершения батча)
 3. Обновить `feature_progress.md` после батча
-4. Если изменились формулы → обновить `CLAUDE.md` (Profit Calculation Logic)
+4. Если изменилась модель данных или роутинг → обновить `CLAUDE.md` (Data Model / Routing System)
 
 ---
 
@@ -248,7 +248,7 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 **НИКОГДА!** Не публиковать данные содержащие логины, пароли, ключи и токены никуда! Не отправлять в GIT либо любой другой сервер.
 
 **Файлы в .gitignore**:
-- `app/.env` - пароли ClickHouse
+- `.env` - настройки окружения (DATABASE_URL, DEBUG, PORT)
 - `*.log` - логи
 - `__pycache__/`, `.pytest_cache/` - временные файлы
 

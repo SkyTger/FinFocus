@@ -1,3 +1,10 @@
+---
+name: code-style
+description: Стандарты кода FinFocus — русские docstrings, type annotations, batch process (план→батч), git conventions
+type: reference
+originSessionId: a7066508-1d51-418c-a40d-a34902bde2ab
+---
+
 # Стандарты кода FinFocus
 
 ## Общие принципы
