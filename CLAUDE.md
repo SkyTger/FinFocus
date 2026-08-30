@@ -85,7 +85,7 @@ Routing handled by `display_page()` callback responding to URL pathname changes.
 ### Project Context Files
 - **@.obsidian-docs/ROADMAP.md**: Single source of truth for tasks/priorities (read at session start)
 - **@.obsidian-docs/reports/notes/feature_progress.md**: Active feature/batch summaries
-- **docs/adr/*.md**: Architecture Decision Records for long-term decisions
+- **.obsidian-docs/adr/*.md**: Architecture Decision Records for long-term decisions
 
 ### ROADMAP Management
 Checkbox format:
@@ -275,7 +275,6 @@ Sections: High Priority (next 3-5 tasks) | Backlog | Recently Completed
 |------|-----------|
 | `.obsidian-docs/ROADMAP.md` | План развития и прогресс по эпикам |
 | `.obsidian-docs/reports/notes/feature_progress.md` | Последние 5 батчей (краткая история) |
-| `docs/adr/` | Architecture Decision Records |
+| `.obsidian-docs/adr/` | Architecture Decision Records |
 | `.obsidian-docs/reports/epics/epic-XX/` | Детали эпиков (README, decisions, progress, technical) |
 | `.obsidian-docs/reports/DELEGATION_GUIDE.md` | Полное руководство по работе с субагентами |
-| `.obsidian-docs/reports/DOCUMENTATION_PROMPT.md` | Промпт для документации других проектов |
