@@ -38,7 +38,7 @@ SQLite database location: `data/finfocus.db` (created automatically)
 
 - **`app/main.py`**: Dash app initialization, URL routing, page layout orchestration
 - **`app/models/database.py`**: SQLAlchemy ORM models (User, Transaction, Goal, GoalContribution)
-- **`app/components/`**: Reusable UI components (dashboard.py, sidebar.py, calendar.py, goals.py, etc.)
+- **`app/components/`**: Reusable UI components (dashboard.py, nav_rail.py, calendar.py, goals.py, etc.)
 - **`app/services/`**: Business logic and data processing — ~30 сервисов (TransactionService, GoalService, CalendarService, DashboardService, AllocationService, RedistributionService, CushionService, OnboardingService, AnalyticsService, WishlistService и др.)
 - **`app/assets/`**: Static files (CSS, images)
 
@@ -54,13 +54,19 @@ Core domain entities with SQLAlchemy ORM:
 
 ### Routing System
 URL-based page routing in `app/main.py`:
-- `/` or `/dashboard` → Дашборд-«щиток»: шапка «Свободно сегодня» + график полос + карточки-двери (навигация; сайдбара на дашборде нет)
+- `/` or `/dashboard` → Дашборд-«щиток»: шапка «Свободно сегодня» + график полос + карточки-двери (навигация; полоски-меню на дашборде нет)
 - `/calendar` → Кассовый календарь
 - `/goals` → Цели накопления и финансовая подушка
 - `/transactions` → Список операций
 - `/analytics` → Аналитика по категориям
 
 Routing handled by `display_page()` callback responding to URL pathname changes.
+
+Навигация на не-дашборд экранах — полоска-меню 60px (`app/components/nav_rail.py`,
+протокол 0031): чистая функция без колбэков, рендерится слот-колбэком
+`render_nav_rail_slot`; на дашборде слот пуст, колонку схлопывает CSS `:empty`.
+Прежний `sidebar.py` сохранён как файл-надгробие с константой
+`ADDITIONAL_NAV_ITEMS` под будущие маршруты `/settings` и `/help`.
 
 ### UI Framework
 **Dash + Bootstrap** stack:
