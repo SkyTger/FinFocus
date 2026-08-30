@@ -35,12 +35,14 @@ savings-операциями до начала периода) и 47 тесто�
 поверх календаря), найденный fidelity-гейтом ревью, исправлен слоем-
 подложкой до мержа. Окошко «вчера» убрано решением владельца
 2026-08-26 (отступление от FR-1.a спеки, `MoneyLayersService` кусок 2
-не затрагивает вообще). Кусок 3 (полоска-меню вместо сайдбара) не
-начат. Источник решений:
+не затрагивает вообще). Кусок 3 (полоска-меню 60px вместо сайдбара
+228px) реализован протоколом 0031, PR на ревью: закрыты P1 (пункт
+«Настройки» вёл на 404) и P3 (зашитая «v1.0.0» — версия переехала в
+окно профиля из нового `app/version.py`) UX-аудита. Источник решений:
 `../discussions/_archive/dashboard-as-menu-2026-08-23/design.md`,
 детали реализации: `modules/services.md` (MoneyLayersService,
 DashboardPanelService), `modules/ui-components.md` (Dashboard-щиток,
-Panel Cards, Sidebar), `modules/schema.md` (panel.py),
+Panel Cards, Nav Rail), `modules/schema.md` (panel.py),
 `modules/routing.md` (переходы с контекстом), `protocols.md`
 (0028, 0029, 0030).
 Секвенирование: редизайн — до следующего бета-цикла (фаза 4 Epic-09,
@@ -198,11 +200,14 @@ Epic-11: карточки-двери, DashboardPanelService, сайдбар бе
   (`?focus_date=`/`?goal=`/`?wishlist_item=`) с контрактом владения
   `url.search`; окошко «вчера» убрано решением владельца — карточка
   «Календарь» показывает сегодня/завтра
-- [ ] Кусок 3: полоска-меню вместо сайдбара
+- [x] ✅ Кусок 3: полоска-меню 60px вместо сайдбара 228px (протокол
+  0031, PR на ревью) — `app/components/nav_rail.py`, разворот при
+  входе с дашборда, версия в окне профиля из `app/version.py`,
+  прежний `sidebar.py` усох до надгробия
 
 Подробности в `architecture.md` → «Планируемые изменения»,
 `modules/services.md` (MoneyLayersService, DashboardPanelService),
-`modules/ui-components.md` (Dashboard-щиток, Panel Cards, Sidebar),
+`modules/ui-components.md` (Dashboard-щиток, Panel Cards, Nav Rail),
 `modules/schema.md` (panel.py), `modules/routing.md` (переходы с
 контекстом), `protocols.md` (0028, 0029, 0030)
 и в `../discussions/_archive/dashboard-as-menu-2026-08-23/design.md`.

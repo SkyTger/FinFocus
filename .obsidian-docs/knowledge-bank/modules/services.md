@@ -808,7 +808,7 @@ with get_db_session() as session:
   - first_launch — требуется ли показ wizard
   - starting_balance — текущий баланс
   - needs_balance_alert — показывать ли toast (balance=0; условие first_launch убрано из кода — см. onboarding_service.py:80)
-  - **NEW (0024)**: name, avatar_id — для sidebar и dashboard greeting
+  - **NEW (0024)**: name, avatar_id — для навигации и dashboard greeting
 - `complete(user_id, name, avatar_id, starting_balance)` → `None` **(NEW 0024 — заменяет complete_with_balance)**
   - Завершение onboarding с именем + аватаром + балансом
   - Валидация через `_validate_profile_fields(name, avatar_id)`
@@ -1451,10 +1451,10 @@ href и month_label — как обычно (маршрут и подпись п
   и онбординг-визард (`check_onboarding_and_validate`) — последние две
   вне scope куска 2, существуют и до него. До куска 2 было 6 (плюс
   readonly-подушка, wishlist-виджет из layout, профиль сайдбара)
-- переход на раздел: 1 сессия `render_sidebar_slot` (профиль сайдбара)
+- переход на раздел: 1 сессия `render_nav_rail_slot` (профиль полоски-меню)
   + визард + сессии самого раздела
 - замер 2026-08-26 (наполненная локальная база): композитор ~20 мс,
-  21 SQL; `get_money_layers` — ровно 1 вызов на рендер; сайдбар ~1 мс,
+  21 SQL; `get_money_layers` — ровно 1 вызов на рендер; полоска ~1 мс,
   1 SQL. Бюджет NFR-1 — 2 секунды
 
 **Осознанные дубли**: `GoalService.get_all_by_user(ACTIVE)` вызывается и в

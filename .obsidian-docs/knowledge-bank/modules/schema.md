@@ -171,7 +171,7 @@ class OnboardingStatus(TypedDict):
     avatar_id: str | None  # NEW (протокол 0024)
 ```
 
-**Использование**: `OnboardingService.get_status()`, sidebar и dashboard greeting для reactive обновлений
+**Использование**: `OnboardingService.get_status()`, полоска-меню (`render_nav_rail_slot`) и окно профиля для reactive обновлений
 
 ---
 

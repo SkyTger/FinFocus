@@ -4,16 +4,25 @@
 URL-based routing через Dash Location component и display_page callback
 
 ## Ключевые файлы
-- `app/main.py:70-109` - `display_page()` callback и route mapping
+- `app/main.py:317-355` — `display_page()` callback и route mapping
+- `app/main.py:129-189` — `render_nav_rail_slot()` — слот полоски-меню
+- `app/main.py:224-315` — `handle_panel_query_params()` — переходы с контекстом
+- `app/main.py:198-203` — clientside-триггер аватара → Store `open-profile-trigger`
 
 ## Роутинг
 
 **Маршруты**:
-- `/` или `/dashboard` → Dashboard overview
-- `/calendar` → Cash calendar (stub)
-- `/goals` → Savings goals (stub)
-- `/transactions` → Transaction management (CRUD)
+- `/` или `/dashboard` → Дашборд-«щиток» (шапка, график полос, карточки-двери)
+- `/calendar` → Кассовый календарь
+- `/goals` → Цели накопления и финансовая подушка
+- `/transactions` → Список операций
+- `/analytics` → Аналитика по категориям
 - `other` → 404 page
+
+Маршрута `/settings` НЕ существует — пункт «Настройки» убран из
+навигации протоколом 0031 (P1 UX-аудита: вёл на 404). Константа
+`ADDITIONAL_NAV_ITEMS` ждёт появления реального маршрута в
+файле-надгробии `app/components/sidebar.py`.
 
 **Callback**:
 ```python
@@ -33,15 +42,18 @@ def display_page(pathname):
 
 ## Layout Structure
 
-**Главный layout** (`app/main.py:41-67`):
+**Главный layout** (`app/main.py:66-123`):
 ```
-Container (fluid)
-  └── Row
-       ├── Col (width=3, fixed sidebar)
-       │    └── Sidebar component
-       └── Col (width=9, margin-left=25%)
+Container (fluid, .app-container)
+  └── Div (.app-layout)
+       ├── Div#nav-rail-slot (.nav-rail-column, 60px)
+       │    └── наполняется render_nav_rail_slot;
+       │       на дашборде ПУСТ — колонку скрывает
+       │       CSS-правило .nav-rail-column:empty
+       └── Div (.main-content)
             ├── page-header (заголовок страницы)
             └── page-content (динамический контент)
+  + глобальные модалы и Store'ы
 ```
 
 **URL Component**:
@@ -51,7 +63,14 @@ dcc.Location(id="url", refresh=False)  # SPA режим, без перезагр
 
 ## Навигация
 
-**Sidebar links** → изменяют URL → `display_page()` callback → рендер нового контента
+**Ссылки полоски-меню** (`dcc.Link`) → изменяют URL → `display_page()`
+callback → рендер нового контента. Полоска перерисовывается своим
+слот-колбэком по тому же `Input("url", "pathname")`.
+
+На дашборде навигации сбоку нет вовсе — её роль играют карточки-двери
+щитка (Epic-11, кусок 2). Переходы с контекстом (`?focus_date=`,
+`?goal=`, `?wishlist_item=`, `?open_recon=1`) обслуживает
+`handle_panel_query_params`.
 
 **Пример flow**:
 ```
@@ -111,17 +130,16 @@ def create_page_header(title: str, subtitle: str = ""):
 
 ## Планируемые изменения
 
-**Фаза 3** (Кассовый календарь):
-- Активировать `/calendar` маршрут
-- Создать `create_calendar_layout()` в `app/components/calendar.py`
+Прежний список («активировать `/calendar`», «активировать `/goals`»,
+«query parameters через `dcc.Location`») выполнен целиком: все пять
+маршрутов работают, переходы с контекстом через query params —
+протоколы 0023/0028/0030, см. раздел выше.
 
-**Фаза 5** (Накопительные цели):
-- Активировать `/goals` маршрут
-- Создать `create_goals_layout()` в `app/components/goals.py`
-
-**Батч 3** (Analytics):
-- Добавить подстраницы для фильтров (e.g., `/transactions?month=2025-01`)
-- Query parameters через `dcc.Location` search property
+Открыто:
+- **`/settings`** — маршрута нет, пункт убран из навигации протоколом
+  0031 (P1 UX-аудита). Появится маршрут — вернуть пункт из
+  `ADDITIONAL_NAV_ITEMS` (`app/components/sidebar.py`, файл-надгробие).
+- **`/help`** — там же, справки пока нет.
 
 ---
 
