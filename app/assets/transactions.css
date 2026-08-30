@@ -488,3 +488,17 @@
         background: rgba(255, 255, 255, 0.92);
     }
 }
+
+/* === System (readonly) transaction rows ===
+   Служебные операции (SAVINGS_RESERVE / SAVINGS_CONTRIBUTION):
+   приглушение по образцу .tooltip-txn-row.readonly календаря */
+.tx-system-row {
+    opacity: 0.75;
+}
+
+.tx-system-row .tx-system-lock {
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    cursor: default;
+    white-space: nowrap;
+}

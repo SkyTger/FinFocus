@@ -14,6 +14,17 @@ from app.models.database import Category, Transaction, TransactionType
 # NFR2: <500ms для bulk update операций
 MAX_BULK_UPDATE_SIZE: int = 100
 
+# Человекочитаемые подписи типов операций — единый источник для CSV-экспорта
+# и списка операций (бейджи в app/components/transactions.py)
+TYPE_LABELS: dict[TransactionType, str] = {
+    TransactionType.INCOME: "Доход",
+    TransactionType.EXPENSE: "Расход",
+    TransactionType.TRANSFER: "Перевод",
+    TransactionType.ADJUSTMENT: "Корректировка",
+    TransactionType.SAVINGS_RESERVE: "Накопления",
+    TransactionType.SAVINGS_CONTRIBUTION: "Накопления",
+}
+
 
 class TransactionService:
     """Сервис для операций с финансовыми транзакциями."""
@@ -403,18 +414,11 @@ class TransactionService:
         writer.writerow(["Дата", "Тип", "Сумма", "Описание", "Категория"])
 
         # Data
-        type_labels = {
-            TransactionType.INCOME: "Доход",
-            TransactionType.EXPENSE: "Расход",
-            TransactionType.TRANSFER: "Перевод",
-            TransactionType.ADJUSTMENT: "Корректировка",
-        }
-
         for tx, category in query.all():
             writer.writerow(
                 [
                     tx.transaction_date.strftime("%Y-%m-%d"),
-                    type_labels.get(tx.transaction_type, str(tx.transaction_type)),
+                    TYPE_LABELS.get(tx.transaction_type, str(tx.transaction_type)),
                     str(tx.amount),
                     tx.description or "",
                     category.name if category else "Без категории",

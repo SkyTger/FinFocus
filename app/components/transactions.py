@@ -18,8 +18,54 @@ from loguru import logger
 from app.core import get_db_session
 from app.models.database import TransactionType
 from app.services import TransactionService, CategoryService
+from app.services.transaction_service import TYPE_LABELS
 from app.utils.formatters import format_amount, format_date, ICON_TO_EMOJI
 from app.schema import QuickAddChipData
+
+# Служебные типы операций: создаются системой (резервирование бюджета,
+# взносы в цели) и управляются ТОЛЬКО через свои механизмы — Goals UI и
+# настройку резервирования. Прямое удаление минует каскад GoalService и
+# рассинхронизирует накопленную сумму цели, поэтому в списке строго readonly.
+SYSTEM_TRANSACTION_TYPES: frozenset[TransactionType] = frozenset(
+    {TransactionType.SAVINGS_RESERVE, TransactionType.SAVINGS_CONTRIBUTION}
+)
+
+# Цвет бейджа типа операции; подписи бейджей — TYPE_LABELS сервиса
+# (единый источник с CSV-экспортом, не дублировать строки)
+_TYPE_BADGE_COLOR: dict[TransactionType, str] = {
+    TransactionType.INCOME: "success",
+    TransactionType.EXPENSE: "danger",
+    TransactionType.TRANSFER: "secondary",
+    TransactionType.ADJUSTMENT: "secondary",
+    TransactionType.SAVINGS_RESERVE: "info",
+    TransactionType.SAVINGS_CONTRIBUTION: "info",
+}
+
+# Пояснение замка́ у readonly-строки — куда идти управлять операцией
+_SYSTEM_LOCK_TITLES: dict[TransactionType, str] = {
+    TransactionType.SAVINGS_CONTRIBUTION: (
+        "Системная операция — управляется через Цели"
+    ),
+    TransactionType.SAVINGS_RESERVE: (
+        "Системная операция — управляется через настройку резервирования"
+    ),
+}
+
+
+def _is_system_transaction(tx) -> bool:
+    """Проверяет, является ли транзакция служебной (readonly в списке).
+
+    Единственный источник правды «служебности» для рендера строк
+    и серверных guard'ов callbacks.
+
+    Args:
+        tx: Объект Transaction
+
+    Returns:
+        bool: True для SAVINGS_RESERVE / SAVINGS_CONTRIBUTION
+    """
+    return tx.transaction_type in SYSTEM_TRANSACTION_TYPES
+
 
 # Дефолтные категории для Quick-add chips (name, type)
 # Расход: 6 категорий, Доход: 2 категории
@@ -286,8 +332,11 @@ def _build_chips_cell(
     Returns:
         html.Div: Ячейка с chips или "—" для TRANSFER/ADJUSTMENT
     """
-    # Guard: TRANSFER и ADJUSTMENT не категоризируются
-    if tx.transaction_type in (TransactionType.TRANSFER, TransactionType.ADJUSTMENT):
+    # Guard: TRANSFER/ADJUSTMENT и служебные savings-типы не категоризируются
+    if tx.transaction_type in (
+        TransactionType.TRANSFER,
+        TransactionType.ADJUSTMENT,
+    ) or _is_system_transaction(tx):
         return html.Span("—", className="text-muted")
 
     # Определяем тип категорий
@@ -463,15 +512,34 @@ def _build_transactions_table(
     # Строки таблицы
     table_rows = []
     for tx in transactions:
-        # Определяем стиль для типа операции
-        if tx.transaction_type == TransactionType.INCOME:
-            type_badge = dbc.Badge("Доход", color="success", className="rounded-pill")
+        is_system = _is_system_transaction(tx)
+
+        # Бейдж типа операции: подпись из TYPE_LABELS, цвет из карты
+        tx_type = tx.transaction_type
+        type_badge = dbc.Badge(
+            TYPE_LABELS.get(tx_type, str(tx_type)),
+            color=_TYPE_BADGE_COLOR.get(tx_type, "secondary"),
+            className="rounded-pill",
+        )
+
+        # Знак и цвет суммы по типу
+        if tx_type == TransactionType.INCOME:
             amount_class = "text-success fw-bold text-end"
             amount_prefix = "+"
-        else:
-            type_badge = dbc.Badge("Расход", color="danger", className="rounded-pill")
+        elif tx_type == TransactionType.EXPENSE:
             amount_class = "text-danger fw-bold text-end"
             amount_prefix = "-"
+        elif tx_type == TransactionType.ADJUSTMENT:
+            # Знак по значению суммы — как в сверке календаря
+            amount_class = "text-muted fw-bold text-end"
+            amount_prefix = "+" if tx.amount > 0 else ""
+        elif is_system:
+            # Savings уменьшают баланс как расход
+            amount_class = "text-muted fw-bold text-end"
+            amount_prefix = "-"
+        else:  # TRANSFER — не влияет на баланс, без знака
+            amount_class = "text-muted fw-bold text-end"
+            amount_prefix = ""
 
         # Иконка recurring
         recurring_icon = None
@@ -491,47 +559,68 @@ def _build_transactions_table(
             # Chips для быстрой категоризации
             category_cell = _build_chips_cell(tx, frequent_categories, all_categories)
 
+        # Служебные строки: без чекбокса, без кнопок, «(авто)» в описании
+        if is_system:
+            checkbox_cell = html.Td()
+            description_text = f"{tx.description or TYPE_LABELS[tx_type]} (авто)"
+            actions_cell = html.Td(
+                html.Span(
+                    [html.I(className="bi bi-lock me-1"), "авто"],
+                    className="tx-system-lock",
+                    title=_SYSTEM_LOCK_TITLES[tx_type],
+                ),
+                className="text-end",
+            )
+        else:
+            checkbox_cell = html.Td(
+                dbc.Checkbox(
+                    id={"type": "tx-checkbox", "index": tx.id},
+                    value=False,
+                ),
+            )
+            description_text = tx.description or "-"
+            # Р1: модал редактирования не умеет тип ADJUSTMENT (dropdown
+            # только INCOME/EXPENSE) — edit скрыт, delete остаётся
+            # (корректировку сверки пользователь вправе откатить)
+            action_buttons = []
+            if tx_type != TransactionType.ADJUSTMENT:
+                action_buttons.append(
+                    dbc.Button(
+                        html.I(className="bi bi-pencil"),
+                        id={"type": "edit-btn", "index": tx.id},
+                        color="secondary",
+                        size="sm",
+                        outline=True,
+                        className="me-1",
+                    )
+                )
+            action_buttons.append(
+                dbc.Button(
+                    html.I(className="bi bi-trash"),
+                    id={"type": "delete-btn", "index": tx.id},
+                    color="danger",
+                    size="sm",
+                    outline=True,
+                )
+            )
+            actions_cell = html.Td(
+                [dbc.ButtonGroup(action_buttons)],
+                className="text-end",
+            )
+
         row = html.Tr(
             [
-                # Checkbox для выбора
-                html.Td(
-                    dbc.Checkbox(
-                        id={"type": "tx-checkbox", "index": tx.id},
-                        value=False,
-                    ),
-                ),
+                checkbox_cell,
                 html.Td([recurring_icon, format_date(tx.transaction_date)]),
                 html.Td(type_badge),
                 html.Td(
                     f"{amount_prefix}{format_amount(tx.amount)}", className=amount_class
                 ),
                 html.Td(category_cell),
-                html.Td(tx.description or "-", className="text-muted"),
-                html.Td(
-                    [
-                        dbc.ButtonGroup(
-                            [
-                                dbc.Button(
-                                    html.I(className="bi bi-pencil"),
-                                    id={"type": "edit-btn", "index": tx.id},
-                                    color="secondary",
-                                    size="sm",
-                                    outline=True,
-                                    className="me-1",
-                                ),
-                                dbc.Button(
-                                    html.I(className="bi bi-trash"),
-                                    id={"type": "delete-btn", "index": tx.id},
-                                    color="danger",
-                                    size="sm",
-                                    outline=True,
-                                ),
-                            ]
-                        )
-                    ],
-                    className="text-end",
-                ),
-            ]
+                html.Td(description_text, className="text-muted"),
+                actions_cell,
+            ],
+            className="tx-system-row" if is_system else None,
         )
         table_rows.append(row)
 
