@@ -1,6 +1,6 @@
 /* ==================== КАССОВЫЙ КАЛЕНДАРЬ — Glass Grid ==================== */
 
-/* Контейнер страницы — fills sidebar height */
+/* Контейнер страницы — fills nav-rail height */
 .calendar-container {
     padding: 0;
     display: flex;

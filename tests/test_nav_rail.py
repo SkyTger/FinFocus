@@ -374,3 +374,69 @@ class TestNavRailProfileEntry:
 
         assert "nav-rail-avatar" not in source
         assert 'Input("open-profile-trigger", "data")' in source
+
+
+class TestSidebarRetired:
+    """Сайдбар свёрнут до надгробия (шаг 9 протокола 0031)."""
+
+    def test_sidebar_module_has_only_the_constant(self):
+        """От модуля остались докстринг-надгробие и ADDITIONAL_NAV_ITEMS.
+
+        Файл сохранён намеренно, а не удалён: решение владельца Р2
+        (2026-08-27) — константа остаётся. Прецедент «решение владельца
+        можно обойти удачной трактовкой» дороже почти пустого файла.
+        """
+        from app.components import sidebar as sidebar_module
+
+        public = [name for name in vars(sidebar_module) if not name.startswith("__")]
+        assert public == ["ADDITIONAL_NAV_ITEMS"]
+
+    def test_removed_sidebar_functions_are_gone(self):
+        """create_sidebar и её помощники удалены отовсюду."""
+        from app.components import sidebar as sidebar_module
+        import app.components as components_package
+
+        for name in ("create_sidebar", "_build_nav_links", "MAIN_NAV_ITEMS"):
+            assert not hasattr(sidebar_module, name)
+
+        # И реэкспорт из пакета снят — иначе импорт пакета упал бы.
+        assert not hasattr(components_package, "create_sidebar")
+        assert "create_sidebar" not in components_package.__all__
+
+    def test_constant_is_not_imported_anywhere(self):
+        """ADDITIONAL_NAV_ITEMS сейчас никем не импортируется.
+
+        Она ждёт появления реальных маршрутов /settings и /help:
+        пункт «Настройки» вёл на 404 (P1 UX-аудита, FR-4).
+        """
+        import pathlib
+
+        root = pathlib.Path(__file__).resolve().parent.parent
+        importers = []
+        for path in list((root / "app").rglob("*.py")) + list(
+            (root / "tests").rglob("*.py")
+        ):
+            if path.name in ("sidebar.py", "test_nav_rail.py"):
+                continue
+            if "ADDITIONAL_NAV_ITEMS" in path.read_text(encoding="utf-8"):
+                importers.append(str(path.relative_to(root)))
+
+        assert not importers, f"константу кто-то использует: {importers}"
+
+    def test_sidebar_css_and_classes_gone(self):
+        """CSS сайдбара удалён, классов .sidebar-* в стилях не осталось."""
+        import pathlib
+
+        assets = pathlib.Path(__file__).resolve().parent.parent / "app" / "assets"
+
+        assert not (assets / "sidebar.css").exists()
+
+        for css in assets.glob("*.css"):
+            for lineno, line in enumerate(
+                css.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                stripped = line.strip()
+                # Комментарии со ссылкой на прежний сайдбар — законны.
+                if stripped.startswith(("*", "/*")):
+                    continue
+                assert ".sidebar-" not in line, f"{css.name}:{lineno}: {stripped}"

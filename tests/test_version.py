@@ -130,35 +130,56 @@ def test_version_matches_git_tag():
     )
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Строка 'v1.0.0' живёт в app/components/sidebar.py до шага 9 "
-        "(снятие сайдбара). После шага 9 тест пройдёт, и strict=True "
-        "покраснеет как XPASS — это сигнал снять маркер xfail."
-    ),
-)
 def test_no_hardcoded_version_in_app():
     """В app/ не осталось захардкоженных версий помимо app/version.py.
 
     Единственный источник правды имеет смысл, только если других
-    источников нет. Ищем строки вида 'v1.0.0'/'1.0.0' по всем .py,
-    кроме самого app/version.py.
+    источников нет. До шага 9 протокола 0031 тест был помечен
+    xfail(strict=True): строка "v1.0.0" жила в сайдбаре
+    (P3 UX-аудита 2026-08-20 — зашитая версия при реальном релизе
+    v0.9.0-beta.1). Сайдбар снят, маркер снят вместе с ним.
+
+    Ищем ОТОБРАЖАЕМЫЕ строковые литералы вида "v1.0.0"/"1.0.0", а не
+    любое совпадение по файлу: в комментариях и докстрингах номера
+    версий законны и неизбежны ("dash 2.17.1", "WCAG 2.5.5",
+    объяснение в надгробии сайдбара, почему v1.0.0 больше нет).
+    Поэтому разбираем синтаксическое дерево и смотрим только
+    строковые константы, исключая докстринги.
     """
     app_dir = APP_INIT.parent
     version_module = app_dir / "version.py"
-    pattern = re.compile(r"\bv?\d+\.\d+\.\d+\b")
+    pattern = re.compile(r"^v?\d+\.\d+\.\d+")
 
     offenders = []
     for path in sorted(app_dir.rglob("*.py")):
         if path == version_module:
             continue
-        for lineno, line in enumerate(
-            path.read_text(encoding="utf-8").splitlines(), start=1
-        ):
-            if pattern.search(line):
+
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+
+        # Докстринги модуля, классов и функций — не отображаемый текст.
+        docstrings = set()
+        for node in ast.walk(tree):
+            if isinstance(
+                node,
+                (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+            ):
+                doc_node = (
+                    node.body[0]
+                    if node.body and isinstance(node.body[0], ast.Expr)
+                    else None
+                )
+                if doc_node is not None and isinstance(doc_node.value, ast.Constant):
+                    docstrings.add(id(doc_node.value))
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            if id(node) in docstrings:
+                continue
+            if pattern.match(node.value.strip()):
                 rel = path.relative_to(app_dir.parent)
-                offenders.append(f"{rel}:{lineno}: {line.strip()}")
+                offenders.append(f"{rel}:{node.lineno}: {node.value!r}")
 
     assert not offenders, "Захардкоженные версии вне app/version.py:\n" + "\n".join(
         offenders
