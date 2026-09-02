@@ -91,3 +91,7 @@ coverage.xml
 
 # Архивы сборок/релизов
 *.zip
+
+# === CLAUDE CODE ===
+.claude/*
+!.claude/settings.json
