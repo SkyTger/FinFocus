@@ -246,8 +246,8 @@ def _build_create_modal() -> dbc.Modal:
                                                         "value": "monthly",
                                                     },
                                                     {
-                                                        "label": "Ежеквартально",
-                                                        "value": "quarterly",
+                                                        "label": "Ежегодно",
+                                                        "value": "yearly",
                                                     },
                                                 ],
                                                 value="monthly",
@@ -594,7 +594,7 @@ def toggle_eom_checkbox_visibility(is_recurring, period, date_str):
 
     Условия показа (все должны быть True):
     1. is_recurring = True
-    2. period = monthly или quarterly
+    2. period = monthly или yearly
     3. selected_date = последний день текущего месяца
     4. day != 31 (31 уже корректно обрабатывается Anchored)
 

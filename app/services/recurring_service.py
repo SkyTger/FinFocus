@@ -30,7 +30,7 @@ VALID_RECURRING_PERIODS: frozenset[str] = frozenset(
         "weekly",
         "biweekly",
         "monthly",
-        "quarterly",
+        "yearly",
     }
 )
 """Допустимые периоды повторения."""
@@ -77,7 +77,7 @@ class RecurringService:
         """Определяет, нужно ли показывать EOM checkbox.
 
         Условия (все должны быть True):
-        1. period = monthly или quarterly
+        1. period = monthly или yearly
         2. selected_date = последний день текущего месяца
         3. day != 31 (31 уже корректно обрабатывается Anchored)
 
@@ -88,7 +88,7 @@ class RecurringService:
         Returns:
             bool: True если checkbox нужно показать.
         """
-        if period not in ("monthly", "quarterly"):
+        if period not in ("monthly", "yearly"):
             return False
 
         _, last_day = monthrange(selected_date.year, selected_date.month)
@@ -180,10 +180,10 @@ class RecurringService:
         Args:
             start_date: Начало периода генерации.
             end_date: Конец периода генерации.
-            period: Период повторения (weekly, biweekly, monthly, quarterly).
+            period: Период повторения (weekly, biweekly, monthly, yearly).
             anchor_day: День месяца для привязки (1-31).
             recurring_end_date: Дата окончания серии (None = бессрочно).
-            anchor_eom: True = всегда последний день месяца (для monthly/quarterly).
+            anchor_eom: True = всегда последний день месяца (для monthly/yearly).
 
         Returns:
             Список дат экземпляров в заданном периоде.
@@ -226,20 +226,14 @@ class RecurringService:
                     anchor_day, next_year, next_month, anchor_eom
                 )
 
-        elif period == "quarterly":
-            # Anchored/EOM: каждые 3 месяца
+        elif period == "yearly":
+            # Anchored/EOM: каждый год тот же месяц. Anchored обрезает день
+            # по длине месяца: 29 фев → 28 фев в невисокосный год → снова
+            # 29 фев в следующий високосный (как 31-е → 30-е у monthly).
             while current <= effective_end and len(dates) < MAX_INSTANCES_PER_CALL:
                 dates.append(current)
-                # Переход через 3 месяца
-                new_month = current.month + 3
-                if new_month > 12:
-                    next_year = current.year + 1
-                    next_month = new_month - 12
-                else:
-                    next_year = current.year
-                    next_month = new_month
                 current = self._get_anchored_date(
-                    anchor_day, next_year, next_month, anchor_eom
+                    anchor_day, current.year + 1, current.month, anchor_eom
                 )
 
         return [d for d in dates if start_date <= d <= effective_end]
@@ -297,28 +291,41 @@ class RecurringService:
         # Генерируем даты начиная с первой даты >= start_date
         effective_start = max(template_start, start_date)
 
-        # Для monthly/quarterly нужно найти первую дату в периоде
-        if template.recurring_period in ("monthly", "quarterly"):
+        # Для monthly нужно найти первую дату в периоде
+        if template.recurring_period == "monthly":
             # Начинаем с anchor_day в месяце effective_start
             effective_start = self._get_anchored_date(
                 anchor_day, effective_start.year, effective_start.month, anchor_eom
             )
             # Если эта дата раньше template_start или start_date,
-            # переходим к следующему периоду
+            # переходим к следующему месяцу
             if effective_start < template_start or effective_start < start_date:
-                if template.recurring_period == "monthly":
-                    months_to_add = 1
-                else:  # quarterly
-                    months_to_add = 3
-                new_month = effective_start.month + months_to_add
-                if new_month > 12:
+                if effective_start.month == 12:
                     effective_start = self._get_anchored_date(
-                        anchor_day, effective_start.year + 1, new_month - 12, anchor_eom
+                        anchor_day, effective_start.year + 1, 1, anchor_eom
                     )
                 else:
                     effective_start = self._get_anchored_date(
-                        anchor_day, effective_start.year, new_month, anchor_eom
+                        anchor_day,
+                        effective_start.year,
+                        effective_start.month + 1,
+                        anchor_eom,
                     )
+
+        # Для yearly привязка — месяц шаблона в году effective_start
+        elif template.recurring_period == "yearly":
+            effective_start = self._get_anchored_date(
+                anchor_day, effective_start.year, template_start.month, anchor_eom
+            )
+            # Если эта дата раньше template_start или start_date,
+            # переходим к следующему году
+            if effective_start < template_start or effective_start < start_date:
+                effective_start = self._get_anchored_date(
+                    anchor_day,
+                    effective_start.year + 1,
+                    template_start.month,
+                    anchor_eom,
+                )
 
         dates = self._generate_dates(
             effective_start,
@@ -628,7 +635,7 @@ class RecurringService:
 
         Args:
             template_id: ID шаблона.
-            new_period: Новый период (weekly, biweekly, monthly, quarterly).
+            new_period: Новый период (weekly, biweekly, monthly, yearly).
 
         Returns:
             Обновленный шаблон.
