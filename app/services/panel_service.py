@@ -1,7 +1,7 @@
 """Композитор данных щитка — один сбор PanelData за одну сессию (EPIC-11, кусок 2)."""
 
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 from loguru import logger
@@ -182,9 +182,15 @@ def _recent_href(ref: date) -> str:
 
 
 def _upcoming_href(ref: date) -> str:
-    """Дверь «предстоящие» — [ref, конец месяца], как в get_upcoming_transactions."""
+    """Дверь «предстоящие» — (ref, конец месяца], как в get_upcoming_transactions.
+
+    Начало — день ПОСЛЕ ref: операции ref-дня уже в «Недавних». В последний
+    день месяца ref+1 вышел бы за конец месяца, поэтому начало прижимается
+    к концу месяца (диапазон фильтра не должен быть вывернут).
+    """
     month_end = ref.replace(day=monthrange(ref.year, ref.month)[1])
-    return f"/transactions?start={ref.isoformat()}&end={month_end.isoformat()}"
+    start = min(ref + timedelta(days=1), month_end)
+    return f"/transactions?start={start.isoformat()}&end={month_end.isoformat()}"
 
 
 class DashboardPanelService:
@@ -534,7 +540,7 @@ class DashboardPanelService:
         материализованные операции — см. докстринг OperationsCardData.
 
         Диапазоны href'ов — ТЕ ЖЕ, по которым источник отбирал строки
-        (FR-6): recent — [1-е число, ref], upcoming — [ref, конец месяца].
+        (FR-6): recent — [1-е число, ref], upcoming — (ref, конец месяца].
         """
         service = DashboardService(self.session)
         recent_raw = service.get_recent_transactions(

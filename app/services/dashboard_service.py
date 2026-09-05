@@ -414,7 +414,11 @@ class DashboardService:
         limit: int = 5,
         reference_date: date | None = None,
     ) -> list[RecentTransaction]:
-        """Получает предстоящие операции (reference_date..конец месяца).
+        """Получает предстоящие операции (после reference_date..конец месяца).
+
+        Граница строгая: операции с датой reference_date («сегодня») уже
+        отданы get_recent_transactions() — день идёт, его операции считаются
+        фактом. Иначе одна операция показывалась бы в обеих группах карточки.
 
         Фильтрация идентична get_recent_transactions():
         - Исключает recurring шаблоны (is_recurring=True AND recurring_parent_id IS NULL)
@@ -438,7 +442,7 @@ class DashboardService:
             self.session.query(Transaction)
             .filter(
                 Transaction.user_id == user_id,
-                Transaction.transaction_date >= reference_date,
+                Transaction.transaction_date > reference_date,
                 Transaction.transaction_date <= end_of_month,
                 # Исключить только шаблоны recurring
                 ~(

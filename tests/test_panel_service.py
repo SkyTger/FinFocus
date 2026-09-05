@@ -8,6 +8,7 @@ AllocationService), явные преобразования типов Operation
 смешанные случаи пустоты, согласованность подушки, счётчики загрузки.
 """
 
+from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -226,6 +227,51 @@ class TestGoalsOk:
             if rec["exception"] is not None and "Цели" in str(rec["message"])
         ]
         assert goals_tracebacks == []
+
+
+class TestOperationsTodayBoundary:
+    """Операция «сегодня» попадает ровно в одну группу карточки — в recent.
+
+    До фикса источник отдавал ref-день в обе группы, и карточка «Операции»
+    показывала сегодняшние записи дважды (находка живого использования,
+    2026-09-05).
+    """
+
+    def test_today_row_only_in_recent(self, db_session):
+        """Сегодняшняя операция — в recent, отсутствует в upcoming."""
+        user = User(
+            id=1,
+            email="today@test.com",
+            name="Today",
+            starting_balance=Decimal("10000"),
+        )
+        db_session.add(user)
+        db_session.add(
+            Transaction(
+                user_id=1,
+                amount=Decimal("700"),
+                transaction_type=TransactionType.EXPENSE,
+                description="Сегодняшняя",
+                transaction_date=TODAY,
+            )
+        )
+        db_session.commit()
+
+        operations = DashboardPanelService(db_session).get_panel_data(1)["operations"]
+
+        assert [r["title"] for r in operations["recent"]] == ["Сегодняшняя"]
+        assert [r["title"] for r in operations["upcoming"]] == []
+
+    def test_upcoming_href_starts_after_ref(self, service, filled_user):
+        """Дверь «предстоящие» начинается со дня после ref, не с самого ref."""
+        operations = service.get_panel_data(1)["operations"]
+        month_end = TODAY.replace(day=monthrange(TODAY.year, TODAY.month)[1])
+        expected_start = min(TODAY + timedelta(days=1), month_end)
+
+        assert operations["upcoming_href"] == (
+            f"/transactions?start={expected_start.isoformat()}"
+            f"&end={month_end.isoformat()}"
+        )
 
 
 class TestOperationRowTypes:
