@@ -343,14 +343,27 @@ def display_page(pathname):
         return create_analytics_layout(), html.Div(style={"display": "none"})
 
     else:
-        # 404 страница
+        # 404 страница — в стиле щитка: карточка и типографика пустого
+        # состояния из panel.css, кнопка — зелёный контур, как «Сверка»
+        # в шапке (P3 UX-аудита 2026-08-20: синяя btn-primary выпадала
+        # из палитры). Новых цветов и классов не заводится.
         return html.Div(
             [
-                html.H1("404", className="display-1 text-muted"),
-                html.P("Страница не найдена"),
-                dbc.Button("На главную", href="/", color="primary"),
+                html.Div("404", className="pnl-amount pnl-money"),
+                html.Div("Страница не найдена", className="pnl-empty-title"),
+                html.Div(
+                    "Такого раздела в приложении нет — вернитесь на щиток.",
+                    className="pnl-empty-hint",
+                ),
+                dbc.Button(
+                    [html.I(className="bi bi-house-door me-1"), "На главную"],
+                    href="/",
+                    color="success",
+                    outline=True,
+                    size="sm",
+                ),
             ],
-            className="text-center mt-5",
+            className="pnl-breaker pnl-empty align-items-center text-center mt-5",
         ), create_page_header("Ошибка", "Страница не найдена")
 
 
