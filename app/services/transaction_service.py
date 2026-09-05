@@ -66,9 +66,9 @@ class TransactionService:
             description: Описание операции (опционально)
             category_id: ID категории (опционально, nullable)
             is_recurring: Флаг повторяющейся операции
-            recurring_period: Период повторения (weekly/biweekly/monthly/quarterly)
+            recurring_period: Период повторения (weekly/biweekly/monthly/yearly)
             recurring_end_date: Дата окончания серии (опционально)
-            recurring_anchor_eom: Привязка к последнему дню месяца (для monthly/quarterly)
+            recurring_anchor_eom: Привязка к последнему дню месяца (для monthly/yearly)
 
         Returns:
             Transaction: Созданная транзакция или шаблон

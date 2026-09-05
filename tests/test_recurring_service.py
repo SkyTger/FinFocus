@@ -4,6 +4,7 @@
 из шаблонов повторяющихся операций.
 """
 
+from calendar import isleap, monthrange
 from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -13,6 +14,24 @@ import pytest
 from app.core.exceptions import ValidationError
 from app.models.database import Transaction, TransactionType
 from app.services.recurring_service import RecurringService
+
+
+def _safe_anchor_today() -> date:
+    """Сегодняшняя дата с днём не позже 28-го.
+
+    Годовые ожидания вида ``d.replace(year=d.year + n)`` не должны
+    натыкаться на 29 февраля или несуществующий день месяца.
+    """
+    today = date.today()
+    return date(today.year, today.month, min(today.day, 28))
+
+
+def _next_leap_year() -> int:
+    """Ближайший високосный год, начиная с текущего."""
+    year = date.today().year
+    while not isleap(year):
+        year += 1
+    return year
 
 
 class TestGetTemplatesForUser:
@@ -206,36 +225,93 @@ class TestGenerateInstancesWeekly:
         assert instances[3]["instance_date"] == "2026-02-21"
 
 
-class TestGenerateInstancesQuarterly:
-    """Тесты для quarterly генерации."""
+class TestGenerateInstancesYearly:
+    """Тесты для yearly генерации (налоги, страховка, дни рождения)."""
 
-    def test_quarterly_generation(self, db_session, test_user):
-        """Quarterly генерирует каждые 3 месяца."""
+    def _make_template(self, db_session, test_user, start: date) -> Transaction:
         template = Transaction(
             user_id=test_user.id,
             amount=Decimal("15000.00"),
             transaction_type=TransactionType.EXPENSE,
-            transaction_date=date(2026, 1, 15),
-            description="Квартальный налог",
+            transaction_date=start,
+            description="Годовой налог",
             is_recurring=True,
-            recurring_period="quarterly",
+            recurring_period="yearly",
         )
         db_session.add(template)
+        db_session.commit()
+        return template
+
+    def test_yearly_generation_step_is_exactly_one_year(self, db_session, test_user):
+        """Yearly генерирует три экземпляра с шагом ровно год (тот же месяц и день)."""
+        start = _safe_anchor_today()
+        template = self._make_template(db_session, test_user, start)
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template,
+            start_date=start,
+            end_date=start.replace(year=start.year + 2),
+        )
+
+        assert [i["instance_date"] for i in instances] == [
+            start.isoformat(),
+            start.replace(year=start.year + 1).isoformat(),
+            start.replace(year=start.year + 2).isoformat(),
+        ]
+
+    def test_yearly_first_instance_skips_to_next_year(self, db_session, test_user):
+        """Окно начинается сразу после годовщины → первый экземпляр через год."""
+        start = _safe_anchor_today()
+        template = self._make_template(db_session, test_user, start)
+        anniversary = start.replace(year=start.year + 1)
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template,
+            start_date=start + timedelta(days=1),
+            end_date=anniversary + timedelta(days=1),
+        )
+
+        assert [i["instance_date"] for i in instances] == [anniversary.isoformat()]
+
+    def test_yearly_february_29_falls_back_to_28(self, db_session, test_user):
+        """Шаблон 29 февраля: в невисокосный год — 28 февраля, в високосный — 29."""
+        leap = _next_leap_year()
+        start = date(leap, 2, 29)
+        template = self._make_template(db_session, test_user, start)
+
+        service = RecurringService(db_session)
+        instances = service.generate_instances(
+            template,
+            start_date=start,
+            end_date=date(leap + 4, 3, 1),
+        )
+
+        dates = [i["instance_date"] for i in instances]
+        assert dates[1] == date(leap + 1, 2, 28).isoformat()
+        assert dates == [
+            date(leap + k, 2, 29 if isleap(leap + k) else 28).isoformat()
+            for k in range(5)
+        ]
+
+    def test_quarterly_rejected_as_invalid(self, db_session, test_user):
+        """quarterly не поддерживается: генерация пуста, смена периода — ошибка."""
+        start = _safe_anchor_today()
+        template = self._make_template(db_session, test_user, start)
+        template.recurring_period = "quarterly"
         db_session.commit()
 
         service = RecurringService(db_session)
         instances = service.generate_instances(
             template,
-            start_date=date(2026, 1, 1),
-            end_date=date(2026, 12, 31),
+            start_date=start,
+            end_date=start.replace(year=start.year + 1),
         )
+        assert instances == []
 
-        # 15 января, 15 апреля, 15 июля, 15 октября
-        assert len(instances) == 4
-        assert instances[0]["instance_date"] == "2026-01-15"
-        assert instances[1]["instance_date"] == "2026-04-15"
-        assert instances[2]["instance_date"] == "2026-07-15"
-        assert instances[3]["instance_date"] == "2026-10-15"
+        with pytest.raises(ValidationError):
+            service.update_template_period(template.id, "quarterly")
 
 
 class TestGenerateInstancesEndDate:
@@ -942,10 +1018,10 @@ class TestShouldShowEomCheckbox:
             is True
         )
 
-    def test_show_checkbox_30_november_quarterly(self):
-        """30 ноября + quarterly → показывать checkbox."""
+    def test_show_checkbox_30_november_yearly(self):
+        """30 ноября + yearly → показывать checkbox."""
         assert (
-            RecurringService.should_show_eom_checkbox(date(2026, 11, 30), "quarterly")
+            RecurringService.should_show_eom_checkbox(date(2026, 11, 30), "yearly")
             is True
         )
 
@@ -964,14 +1040,14 @@ class TestShouldShowEomCheckbox:
         )
 
     def test_hide_checkbox_30_april_weekly(self):
-        """30 апреля + weekly → НЕ показывать (период не monthly/quarterly)."""
+        """30 апреля + weekly → НЕ показывать (период не monthly/yearly)."""
         assert (
             RecurringService.should_show_eom_checkbox(date(2026, 4, 30), "weekly")
             is False
         )
 
     def test_hide_checkbox_28_february_biweekly(self):
-        """28 февраля + biweekly → НЕ показывать (период не monthly/quarterly)."""
+        """28 февраля + biweekly → НЕ показывать (период не monthly/yearly)."""
         assert (
             RecurringService.should_show_eom_checkbox(date(2026, 2, 28), "biweekly")
             is False
@@ -1038,34 +1114,40 @@ class TestGenerateInstancesWithEom:
         assert instances[2]["instance_date"] == "2026-04-30"
         assert instances[3]["instance_date"] == "2026-05-31"
 
-    def test_eom_quarterly(self, db_session, test_user):
-        """EOM режим работает для quarterly."""
+    def test_eom_yearly(self, db_session, test_user):
+        """EOM режим для yearly: последний день того же месяца каждый год."""
+        today = date.today()
+        start = date(today.year, today.month, monthrange(today.year, today.month)[1])
         template = Transaction(
             user_id=test_user.id,
             amount=Decimal("5000.00"),
             transaction_type=TransactionType.EXPENSE,
-            transaction_date=date(2026, 2, 28),
-            description="Квартальный платёж в конце месяца",
+            transaction_date=start,
+            description="Годовой платёж в конце месяца",
             is_recurring=True,
-            recurring_period="quarterly",
+            recurring_period="yearly",
             recurring_anchor_eom=True,
         )
         db_session.add(template)
         db_session.commit()
 
+        expected = [
+            date(
+                start.year + k, start.month, monthrange(start.year + k, start.month)[1]
+            )
+            for k in range(3)
+        ]
+
         service = RecurringService(db_session)
         instances = service.generate_instances(
             template,
-            start_date=date(2026, 2, 1),
-            end_date=date(2026, 11, 30),
+            start_date=start,
+            end_date=expected[-1],
         )
 
-        assert len(instances) == 4
-        # 28 фев → 31 май → 31 авг → 30 ноя
-        assert instances[0]["instance_date"] == "2026-02-28"
-        assert instances[1]["instance_date"] == "2026-05-31"
-        assert instances[2]["instance_date"] == "2026-08-31"
-        assert instances[3]["instance_date"] == "2026-11-30"
+        assert [i["instance_date"] for i in instances] == [
+            d.isoformat() for d in expected
+        ]
 
     def test_anchored_mode_default(self, db_session, test_user):
         """По умолчанию recurring_anchor_eom=False (Anchored режим)."""

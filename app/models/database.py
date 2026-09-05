@@ -179,7 +179,7 @@ class Transaction(Base):
 
     # EOM Anchor: привязка к последнему дню месяца
     recurring_anchor_eom = Column(Boolean, default=False, nullable=False)
-    """Привязка к последнему дню месяца для monthly/quarterly recurring.
+    """Привязка к последнему дню месяца для monthly/yearly recurring.
 
     True: генерировать экземпляры на последний день каждого месяца
           (28 фев → 31 мар → 30 апр → 31 май)
