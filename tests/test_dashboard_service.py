@@ -6,6 +6,8 @@ from decimal import Decimal
 from app.models.database import Goal, GoalStatus, Transaction, TransactionType
 from app.services.dashboard_service import DashboardService
 
+from tests.conftest import days_after
+
 
 class TestGetOverviewMetrics:
     """Тесты для get_overview_metrics."""
@@ -740,6 +742,97 @@ class TestGetUpcomingTransactions:
         assert len(result) == 1
         assert result[0]["description"] == "Экземпляр"
         assert result[0]["is_recurring_instance"] is True
+
+
+class TestRecentUpcomingBoundary:
+    """Граница «сегодня» между недавними и предстоящими операциями.
+
+    Операция с датой reference_date — факт (день идёт): она попадает в
+    recent и НЕ попадает в upcoming; операция на reference_date + 1 —
+    наоборот. Одна операция не должна показываться в обеих группах
+    карточки «Операции» на щитке.
+    """
+
+    @staticmethod
+    def _reference_date() -> date:
+        """Опорная дата: 15-е текущего месяца — ref+1 гарантированно в месяце."""
+        return date.today().replace(day=15)
+
+    def _add_pair(self, db_session, test_user, ref: date) -> None:
+        db_session.add_all(
+            [
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("100.00"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=ref,
+                    description="Сегодня",
+                ),
+                Transaction(
+                    user_id=test_user.id,
+                    amount=Decimal("200.00"),
+                    transaction_type=TransactionType.EXPENSE,
+                    transaction_date=days_after(ref, 1),
+                    description="Завтра",
+                ),
+            ]
+        )
+        db_session.commit()
+
+    def test_reference_date_only_in_recent(self, db_session, test_user):
+        """Операция ref-дня — только в recent."""
+        ref = self._reference_date()
+        self._add_pair(db_session, test_user, ref)
+        service = DashboardService(db_session)
+
+        recent = service.get_recent_transactions(
+            test_user.id, limit=10, reference_date=ref
+        )
+        upcoming = service.get_upcoming_transactions(
+            test_user.id, limit=10, reference_date=ref
+        )
+
+        assert [t["description"] for t in recent] == ["Сегодня"]
+        assert "Сегодня" not in [t["description"] for t in upcoming]
+
+    def test_next_day_only_in_upcoming(self, db_session, test_user):
+        """Операция ref+1 — только в upcoming."""
+        ref = self._reference_date()
+        self._add_pair(db_session, test_user, ref)
+        service = DashboardService(db_session)
+
+        recent = service.get_recent_transactions(
+            test_user.id, limit=10, reference_date=ref
+        )
+        upcoming = service.get_upcoming_transactions(
+            test_user.id, limit=10, reference_date=ref
+        )
+
+        assert [t["description"] for t in upcoming] == ["Завтра"]
+        assert "Завтра" not in [t["description"] for t in recent]
+
+    def test_no_overlap_between_groups(self, db_session, test_user):
+        """Множества recent и upcoming не пересекаются."""
+        ref = self._reference_date()
+        self._add_pair(db_session, test_user, ref)
+        service = DashboardService(db_session)
+
+        recent_ids = {
+            t["id"]
+            for t in service.get_recent_transactions(
+                test_user.id, limit=10, reference_date=ref
+            )
+        }
+        upcoming_ids = {
+            t["id"]
+            for t in service.get_upcoming_transactions(
+                test_user.id, limit=10, reference_date=ref
+            )
+        }
+
+        assert recent_ids
+        assert upcoming_ids
+        assert recent_ids.isdisjoint(upcoming_ids)
 
 
 class TestDashboardServiceAdjustmentExclusion:

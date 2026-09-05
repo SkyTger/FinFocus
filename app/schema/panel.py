@@ -235,7 +235,7 @@ class OperationsCardData(TypedDict):
         upcoming: До OPERATIONS_PER_GROUP предстоящих операций.
         recent_href / upcoming_href: те же диапазоны, по которым
             источник отбирал строки (FR-6): recent — [1-е число, ref],
-            upcoming — [ref, конец месяца].
+            upcoming — (ref, конец месяца] (ref-день уже в recent).
     """
 
     status: CardStatus
