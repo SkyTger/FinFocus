@@ -352,7 +352,7 @@ def display_page(pathname):
                 html.Div("404", className="pnl-amount pnl-money"),
                 html.Div("Страница не найдена", className="pnl-empty-title"),
                 html.Div(
-                    "Такого раздела в приложении нет — вернитесь на щиток.",
+                    "Такого раздела в приложении нет — вернитесь на главную.",
                     className="pnl-empty-hint",
                 ),
                 dbc.Button(
