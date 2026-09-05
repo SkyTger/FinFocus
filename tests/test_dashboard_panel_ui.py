@@ -15,6 +15,7 @@ from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
 from math import ceil
+from pathlib import Path
 
 import pytest
 from dash import dcc, html
@@ -23,6 +24,7 @@ import dash_bootstrap_components as dbc
 from app.components.dashboard import (
     MAX_TOOLTIP_PAYMENTS,
     _axis_tickvals,
+    _build_balance_banner,
     _build_chart_empty_state,
     _build_layer_legend,
     _build_payments_tooltip,
@@ -586,3 +588,34 @@ class TestLegendAndTooltips:
         rows = _build_reserve_tooltip(make_layers_data(degraded=True))
 
         assert "состав резерва показан не полностью" in joined_text(html.Div(rows))
+
+
+# ===========================================================================
+# Единое имя функции сверки (UX-аудит 2026-08-20, P3)
+# ===========================================================================
+
+
+class TestReconNaming:
+    """Все кнопки и действия сверки называются «Сверка».
+
+    Заголовок окна «Сверка баланса» — заголовок, не действие, и остаётся.
+    Прежний разнобой («Сверка» / «Сверить баланс») — находка UX-аудита.
+    """
+
+    COMPONENT_FILES = (
+        Path(__file__).resolve().parents[1] / "app" / "components" / "dashboard.py",
+        Path(__file__).resolve().parents[1] / "app" / "components" / "calendar.py",
+    )
+
+    def test_balance_banner_button_named_recon(self):
+        """Кнопка баннера нулевого баланса подписана «Сверка»."""
+        banner = _build_balance_banner()
+
+        button = find_by_id(banner, "open-recon-from-dashboard-banner-btn")
+        assert button is not None
+        assert joined_text(button) == "Сверка"
+
+    @pytest.mark.parametrize("path", COMPONENT_FILES, ids=lambda p: p.name)
+    def test_no_alternative_recon_label_in_source(self, path: Path):
+        """Якорь: в исходниках дашборда и календаря нет «Сверить баланс»."""
+        assert "Сверить баланс" not in path.read_text(encoding="utf-8")
