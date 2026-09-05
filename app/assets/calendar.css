@@ -127,7 +127,11 @@
     gap: 8px;
     flex: 1;
     min-height: 0;  /* allow flex shrink */
-    overflow: hidden;
+    /* НЕТ overflow: hidden — намеренно. Тултип дня (.calendar-day-tooltip)
+       позиционирован абсолютно относительно ячейки и выходит за край
+       сетки; любое значение overflow, кроме visible, у этой обёртки
+       или у .calendar-grid молча его отрезает (UX-аудит 2026-08-20, P2:
+       тултип пятницы обрезался правым краем в колонках СБ/ВС). */
 }
 
 /* ==================== WEEKDAY HEADER ==================== */
@@ -169,7 +173,7 @@
     background: transparent;
     flex: 1;
     min-height: 0;
-    overflow: hidden;
+    /* НЕТ overflow: hidden — см. .calendar-grid-wrapper */
 }
 
 /* Week rows: children flow into parent grid */
@@ -393,7 +397,12 @@
     pointer-events: auto;
 }
 
-/* Right columns (Sat, Sun) — tooltip LEFT */
+/* Right columns (Fri, Sat, Sun) — tooltip LEFT.
+   nth-child считается внутри .calendar-week-row (display: contents),
+   у каждой недели ровно 7 ячеек: 7n-2 = Пт, 7n-1 = Сб, 7n = Вс.
+   Пятница тоже налево: справа от неё до края сетки ~230px при ширине
+   тултипа до 300px — направо он не помещается. */
+.calendar-day:nth-child(7n-2) .calendar-day-tooltip,
 .calendar-day:nth-child(7n-1) .calendar-day-tooltip,
 .calendar-day:nth-child(7n) .calendar-day-tooltip {
     left: auto;
@@ -403,6 +412,7 @@
     transform: translateX(8px);
 }
 
+.calendar-day:nth-child(7n-2):hover .calendar-day-tooltip,
 .calendar-day:nth-child(7n-1):hover .calendar-day-tooltip,
 .calendar-day:nth-child(7n):hover .calendar-day-tooltip {
     transform: translateX(0);
