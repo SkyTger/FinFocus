@@ -68,7 +68,7 @@ def _build_balance_banner() -> dbc.Alert:
                         className="me-3",
                     ),
                     dbc.Button(
-                        "Сверить баланс",
+                        "Сверка",
                         id="open-recon-from-dashboard-banner-btn",
                         color="dark",
                         size="sm",
@@ -902,7 +902,7 @@ clientside_callback(
     prevent_initial_call=True,
 )
 
-# Кнопка "Сверить баланс" в баннере → open-recon-trigger
+# Кнопка "Сверка" в баннере → open-recon-trigger
 clientside_callback(
     ClientsideFunction("triggers", "timestamp_trigger"),
     Output("open-recon-trigger", "data", allow_duplicate=True),
