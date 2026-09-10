@@ -111,3 +111,18 @@ UI → RecurringService.skip_instance()
 - RecurringService: `app/services/recurring_service.py`
 - CalendarService integration: `app/services/calendar_service.py`
 - Model extension: `app/models/database.py`
+
+## Приписка (2026-09-05)
+
+Период `quarterly`, упомянутый выше как один из исходных вариантов
+(`recurring_period: weekly, biweekly, monthly, quarterly`), заменён на
+`yearly` без ревизии этого ADR — решение владельца из батча
+«заплатки-параллель» (коммит `b43c11d`, см. ROADMAP.md п.10: годовые
+обязательства — налоги, дни рождения, страховка — практически ценнее
+квартальных, которые остались от прототипа и ни разу не были
+востребованы). Anchored-алгоритм для года устроен по тому же принципу,
+что и для месяца: переход на тот же месяц следующего года, день
+обрезается по длине месяца (`29 фев → 28 фев` в невисокосный год и
+обратно в високосный). Текст ADR выше не правился задним числом —
+актуальное множество периодов см. `VALID_RECURRING_PERIODS` в
+`app/services/recurring_service.py` и `knowledge-bank/modules/services.md`.

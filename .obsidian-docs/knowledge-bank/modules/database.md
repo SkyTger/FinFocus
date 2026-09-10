@@ -36,7 +36,7 @@ amount: Decimal                # Сумма операции
 transaction_type: Enum         # INCOME | EXPENSE | TRANSFER | ADJUSTMENT | SAVINGS_RESERVE | SAVINGS_CONTRIBUTION
 transaction_date: Date         # Дата операции
 is_recurring: Boolean          # Повторяющаяся операция (шаблон)
-recurring_period: String       # weekly | biweekly | monthly | quarterly (nullable)
+recurring_period: String       # weekly | biweekly | monthly | yearly (nullable) — quarterly заменён на yearly (2026-09-05, заплатки-параллель)
 recurring_end_date: Date       # Дата окончания серии (nullable)
 recurring_parent_id: Integer   # ID родительского шаблона для exceptions (nullable)
 original_date: Date            # Исходная дата для exceptions (nullable)
@@ -125,6 +125,13 @@ transaction_id: Integer   # FK к Transaction (nullable, SET NULL) — связ�
 **Протокол 0020**: WishlistItem модель для отложенных покупок
 
 **Протокол 0024**: User.avatar_id (String(20), nullable, миграция 007)
+
+**Заплатки-параллель (2026-09-05, `b43c11d`)**: `recurring_period`
+`quarterly` заменён на `yearly` (решение владельца, ROADMAP п.10:
+годовые обязательства — налоги, дни рождения, страховка — важнее
+квартальных). Миграция не потребовалась — в боевой базе квартальных
+записей не было. ADR-004 (исторический документ) не переписан, снабжён
+припиской об изменении.
 
 ### WishlistItem (Протокол 0020)
 ```python

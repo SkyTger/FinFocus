@@ -147,6 +147,18 @@ def create_page_header(title: str, subtitle: str = ""):
     ])
 ```
 
+## 404-страница в стиле щитка (заплатки-параллель, 2026-09-05, `2118abc`)
+
+Ветка `else` `display_page()` (нераспознанный `pathname`) переведена на
+классы пустого состояния `panel.css` (`.pnl-breaker`, `.pnl-empty`,
+`.pnl-amount`, `.pnl-empty-title`, `.pnl-empty-hint`) вместо голых
+Bootstrap-классов (`display-1 text-muted`) и синей `btn-primary` — та
+выпадала из зелёной палитры щитка (P3 UX-аудита 2026-08-20). Кнопка «На
+главную» — зелёная контурная (`color="success", outline=True`), как
+кнопка «Сверка» в шапке; новых цветов и CSS-классов не заводилось,
+переиспользованы существующие из `panel.css`. Тесты:
+`tests/test_display_page_404.py`.
+
 ## Планируемые изменения
 
 Прежний список («активировать `/calendar`», «активировать `/goals`»,
