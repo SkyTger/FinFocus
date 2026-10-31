@@ -1,6 +1,6 @@
 ---
 name: schema
-description: TypedDict-контракты FinFocus (app/schema/) — Goals, Onboarding, Dashboard, MoneyLayers
+description: TypedDict-контракты FinFocus (app/schema/) — Goals, Onboarding, MoneyLayers, Analytics, BudgetReservation, Categories, QuickAdd, Wishlist
 type: reference
 originSessionId: -
 ---
@@ -15,6 +15,11 @@ originSessionId: -
 - `app/schema/goals.py` - TypedDicts для накопительных целей
 - `app/schema/onboarding.py` - UserProfile, OnboardingStatus (расширен в протоколе 0024)
 - `app/schema/money_layers.py` - контракт модели «свободно/платежи/резерв» (протокол 0028)
+- `app/schema/analytics.py` - `CategorySummary`, `MonthlyTrend` (аналитика по категориям, динамика)
+- `app/schema/budget_reservation.py` - `ReservationMode` (Literal fixed_date/from_balance), `BudgetReservationSettings`, `BudgetProgress`, `ContributionRecord`
+- `app/schema/categories.py` - `CategoryOption`, `ReconciliationPreview`
+- `app/schema/quick_add.py` - `QuickAddChipData` (чипы быстрого добавления)
+- `app/schema/wishlist.py` - `WishlistItemData`, `SafeDateInfo`, `HoverBalances`
 
 ## Цели модуля
 

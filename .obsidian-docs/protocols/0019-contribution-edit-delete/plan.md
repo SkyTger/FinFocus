@@ -51,7 +51,7 @@
 
 ## Reference Materials
 
-- **ADR-004**: `.memory-bank/adrs/ADR-004-contribution-edit-delete.md`
+- **ADR-005** (до 2026-10-31 — ADR-004 в `knowledge-bank/adrs/`): `.obsidian-docs/adr/ADR-005-contribution-edit-delete.md`
 - **Brief**: `.design/brief.md` (8 FR, 3 NFR)
 - **Solution v4**: `.design/solution-v4.md` (финальная архитектура)
 - **Critique v4**: `.design/critique-v4.md` (5/5, READY)

@@ -11,6 +11,8 @@ originSessionId: -
 Dash компоненты для UI: Dashboard-щиток, Nav Rail, Transactions с Bootstrap styling
 
 ## Ключевые файлы
+- `app/components/profile_modal.py` - глобальное окно профиля (имя + аватар)
+- `app/components/calendar_wishlist.py` - wishlist-режим календаря
 - `app/components/dashboard.py` - главная страница: шапка «Свободно сегодня» + график полос (протокол 0028)
 - `app/components/nav_rail.py` — навигация (полоска-меню 60px)
 - `app/components/transactions.py` - управление операциями (CRUD),
@@ -782,6 +784,25 @@ AnalyticsCardData и в RTM #87. Показателя «Доходы» в кар
 **Тесты**: `tests/test_panel_cards_ui.py` (26, дерево без БД),
 `tests/test_panel_service.py` (19, композитор), `tests/test_nav_rail.py`
 (60, см. секцию Nav Rail выше), `tests/test_panel_query_params.py` (14).
+
+## Profile Modal Component (глобальное окно профиля)
+
+**Файл**: `app/components/profile_modal.py` (в index.md упомянут как ProfileModal)
+
+- `create_profile_modal()` — `dbc.Modal` `profile-modal` в глобальном layout (присутствует всегда): поле имени (до 50 символов), выбор аватара из `app/config/avatars.py` (RadioItems), кнопки «Отмена»/«Сохранить»
+- Футер показывает `FinFocus v{__version__}` из `app/version.py`; вычисляется на построении, без колбэка. Импорт `__version__` отсюда — единственное, что делает `version.py` достижимым для PyInstaller-бандла: убирать нельзя
+- Единственный колбэк `handle_profile_modal`: вход открытия — только Store `open-profile-trigger` (два clientside-источника: шестерёнка щитка в `dashboard.py`, аватар полоски-меню в `main.py`); прямой Input на динамический элемент запрещён (см. patterns/callbacks.md)
+- Открытие только на непустом триггере (Store переживает переходы по разделам); данные читает `OnboardingService.get_profile`, сохраняет `update_profile`; после сохранения пишет `profile-updated` (обновляет аватар в полоске)
+
+## Calendar Wishlist Component (wishlist-режим календаря)
+
+**Файл**: `app/components/calendar_wishlist.py` (+ `app/assets/wishlist_hover.js`)
+
+- `build_wishlist_overlay_banner(item_name, item_amount, safe_dates_map)` — баннер над календарём: название и сумма покупки, счётчик безопасных дат, кнопка `cancel-wishlist-mode-btn`
+- `build_wishlist_day_cell(...)` — ячейка дня с safe/unsafe маркером (`SafeDateInfo` из `app/schema/wishlist.py`); прошлые дни без маркера; id `{"type": "wishlist-day-cell", "date": ...}`
+- `build_wishlist_calendar_grid(month, year, balances, transactions, safe_dates_map)` — сетка с CSS-классом `.wishlist-mode`
+- Колбэки: `cancel_wishlist_mode` (сброс Store `wishlist-active-item`); `open_create_from_wishlist_day` — клик по дню открывает create-modal и заполняет preselection-Store'ы (категория, тип, сумма, дата, описание, risk-warning) из `WishlistService`; ADR-003 guard clauses
+- Каскадный пересчёт остатков при наведении — JS `app/assets/wishlist_hover.js` (MutationObserver), на данных `HoverBalances`
 
 ## Onboarding Wizard Component (Протокол 0014 — ЗАВЕРШЕН)
 
