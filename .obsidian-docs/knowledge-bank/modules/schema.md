@@ -298,7 +298,7 @@ LAYER_LABELS: dict[LayerKey, str] = {
 
 ### LimitPeriod (протокол 0033)
 `start` / `end` (узкое место периода) / `per_day: Decimal` (без округления)
-/ `reliable: bool` (False — упирается в H без дохода за ним). Дни —
+/ `reliable: bool` (False — период кончается на краю расчёта H). Дни —
 включительно с обоих концов.
 
 ### DayLayers

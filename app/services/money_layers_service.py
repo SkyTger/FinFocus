@@ -985,13 +985,15 @@ class MoneyLayersService:
 
         Правила:
           * L < 0 (не хватает уже в первом периоде) — период один,
-            per_day = 0; глубину говорит нехватка (shortfall).
+            per_day = 0, конец — первый день минимума available (та же
+            дата, что shortfall_date); глубину говорит нехватка.
           * Соседние периоды с равным per_day после округления до рубля
             вниз и одинаковой надёжностью сливаются (конец — второго,
             per_day — первого, он не больше).
-          * Период с end == H при horizon_has_income_after == False —
-            reliable = False: край расчёта без дохода за ним может быть
-            ложным узким местом.
+          * Период с end == H — reliable = False: за краем расчёта данных
+            нет (без дохода за H — ложное узкое место; если H — день
+            дохода, остаток уже включает доход — ложный однодневный
+            период с огромным лимитом).
 
         Формула «низшая точка ÷ дни до неё» из ROADMAP п.10 — частный
         случай и НЕ используется (контрпример — в тестах).
@@ -1021,11 +1023,19 @@ class MoneyLayersService:
                     best_num, best_den, best_index = num, den, index
 
             end = horizon_dates[best_index]
-            reliable = not (
-                end == horizons.horizon_end and not horizons.horizon_has_income_after
-            )
+            # Конец ряда — всегда край знания: за H данных нет, а если H —
+            # день дохода, остаток этого дня уже включает доход и даёт
+            # ложный однодневный период с огромным лимитом (приёмка 0033).
+            reliable = end != horizons.horizon_end
 
             if best_num < 0:
+                # Нехватка: период кончается там же, где шапка называет
+                # дату нехватки, — первый день минимума available, иначе
+                # в шапке две разные даты (приёмка 0033, находка 1)
+                tail = horizon_dates[start_index:]
+                lowest = min(available[day] for day in tail)
+                end = next(day for day in tail if available[day] == lowest)
+                reliable = end != horizons.horizon_end
                 periods.append(
                     LimitPeriod(
                         start=start, end=end, per_day=Decimal("0"), reliable=reliable

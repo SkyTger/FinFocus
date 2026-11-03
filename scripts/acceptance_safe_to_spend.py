@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     print("Периоды лимита:")
     for period in data["limit_periods"]:
-        mark = "" if period["reliable"] else "  [ненадёжен: край без дохода]"
+        mark = "" if period["reliable"] else "  [ненадёжен: край расчёта]"
         print(
             f"  {period['start']} … {period['end']}: "
             f"~{_rub(period['per_day'])}/день "

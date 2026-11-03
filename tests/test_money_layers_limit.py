@@ -234,9 +234,11 @@ class TestLimitAlgorithm:
         Ряд: 10 004 на 10-й день, 20 011 на 20-й, остальное высоко.
         Период 1: 10 004 / 10 = 1 000,4 (20 011 / 20 = 1 000,55 выше).
         Период 2: (20 011 − 10 004) / 10 = 1 000,7. До рубля оба 1 000.
+        Ряд на день длиннее (21-й — край H, высокий, как день дохода):
+        период, кончающийся на самом H, ненадёжен по определению.
         """
         ref = date.today()
-        dates = [ref + timedelta(days=offset) for offset in range(20)]
+        dates = [ref + timedelta(days=offset) for offset in range(21)]
         available = {day: Decimal("1000000") for day in dates}
         available[dates[9]] = Decimal("10004")
         available[dates[19]] = Decimal("20011")
@@ -245,11 +247,70 @@ class TestLimitAlgorithm:
             available, dates, self.horizons(ref, dates[-1], True)
         )
 
+        assert periods[0] == {
+            "start": ref,
+            "end": dates[19],
+            "per_day": Decimal("1000.4"),
+            "reliable": True,
+        }
+        # Хвост [H, H] — ненадёжный край, с надёжным не сливается
+        assert len(periods) == 2 and periods[1]["reliable"] is False
+
+    def test_one_day_period_on_income_day_at_horizon_is_unreliable(self, service):
+        """H — день дохода: однодневный период на нём ненадёжен.
+
+        Приёмка 0033 на живых данных: после узкого места накануне дохода
+        оставался период [H, H] с лимитом «весь доход за один день».
+        Ряд: 2 000 на 10-й день, на 11-м (H) приходит доход → 100 000.
+        Период 1: 2 000 / 10 = 200 до 10-го, надёжный. Период 2: [H, H] —
+        reliable False, шапка его не покажет.
+        """
+        ref = date.today()
+        dates = [ref + timedelta(days=offset) for offset in range(11)]
+        available = {day: Decimal("1000000") for day in dates}
+        available[dates[9]] = Decimal("2000")
+        available[dates[10]] = Decimal("100000")
+
+        periods = service._limit_periods(
+            available, dates, self.horizons(ref, dates[-1], True)
+        )
+
+        assert periods[0] == {
+            "start": ref,
+            "end": dates[9],
+            "per_day": Decimal("200"),
+            "reliable": True,
+        }
+        assert periods[1]["start"] == periods[1]["end"] == dates[10]
+        assert periods[1]["reliable"] is False
+
+    def test_shortfall_period_ends_on_shortfall_date(self, service):
+        """При нехватке конец периода = первый день минимума available.
+
+        Приёмка 0033: лимит выбирал день самого жёсткого отношения
+        (раньше), а нехватка — день минимума (позже); в шапке стояли две
+        разные даты. Ряд: −3 000 на 2-й день (−1 500/день — жёстче) и
+        −4 000 на 10-й (−400/день, но это минимум). Ожидается одна дата —
+        10-й день.
+        """
+        ref = date.today()
+        dates = [ref + timedelta(days=offset) for offset in range(15)]
+        available = {day: Decimal("1000") for day in dates}
+        available[dates[1]] = Decimal("-3000")
+        available[dates[9]] = Decimal("-4000")
+        shortfall, shortfall_date = service._shortfall(available, dates, ref)
+
+        periods = service._limit_periods(
+            available, dates, self.horizons(ref, dates[-1], True)
+        )
+
+        assert shortfall == Decimal("4000")
+        assert shortfall_date == dates[9]
         assert periods == [
             {
                 "start": ref,
-                "end": dates[19],
-                "per_day": Decimal("1000.4"),
+                "end": dates[9],
+                "per_day": Decimal("0"),
                 "reliable": True,
             }
         ]
