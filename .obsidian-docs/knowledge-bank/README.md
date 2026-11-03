@@ -43,7 +43,7 @@ Knowledge Bank обеспечивает:
 - **[patterns/services.md](patterns/services.md)** — паттерны сервисного слоя
 
 ### Архитектурные решения
-- **[../adr/](../adr/)** — Architecture Decision Records (ADR-003…005), лежат вне KB
+- **[../adr/](../adr/)** — Architecture Decision Records (ADR-003…006), лежат вне KB
 
 ### Анализы и аудиты
 - **[analyses/](analyses/)** — отчёты сквозных аудитов кода

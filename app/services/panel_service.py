@@ -29,7 +29,10 @@ from app.services.allocation_service import AllocationService
 from app.services.analytics_service import AnalyticsService
 from app.services.dashboard_service import DashboardService
 from app.services.goal_service import GoalService
-from app.services.money_layers_service import MoneyLayersService
+from app.services.money_layers_service import (
+    MoneyLayersService,
+    bottleneck_marker,
+)
 from app.services.wishlist_service import WishlistService
 from app.utils.formatters import (
     MONTH_NAMES_RU_GENITIVE,
@@ -78,6 +81,7 @@ def _empty_calendar() -> CalendarCardData:
         dip_free=None,
         dip_is_strong=False,
         dip_href=None,
+        dip_shortfall=None,
     )
 
 
@@ -345,9 +349,11 @@ class DashboardPanelService:
         платежей дня («2 операции»), «завтра» — «план» при наличии
         платежей; нет платежей → None (подпись не рисуется).
 
-        dip_* — из min_free/min_free_date; при status != OK build-функция
-        их игнорирует, даже если непустые (critique-v2, №10):
-        _window_min_free на пустом окне возвращает (0, today), а не None.
+        dip_* — точка узкого места модели (bottleneck_marker, протокол
+        0033): конец первого периода лимита, при нехватке — первый день
+        минимума доступного; та же точка, что маркер графика. При
+        status != OK build-функция dip_* игнорирует, даже если непустые
+        (critique-v2, №10).
         """
         if layers["is_empty"]:
             return _empty_calendar()
@@ -387,15 +393,26 @@ class DashboardPanelService:
             ),
         ]
 
-        dip_free = layers["min_free"]
-        dip_date = layers["min_free_date"]
+        marker = bottleneck_marker(layers)
+        if marker.date is None:
+            return CalendarCardData(
+                status=CardStatus.OK,
+                days=days,
+                dip_date=None,
+                dip_free=None,
+                dip_is_strong=False,
+                dip_href=None,
+                dip_shortfall=None,
+            )
         return CalendarCardData(
             status=CardStatus.OK,
             days=days,
-            dip_date=dip_date,
-            dip_free=dip_free,
-            dip_is_strong=dip_free <= 0,  # факт знака числа, не порог
-            dip_href=f"/calendar?focus_date={dip_date.isoformat()}",
+            dip_date=marker.date,
+            dip_free=marker.available,
+            # Факт знака числа, не порог: нехватка или ноль/минус в узком месте
+            dip_is_strong=marker.is_shortfall or marker.available <= 0,
+            dip_href=f"/calendar?focus_date={marker.date.isoformat()}",
+            dip_shortfall=layers["shortfall"] if marker.is_shortfall else None,
         )
 
     def _goals_block(self, user_id: int, layers: MoneyLayersData) -> GoalsCardData:

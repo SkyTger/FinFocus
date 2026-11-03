@@ -178,17 +178,42 @@ class TestConsistency:
         for day in panel["calendar"]["days"]:
             assert day["href"] == f"/calendar?focus_date={day['date'].isoformat()}"
 
-    def test_dip_fields_from_layers(self, service, filled_user):
-        """dip_* — из min_free/min_free_date модели."""
+    def test_dip_fields_from_layers(self, service, filled_user, db_session):
+        """dip_* — точка узкого места модели (протокол 0033, было min_free*).
+
+        С доходом за осью первый период надёжен — карточка показывает
+        конец первого периода и доступное в этот день.
+        """
+        db_session.add(
+            Transaction(
+                user_id=1,
+                amount=Decimal("100000"),
+                transaction_type=TransactionType.INCOME,
+                description="Зарплата",
+                transaction_date=TODAY + timedelta(days=60),
+            )
+        )
+        db_session.commit()
+
         panel = service.get_panel_data(1)
 
         card = panel["calendar"]
-        assert card["dip_free"] == panel["layers"]["min_free"]
-        assert card["dip_date"] == panel["layers"]["min_free_date"]
+        layers = panel["layers"]
+        assert layers["limit_periods"][0]["reliable"] is True
+        assert card["dip_free"] == layers["bottleneck_available"]
+        assert card["dip_date"] == layers["bottleneck_date"]
         assert card["dip_is_strong"] == (card["dip_free"] <= 0)
         assert card["dip_href"] == (
             f"/calendar?focus_date={card['dip_date'].isoformat()}"
         )
+
+    def test_dip_hidden_when_first_period_unreliable(self, service, filled_user):
+        """Доходов нет — узкое место это край расчёта, карточка его не рисует."""
+        panel = service.get_panel_data(1)
+
+        assert panel["layers"]["limit_periods"][0]["reliable"] is False
+        assert panel["calendar"]["dip_date"] is None
+        assert panel["calendar"]["dip_href"] is None
 
 
 class TestGoalsOk:

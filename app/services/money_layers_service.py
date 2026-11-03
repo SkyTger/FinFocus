@@ -1,22 +1,30 @@
 """Сервис модели «свободно / платежи / резерв» по дням (EPIC-11, кусок 1)."""
 
 from calendar import monthrange
+from collections.abc import Iterable
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
+from typing import TYPE_CHECKING, NamedTuple
 
 from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.schema.money_layers import (
+    HORIZON_CAP_DAYS,
+    MAX_LIMIT_PERIODS,
     WINDOW_DAYS,
     MAX_MILESTONES_IN_WINDOW,
     DayLayers,
     GoalMilestone,
     Horizons,
+    LimitPeriod,
     MoneyLayersData,
     TodaySlice,
     UpcomingPayment,
 )
+
+if TYPE_CHECKING:
+    from app.models.database import Transaction
 
 
 # Типы операций, попадающих в слой «Платежи» на полную сумму
@@ -36,6 +44,64 @@ def _month_start(day: date) -> date:
         date: 1-е число того же месяца.
     """
     return day.replace(day=1)
+
+
+class BottleneckMarker(NamedTuple):
+    """Точка «узкого места» для маркера графика и карточки «Календарь».
+
+    Attributes:
+        date: Дата точки; None — ряд пуст, маркера нет.
+        available: available(t) в этот день (при нехватке — −shortfall).
+        is_shortfall: True — денег не хватает: точка — первый день
+            минимума доступного, подпись «не хватает N ₽».
+    """
+
+    date: date | None
+    available: Decimal
+    is_shortfall: bool
+
+
+def bottleneck_marker(data: MoneyLayersData) -> BottleneckMarker:
+    """ЕДИНСТВЕННОЕ правило точки узкого места — для графика и карточки.
+
+    Есть нехватка — точка в shortfall_date со значением −shortfall
+    (это и есть available того дня); нет — конец первого периода
+    лимита (bottleneck_date / bottleneck_available); если первый период
+    ненадёжен (край расчёта без дохода за ним) — точки нет. Одно правило в
+    одном месте: маркер графика и «Ближайшая просадка» на карточке
+    не могут показать разные даты (протокол 0033, шаг 3).
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        BottleneckMarker: Дата, значение, признак нехватки.
+    """
+    if data["shortfall"] > 0:
+        return BottleneckMarker(data["shortfall_date"], -data["shortfall"], True)
+    periods = data["limit_periods"]
+    if periods and not periods[0]["reliable"]:
+        # Первый период упёрся в край расчёта без дохода за ним — это
+        # край, а не узкое место; точку не показываем нигде
+        return BottleneckMarker(None, data["bottleneck_available"], False)
+    return BottleneckMarker(
+        data["bottleneck_date"], data["bottleneck_available"], False
+    )
+
+
+def floor_rub(amount: Decimal) -> Decimal:
+    """Округление до рубля ВНИЗ — только для сравнения и показа.
+
+    Лимит нельзя показывать щедрее, чем он есть: и слияние периодов,
+    и шапка щитка округляют одним правилом.
+
+    Args:
+        amount: Сумма.
+
+    Returns:
+        Decimal: Целое число рублей не больше amount.
+    """
+    return amount.quantize(Decimal("1"), rounding=ROUND_DOWN)
 
 
 def _month_end(day: date) -> date:
@@ -58,16 +124,27 @@ class MoneyLayersService:
     monthly_budget), CushionService (порог подушки) и GoalService (вехи).
     Ни одного существующего метода не меняет, в БД не пишет (C-2, C-3).
 
-    Два горизонта показа (решение владельца 2026-08-24):
+    Два горизонта (протокол 0033, C-5 «Платежи до конца месяца» отменён):
         * окно оси — WINDOW_DAYS = 45 дней от reference_date (эскиз v3);
-        * горизонт слоя «Платежи» — конец календарного месяца (C-5).
-          За границей месяца payments(D) == 0: ограничение видно честно,
-          а не скрыто сужением оси.
+        * горизонт расчёта H — первый доход строго после правого края
+          оси, но не дальше HORIZON_CAP_DAYS от сегодня. Прогноз остатка
+          и резерв считаются до H, поэтому полосы последних дней оси
+          видят платежи за краем оси до ближайшего поступления.
+
+    Формула слоёв (протокол 0033, plan.md «Спецификация»):
+        available(t) = balance(t) − reserve(t)   (резерв ТОГО ЖЕ дня t)
+        m(D)         = min по t ∈ [D, H] от available(t)
+        вход каскада = _split_day(balance(D), available(D) − m(D), reserve(D))
+    «Свободно» — сколько можно потратить в день D разово и пройти все
+    дни до H без минуса; «Платежи» — сколько из денег дня D трогать
+    нельзя. Доходы до платежа учитываются сами: ложного «свободно 0»
+    при платеже, который покроет будущая зарплата, больше нет.
 
     Инвариант декомпозиции: для каждого дня D окна
         free(D) + payments(D) + reserve(D) == CalendarService.balance(D)
     (AC-3) — обеспечен конструктивно, free выводится вычитанием, а
-    _split_day сохраняет сумму во всех ветках.
+    _split_day сохраняет сумму во всех ветках. available(D) − m(D) ≥ 0
+    по построению (минимум включает сам день D), второго клэмпа нет.
 
     Note:
         Слой «Резерв» считается ОДНОЙ формулой от даты D, без ветвления
@@ -112,14 +189,18 @@ class MoneyLayersService:
     ) -> MoneyLayersData:
         """Строит модель слоёв на окно 45 дней от reference_date.
 
+        Расчёт идёт на удлинённом горизонте H (до первого дохода за осью,
+        не дальше HORIZON_CAP_DAYS), ось — 45 дней.
+
         Args:
             user_id: ID пользователя.
             reference_date: Дата отсчёта (по умолчанию date.today()).
 
         Returns:
-            MoneyLayersData: Дни окна, срез «сегодня», минимум окна,
-                платежи, вехи целей. Все ORM-объекты материализованы —
-                результат безопасен после закрытия сессии.
+            MoneyLayersData: Дни окна, срез «сегодня», узкое место,
+                нехватка, платежи до горизонта H, вехи целей. Все
+                ORM-объекты материализованы — результат безопасен
+                после закрытия сессии.
 
         Note:
             Никогда не бросает при отсутствии данных — возвращает
@@ -131,18 +212,28 @@ class MoneyLayersService:
             без остатка модели нет.
         """
         ref = reference_date or date.today()
-        horizons = self._horizons(ref)
+        static = self._horizons(ref)
         window_dates = [ref + timedelta(days=offset) for offset in range(WINDOW_DAYS)]
 
-        # Прогнозный остаток — единственный источник, сбой не глотаем
-        balances = self._forecast_balances(user_id, ref, horizons.window_end)
+        # ОДИН сбор операций с запасом до месяца предела горизонта:
+        # даты доходов задают H, savings-операции — резерв дней до H
+        cap_day = ref + timedelta(days=HORIZON_CAP_DAYS - 1)
+        all_payments, savings_by_date, income_dates = self._collect_operations(
+            user_id, static.collect_start, _month_end(cap_day), ref
+        )
+        horizons = self._horizons(ref, income_dates)
+        horizon_dates = [
+            ref + timedelta(days=offset)
+            for offset in range((horizons.horizon_end - ref).days + 1)
+        ]
+        payments = [
+            payment
+            for payment in all_payments
+            if payment["date"] <= horizons.horizon_end
+        ]
 
-        payments, savings_by_date = self._collect_operations(
-            user_id, horizons.collect_start, horizons.window_end, ref
-        )
-        payments_tail = self._payments_tail_by_day(
-            payments, window_dates, horizons.payments_end
-        )
+        # Прогнозный остаток — единственный источник, сбой не глотаем
+        balances = self._forecast_balances(user_id, ref, horizons.horizon_end)
 
         degraded = False
 
@@ -179,16 +270,29 @@ class MoneyLayersService:
             degraded = True
 
         goals_part = self._goals_part_by_day(
-            savings_by_date, window_dates, monthly_budget
+            savings_by_date, horizon_dates, monthly_budget
         )
+        # Резерв — только бюджет целей. Порог подушки в резерв НЕ входит
+        # (ревью 0033, вопрос №12): пока подушка не набрана, он вычитался
+        # бы из остатка как неприкосновенный и давал постоянную «нехватку»
+        # и лимит 0 — а подушка наполняется по решению владельца (кнопкой),
+        # не съедает лимит автоматически. Порог остаётся ориентиром:
+        # линия на графике и строка «подушка не добрана» в шапке.
+        reserve_by_day = {
+            day: goals_part.get(day, Decimal("0")) for day in horizon_dates
+        }
+        available = {
+            day: balances.get(day, Decimal("0")) - reserve_by_day[day]
+            for day in horizon_dates
+        }
+        suffix_min = self._suffix_min(available, horizon_dates)
 
         days: list[DayLayers] = []
         for day in window_dates:
             balance = balances.get(day, Decimal("0"))
-            day_payments = payments_tail.get(day, Decimal("0"))
-            reserve_configured = cushion_threshold + goals_part.get(day, Decimal("0"))
+            reserve_configured = reserve_by_day[day]
             free, fact_payments, fact_reserve = self._split_day(
-                balance, day_payments, reserve_configured
+                balance, available[day] - suffix_min[day], reserve_configured
             )
             days.append(
                 DayLayers(
@@ -201,7 +305,13 @@ class MoneyLayersService:
                 )
             )
 
-        min_free, min_free_date = self._window_min_free(days)
+        shortfall, shortfall_date = self._shortfall(available, horizon_dates, ref)
+        limit_periods = self._limit_periods(available, horizon_dates, horizons)
+        # Узкое место — конец первого периода лимита
+        bottleneck_date = limit_periods[0]["end"] if limit_periods else None
+        bottleneck_available = (
+            available[bottleneck_date] if bottleneck_date else Decimal("0")
+        )
 
         # Вехи целей — сбой деградирует fail-open
         try:
@@ -213,27 +323,36 @@ class MoneyLayersService:
             milestones = []
             degraded = True
 
-        starting_balance, has_recurring_templates = self._user_data_markers(user_id)
+        starting_balance, templates = self._user_data_markers(user_id)
         is_empty = self._is_empty(
-            days, savings_by_date, payments, has_recurring_templates, starting_balance
+            days, savings_by_date, payments, bool(templates), starting_balance
         )
-        window_is_flat = not is_empty and not payments and not savings_by_date
+        # «Плоское окно» — про ось, а не про удлинённый горизонт расчёта
+        window_is_flat = (
+            not is_empty
+            and not any(p["date"] <= horizons.window_end for p in payments)
+            and not any(d <= horizons.window_end for d in savings_by_date)
+        )
 
         goals_reserve_today = goals_part.get(ref, Decimal("0"))
 
         return MoneyLayersData(
             days=days,
             today=self._today_slice(days),
-            min_free=min_free,
-            min_free_date=min_free_date,
+            limit_periods=limit_periods,
+            bottleneck_date=bottleneck_date,
+            bottleneck_available=bottleneck_available,
+            shortfall=shortfall,
+            shortfall_date=shortfall_date,
+            norm_per_day=self._norm_per_day(templates, ref),
             upcoming_payments=payments,
             milestones=milestones,
             reference_date=ref,
             window_end=horizons.window_end,
-            payments_end=horizons.payments_end,
+            horizon_end=horizons.horizon_end,
             cushion_threshold=cushion_threshold,
             goals_reserve_today=goals_reserve_today,
-            reserve_configured_today=cushion_threshold + goals_reserve_today,
+            reserve_configured_today=goals_reserve_today,
             degraded=degraded,
             is_empty=is_empty,
             window_is_flat=window_is_flat,
@@ -241,11 +360,10 @@ class MoneyLayersService:
 
     # --- Приватные шаги ---
 
-    def _horizons(self, reference_date: date) -> Horizons:
-        """Три границы модели: сбор операций, ось, слой «Платежи».
-
-        Границ три, а не две (в v2 их было две, и данных за границей
-        месяца было нечем считать — critique-v2, №6):
+    def _horizons(
+        self, reference_date: date, income_dates: Iterable[date] = ()
+    ) -> Horizons:
+        """Границы модели: сбор операций, ось, горизонт расчёта H.
 
         * collect_start = 1-е число месяца reference_date. Единственный
           сбор операций начинается ОТ НАЧАЛА МЕСЯЦА, а не от сегодня,
@@ -254,26 +372,37 @@ class MoneyLayersService:
           в том числе УЖЕ ПРОШЕДШИЕ дни текущего месяца (взнос 10-го
           при сегодня 22-м).
         * window_end = reference_date + WINDOW_DAYS - 1 (ось графика).
-        * payments_end = последний день месяца reference_date (C-5) —
-          применяется ТОЛЬКО как арифметический фильтр суффиксной
-          суммы слоя «Платежи», сбор операций им не ограничен.
+        * horizon_end (H) = первый доход строго после window_end, но не
+          дальше reference_date + HORIZON_CAP_DAYS - 1. Нет такого
+          дохода — H = предел, horizon_has_income_after = False.
+          Прежняя граница payments_end (конец месяца, C-5) удалена
+          протоколом 0033: обрыв слоя «Платежи» на границе месяца
+          показывал зелёный следующий месяц при известных платежах.
 
         Args:
             reference_date: Дата отсчёта.
+            income_dates: Фактические даты доходов из сбора операций.
+                Пусто — H упирается в предел.
 
         Returns:
-            Horizons: (collect_start, window_end, payments_end).
+            Horizons: (collect_start, window_end, horizon_end,
+                horizon_has_income_after).
         """
+        window_end = reference_date + timedelta(days=WINDOW_DAYS - 1)
+        cap_day = reference_date + timedelta(days=HORIZON_CAP_DAYS - 1)
+        after_window = [day for day in income_dates if window_end < day <= cap_day]
+
         return Horizons(
             collect_start=_month_start(reference_date),
-            window_end=reference_date + timedelta(days=WINDOW_DAYS - 1),
-            payments_end=_month_end(reference_date),
+            window_end=window_end,
+            horizon_end=min(after_window) if after_window else cap_day,
+            horizon_has_income_after=bool(after_window),
         )
 
     def _forecast_balances(
-        self, user_id: int, reference_date: date, window_end: date
+        self, user_id: int, reference_date: date, horizon_end: date
     ) -> dict[date, Decimal]:
-        """Прогнозный остаток по дням окна — делегат в CalendarService.
+        """Прогнозный остаток по дням [ref, H] — делегат в CalendarService.
 
         Единственный источник остатка: инвариант AC-3
         (free + payments + reserve == balance) держится по построению
@@ -282,7 +411,7 @@ class MoneyLayersService:
         Args:
             user_id: ID пользователя.
             reference_date: Первый день окна.
-            window_end: Последний день окна.
+            horizon_end: Последний день горизонта расчёта H.
 
         Returns:
             dict[date, Decimal]: {дата: остаток на конец дня}.
@@ -290,21 +419,23 @@ class MoneyLayersService:
         from app.services.calendar_service import CalendarService
 
         return CalendarService(self.session).calculate_daily_balances(
-            user_id, reference_date, window_end
+            user_id, reference_date, horizon_end
         )
 
     def _collect_operations(
         self,
         user_id: int,
         collect_start: date,
-        window_end: date,
+        collect_end: date,
         reference_date: date,
-    ) -> tuple[list[UpcomingPayment], dict[date, Decimal]]:
-        """ОДИН сбор операций на весь диапазон — платежи + savings.
+    ) -> tuple[list[UpcomingPayment], dict[date, Decimal], list[date]]:
+        """ОДИН сбор операций на весь диапазон — платежи, savings, доходы.
 
         Один вызов CalendarService.get_all_transactions_for_period
-        (collect_start .. window_end) обслуживает и слой «Платежи»,
-        и формулу резерва. Второго вызова нет (NFR-1).
+        (collect_start .. collect_end) обслуживает и перечень платежей,
+        и формулу резерва, и поиск горизонта H по датам доходов.
+        Второго вызова нет (NFR-1). collect_end — конец месяца предела
+        горизонта: резерву дня D нужны savings-операции до month_end(D).
 
         Классификация повторяет DashboardService._get_daily_income_expense
         (dashboard_service.py:476-545):
@@ -316,14 +447,16 @@ class MoneyLayersService:
             отрицательной, reconciliation_service.py:131-135;
             get_all_transactions_for_period сериализует amount=str(txn.amount),
             calendar_service.py:803/:849 — знак сохраняется);
-          * income / transfer → не платёж.
+          * income / transfer → не платёж; income с amount > 0 даёт
+            дату дохода для горизонта H (по фактической дате, включая
+            экземпляры регулярных).
         Пропущенные (is_skipped=True) отбрасываются — их нет и в балансе.
 
         КЛЮЧЕВАНИЕ savings_by_date — ПО ФАКТИЧЕСКОЙ ДАТЕ ОПЕРАЦИИ
         (critique-v3, №2). Ключ — TransactionInfo['date'], то есть
         Transaction.transaction_date для реальных строк и instance_date
         для виртуальных. НЕ original_date. Словарь НЕ фильтруется
-        по границам окна: он может содержать даты за window_end
+        по границам сбора: он может содержать даты за collect_end
         (и, теоретически, до collect_start).
 
         Почему так может получиться. RecurringService
@@ -361,11 +494,11 @@ class MoneyLayersService:
         Args:
             user_id: ID пользователя.
             collect_start: Левая граница сбора (1-е число месяца).
-            window_end: Правая граница сбора (последний день окна).
-            reference_date: Дата отсчёта — платежи берутся от неё.
+            collect_end: Правая граница сбора (конец месяца предела H).
+            reference_date: Дата отсчёта — платежи и доходы берутся от неё.
 
         Returns:
-            tuple: (payments, savings_by_date), где
+            tuple: (payments, savings_by_date, income_dates), где
                 payments — расходные операции с датой >= reference_date
                     (прошедшие дни месяца в слой «Платежи» не входят:
                     они уже вычтены из balance);
@@ -375,16 +508,19 @@ class MoneyLayersService:
                     Ровно эти суммы CalendarService вычитает из баланса
                     (_get_daily_changes :270-283 для обычных,
                     _get_recurring_daily_changes :426-437 для recurring
-                    и exceptions) — потому формула резерва и не двоится.
+                    и exceptions) — потому формула резерва и не двоится;
+                income_dates — фактические даты доходов >= reference_date
+                    по возрастанию (без повторов).
         """
         from app.services.calendar_service import CalendarService
 
         by_date = CalendarService(self.session).get_all_transactions_for_period(
-            user_id, collect_start, window_end
+            user_id, collect_start, collect_end
         )
 
         payments: list[UpcomingPayment] = []
         savings_by_date: dict[date, Decimal] = {}
+        income_dates: set[date] = set()
 
         for day, transactions in by_date.items():
             for txn in transactions:
@@ -417,50 +553,65 @@ class MoneyLayersService:
                         savings_by_date.get(day, Decimal("0")) + amount
                     )
 
+                if txn_type == "income" and amount > 0 and day >= reference_date:
+                    income_dates.add(day)
+
         payments.sort(key=lambda item: item["date"])
-        return payments, savings_by_date
+        return payments, savings_by_date, sorted(income_dates)
 
-    def _payments_tail_by_day(
-        self,
-        payments: list[UpcomingPayment],
-        window_dates: list[date],
-        payments_end: date,
+    def _suffix_min(
+        self, available: dict[date, Decimal], horizon_dates: list[date]
     ) -> dict[date, Decimal]:
-        """Суффиксные суммы платежей: {D: Σ платежей в (D, payments_end]}.
+        """Суффиксный минимум доступного: {D: min по t ∈ [D, H] available(t)}.
 
-        Строго «после D»: платежи с датой ровно D уже вычтены из
-        forecast_balance(D) кассовым календарём — иначе двойной счёт.
-        Даёт «таяние» (FR-1.d): монотонно не растёт, payments(payments_end)
-        == 0 и payments(D) == 0 для всех D > payments_end (C-5 видимо).
-        Один проход справа налево, O(len(window_dates) + len(payments)).
+        Один проход справа налево, O(len(horizon_dates)). Минимум
+        включает сам день D, поэтому available(D) − m(D) ≥ 0 всегда —
+        вход каскада _split_day не бывает отрицательным, второй клэмп
+        не нужен. Платёж дня D уже вычтен из balance(D) кассовым
+        календарём и в «Платежи» дня D не попадает — двойного счёта нет.
 
         Args:
-            payments: Платежи от reference_date и далее.
-            window_dates: Дни окна по возрастанию.
-            payments_end: Правая граница горизонта платежей.
+            available: {день: balance − reserve того же дня} на [ref, H].
+            horizon_dates: Дни [ref, H] по возрастанию.
 
         Returns:
-            dict[date, Decimal]: {день окна: сумма хвоста платежей}.
+            dict[date, Decimal]: {день: m(день)}.
         """
-        # Суммы платежей по дням в пределах горизонта «Платежи»
-        by_day: dict[date, Decimal] = {}
-        for payment in payments:
-            if payment["date"] <= payments_end:
-                by_day[payment["date"]] = (
-                    by_day.get(payment["date"], Decimal("0")) + payment["amount"]
-                )
-
         result: dict[date, Decimal] = {}
-        tail = Decimal("0")
-        # Проход справа налево: на дне D в хвосте лежат платежи строго после D
-        for day in reversed(window_dates):
-            if day >= payments_end:
-                result[day] = Decimal("0")
-            else:
-                result[day] = tail
-            tail += by_day.get(day, Decimal("0"))
-
+        current: Decimal | None = None
+        for day in reversed(horizon_dates):
+            value = available[day]
+            current = value if current is None or value < current else current
+            result[day] = current
         return result
+
+    def _shortfall(
+        self,
+        available: dict[date, Decimal],
+        horizon_dates: list[date],
+        reference_date: date,
+    ) -> tuple[Decimal, date | None]:
+        """Нехватка и её дата: max(0, −m(ref)) и первый день минимума.
+
+        Полосы графика нехватку не показывают (каскад клэмпит «Свободно»
+        в 0) — глубину видит только шапка через эти поля.
+
+        Args:
+            available: {день: доступно} на [ref, H].
+            horizon_dates: Дни [ref, H] по возрастанию.
+            reference_date: Дата отсчёта (первый день ряда).
+
+        Returns:
+            tuple[Decimal, date | None]: (нехватка ≥ 0, первый день, где
+                available == m(ref)); на пустом ряде — (0, reference_date).
+        """
+        if not horizon_dates:
+            return Decimal("0"), reference_date
+
+        min_value = min(available[day] for day in horizon_dates)
+        min_date = next(day for day in horizon_dates if available[day] == min_value)
+        shortfall = -min_value if min_value < 0 else Decimal("0")
+        return shortfall, min_date
 
     def _goals_part_by_day(
         self,
@@ -482,9 +633,11 @@ class MoneyLayersService:
             кассовым календарём. Их нельзя держать в синем слое: денег
             в остатке нет.
           * committed(D) — savings-операции, которым ещё предстоит уйти
-            в пределах месяца дня D. Они лежат в слое «Платежи»
-            (та же операция — тот же список), поэтому вычитаются, чтобы
-            не удвоиться.
+            в пределах месяца дня D. Они уменьшат available в день, когда
+            уйдут, и попадут в «Платежи» ровно тогда, когда их не покрывает
+            более ранний доход (суффиксный минимум) — поэтому из резерва
+            вычитаются, чтобы не удвоиться (проверка — пример со взносом
+            в решении консилиума 2026-11-03).
         Каждая операция попадает РОВНО в одно слагаемое — по своей дате
         относительно D. Двойного вычитания нет ни в одном режиме
         резервирования: формула вообще не знает о режиме.
@@ -492,7 +645,9 @@ class MoneyLayersService:
         Note:
             Суммирование НЕ ограничено границами окна (critique-v3, №2):
             committed(D) считает до month_end(D) включительно, даже если
-            month_end(D) > window_end. Savings-операция, чья фактическая
+            month_end(D) > window_end. Сбор операций идёт до конца месяца
+            предела горизонта, поэтому для всех дней [ref, H] данных
+            достаточно. Savings-операция, чья фактическая
             дата лежит за правым краем окна, но внутри месяца дня D, —
             это реальное «ещё предстоит уйти в этом месяце», и её учёт
             уменьшает goals_part(D), то есть НЕ завышает «Свободно».
@@ -501,7 +656,7 @@ class MoneyLayersService:
 
         Note:
             Для D за границей месяца reference_date данные есть:
-            сбор операций идёт до window_end (см. _horizons). В v2 этой
+            сбор операций идёт до конца месяца предела H (см. _horizons). В v2 этой
             ветке формулы не было чем считать (critique-v2, №6).
 
         Note:
@@ -569,11 +724,12 @@ class MoneyLayersService:
         Args:
             savings_by_date: Savings-операции по фактическим датам
                 (может содержать даты за границами окна).
-            window_dates: Дни окна по возрастанию.
+            window_dates: Дни, для которых считается резерв (на деле —
+                весь ряд [ref, H]), по возрастанию.
             monthly_budget: Текущая настройка бюджета накоплений.
 
         Returns:
-            dict[date, Decimal]: {день окна: бюджет целей в остатке}.
+            dict[date, Decimal]: {день: бюджет целей в остатке}.
         """
         result: dict[date, Decimal] = {}
 
@@ -619,7 +775,7 @@ class MoneyLayersService:
 
         Args:
             balance: Прогнозный остаток дня.
-            payments: Хвост платежей дня.
+            payments: Сырые «Платежи» дня — available(D) − m(D), ≥ 0.
             reserve: Настроенный резерв дня (до каскада).
 
         Returns:
@@ -668,34 +824,6 @@ class MoneyLayersService:
             payments=today["payments"],
             reserve=today["reserve"],
         )
-
-    def _window_min_free(self, days: list[DayLayers]) -> tuple[Decimal, date]:
-        """Минимум слоя «Свободно» по ВСЕМУ окну — для маркера (FR-3.e).
-
-        Минимум ищется по всем 45 дням, а не по остатку месяца:
-        просадка после зарплаты (эскиз: 4 сентября) обязана попадать
-        в кадр. При равенстве берётся первая дата.
-
-        Note:
-            Величина используется ТОЛЬКО графиком (маркер минимума).
-            Оценочного вывода из неё не делается — вердикт снят
-            решением владельца.
-
-        Args:
-            days: Дни окна.
-
-        Returns:
-            tuple[Decimal, date]: (минимум «Свободно», его дата).
-        """
-        if not days:
-            return Decimal("0"), date.today()
-
-        min_day = days[0]
-        for day in days[1:]:
-            if day["free"] < min_day["free"]:
-                min_day = day
-
-        return min_day["free"], min_day["date"]
 
     def _goal_milestones(
         self, user_id: int, reference_date: date, window_end: date
@@ -809,19 +937,20 @@ class MoneyLayersService:
 
         return all(day["forecast_balance"] == 0 for day in days)
 
-    def _user_data_markers(self, user_id: int) -> tuple[Decimal, bool]:
-        """Начальный баланс и наличие recurring-шаблонов для _is_empty.
+    def _user_data_markers(self, user_id: int) -> tuple[Decimal, list["Transaction"]]:
+        """Начальный баланс и recurring-шаблоны — для _is_empty и нормы.
 
         Два лёгких запроса вместо count(transactions) по всей истории:
-        начальный баланс читается из пользователя, наличие шаблонов —
-        через RecurringService.get_templates_for_user.
+        начальный баланс читается из пользователя, шаблоны — через
+        RecurringService.get_templates_for_user (они же нужны норме
+        «по плану», второго запроса шаблонов нет).
 
         Args:
             user_id: ID пользователя.
 
         Returns:
-            tuple[Decimal, bool]: (starting_balance, есть ли шаблоны).
-                На отсутствующем пользователе — (Decimal("0"), False):
+            tuple[Decimal, list[Transaction]]: (starting_balance, шаблоны).
+                На отсутствующем пользователе — (Decimal("0"), []):
                 чистая база штатна, исключения не бросаем (FR-6).
         """
         from app.models.database import User
@@ -829,7 +958,182 @@ class MoneyLayersService:
 
         user = self.session.get(User, user_id)
         starting_balance = Decimal(user.starting_balance or 0) if user else Decimal("0")
-        has_templates = bool(
-            RecurringService(self.session).get_templates_for_user(user_id)
-        )
-        return starting_balance, has_templates
+        templates = RecurringService(self.session).get_templates_for_user(user_id)
+        return starting_balance, templates
+
+    def _limit_periods(
+        self,
+        available: dict[date, Decimal],
+        horizon_dates: list[date],
+        horizons: Horizons,
+    ) -> list[LimitPeriod]:
+        """Лимит трат на день по периодам — жадно от узкого места к узкому.
+
+        Алгоритм (plan.md протокола 0033, «Лимит по периодам»):
+
+            s = ref; spent = 0
+            пока s <= H и периодов < MAX_LIMIT_PERIODS:
+                L = min по t ∈ [s, H] от (available(t) − spent) / дней(s..t)
+                b = ПОСЛЕДНИЙ t, на котором достигается L
+                период (s, b, L); spent += L × дней(s..b); s = b + 1
+
+        Дни считаются ВКЛЮЧИТЕЛЬНО с обоих концов (3.11→19.11 = 17 дней).
+        Смысл: предполагается, что до узкого места тратишь ровно по
+        лимиту — следующее ограничение ищется уже от этого. Поэтому
+        лимит от периода к периоду только растёт (b — последний
+        минимизатор), а «получка» как сущность не нужна: периоды
+        выводятся из узких мест сами.
+
+        Сравнение отношений — перекрёстным умножением, без деления:
+        равенство при «последнем t» не должно зависеть от округления
+        Decimal. spent после периода равен available(b) ТОЧНО.
+
+        Правила:
+          * L < 0 (не хватает уже в первом периоде) — период один,
+            per_day = 0, конец — первый день минимума available (та же
+            дата, что shortfall_date); глубину говорит нехватка.
+          * Соседние периоды с равным per_day после округления до рубля
+            вниз и одинаковой надёжностью сливаются (конец — второго,
+            per_day — первого, он не больше).
+          * Период с end == H — reliable = False: за краем расчёта данных
+            нет (без дохода за H — ложное узкое место; если H — день
+            дохода, остаток уже включает доход — ложный однодневный
+            период с огромным лимитом).
+
+        Формула «низшая точка ÷ дни до неё» из ROADMAP п.10 — частный
+        случай и НЕ используется (контрпример — в тестах).
+
+        Args:
+            available: {день: balance − reserve того же дня} на [ref, H].
+            horizon_dates: Дни [ref, H] по возрастанию.
+            horizons: Границы модели (H и признак дохода за ним).
+
+        Returns:
+            list[LimitPeriod]: Периоды по порядку (1..MAX_LIMIT_PERIODS).
+        """
+        periods: list[LimitPeriod] = []
+        spent = Decimal("0")
+        start_index = 0
+
+        while start_index < len(horizon_dates) and len(periods) < MAX_LIMIT_PERIODS:
+            start = horizon_dates[start_index]
+            best_num: Decimal | None = None
+            best_den = 1
+            best_index = start_index
+            for index in range(start_index, len(horizon_dates)):
+                num = available[horizon_dates[index]] - spent
+                den = index - start_index + 1
+                # num/den <= best_num/best_den  ⇔  num·best_den <= best_num·den
+                if best_num is None or num * best_den <= best_num * den:
+                    best_num, best_den, best_index = num, den, index
+
+            end = horizon_dates[best_index]
+            # Конец ряда — всегда край знания: за H данных нет, а если H —
+            # день дохода, остаток этого дня уже включает доход и даёт
+            # ложный однодневный период с огромным лимитом (приёмка 0033).
+            reliable = end != horizons.horizon_end
+
+            if best_num < 0:
+                # Нехватка: период кончается там же, где шапка называет
+                # дату нехватки, — первый день минимума available, иначе
+                # в шапке две разные даты (приёмка 0033, находка 1)
+                tail = horizon_dates[start_index:]
+                lowest = min(available[day] for day in tail)
+                end = next(day for day in tail if available[day] == lowest)
+                reliable = end != horizons.horizon_end
+                periods.append(
+                    LimitPeriod(
+                        start=start, end=end, per_day=Decimal("0"), reliable=reliable
+                    )
+                )
+                break
+
+            periods.append(
+                LimitPeriod(
+                    start=start,
+                    end=end,
+                    per_day=best_num / best_den,
+                    reliable=reliable,
+                )
+            )
+            spent = available[end]
+            start_index = best_index + 1
+
+        return self._merge_equal_periods(periods)
+
+    def _merge_equal_periods(self, periods: list[LimitPeriod]) -> list[LimitPeriod]:
+        """Сливает соседние периоды с равным лимитом (до рубля вниз).
+
+        Сливаются только периоды одинаковой надёжности: иначе надёжный
+        первый период растворился бы в ненадёжном и UI показал бы
+        предупреждение вместо известного числа.
+
+        Args:
+            periods: Периоды по порядку.
+
+        Returns:
+            list[LimitPeriod]: Периоды после слияния.
+        """
+        merged: list[LimitPeriod] = []
+        for period in periods:
+            if merged:
+                last = merged[-1]
+                same_rub = floor_rub(last["per_day"]) == floor_rub(period["per_day"])
+                if same_rub and last["reliable"] == period["reliable"]:
+                    merged[-1] = LimitPeriod(
+                        start=last["start"],
+                        end=period["end"],
+                        per_day=last["per_day"],
+                        reliable=last["reliable"],
+                    )
+                    continue
+            merged.append(period)
+        return merged
+
+    def _norm_per_day(
+        self, templates: list["Transaction"], reference_date: date
+    ) -> Decimal | None:
+        """Норма «по плану»: регулярные (доходы − расходы) месяца ÷ дней.
+
+        Считается по ШАБЛОНАМ повторения — виртуальным вхождениям в
+        календарный месяц reference_date, без учёта исключений: норма
+        говорит, сколько в день остаётся на жизнь ПО ПЛАНУ, и не
+        подстраивается под факт (зарплата пришла меньше — норма та же,
+        подпись в UI «по плану»; осознанный риск из решения консилиума).
+        Разовые операции не входят. Расходы — типы слоя «Платежи»
+        (expense и savings-операции: деньги на цели тоже не на жизнь).
+        Норма — не настройка.
+
+        Args:
+            templates: Recurring-шаблоны пользователя.
+            reference_date: Дата отсчёта — месяц нормы.
+
+        Returns:
+            Decimal | None: Норма в день; None — в месяце нет ни одного
+                вхождения регулярных операций.
+        """
+        from app.services.recurring_service import RecurringService
+
+        month_start = _month_start(reference_date)
+        month_end = _month_end(reference_date)
+        recurring = RecurringService(self.session)
+
+        net = Decimal("0")
+        occurrences = 0
+        for template in templates:
+            txn_type = template.transaction_type.value
+            if txn_type == "income":
+                sign = Decimal("1")
+            elif txn_type in _PAYMENT_TYPES:
+                sign = Decimal("-1")
+            else:
+                continue
+            for instance in recurring.generate_instances(
+                template, month_start, month_end
+            ):
+                net += sign * Decimal(instance["amount"])
+                occurrences += 1
+
+        if occurrences == 0:
+            return None
+        return net / Decimal(month_end.day)

@@ -90,6 +90,29 @@
     font-weight: 600;
 }
 
+/* Блок «можно тратить N ₽/день» (протокол 0033) — под разбором.
+   Цвета — только токены: нейтральный текст, риск — .pnl-negative */
+.pnl-limit {
+    margin-top: 10px;
+    font-size: 14px;
+    color: var(--color-text-primary);
+}
+
+.pnl-limit-main b {
+    font-weight: 700;
+}
+
+.pnl-limit-sub {
+    margin-top: 3px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+}
+
+.pnl-limit-sub.pnl-negative {
+    color: var(--color-danger);
+    font-weight: 600;
+}
+
 /* Сноска деградации — нейтральная, не тревожная:
    говорит «часть данных недоступна», а не «всё плохо» */
 .pnl-degraded-note {

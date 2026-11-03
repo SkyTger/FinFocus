@@ -25,7 +25,7 @@ from app.models.database import (
     User,
 )
 from app.services.money_layers_service import MoneyLayersService
-from app.schema.money_layers import WINDOW_DAYS
+from app.schema.money_layers import HORIZON_CAP_DAYS, WINDOW_DAYS
 
 
 # --- Общая конфигурация трассировки решения ---
@@ -101,6 +101,38 @@ def add_txn(
     session.add(txn)
     session.commit()
     return txn
+
+
+@pytest.fixture
+def plain_user(db_session) -> User:
+    """Пользователь без подушки и бюджета целей: резерв == 0.
+
+    Нужен сценариям протокола 0033, где ручной расчёт должен видеть
+    только остаток и платежи/доходы — без слагаемых резерва.
+    """
+    user = User(
+        email="plain@example.com",
+        name="Plain User",
+        starting_balance=Decimal("50000"),
+        monthly_savings_budget=Decimal("0"),
+    )
+    db_session.add(user)
+    db_session.commit()
+    return user
+
+
+def by_date(data) -> dict:
+    """Дни окна модели по дате."""
+    return {day["date"]: day for day in data["days"]}
+
+
+def assert_invariant(data) -> None:
+    """free + payments + reserve == balance и payments >= 0 на всех днях оси."""
+    for day in data["days"]:
+        assert (
+            day["free"] + day["payments"] + day["reserve"] == day["forecast_balance"]
+        ), day["date"]
+        assert day["payments"] >= 0, day["date"]
 
 
 # ===========================================================================
@@ -284,10 +316,12 @@ class TestExpectedLayersTable:
 
         assert result[today] == Decimal("12000")
 
-    def test_reserve_configured_includes_cushion_and_goals(
-        self, db_session, service, layers_user
-    ):
-        """reserve_configured == порог подушки + goals_part (кейс 11 числами)."""
+    def test_reserve_configured_is_goals_only(self, db_session, service, layers_user):
+        """reserve_configured == goals_part; порог подушки в резерв не входит.
+
+        Ревью 0033, вопрос №12: порог — ориентир (линия, строка в шапке),
+        а не вычет из остатка. Бюджет 20 000 − взнос 8 000 = 12 000.
+        """
         today = date.today()
         layers_user.monthly_savings_budget = Decimal("20000")
         add_txn(
@@ -302,13 +336,19 @@ class TestExpectedLayersTable:
 
         assert data["cushion_threshold"] == CUSHION_THRESHOLD
         assert data["goals_reserve_today"] == Decimal("12000")
-        assert data["reserve_configured_today"] == Decimal("42000")
+        assert data["reserve_configured_today"] == Decimal("12000")
 
     def test_trace_example_layers(self, db_session, service, layers_user):
-        """Проверочный пример решения: 84 500 → free 17 000.
+        """Проверочный пример решения в новой модели: 84 500 → free 32 000.
 
-        Остаток 84 500, платежи до конца месяца 37 500 (включая резерв
-        целей 15 000), порог подушки 30 000 → free = 17 000.
+        Протокол 0033 (ручной расчёт; порог подушки в резерв не входит —
+        ревью, вопрос №12): доходов нет, H = ref + 89, три месяца.
+        Сегодня бюджет целей уже «обещан» операцией резерва (committed
+        15 000) → goals 0, available(ref) = 84 500. Текущий месяц после
+        резерва и расхода: 84 500 − 15 000 − 22 500 = 47 000 (goals 0).
+        Следующие месяцы: бюджет 15 000 снова в резерве (savings-операций
+        там нет) → 47 000 − 15 000 = 32 000 — минимум. free 32 000,
+        payments 84 500 − 32 000 = 52 500, reserve 0.
         """
         today = date.today().replace(day=1)
         add_txn(
@@ -330,9 +370,9 @@ class TestExpectedLayersTable:
         data = service.get_money_layers(layers_user.id, today)
 
         assert data["today"]["balance"] == Decimal("84500.00")
-        assert data["today"]["payments"] == Decimal("37500.00")
-        assert data["today"]["reserve"] == CUSHION_THRESHOLD
-        assert data["today"]["free"] == Decimal("17000.00")
+        assert data["today"]["payments"] == Decimal("52500.00")
+        assert data["today"]["reserve"] == Decimal("0")
+        assert data["today"]["free"] == Decimal("32000.00")
 
 
 # ===========================================================================
@@ -431,12 +471,17 @@ class TestLayersInvariant:
 
 
 class TestPaymentsMelting:
-    """Слой «Платежи» тает к концу месяца и обнуляется за его границей."""
+    """Слой «Платежи» без доходов тает; граница месяца его не обрывает."""
 
     def test_payments_monotonically_non_increasing(
         self, db_session, service, layers_user
     ):
-        """payments(D) монотонно не растёт по окну (FR-1.d)."""
+        """Без доходов payments(D) монотонно не растёт по окну (FR-1.d).
+
+        В новой модели (протокол 0033) свойство верно только без доходов:
+        доступное тогда лишь убывает, и суффиксный минимум приближается
+        к нему с каждым прошедшим платежом.
+        """
         today = date.today().replace(day=1)
         for offset in (2, 5, 9):
             add_txn(
@@ -452,31 +497,36 @@ class TestPaymentsMelting:
 
         assert all(values[i] >= values[i + 1] for i in range(len(values) - 1))
 
-    def test_payments_zero_at_and_after_payments_end(
-        self, db_session, service, layers_user
-    ):
-        """payments(D) == 0 на payments_end и за границей месяца (C-5)."""
+    def test_payments_not_cut_at_month_end(self, db_session, service, plain_user):
+        """Платёж следующего месяца лежит в «Платежах» конца текущего.
+
+        Замена теста «0 после конца месяца» (C-5 отменён протоколом 0033).
+        Расчёт: ref = 1-е, баланс 50 000, расход 7 000 на ref+3, расход
+        4 000 на 10-е следующего месяца, доходов нет. На последний день
+        месяца available = 43 000, минимум дальше = 39 000 → payments 4 000,
+        free 39 000 (при C-5 было бы payments 0, free 43 000).
+        """
         today = date.today().replace(day=1)
         add_txn(
             db_session,
-            layers_user.id,
+            plain_user.id,
             Decimal("7000"),
             TransactionType.EXPENSE,
             today + timedelta(days=3),
         )
         add_txn(
             db_session,
-            layers_user.id,
+            plain_user.id,
             Decimal("4000"),
             TransactionType.EXPENSE,
             next_month_day(today, 10),
         )
 
-        data = service.get_money_layers(layers_user.id, today)
+        data = service.get_money_layers(plain_user.id, today)
+        last = by_date(data)[month_end(today)]
 
-        for day in data["days"]:
-            if day["date"] >= data["payments_end"]:
-                assert day["payments"] == Decimal("0"), day["date"]
+        assert last["payments"] == Decimal("4000")
+        assert last["free"] == Decimal("39000")
 
     def test_payments_excludes_same_day_payment(self, db_session, service, layers_user):
         """Платёж дня D не входит в payments(D) — он уже вычтен из баланса."""
@@ -549,16 +599,20 @@ class TestSplitDayCascade:
     def test_reserve_configured_survives_compression(
         self, db_session, service, layers_user
     ):
-        """reserve_configured хранит настройку, reserve — факт после каскада."""
-        layers_user.starting_balance = Decimal("18000")
+        """reserve_configured хранит настройку, reserve — факт после каскада.
+
+        Баланс 12 000 < бюджета целей 15 000 (порог подушки в резерв не
+        входит): каскад ужимает резерв до остатка — 12 000.
+        """
+        layers_user.starting_balance = Decimal("12000")
         db_session.commit()
 
         data = service.get_money_layers(layers_user.id)
         today = data["days"][0]
 
         # savings-операций нет → весь бюджет целей лежит в остатке
-        assert today["reserve_configured"] == CUSHION_THRESHOLD + BUDGET
-        assert today["reserve"] == Decimal("18000")
+        assert today["reserve_configured"] == BUDGET
+        assert today["reserve"] == Decimal("12000")
         assert today["reserve"] < today["reserve_configured"]
 
 
@@ -568,7 +622,80 @@ class TestSplitDayCascade:
 
 
 class TestCushionThreshold:
-    """В слой «Резерв» входит ПОРОГ подушки, а не её цель."""
+    """Порог подушки — ориентир, в слой «Резерв» не входит (вопрос №12)."""
+
+    def _user(self, db_session, email, balance, cushion_target):
+        """Пользователь без целей с заданной подушкой (порог 30%)."""
+        user = User(
+            email=email,
+            name="Cushion",
+            starting_balance=balance,
+            monthly_savings_budget=Decimal("0"),
+            cushion_target=cushion_target,
+            cushion_threshold_percent=30,
+        )
+        db_session.add(user)
+        db_session.commit()
+        return user
+
+    def test_unbuilt_cushion_gives_positive_limit_not_shortfall(
+        self, db_session, service
+    ):
+        """Порог выше остатка: лимит положительный, нехватки нет.
+
+        Ревью 0033, находка 1: раньше порог вычитался как неприкосновенный
+        — баланс 16 000 при пороге 30 000 давал «не хватает 14 000» и
+        «0 ₽/день». Теперь доходов и платежей нет, H = ref + 89 (90 дней):
+        available = 16 000 каждый день → free 16 000, нехватки нет,
+        лимит 16 000 / 90 > 0 (период ненадёжен — край без дохода, но
+        число модель считает).
+        """
+        user = self._user(
+            db_session,
+            "cushion-unbuilt@example.com",
+            Decimal("16000"),
+            Decimal("100000"),
+        )
+
+        data = service.get_money_layers(user.id, date.today())
+
+        assert data["cushion_threshold"] == Decimal("30000")
+        assert data["shortfall"] == Decimal("0")
+        assert data["today"]["free"] == Decimal("16000")
+        assert data["today"]["reserve"] == Decimal("0")
+        assert data["limit_periods"][0]["per_day"] == Decimal("16000") / Decimal("90")
+        assert_invariant(data)
+
+    def test_cushion_does_not_change_numbers(self, db_session, service):
+        """Числа слоёв и лимита одинаковы с подушкой и без неё.
+
+        Баланс 50 000, расход 20 000 на ref+5: available 50 000 до
+        расхода и 30 000 после → free 30 000, payments 20 000. Порог
+        10 000 (подушка 33 334 × 30%) ниже минимума — и всё равно ни на
+        одно число не влияет.
+        """
+        ref = date.today()
+        results = []
+        for email, target in (
+            ("cushion-none@example.com", Decimal("0")),
+            ("cushion-set@example.com", Decimal("33334")),
+        ):
+            user = self._user(db_session, email, Decimal("50000"), target)
+            add_txn(
+                db_session,
+                user.id,
+                Decimal("20000"),
+                TransactionType.EXPENSE,
+                ref + timedelta(days=5),
+            )
+            results.append(service.get_money_layers(user.id, ref))
+
+        without, with_cushion = results
+        assert with_cushion["cushion_threshold"] > 0
+        assert with_cushion["today"]["free"] == Decimal("30000")
+        assert with_cushion["today"]["payments"] == Decimal("20000")
+        for key in ("today", "limit_periods", "shortfall", "bottleneck_date"):
+            assert with_cushion[key] == without[key]
 
     def test_threshold_used_not_target(self, service, layers_user):
         """Используется порог 30 000, а не цель 100 000."""
@@ -590,12 +717,12 @@ class TestCushionThreshold:
 
         data = service.get_money_layers(layers_user.id)
 
-        # Вклад подушки в слой «Резерв» — ровно порог, независимо от накопленного
+        # Порог сообщается (ориентир), но в слой «Резерв» не входит вовсе —
+        # вопрос №12, ревью 0033
         assert data["cushion_threshold"] == CUSHION_THRESHOLD
-        assert (
-            data["days"][0]["reserve_configured"] - data["goals_reserve_today"]
-            == CUSHION_THRESHOLD
-        )
+        assert data["days"][0]["reserve_configured"] - data[
+            "goals_reserve_today"
+        ] == Decimal("0")
         # Остатка хватает — слой не сжат
         assert data["days"][0]["reserve"] == data["days"][0]["reserve_configured"]
 
@@ -638,14 +765,19 @@ class TestBoundaries:
     def test_horizons_for_various_reference_days(
         self, service, layers_user, day_of_month
     ):
-        """Горизонты корректны для начала, середины и конца месяца."""
+        """Горизонты корректны для начала, середины и конца месяца.
+
+        Без доходов H упирается в предел ref + HORIZON_CAP_DAYS − 1
+        (протокол 0033; прежний payments_end удалён).
+        """
         reference = date.today().replace(day=day_of_month)
 
         horizons = service._horizons(reference)
 
         assert horizons.collect_start == month_start(reference)
-        assert horizons.payments_end == month_end(reference)
         assert horizons.window_end == reference + timedelta(days=WINDOW_DAYS - 1)
+        assert horizons.horizon_end == reference + timedelta(days=HORIZON_CAP_DAYS - 1)
+        assert horizons.horizon_has_income_after is False
 
     def test_window_spans_three_months(self, service):
         """Окно 45 дней от конца декабря захватывает три месяца и год."""
@@ -659,15 +791,33 @@ class TestBoundaries:
         assert horizons.window_end.year == reference.year + 1
         assert len(months) == 3
 
-    def test_february_month_end(self, service):
-        """Конец февраля считается по фактической длине месяца."""
-        year = date.today().year
-        february = date(year, 2, 10)
-        _, last_day = monthrange(year, 2)
+    def test_horizon_stops_at_first_income_after_window(self, service):
+        """H — ПЕРВЫЙ доход строго после window_end; доходы в окне и за
+        пределом горизонт не задают (замена теста конца февраля: граница
+        месяца больше не граница модели)."""
+        reference = date.today().replace(day=10)
+        window_end = reference + timedelta(days=WINDOW_DAYS - 1)
+        incomes = [
+            reference + timedelta(days=5),  # в окне — не горизонт
+            window_end,  # край окна — не «строго после»
+            window_end + timedelta(days=7),  # первый после окна — это H
+            window_end + timedelta(days=20),
+        ]
 
-        horizons = service._horizons(february)
+        horizons = service._horizons(reference, incomes)
 
-        assert horizons.payments_end == date(year, 2, last_day)
+        assert horizons.horizon_end == window_end + timedelta(days=7)
+        assert horizons.horizon_has_income_after is True
+
+    def test_income_beyond_cap_does_not_set_horizon(self, service):
+        """Доход дальше предела не растягивает горизонт."""
+        reference = date.today().replace(day=10)
+        cap_day = reference + timedelta(days=HORIZON_CAP_DAYS - 1)
+
+        horizons = service._horizons(reference, [cap_day + timedelta(days=1)])
+
+        assert horizons.horizon_end == cap_day
+        assert horizons.horizon_has_income_after is False
 
     def test_case_12_moved_exception_beyond_window(self, service):
         """Кейс 12: savings-операция за window_end учитывается в committed.
@@ -707,7 +857,7 @@ class TestBoundaries:
             inside,
         )
 
-        _, savings_by_date = service._collect_operations(
+        _, savings_by_date, _ = service._collect_operations(
             layers_user.id, horizons.collect_start, horizons.window_end, today
         )
 
@@ -876,7 +1026,7 @@ class TestOperationTypes:
         )
 
         horizons = service._horizons(today)
-        payments, savings_by_date = service._collect_operations(
+        payments, savings_by_date, _ = service._collect_operations(
             layers_user.id, horizons.collect_start, horizons.window_end, today
         )
 
@@ -978,7 +1128,8 @@ class TestFailOpen:
 
         assert data["degraded"] is True
         assert data["goals_reserve_today"] == Decimal("0")
-        assert data["reserve_configured_today"] == CUSHION_THRESHOLD
+        # Порог подушки в резерв не входит (вопрос №12) — резерв пуст
+        assert data["reserve_configured_today"] == Decimal("0")
 
     def test_budget_failure_keeps_invariant(
         self, db_session, service, layers_user, monkeypatch
@@ -1126,4 +1277,310 @@ class TestMovedExceptionRegression:
         assert (
             day_20["free"] + day_20["payments"] + day_20["reserve"]
             == day_20["forecast_balance"]
+        )
+
+
+# ===========================================================================
+# Блок K — «можно тратить»: доступное и суффиксный минимум (протокол 0033)
+# ===========================================================================
+
+
+class TestSuffixMinimumModel:
+    """Слои через available(t) и min по t ∈ [D, H] — ручные расчёты в log.md.
+
+    Все сценарии — на plain_user (резерв 0), кроме явно помеченных:
+    ожидаемое число выводится из фикстуры, а не из вывода кода.
+    """
+
+    def test_income_before_payment_removes_false_zero(
+        self, db_session, service, plain_user
+    ):
+        """Доход 20-го покрывает платёж 25-го — «Платежи» 3-го его не держат.
+
+        Расчёт: баланс 50 000; доход 100 000 на 20-е; расход 60 000 на 25-е.
+        available: 3..19 → 50 000; 20..24 → 150 000; с 25-го → 90 000.
+        m(3-е) = 50 000 → free 50 000, payments 0. Старая модель давала
+        payments 60 000 > остатка → «свободно 0» (ложный ноль, ROADMAP п.10).
+        """
+        ref = date.today().replace(day=3)
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("100000"),
+            TransactionType.INCOME,
+            ref.replace(day=20),
+        )
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("60000"),
+            TransactionType.EXPENSE,
+            ref.replace(day=25),
+        )
+
+        data = service.get_money_layers(plain_user.id, ref)
+
+        assert data["today"]["free"] == Decimal("50000")
+        assert data["today"]["payments"] == Decimal("0")
+        assert data["shortfall"] == Decimal("0")
+        assert_invariant(data)
+
+    def test_payment_across_month_boundary(self, db_session, service, plain_user):
+        """Платёж 5-го следующего месяца до дохода 10-го держится с 20-го.
+
+        Расчёт: ref = 20-е, баланс 30 000 (стартовый 50 000 − 20 000 до ref),
+        расход 20 000 на 5-е следующего месяца, доход 50 000 на 10-е.
+        available: ref..4-е → 30 000; 5..9 → 10 000; с 10-го → 60 000.
+        Конец месяца: m = 10 000 → free 10 000, payments 20 000 (C-5 дал бы 0).
+        """
+        ref = date.today().replace(day=20)
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("20000"),
+            TransactionType.EXPENSE,
+            ref - timedelta(days=1),
+        )
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("20000"),
+            TransactionType.EXPENSE,
+            next_month_day(ref, 5),
+        )
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("50000"),
+            TransactionType.INCOME,
+            next_month_day(ref, 10),
+        )
+
+        data = service.get_money_layers(plain_user.id, ref)
+        days = by_date(data)
+
+        assert data["today"]["balance"] == Decimal("30000")
+        assert days[month_end(ref)]["payments"] == Decimal("20000")
+        assert days[month_end(ref)]["free"] == Decimal("10000")
+        # После дохода 10-го платёж оплачен, держать нечего
+        assert days[next_month_day(ref, 10)]["payments"] == Decimal("0")
+        assert_invariant(data)
+
+    def test_payment_beyond_axis_edge_is_in_last_days(
+        self, db_session, service, plain_user
+    ):
+        """Платёж за краем оси до ближайшего дохода — в «Платежах» оси.
+
+        Расчёт: баланс 50 000, расход 15 000 на ref+50 (ось кончается
+        на ref+44), доход 100 000 на ref+60 → H = ref+60, доход за осью.
+        Последний день оси: available 50 000, минимум дальше 35 000 →
+        payments 15 000, free 35 000. Без удлинённого горизонта обрыв
+        переехал бы на правый край графика (payments 0).
+        """
+        ref = date.today()
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("15000"),
+            TransactionType.EXPENSE,
+            ref + timedelta(days=50),
+        )
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("100000"),
+            TransactionType.INCOME,
+            ref + timedelta(days=60),
+        )
+
+        data = service.get_money_layers(plain_user.id, ref)
+        last_axis_day = data["days"][-1]
+
+        assert data["horizon_end"] == ref + timedelta(days=60)
+        assert last_axis_day["date"] == data["window_end"]
+        assert last_axis_day["payments"] == Decimal("15000")
+        assert last_axis_day["free"] == Decimal("35000")
+        # Платёж за осью виден и в перечне платежей до горизонта
+        assert any(
+            payment["date"] == ref + timedelta(days=50)
+            for payment in data["upcoming_payments"]
+        )
+        assert_invariant(data)
+
+    def test_no_income_after_axis_caps_horizon(self, db_session, service, plain_user):
+        """Доходов после оси нет → H = ref + 89 и признак «без дохода»."""
+        ref = date.today()
+        # Доход внутри оси горизонт не задаёт
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("10000"),
+            TransactionType.INCOME,
+            ref + timedelta(days=5),
+        )
+
+        data = service.get_money_layers(plain_user.id, ref)
+        horizons = service._horizons(ref, [ref + timedelta(days=5)])
+
+        assert data["horizon_end"] == ref + timedelta(days=89)
+        assert horizons.horizon_end == ref + timedelta(days=89)
+        assert horizons.horizon_has_income_after is False
+
+    def test_shortfall_with_positive_balance(self, db_session, service, plain_user):
+        """Нехватка: balance > 0, m < 0 → free 0, payments == balance.
+
+        Расчёт: баланс 10 000, расход 16 137 на ref+5, доходов нет.
+        available(ref+5..) = −6 137 = m → shortfall 6 137 на ref+5;
+        payments_raw = 10 000 + 6 137 = 16 137, каскад сжимает до 10 000.
+        """
+        plain_user.starting_balance = Decimal("10000")
+        db_session.commit()
+        ref = date.today()
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("16137"),
+            TransactionType.EXPENSE,
+            ref + timedelta(days=5),
+        )
+
+        data = service.get_money_layers(plain_user.id, ref)
+
+        assert data["shortfall"] == Decimal("6137")
+        assert data["shortfall_date"] == ref + timedelta(days=5)
+        assert data["today"]["free"] == Decimal("0")
+        assert data["today"]["payments"] == Decimal("10000")
+        assert data["today"]["reserve"] == Decimal("0")
+        assert_invariant(data)
+
+    def test_shortfall_compresses_reserve_first(self, db_session, service):
+        """Нехватка при резерве > 0: резерв ужимается первым (каскад).
+
+        Расчёт: баланс 10 000, бюджет целей 3 000 без savings-операций
+        (лежит в резерве каждый день; порог подушки в резерв не входит —
+        вопрос №12), расход 13 137 на ref+5. available(ref) = 7 000; дальше
+        −3 137 − 3 000 = −6 137 = m. payments_raw = 13 137; каскад:
+        10 000 − 13 137 − 3 000 = −6 137 → резерв 3 000 → 0, платежи
+        13 137 − 3 137 = 10 000. Итог: free 0, payments 10 000, reserve 0.
+        """
+        user = User(
+            email="cushion-short@example.com",
+            name="Cushion Short",
+            starting_balance=Decimal("10000"),
+            monthly_savings_budget=Decimal("3000"),
+        )
+        db_session.add(user)
+        db_session.commit()
+        ref = date.today()
+        add_txn(
+            db_session,
+            user.id,
+            Decimal("13137"),
+            TransactionType.EXPENSE,
+            ref + timedelta(days=5),
+        )
+
+        data = service.get_money_layers(user.id, ref)
+
+        assert data["goals_reserve_today"] == Decimal("3000")
+        assert data["shortfall"] == Decimal("6137")
+        assert data["today"]["free"] == Decimal("0")
+        assert data["today"]["payments"] == Decimal("10000")
+        assert data["today"]["reserve"] == Decimal("0")
+        assert_invariant(data)
+
+    @pytest.mark.parametrize(
+        "with_advance, expected_free, expected_payments",
+        [
+            (True, Decimal("50000"), Decimal("0")),
+            (False, Decimal("40000"), Decimal("10000")),
+        ],
+    )
+    def test_goal_contribution_counted_once(
+        self, db_session, service, with_advance, expected_free, expected_payments
+    ):
+        """Пример консилиума со взносом: ни двойного счёта, ни потери.
+
+        Бюджет целей 10 000, взнос 10 000 на 25-е, остаток 50 000 на 3-е.
+        Резерв 3-го = 10 000 − 0 − 10 000 = 0. С авансом 100 000 20-го:
+        available 3..19 = 50 000, 20..24 = 150 000, с 25-го 140 000 →
+        free 50 000, payments 0. Без аванса: с 25-го 40 000 → free 40 000,
+        payments 10 000 (взнос ровно один раз, в «Платежах»).
+
+        Доход 100 000 на 1-е следующего месяца есть в ОБОИХ вариантах:
+        в следующем месяце savings-операций нет, и бюджет целей 10 000
+        снова лежит в резерве (неизменное правило резерва, кейс 9). Без
+        этого дохода «без аванса» дало бы 30 000 — пример консилиума
+        рассматривает один месяц, фикстура изолирует его честно.
+        """
+        user = User(
+            email="contribution@example.com",
+            name="Contribution",
+            starting_balance=Decimal("50000"),
+            monthly_savings_budget=Decimal("10000"),
+        )
+        db_session.add(user)
+        db_session.commit()
+        ref = date.today().replace(day=3)
+        add_txn(
+            db_session,
+            user.id,
+            Decimal("10000"),
+            TransactionType.SAVINGS_CONTRIBUTION,
+            ref.replace(day=25),
+            "Взнос на цель",
+        )
+        add_txn(
+            db_session,
+            user.id,
+            Decimal("100000"),
+            TransactionType.INCOME,
+            next_month_day(ref, 1),
+        )
+        if with_advance:
+            add_txn(
+                db_session,
+                user.id,
+                Decimal("100000"),
+                TransactionType.INCOME,
+                ref.replace(day=20),
+            )
+
+        data = service.get_money_layers(user.id, ref)
+
+        assert data["today"]["balance"] == Decimal("50000")
+        assert data["today"]["reserve"] == Decimal("0")
+        assert data["today"]["free"] == expected_free
+        assert data["today"]["payments"] == expected_payments
+        assert_invariant(data)
+
+    def test_window_flat_ignores_operations_beyond_axis(
+        self, db_session, service, plain_user
+    ):
+        """Операция только за краем оси (внутри горизонта) окно не «оживляет»."""
+        ref = date.today()
+        add_txn(
+            db_session,
+            plain_user.id,
+            Decimal("5000"),
+            TransactionType.EXPENSE,
+            ref + timedelta(days=60),
+        )
+
+        data = service.get_money_layers(plain_user.id, ref)
+
+        assert data["window_is_flat"] is True
+        # но платёж за осью всё равно держится в «Платежах»
+        assert data["today"]["payments"] == Decimal("5000")
+
+    def test_suffix_min_is_running_minimum_from_right(self, service):
+        """_suffix_min — минимум по [D, H] включая сам D."""
+        ref = date.today()
+        dates = [ref + timedelta(days=offset) for offset in range(4)]
+        available = dict(zip(dates, map(Decimal, ["5", "-2", "7", "3"])))
+
+        result = service._suffix_min(available, dates)
+
+        assert [result[day] for day in dates] == list(
+            map(Decimal, ["-2", "-2", "3", "3"])
         )
