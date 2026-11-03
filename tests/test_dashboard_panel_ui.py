@@ -756,16 +756,80 @@ class TestLegendAndTooltips:
         text = joined_text(html.Div(rows))
         assert format_rub(Decimal("1800")) in text
         assert format_rub(Decimal("3000")) in text
-        assert "залезаете в подушку" in text
+        # Подушка в резерв не входит (вопрос №12) — сжатие = нехватка
+        # бюджета целей, а не «залезаете в подушку»
+        assert "бюджета целей не хватает" in text
+        assert "подушк" not in text
 
     def test_reserve_tooltip_composition_when_intact(self):
-        """Резерв не сжат → тултип раскладывает: порог подушки + бюджет
-        целей."""
+        """Резерв не сжат → тултип называет бюджет целей; порога подушки
+        в составе нет (вопрос №12, протокол 0033)."""
         rows = _build_reserve_tooltip(make_layers_data())
 
         text = joined_text(html.Div(rows))
-        assert f"Порог подушки {format_rub(Decimal('2000'))}" in text
-        assert f"бюджет целей {format_rub(Decimal('1000'))}" in text
+        assert format_rub(Decimal("1000")) in text
+        assert "Бюджет целей" in text
+        assert "подушк" not in text.lower()
+
+    def test_cushion_line_when_free_below_threshold(self):
+        """Свободно сегодня меньше порога → «Подушка не добрана: N из T».
+
+        Ориентир, не тревога: нейтральный pnl-limit-sub без pnl-negative.
+        free 5 000 < порог 8 000 → «5 000 из 8 000».
+        """
+        data = make_layers_data()
+        data["cushion_threshold"] = Decimal("8000")
+
+        header = build_free_header(data, PROFILE)
+
+        line = next(
+            node
+            for node in iter_tree(header)
+            if "pnl-cushion-line" in (getattr(node, "className", "") or "")
+        )
+        assert all_texts(line) == [
+            "Подушка не добрана: ",
+            format_rub(Decimal("5000")),
+            " из ",
+            format_rub(Decimal("8000")),
+        ]
+        assert "pnl-negative" not in line.className
+
+    def test_no_cushion_line_when_built_or_not_set(self):
+        """Подушка набрана (free ≥ порога) или не задана → строки нет."""
+        built = make_layers_data()  # free 5 000 ≥ порог 2 000
+        unset = make_layers_data()
+        unset["cushion_threshold"] = Decimal("0")
+
+        for data in (built, unset):
+            assert "Подушка не добрана" not in joined_text(
+                build_free_header(data, PROFILE)
+            )
+
+    def test_cushion_threshold_line_on_chart(self):
+        """Порог подушки — пунктирная горизонталь с подписью; без порога
+        линии нет."""
+        data = make_layers_data()  # порог 2 000
+
+        fig = get_chart_figure(build_layers_chart(data))
+
+        lines = [
+            shape
+            for shape in fig.layout.shapes
+            if shape.type == "line" and shape.y0 == shape.y1 == 2000.0
+        ]
+        assert len(lines) == 1 and lines[0].line.dash == "dot"
+        assert f"подушка {format_rub(Decimal('2000'))}" in [
+            ann.text for ann in fig.layout.annotations
+        ]
+
+        data["cushion_threshold"] = Decimal("0")
+        fig = get_chart_figure(build_layers_chart(data))
+        assert not [
+            shape
+            for shape in fig.layout.shapes
+            if shape.type == "line" and shape.y0 == shape.y1
+        ]
 
     def test_reserve_tooltip_honest_when_degraded(self):
         """degraded → тултип не утверждает состав резерва."""

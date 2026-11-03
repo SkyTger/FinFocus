@@ -77,7 +77,7 @@ LAYER_COLORS: dict[LayerKey, str] = {
 LAYER_LABELS: dict[LayerKey, str] = {
     "free": "Свободно",
     "payments": "Платежи",
-    "reserve": "Резерв целей и подушки",
+    "reserve": "Резерв целей",
 }
 """Подписи слоёв в HTML-легенде (формулировки эскиза v3)."""
 
@@ -122,9 +122,9 @@ class DayLayers(TypedDict):
             границе месяца нет (C-5 отменён протоколом 0033).
         reserve: Слой «Резерв» — ФАКТ дня после каскада _split_day.
             Может быть меньше reserve_configured, если остатка меньше:
-            это и есть сигнал «вы залезаете в подушку».
+            это и есть сигнал «бюджета целей не хватает».
         reserve_configured: Настроенный резерв дня ДО каскада
-            (cushion_threshold + goals_part). Нужен тултипу, чтобы
+            (goals_part; порог подушки в резерв не входит — вопрос №12). Нужен тултипу, чтобы
             честно объяснить сжатие, а не утверждать настройку
             (решение владельца п. 3б).
         forecast_balance: Прогнозный остаток из CalendarService.
@@ -251,10 +251,11 @@ class MoneyLayersData(TypedDict):
         reference_date: Дата отсчёта («сегодня»).
         window_end: Последний день окна оси (reference_date + 44).
         horizon_end: Последний день горизонта расчёта H.
-        cushion_threshold: Порог подушки в слое «Резерв» (расшифровка).
+        cushion_threshold: Порог подушки — ориентир (линия на графике,
+            строка в шапке); в слой «Резерв» не входит (вопрос №12).
         goals_reserve_today: Часть слоя «Резерв» от бюджета целей на сегодня
             (до каскада — настроенная).
-        reserve_configured_today: cushion_threshold + goals_reserve_today.
+        reserve_configured_today: goals_reserve_today (порог подушки не входит).
             Сравнение с today['reserve'] показывает, сжат ли слой —
             тултип обязан говорить факт, а не настройку (п. 3б).
         degraded: True — часть модели посчитана в деградации (fail-open,

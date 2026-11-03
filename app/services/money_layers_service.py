@@ -272,9 +272,14 @@ class MoneyLayersService:
         goals_part = self._goals_part_by_day(
             savings_by_date, horizon_dates, monthly_budget
         )
+        # Резерв — только бюджет целей. Порог подушки в резерв НЕ входит
+        # (ревью 0033, вопрос №12): пока подушка не набрана, он вычитался
+        # бы из остатка как неприкосновенный и давал постоянную «нехватку»
+        # и лимит 0 — а подушка наполняется по решению владельца (кнопкой),
+        # не съедает лимит автоматически. Порог остаётся ориентиром:
+        # линия на графике и строка «подушка не добрана» в шапке.
         reserve_by_day = {
-            day: cushion_threshold + goals_part.get(day, Decimal("0"))
-            for day in horizon_dates
+            day: goals_part.get(day, Decimal("0")) for day in horizon_dates
         }
         available = {
             day: balances.get(day, Decimal("0")) - reserve_by_day[day]
@@ -347,7 +352,7 @@ class MoneyLayersService:
             horizon_end=horizons.horizon_end,
             cushion_threshold=cushion_threshold,
             goals_reserve_today=goals_reserve_today,
-            reserve_configured_today=cushion_threshold + goals_reserve_today,
+            reserve_configured_today=goals_reserve_today,
             degraded=degraded,
             is_empty=is_empty,
             window_is_flat=window_is_flat,

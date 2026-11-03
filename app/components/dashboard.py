@@ -259,6 +259,9 @@ def build_free_header(
     limit_block = _build_limit_block(data)
     if limit_block is not None:
         main_children.append(limit_block)
+    cushion_line = _build_cushion_line(data)
+    if cushion_line is not None:
+        main_children.append(cushion_line)
 
     if data["degraded"]:
         main_children.append(
@@ -274,6 +277,37 @@ def build_free_header(
             _build_header_who(profile),
         ],
         className="pnl-breaker",
+    )
+
+
+def _build_cushion_line(data: MoneyLayersData) -> html.Div | None:
+    """Строка «Подушка не добрана: N из T ₽» — ориентир, не тревога.
+
+    Порог подушки в резерв не входит (вопрос №12 ROADMAP, ревью 0033):
+    пока подушка не набрана, он не съедает лимит и не рождает «нехватку»
+    — подушка наполняется по решению владельца. Строка показывается,
+    только если порог задан и свободных сегодня денег меньше порога;
+    N = min(порог, свободно сегодня). Нейтральный цвет (pnl-limit-sub),
+    не цвет риска.
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        html.Div или None, если подушка не задана или набрана.
+    """
+    threshold = data["cushion_threshold"]
+    free_today = max(data["today"]["free"], Decimal("0"))
+    if threshold <= 0 or free_today >= threshold:
+        return None
+    return html.Div(
+        [
+            "Подушка не добрана: ",
+            html.B(format_rub(free_today), className="pnl-money"),
+            " из ",
+            html.B(format_rub(threshold), className="pnl-money"),
+        ],
+        className="pnl-limit-sub pnl-cushion-line",
     )
 
 
@@ -500,14 +534,16 @@ def _build_reserve_tooltip(data: MoneyLayersData) -> list:
         return [
             html.Div(
                 f"В этот день на резерв остаётся {format_rub(fact)} "
-                f"из {format_rub(configured)} — вы залезаете в подушку"
+                f"из {format_rub(configured)} — бюджета целей не хватает"
             )
         ]
 
+    # Порог подушки в резерв не входит (вопрос №12, протокол 0033) —
+    # это ориентир: пунктирная линия на графике и строка в шапке
     return [
         html.Div(
-            f"Порог подушки {format_rub(data['cushion_threshold'])} + "
-            f"бюджет целей {format_rub(data['goals_reserve_today'])}"
+            f"Бюджет целей, ещё не внесённый в этом месяце: "
+            f"{format_rub(data['goals_reserve_today'])}"
         )
     ]
 
@@ -656,6 +692,29 @@ def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
         yshift=12,
         font=dict(size=11, color="#7f8c8d"),
     )
+
+    # Порог подушки — ориентир пунктиром (вопрос №12, протокол 0033):
+    # зелёные столбики выше линии — подушка цела, ниже — не набрана
+    if data["cushion_threshold"] > 0:
+        fig.add_shape(
+            type="line",
+            x0=0,
+            x1=1,
+            xref="paper",
+            y0=float(data["cushion_threshold"]),
+            y1=float(data["cushion_threshold"]),
+            line=dict(color=LAYER_COLORS["reserve"], width=1.5, dash="dot"),
+        )
+        fig.add_annotation(
+            x=1,
+            xref="paper",
+            y=float(data["cushion_threshold"]),
+            text=f"подушка {format_rub(data['cushion_threshold'])}",
+            showarrow=False,
+            xanchor="right",
+            yshift=9,
+            font=dict(size=11, color=LAYER_COLORS["reserve"]),
+        )
 
     # Маркер узкого места (протокол 0033) — та же точка, что на карточке
     # «Календарь». За краем оси маркера нет — это не ошибка: узкое место

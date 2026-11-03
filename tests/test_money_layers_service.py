@@ -316,10 +316,12 @@ class TestExpectedLayersTable:
 
         assert result[today] == Decimal("12000")
 
-    def test_reserve_configured_includes_cushion_and_goals(
-        self, db_session, service, layers_user
-    ):
-        """reserve_configured == порог подушки + goals_part (кейс 11 числами)."""
+    def test_reserve_configured_is_goals_only(self, db_session, service, layers_user):
+        """reserve_configured == goals_part; порог подушки в резерв не входит.
+
+        Ревью 0033, вопрос №12: порог — ориентир (линия, строка в шапке),
+        а не вычет из остатка. Бюджет 20 000 − взнос 8 000 = 12 000.
+        """
         today = date.today()
         layers_user.monthly_savings_budget = Decimal("20000")
         add_txn(
@@ -334,18 +336,19 @@ class TestExpectedLayersTable:
 
         assert data["cushion_threshold"] == CUSHION_THRESHOLD
         assert data["goals_reserve_today"] == Decimal("12000")
-        assert data["reserve_configured_today"] == Decimal("42000")
+        assert data["reserve_configured_today"] == Decimal("12000")
 
     def test_trace_example_layers(self, db_session, service, layers_user):
-        """Проверочный пример решения в новой модели: 84 500 → free 2 000.
+        """Проверочный пример решения в новой модели: 84 500 → free 32 000.
 
-        Протокол 0033 (ручной расчёт — log.md, шаг 1): доходов нет, H =
-        ref + 89, это три месяца. available текущего месяца падает до
-        17 000 (84 500 − 15 000 − 22 500 − порог 30 000), а в следующих
-        месяцах бюджет целей 15 000 снова лежит в резерве (savings-операций
-        там нет): 47 000 − 30 000 − 15 000 = 2 000. Это минимум, поэтому
-        free 2 000, payments 54 500 − 2 000 = 52 500, reserve 30 000.
-        Прежнее ожидание (payments 37 500, free 17 000) жило на C-5.
+        Протокол 0033 (ручной расчёт; порог подушки в резерв не входит —
+        ревью, вопрос №12): доходов нет, H = ref + 89, три месяца.
+        Сегодня бюджет целей уже «обещан» операцией резерва (committed
+        15 000) → goals 0, available(ref) = 84 500. Текущий месяц после
+        резерва и расхода: 84 500 − 15 000 − 22 500 = 47 000 (goals 0).
+        Следующие месяцы: бюджет 15 000 снова в резерве (savings-операций
+        там нет) → 47 000 − 15 000 = 32 000 — минимум. free 32 000,
+        payments 84 500 − 32 000 = 52 500, reserve 0.
         """
         today = date.today().replace(day=1)
         add_txn(
@@ -368,8 +371,8 @@ class TestExpectedLayersTable:
 
         assert data["today"]["balance"] == Decimal("84500.00")
         assert data["today"]["payments"] == Decimal("52500.00")
-        assert data["today"]["reserve"] == CUSHION_THRESHOLD
-        assert data["today"]["free"] == Decimal("2000.00")
+        assert data["today"]["reserve"] == Decimal("0")
+        assert data["today"]["free"] == Decimal("32000.00")
 
 
 # ===========================================================================
@@ -596,16 +599,20 @@ class TestSplitDayCascade:
     def test_reserve_configured_survives_compression(
         self, db_session, service, layers_user
     ):
-        """reserve_configured хранит настройку, reserve — факт после каскада."""
-        layers_user.starting_balance = Decimal("18000")
+        """reserve_configured хранит настройку, reserve — факт после каскада.
+
+        Баланс 12 000 < бюджета целей 15 000 (порог подушки в резерв не
+        входит): каскад ужимает резерв до остатка — 12 000.
+        """
+        layers_user.starting_balance = Decimal("12000")
         db_session.commit()
 
         data = service.get_money_layers(layers_user.id)
         today = data["days"][0]
 
         # savings-операций нет → весь бюджет целей лежит в остатке
-        assert today["reserve_configured"] == CUSHION_THRESHOLD + BUDGET
-        assert today["reserve"] == Decimal("18000")
+        assert today["reserve_configured"] == BUDGET
+        assert today["reserve"] == Decimal("12000")
         assert today["reserve"] < today["reserve_configured"]
 
 
@@ -615,7 +622,80 @@ class TestSplitDayCascade:
 
 
 class TestCushionThreshold:
-    """В слой «Резерв» входит ПОРОГ подушки, а не её цель."""
+    """Порог подушки — ориентир, в слой «Резерв» не входит (вопрос №12)."""
+
+    def _user(self, db_session, email, balance, cushion_target):
+        """Пользователь без целей с заданной подушкой (порог 30%)."""
+        user = User(
+            email=email,
+            name="Cushion",
+            starting_balance=balance,
+            monthly_savings_budget=Decimal("0"),
+            cushion_target=cushion_target,
+            cushion_threshold_percent=30,
+        )
+        db_session.add(user)
+        db_session.commit()
+        return user
+
+    def test_unbuilt_cushion_gives_positive_limit_not_shortfall(
+        self, db_session, service
+    ):
+        """Порог выше остатка: лимит положительный, нехватки нет.
+
+        Ревью 0033, находка 1: раньше порог вычитался как неприкосновенный
+        — баланс 16 000 при пороге 30 000 давал «не хватает 14 000» и
+        «0 ₽/день». Теперь доходов и платежей нет, H = ref + 89 (90 дней):
+        available = 16 000 каждый день → free 16 000, нехватки нет,
+        лимит 16 000 / 90 > 0 (период ненадёжен — край без дохода, но
+        число модель считает).
+        """
+        user = self._user(
+            db_session,
+            "cushion-unbuilt@example.com",
+            Decimal("16000"),
+            Decimal("100000"),
+        )
+
+        data = service.get_money_layers(user.id, date.today())
+
+        assert data["cushion_threshold"] == Decimal("30000")
+        assert data["shortfall"] == Decimal("0")
+        assert data["today"]["free"] == Decimal("16000")
+        assert data["today"]["reserve"] == Decimal("0")
+        assert data["limit_periods"][0]["per_day"] == Decimal("16000") / Decimal("90")
+        assert_invariant(data)
+
+    def test_cushion_does_not_change_numbers(self, db_session, service):
+        """Числа слоёв и лимита одинаковы с подушкой и без неё.
+
+        Баланс 50 000, расход 20 000 на ref+5: available 50 000 до
+        расхода и 30 000 после → free 30 000, payments 20 000. Порог
+        10 000 (подушка 33 334 × 30%) ниже минимума — и всё равно ни на
+        одно число не влияет.
+        """
+        ref = date.today()
+        results = []
+        for email, target in (
+            ("cushion-none@example.com", Decimal("0")),
+            ("cushion-set@example.com", Decimal("33334")),
+        ):
+            user = self._user(db_session, email, Decimal("50000"), target)
+            add_txn(
+                db_session,
+                user.id,
+                Decimal("20000"),
+                TransactionType.EXPENSE,
+                ref + timedelta(days=5),
+            )
+            results.append(service.get_money_layers(user.id, ref))
+
+        without, with_cushion = results
+        assert with_cushion["cushion_threshold"] > 0
+        assert with_cushion["today"]["free"] == Decimal("30000")
+        assert with_cushion["today"]["payments"] == Decimal("20000")
+        for key in ("today", "limit_periods", "shortfall", "bottleneck_date"):
+            assert with_cushion[key] == without[key]
 
     def test_threshold_used_not_target(self, service, layers_user):
         """Используется порог 30 000, а не цель 100 000."""
@@ -637,12 +717,12 @@ class TestCushionThreshold:
 
         data = service.get_money_layers(layers_user.id)
 
-        # Вклад подушки в слой «Резерв» — ровно порог, независимо от накопленного
+        # Порог сообщается (ориентир), но в слой «Резерв» не входит вовсе —
+        # вопрос №12, ревью 0033
         assert data["cushion_threshold"] == CUSHION_THRESHOLD
-        assert (
-            data["days"][0]["reserve_configured"] - data["goals_reserve_today"]
-            == CUSHION_THRESHOLD
-        )
+        assert data["days"][0]["reserve_configured"] - data[
+            "goals_reserve_today"
+        ] == Decimal("0")
         # Остатка хватает — слой не сжат
         assert data["days"][0]["reserve"] == data["days"][0]["reserve_configured"]
 
@@ -1048,7 +1128,8 @@ class TestFailOpen:
 
         assert data["degraded"] is True
         assert data["goals_reserve_today"] == Decimal("0")
-        assert data["reserve_configured_today"] == CUSHION_THRESHOLD
+        # Порог подушки в резерв не входит (вопрос №12) — резерв пуст
+        assert data["reserve_configured_today"] == Decimal("0")
 
     def test_budget_failure_keeps_invariant(
         self, db_session, service, layers_user, monkeypatch
@@ -1375,8 +1456,9 @@ class TestSuffixMinimumModel:
     def test_shortfall_compresses_reserve_first(self, db_session, service):
         """Нехватка при резерве > 0: резерв ужимается первым (каскад).
 
-        Расчёт: баланс 10 000, порог подушки 3 000 (10 000 × 30%),
-        расход 13 137 на ref+5. available(ref) = 7 000; дальше
+        Расчёт: баланс 10 000, бюджет целей 3 000 без savings-операций
+        (лежит в резерве каждый день; порог подушки в резерв не входит —
+        вопрос №12), расход 13 137 на ref+5. available(ref) = 7 000; дальше
         −3 137 − 3 000 = −6 137 = m. payments_raw = 13 137; каскад:
         10 000 − 13 137 − 3 000 = −6 137 → резерв 3 000 → 0, платежи
         13 137 − 3 137 = 10 000. Итог: free 0, payments 10 000, reserve 0.
@@ -1385,9 +1467,7 @@ class TestSuffixMinimumModel:
             email="cushion-short@example.com",
             name="Cushion Short",
             starting_balance=Decimal("10000"),
-            monthly_savings_budget=Decimal("0"),
-            cushion_target=Decimal("10000"),
-            cushion_threshold_percent=30,
+            monthly_savings_budget=Decimal("3000"),
         )
         db_session.add(user)
         db_session.commit()
@@ -1402,7 +1482,7 @@ class TestSuffixMinimumModel:
 
         data = service.get_money_layers(user.id, ref)
 
-        assert data["cushion_threshold"] == Decimal("3000")
+        assert data["goals_reserve_today"] == Decimal("3000")
         assert data["shortfall"] == Decimal("6137")
         assert data["today"]["free"] == Decimal("0")
         assert data["today"]["payments"] == Decimal("10000")

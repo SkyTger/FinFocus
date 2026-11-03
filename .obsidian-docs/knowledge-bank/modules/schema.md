@@ -287,7 +287,7 @@ LAYER_COLORS: dict[LayerKey, str] = {
     "free": "#2ecc71", "payments": "#f0b775", "reserve": "#3498db"
 }
 LAYER_LABELS: dict[LayerKey, str] = {
-    "free": "Свободно", "payments": "Платежи", "reserve": "Резерв целей и подушки"
+    "free": "Свободно", "payments": "Платежи", "reserve": "Резерв целей"
 }
 ```
 
