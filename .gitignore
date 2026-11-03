@@ -95,6 +95,7 @@ coverage.xml
 # === CLAUDE CODE ===
 .claude/*
 !.claude/settings.json
+!.claude/workflows/
 
 # Личный журнал бюджета владельца — не публиковать
 .obsidian-docs/budget/
