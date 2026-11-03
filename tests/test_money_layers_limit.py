@@ -486,7 +486,12 @@ class TestBottleneckOnPanel:
         panel = DashboardPanelService(db_session).get_panel_data(user.id, ref)
         card = panel["calendar"]
         figure = chart_figure(build_layers_chart(panel["layers"]))
-        markers = [trace for trace in figure.data if trace.type == "scatter"]
+        # Засечки разовых трат (протокол 0034) — отдельная трасса, не маркер
+        markers = [
+            trace
+            for trace in figure.data
+            if trace.type == "scatter" and trace.name != "Разовые траты"
+        ]
 
         assert card["dip_date"] == ref.replace(day=19) != ref
         assert card["dip_free"] == Decimal("14000")
@@ -505,7 +510,12 @@ class TestBottleneckOnPanel:
         panel = DashboardPanelService(db_session).get_panel_data(user.id, ref)
         card = panel["calendar"]
         figure = chart_figure(build_layers_chart(panel["layers"]))
-        markers = [trace for trace in figure.data if trace.type == "scatter"]
+        # Засечки разовых трат (протокол 0034) — отдельная трасса, не маркер
+        markers = [
+            trace
+            for trace in figure.data
+            if trace.type == "scatter" and trace.name != "Разовые траты"
+        ]
 
         assert card["dip_date"] == ref.replace(day=15)
         assert card["dip_shortfall"] == Decimal("6000")

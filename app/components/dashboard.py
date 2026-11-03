@@ -20,11 +20,17 @@ from loguru import logger
 
 from app.core.database import get_db_session
 from app.components.panel_cards import build_cards_row
-from app.services.money_layers_service import bottleneck_marker, floor_rub
+from app.services.money_layers_service import (
+    bottleneck_marker,
+    floor_rub,
+    one_off_marks,
+    one_off_total_until,
+)
 from app.services.panel_service import DashboardPanelService
 from app.services.onboarding_service import OnboardingService
 from app.schema.money_layers import (
     MoneyLayersData,
+    OneOffMark,
     LAYER_COLORS,
     LAYER_LABELS,
     MAX_X_TICKS,
@@ -41,6 +47,19 @@ DEFAULT_USER_ID = 1
 
 # Максимум строк платежей в тултипе легенды — дальше «и ещё N»
 MAX_TOOLTIP_PAYMENTS = 8
+
+ONE_OFF_COLOR = "#8e44ad"
+"""Цвет разовых трат (протокол 0034) — зеркало токена --color-one-off
+в custom.css (якорный тест сверяет значения). Не пересекается с цветами
+слоёв и доходов/расходов."""
+
+ONE_OFF_LABELS_MAX = 3
+"""Сколько дней с разовыми тратами подписывается текстом на графике —
+самые крупные по сумме дня. Константа, не настройка: остальные засечки
+объясняет подсказка при наведении."""
+
+ONE_OFF_LABEL_CHARS = 16
+"""Предел длины описания в подписи засечки (вместе с «…»)."""
 
 STATUS_COLORS: dict[str, str] = {
     "ok": "#27ae60",
@@ -311,7 +330,11 @@ def _build_cushion_line(data: MoneyLayersData) -> html.Div | None:
     )
 
 
-LIMIT_HINT = "Предполагается, что до узкого места тратишь по лимиту; доходы — по плану"
+LIMIT_HINT = (
+    "Предполагается, что до узкого места тратишь по лимиту; доходы — по плану. "
+    "Разовые траты — расходы вне регулярных серий, на графике отмечены "
+    "треугольниками"
+)
 """Подсказка блока лимита (title): на чём держится число."""
 
 
@@ -414,7 +437,40 @@ def _build_limit_block(data: MoneyLayersData) -> html.Div | None:
             )
         )
 
+    one_off_line = _build_one_off_line(data)
+    if one_off_line is not None:
+        lines.append(one_off_line)
+
     return html.Div(lines, className="pnl-limit", title=LIMIT_HINT)
+
+
+def _build_one_off_line(data: MoneyLayersData) -> html.Div | None:
+    """Строка «Разовые траты до <узкое место>: N ₽» (протокол 0034).
+
+    Сумма — one_off_total_until до bottleneck_date (может лежать за
+    правым краем оси). Кружок цвета разовых перед текстом связывает
+    строку с треугольниками-засечками графика.
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        html.Div или None — узкого места нет или разовых до него нет.
+    """
+    end = data["bottleneck_date"]
+    if end is None:
+        return None
+    total = one_off_total_until(data, end)
+    if total <= 0:
+        return None
+    return html.Div(
+        [
+            html.Span(className="pnl-one-off-dot"),
+            f"Разовые траты до {format_date_human(end)}: ",
+            html.B(format_rub(total), className="pnl-money"),
+        ],
+        className="pnl-limit-sub pnl-one-off-line",
+    )
 
 
 def _axis_tickvals(window_dates: list[date]) -> list[date]:
@@ -623,6 +679,118 @@ def _build_chart_empty_state() -> html.Div:
     )
 
 
+def _one_off_title(item) -> str:
+    """Название разовой траты: описание, иначе категория, иначе «Расход».
+
+    Args:
+        item: UpcomingPayment.
+
+    Returns:
+        str: Название для подсказки и подписи.
+    """
+    return item["description"] or item["category_name"] or "Расход"
+
+
+def _plural_trat(count: int) -> str:
+    """«2 траты», «5 трат», «21 трата» — согласование с числом.
+
+    Args:
+        count: Число трат (≥ 2 в подписях графика).
+
+    Returns:
+        str: Число со словом в нужной форме.
+    """
+    if count % 10 == 1 and count % 100 != 11:
+        word = "трата"
+    elif 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
+        word = "траты"
+    else:
+        word = "трат"
+    return f"{count} {word}"
+
+
+def _one_off_label(mark: OneOffMark) -> str:
+    """Подпись засечки: «<описание> <сумма>» или «<N> траты · <сумма>».
+
+    Описание обрезается до ONE_OFF_LABEL_CHARS символов вместе с «…».
+
+    Args:
+        mark: Отметка дня.
+
+    Returns:
+        str: Текст подписи.
+    """
+    if len(mark["items"]) > 1:
+        return f"{_plural_trat(len(mark['items']))} · {format_rub(mark['total'])}"
+    title = _one_off_title(mark["items"][0])
+    if len(title) > ONE_OFF_LABEL_CHARS:
+        title = title[: ONE_OFF_LABEL_CHARS - 1] + "…"
+    return f"{title} {format_rub(mark['total'])}"
+
+
+def _add_one_off_trace(
+    fig: go.Figure, data: MoneyLayersData, bottleneck_day: date | None
+) -> None:
+    """Засечки разовых трат: треугольник над столбцом дня (протокол 0034).
+
+    Одна трасса «Разовые траты», по точке на день из one_off_marks;
+    y — верх столбца дня (max(forecast_balance, 0)). Подсказка — все
+    траты дня; при hovermode="x unified" встаёт в общую подсказку дня.
+    Текстом подписаны не больше ONE_OFF_LABELS_MAX крупнейших дней,
+    кроме дня узкого места — там уже стоит подпись маркера, трата
+    видна в подсказке. Нет разовых в окне — трассы нет вовсе.
+
+    Args:
+        fig: Фигура графика полос.
+        data: Модель слоёв.
+        bottleneck_day: Дата маркера узкого места на оси или None.
+    """
+    marks = one_off_marks(data)
+    if not marks:
+        return
+
+    tops = {
+        day["date"]: max(day["forecast_balance"], Decimal("0")) for day in data["days"]
+    }
+    candidates = [mark for mark in marks if mark["date"] != bottleneck_day]
+    labelled = {
+        mark["date"]
+        for mark in sorted(candidates, key=lambda mark: mark["total"], reverse=True)[
+            :ONE_OFF_LABELS_MAX
+        ]
+    }
+
+    fig.add_trace(
+        go.Scatter(
+            x=[mark["date"] for mark in marks],
+            y=[float(tops.get(mark["date"], Decimal("0"))) for mark in marks],
+            name="Разовые траты",
+            mode="markers+text",
+            marker=dict(
+                symbol="triangle-down",
+                size=10,
+                color=ONE_OFF_COLOR,
+                line=dict(width=1, color="white"),
+            ),
+            text=[
+                _one_off_label(mark) if mark["date"] in labelled else ""
+                for mark in marks
+            ],
+            textposition="top center",
+            textfont=dict(size=11, color=ONE_OFF_COLOR),
+            customdata=[
+                "<br>".join(
+                    f"{_one_off_title(item)} — {format_rub(item['amount'])}"
+                    for item in mark["items"]
+                )
+                for mark in marks
+            ],
+            hovertemplate="Разовые траты:<br>%{customdata}<extra></extra>",
+            showlegend=False,
+        )
+    )
+
+
 def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
     """График полос: стопка Свободно/Платежи/Резерв по 45 дням (FR-3).
 
@@ -720,9 +888,10 @@ def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
     # «Календарь». За краем оси маркера нет — это не ошибка: узкое место
     # видно в шапке и на карточке
     marker = bottleneck_marker(data)
-    if marker.date is not None and (
+    marker_on_axis = marker.date is not None and (
         data["reference_date"] <= marker.date <= data["window_end"]
-    ):
+    )
+    if marker_on_axis:
         # Полосы не уходят в минус (каскад клэмпит «Свободно» в 0) —
         # точка нехватки ставится на ноль, глубину говорит подпись
         marker_y = float(max(marker.available, Decimal("0")))
@@ -757,6 +926,9 @@ def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
             font=dict(size=11, color=LAYER_COLORS["free"]),
             bgcolor="rgba(255,255,255,0.85)",
         )
+
+    # Засечки разовых трат (протокол 0034) — над столбцами, не у оси X
+    _add_one_off_trace(fig, data, marker.date if marker_on_axis else None)
 
     # Вехи целей: внутри окна — подписи у оси, за краем — стрелка справа
     for milestone in data["milestones"]:

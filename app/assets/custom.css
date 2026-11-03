@@ -15,6 +15,7 @@
     /* Семантические (доходы/расходы) */
     --color-income: #2ecc71;
     --color-expense: #f43f5e;
+    --color-one-off: #8e44ad; /* Разовые траты (протокол 0034), = ONE_OFF_COLOR */
     --color-cushion: #eab308;
 
     /* Текст */
