@@ -67,7 +67,8 @@ Restore context: protocol-0034#ctx-1 (диагноз A — свежий стар
 - Календарь: предикат `_is_one_off_expense` (тот же признак, что у модели);
   точка `txn-dot one-off` «Разовый расход», точка `expense` — только расходы
   серий; строка подсказки разового — класс `one-off`, полоска слева
-  (inset box-shadow — строка не сдвигается), один приём
+  (inset box-shadow + padding-left 6px — текст разовой строки сдвинут на
+  6px относительно соседних; проверить глазами), один приём
 - Список операций: `_is_one_off_expense` по ORM (EXPENSE, не is_recurring,
   без recurring_parent_id) → `bi-flag-fill tx-one-off-icon`, title «Разовая
   трата», на месте значка повтора; цвет — класс в transactions.css
@@ -75,3 +76,14 @@ Restore context: protocol-0034#ctx-1 (диагноз A — свежий стар
   якоря CSS); мутации «без проверки серии» в обоих предикатах ловятся
 - 1027 passed (1003 + 24), black чист, flake8 — те же 3 E501
 - Живая проверка в браузере не делалась (песочница)
+
+### Step 04 — Финализация
+- Полная верификация: black --check app/ tests/ чист; flake8 app/ — только 3
+  pre-existing E501 (как в шаге 0); pytest — 1027 passed
+- Правок QA не было — отдельного коммита chore нет
+- След в истории: ROADMAP п.10 P2 «Разовые траты» — [x] (пп. 1–3, п.4 не
+  делался); feature_progress — Батч 31, «Тестов в main» 1027 (после мержа),
+  Батч 29 перенесён в архив (rolling window)
+- push и PR Ready — за /protocol-review-merge (фон «без push»)
+- Расхождение plan ↔ шаг: plan.md велит держать ONE_OFF_COLOR «рядом с
+  LAYER_COLORS» (схема), 02-panel.md — в dashboard.py; сделано по файлу шага
