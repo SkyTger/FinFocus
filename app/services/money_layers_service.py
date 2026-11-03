@@ -4,7 +4,7 @@ from calendar import monthrange
 from collections.abc import Iterable
 from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from loguru import logger
 from sqlalchemy.orm import Session
@@ -44,6 +44,49 @@ def _month_start(day: date) -> date:
         date: 1-е число того же месяца.
     """
     return day.replace(day=1)
+
+
+class BottleneckMarker(NamedTuple):
+    """Точка «узкого места» для маркера графика и карточки «Календарь».
+
+    Attributes:
+        date: Дата точки; None — ряд пуст, маркера нет.
+        available: available(t) в этот день (при нехватке — −shortfall).
+        is_shortfall: True — денег не хватает: точка — первый день
+            минимума доступного, подпись «не хватает N ₽».
+    """
+
+    date: date | None
+    available: Decimal
+    is_shortfall: bool
+
+
+def bottleneck_marker(data: MoneyLayersData) -> BottleneckMarker:
+    """ЕДИНСТВЕННОЕ правило точки узкого места — для графика и карточки.
+
+    Есть нехватка — точка в shortfall_date со значением −shortfall
+    (это и есть available того дня); нет — конец первого периода
+    лимита (bottleneck_date / bottleneck_available); если первый период
+    ненадёжен (край расчёта без дохода за ним) — точки нет. Одно правило в
+    одном месте: маркер графика и «Ближайшая просадка» на карточке
+    не могут показать разные даты (протокол 0033, шаг 3).
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        BottleneckMarker: Дата, значение, признак нехватки.
+    """
+    if data["shortfall"] > 0:
+        return BottleneckMarker(data["shortfall_date"], -data["shortfall"], True)
+    periods = data["limit_periods"]
+    if periods and not periods[0]["reliable"]:
+        # Первый период упёрся в край расчёта без дохода за ним — это
+        # край, а не узкое место; точку не показываем нигде
+        return BottleneckMarker(None, data["bottleneck_available"], False)
+    return BottleneckMarker(
+        data["bottleneck_date"], data["bottleneck_available"], False
+    )
 
 
 def _floor_rub(amount: Decimal) -> Decimal:

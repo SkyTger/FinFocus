@@ -399,9 +399,12 @@ class TestLayersChart:
         annotation_texts = [ann.text for ann in fig.layout.annotations]
         assert "сегодня" in annotation_texts
 
-    def test_min_free_marker_and_annotation(self):
-        """Маркер стоит на bottleneck_date с подписью (шаг 1 протокола 0033 —
-        только замена полей; смысл маркера переписывает шаг 3)."""
+    def test_bottleneck_marker_and_annotation(self):
+        """Маркер узкого места на bottleneck_date с подписью (протокол 0033).
+
+        Заменил маркер минимума «Свободно» (FR-3.e): по новой формуле
+        «Свободно» от дня к дню не убывает, его минимум всегда сегодня.
+        """
         data = make_layers_data()
 
         fig = get_chart_figure(build_layers_chart(data))
@@ -410,12 +413,36 @@ class TestLayersChart:
         assert len(markers) == 1
         assert str(markers[0].x[0]).startswith(data["bottleneck_date"].isoformat())
         assert markers[0].y[0] == float(data["bottleneck_available"])
-        min_annotations = [
-            ann.text for ann in fig.layout.annotations if "минимум" in ann.text
-        ]
-        assert min_annotations == [
-            f"минимум: {format_rub(data['bottleneck_available'])}"
-        ]
+        texts = [ann.text for ann in fig.layout.annotations]
+        assert f"узкое место: {format_rub(data['bottleneck_available'])}" in texts
+        assert not any("минимум" in text for text in texts)
+
+    def test_shortfall_marker_on_zero_with_amount(self):
+        """Нехватка: точка в shortfall_date на нуле, подпись «не хватает N»."""
+        data = make_layers_data()
+        shortfall_date = data["reference_date"] + timedelta(days=3)
+        data["shortfall"] = Decimal("6000")
+        data["shortfall_date"] = shortfall_date
+
+        fig = get_chart_figure(build_layers_chart(data))
+
+        markers = [trace for trace in fig.data if trace.type == "scatter"]
+        assert len(markers) == 1
+        assert str(markers[0].x[0]).startswith(shortfall_date.isoformat())
+        assert markers[0].y[0] == 0.0
+        texts = [ann.text for ann in fig.layout.annotations]
+        assert f"не хватает {format_rub(Decimal('6000'))}" in texts
+
+    def test_no_marker_when_bottleneck_beyond_axis(self):
+        """Узкое место за правым краем оси — маркера нет (это не ошибка)."""
+        data = make_layers_data()
+        data["bottleneck_date"] = data["window_end"] + timedelta(days=5)
+
+        fig = get_chart_figure(build_layers_chart(data))
+
+        assert [trace for trace in fig.data if trace.type == "scatter"] == []
+        texts = [ann.text for ann in fig.layout.annotations]
+        assert not any("узкое место" in text for text in texts)
 
     def test_milestones_inside_window_and_beyond(self):
         """Веха в окне — флажок у оси; за краем — стрелка справа."""

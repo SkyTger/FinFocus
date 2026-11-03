@@ -26,6 +26,7 @@ from app.components.panel_cards import (
     build_wishlist_card,
 )
 from app.schema import CardStatus
+from app.utils.formatters import format_date_human, format_rub
 
 TODAY = date.today()
 TOMORROW = TODAY + timedelta(days=1)
@@ -114,6 +115,7 @@ def make_calendar(status=CardStatus.OK, dip_free=Decimal("9800"), **overrides):
         "dip_free": dip_free,
         "dip_is_strong": dip_free <= 0,
         "dip_href": f"/calendar?focus_date={(TODAY + timedelta(days=9)).isoformat()}",
+        "dip_shortfall": None,
     }
     data.update(overrides)
     return data
@@ -127,6 +129,7 @@ def make_empty_calendar(**overrides):
         "dip_free": None,
         "dip_is_strong": False,
         "dip_href": None,
+        "dip_shortfall": None,
     }
     data.update(overrides)
     return data
@@ -394,9 +397,8 @@ class TestDipMarker:
     def test_empty_status_ignores_nonempty_dip_fields(self):
         """Целевой тест #91: EMPTY при непустых dip_* → маркера в дереве НЕТ.
 
-        _window_min_free на пустом окне возвращает (Decimal("0"),
-        date.today()), а не None — без оговорки чистая база дала бы
-        «Ближайшая просадка: сегодня, 0 ₽», числовой артефакт AC-5.
+        Без оговорки чистая база дала бы «Ближайшая просадка: сегодня,
+        0 ₽», числовой артефакт AC-5.
         """
         data = make_empty_calendar(
             dip_date=TODAY,
@@ -407,6 +409,33 @@ class TestDipMarker:
         tree = build_calendar_card(data)
         assert "pnl-flagline" not in all_classes(tree)
         assert "просадка" not in joined_text(tree).lower()
+
+    def test_bottleneck_text_says_available(self):
+        """Без нехватки: «Ближайшая просадка: <дата>, доступно N ₽»."""
+        data = make_calendar(dip_free=Decimal("14000"))
+
+        text = "".join(all_texts(build_calendar_card(data)))
+
+        assert "Ближайшая просадка: " in text
+        assert format_date_human(data["dip_date"]) in text
+        assert f"доступно {format_rub(Decimal('14000'))}" in text
+
+    def test_shortfall_text_and_strong_class(self):
+        """Нехватка (протокол 0033): «Не хватает N ₽ до <дата>», усиление."""
+        data = make_calendar(
+            dip_free=Decimal("-6000"),
+            dip_shortfall=Decimal("6000"),
+        )
+
+        tree = build_calendar_card(data)
+        text = "".join(all_texts(tree))
+
+        assert (
+            f"Не хватает {format_rub(Decimal('6000'))} до "
+            f"{format_date_human(data['dip_date'])}"
+        ) in text
+        assert "просадка" not in text.lower()
+        assert "pnl-flagline-strong" in all_classes(tree)
 
 
 # ===========================================================================

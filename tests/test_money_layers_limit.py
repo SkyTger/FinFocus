@@ -377,3 +377,81 @@ class TestNormByPlan:
 
         assert data["today"]["balance"] == Decimal("28190")
         assert data["norm_per_day"] == Decimal("70000") / Decimal(month_len(ref))
+
+
+def chart_figure(component):
+    """Plotly figure единственного dcc.Graph в дереве компонента."""
+    from dash import dcc
+
+    stack, graphs = [component], []
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dcc.Graph):
+            graphs.append(node)
+        children = getattr(node, "children", None)
+        if isinstance(children, (list, tuple)):
+            stack.extend(children)
+        elif children is not None and not isinstance(children, str):
+            stack.append(children)
+    assert len(graphs) == 1
+    return graphs[0].figure
+
+
+class TestBottleneckOnPanel:
+    """Маркер графика и «Ближайшая просадка» на карточке — одна точка."""
+
+    def test_card_and_chart_marker_show_same_bottleneck(
+        self, db_session, service, user
+    ):
+        """«Ноябрь»: карточка и маркер — M/19 и 14 000, не сегодня."""
+        from app.components.dashboard import build_layers_chart
+        from app.services.panel_service import DashboardPanelService
+
+        ref = date.today().replace(day=3)
+        build_november(db_session, user.id, ref, ref.replace(day=23))
+
+        panel = DashboardPanelService(db_session).get_panel_data(user.id, ref)
+        card = panel["calendar"]
+        figure = chart_figure(build_layers_chart(panel["layers"]))
+        markers = [trace for trace in figure.data if trace.type == "scatter"]
+
+        assert card["dip_date"] == ref.replace(day=19) != ref
+        assert card["dip_free"] == Decimal("14000")
+        assert card["dip_shortfall"] is None
+        assert len(markers) == 1
+        assert str(markers[0].x[0]).startswith(ref.replace(day=19).isoformat())
+
+    def test_shortfall_on_card_and_chart(self, db_session, service, user):
+        """Радиатор на 10-е: обе точки — M/15, «не хватает 6 000 ₽»."""
+        from app.components.dashboard import build_layers_chart
+        from app.services.panel_service import DashboardPanelService
+
+        ref = date.today().replace(day=3)
+        build_november(db_session, user.id, ref, ref.replace(day=10))
+
+        panel = DashboardPanelService(db_session).get_panel_data(user.id, ref)
+        card = panel["calendar"]
+        figure = chart_figure(build_layers_chart(panel["layers"]))
+        markers = [trace for trace in figure.data if trace.type == "scatter"]
+
+        assert card["dip_date"] == ref.replace(day=15)
+        assert card["dip_shortfall"] == Decimal("6000")
+        assert card["dip_is_strong"] is True
+        assert str(markers[0].x[0]).startswith(ref.replace(day=15).isoformat())
+
+    def test_flat_window_without_income_has_no_marker(self, db_session, service, user):
+        """История без операций и доходов: узкое место — край расчёта.
+
+        Первый период ненадёжен (H = ref + 89 без дохода) — точку не
+        показывают ни карточка, ни график: край расчёта — не узкое место.
+        """
+        from app.components.dashboard import build_layers_chart
+        from app.services.panel_service import DashboardPanelService
+
+        ref = date.today()
+        panel = DashboardPanelService(db_session).get_panel_data(user.id, ref)
+        figure = chart_figure(build_layers_chart(panel["layers"]))
+
+        assert panel["layers"]["window_is_flat"] is True
+        assert panel["calendar"]["dip_date"] is None
+        assert [trace for trace in figure.data if trace.type == "scatter"] == []

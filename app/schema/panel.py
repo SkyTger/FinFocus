@@ -114,19 +114,22 @@ class CalendarCardData(TypedDict):
     Attributes:
         status: OK / EMPTY / FAILED — только по собственным данным.
         days: Ровно два окошка: сегодня, завтра (в этом порядке).
-        dip_date: День минимума слоя «Свободно» в окне модели —
-            layers['min_free_date']; маркер показывается ВСЕГДА при
-            status == OK (решение владельца «оба»).
-        dip_free: Значение минимума (layers['min_free']).
-        dip_is_strong: dip_free <= 0 — маркер визуально усилен (AC-7).
+        dip_date: Дата узкого места — та же точка, что маркер графика
+            (money_layers_service.bottleneck_marker): конец первого
+            периода лимита, при нехватке — первый день минимума
+            доступного. Протокол 0033 заменил прежний «минимум слоя
+            Свободно» (FR-3.e): по новой формуле он всегда сегодня.
+            Маркер показывается при status == OK и известной дате.
+        dip_free: available(t) в этот день (при нехватке — −shortfall).
+        dip_is_strong: нехватка или dip_free <= 0 — маркер усилен (AC-7).
             Факт знака числа, не порог.
         dip_href: /calendar?focus_date=<dip_date ISO>.
+        dip_shortfall: Сумма нехватки (> 0) — карточка пишет «Не хватает
+            N ₽ до <дата>»; None — нехватки нет.
 
     ВАЖНО (critique-v2, №10): при status != OK поля dip_* НЕ рисуются,
-    даже если непустые. _window_min_free при пустом days возвращает
-    (Decimal("0"), date.today()) — проверено по телу
-    (money_layers_service.py), а не None. Без этой оговорки чистая база
-    дала бы «Ближайшая просадка: сегодня, 0 ₽» — числовой артефакт,
+    даже если непустые. Без этой оговорки чистая база дала бы
+    «Ближайшая просадка: сегодня, 0 ₽» — числовой артефакт,
     запрещённый AC-5.
     """
 
@@ -136,6 +139,7 @@ class CalendarCardData(TypedDict):
     dip_free: Decimal | None
     dip_is_strong: bool
     dip_href: str | None
+    dip_shortfall: Decimal | None
 
 
 class GoalsCardData(TypedDict):

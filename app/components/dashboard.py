@@ -20,6 +20,7 @@ from loguru import logger
 
 from app.core.database import get_db_session
 from app.components.panel_cards import build_cards_row
+from app.services.money_layers_service import bottleneck_marker
 from app.services.panel_service import DashboardPanelService
 from app.services.onboarding_service import OnboardingService
 from app.schema.money_layers import (
@@ -31,6 +32,7 @@ from app.schema.money_layers import (
 from app.schema.onboarding import UserProfile
 from app.config.avatars import get_avatar_emoji
 from datetime import date
+from decimal import Decimal
 from math import ceil
 
 from app.utils.formatters import format_rub, format_date_human
@@ -464,8 +466,9 @@ def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
     """График полос: стопка Свободно/Платежи/Резерв по 45 дням (FR-3).
 
     Три go.Bar в barmode="stack" (снизу вверх: free, payments, reserve)
-    по датам оси X, вертикальная линия «сегодня», маркер минимума слоя
-    «Свободно» (data['min_free_date']), вехи целей аннотациями (в окне +
+    по датам оси X, вертикальная линия «сегодня», маркер узкого места
+    (bottleneck_marker, протокол 0033; за краем оси не рисуется), вехи
+    целей аннотациями (в окне +
     стрелка за краем). Легенда Plotly отключена (showlegend=False) —
     вынесена в HTML (заметка vision-критика + FR-4).
 
@@ -529,38 +532,47 @@ def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
         font=dict(size=11, color="#7f8c8d"),
     )
 
-    # Маркер узкого места (шаг 1 протокола 0033 — минимальная замена
-    # удалённых min_free*; смысловая правка маркера — шаг 3)
-    marker_date = data["bottleneck_date"] or data["reference_date"]
-    marker_value = data["bottleneck_available"]
-    # Маркер минимума «Свободно» — со сдвигом, чтобы не липнуть к тику даты
-    fig.add_trace(
-        go.Scatter(
-            x=[marker_date],
-            y=[float(marker_value)],
-            mode="markers",
-            marker=dict(
-                symbol="diamond",
-                size=11,
-                color=LAYER_COLORS["free"],
-                line=dict(width=2, color="white"),
-            ),
-            showlegend=False,
-            hoverinfo="skip",
+    # Маркер узкого места (протокол 0033) — та же точка, что на карточке
+    # «Календарь». За краем оси маркера нет — это не ошибка: узкое место
+    # видно в шапке и на карточке
+    marker = bottleneck_marker(data)
+    if marker.date is not None and (
+        data["reference_date"] <= marker.date <= data["window_end"]
+    ):
+        # Полосы не уходят в минус (каскад клэмпит «Свободно» в 0) —
+        # точка нехватки ставится на ноль, глубину говорит подпись
+        marker_y = float(max(marker.available, Decimal("0")))
+        if marker.is_shortfall:
+            marker_text = f"не хватает {format_rub(-marker.available)}"
+        else:
+            marker_text = f"узкое место: {format_rub(marker.available)}"
+        fig.add_trace(
+            go.Scatter(
+                x=[marker.date],
+                y=[marker_y],
+                mode="markers",
+                marker=dict(
+                    symbol="diamond",
+                    size=11,
+                    color=LAYER_COLORS["free"],
+                    line=dict(width=2, color="white"),
+                ),
+                showlegend=False,
+                hoverinfo="skip",
+            )
         )
-    )
-    fig.add_annotation(
-        x=marker_date,
-        y=float(marker_value),
-        text=f"минимум: {format_rub(marker_value)}",
-        showarrow=True,
-        arrowhead=0,
-        arrowcolor="#7f8c8d",
-        ax=0,
-        ay=-32,
-        font=dict(size=11, color=LAYER_COLORS["free"]),
-        bgcolor="rgba(255,255,255,0.85)",
-    )
+        fig.add_annotation(
+            x=marker.date,
+            y=marker_y,
+            text=marker_text,
+            showarrow=True,
+            arrowhead=0,
+            arrowcolor="#7f8c8d",
+            ax=0,
+            ay=-32,
+            font=dict(size=11, color=LAYER_COLORS["free"]),
+            bgcolor="rgba(255,255,255,0.85)",
+        )
 
     # Вехи целей: внутри окна — подписи у оси, за краем — стрелка справа
     for milestone in data["milestones"]:

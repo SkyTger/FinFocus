@@ -123,21 +123,47 @@ def _build_day_window(day: CalendarDaySlice) -> dcc.Link:
     return dcc.Link(children, href=day["href"], className=css)
 
 
+def _dip_text(data: CalendarCardData) -> list:
+    """Текст маркера узкого места на карточке «Календарь».
+
+    Args:
+        data: Данные карточки (dip_date не None).
+
+    Returns:
+        list: Дочерние элементы строки маркера.
+    """
+    date_text = html.B(format_date_human(data["dip_date"]))
+    if data["dip_shortfall"]:
+        return [
+            "Не хватает ",
+            html.B(format_rub(data["dip_shortfall"]), className="pnl-money"),
+            " до ",
+            date_text,
+        ]
+    return [
+        "Ближайшая просадка: ",
+        date_text,
+        ", доступно ",
+        html.B(format_rub(data["dip_free"]), className="pnl-money"),
+    ]
+
+
 def build_calendar_card(data: CalendarCardData) -> html.Div:
     """Карточка «Календарь»: сегодня / завтра + маркер просадки.
 
     Окошек два (решение владельца 2026-08-26, «вчера» убрано); каждое —
     dcc.Link на /calendar?focus_date=<ISO> (FR-3, AC-2).
 
-    Маркер просадки (AC-7) рисуется ТОЛЬКО при status == OK
-    (critique-v2, №10). Причина — в теле источника: _window_min_free
-    при пустом days возвращает (Decimal("0"), date.today()), а НЕ
-    (0, None). Без этой оговорки на чистой базе появилось бы
-    «Ближайшая просадка: сегодня, остаток 0 ₽» — числовой артефакт,
-    прямо запрещённый AC-5. При status EMPTY/FAILED поля dip_*
-    игнорируются целиком, даже если непустые.
+    Маркер (AC-7) — точка узкого места модели (протокол 0033): та же
+    дата и сумма, что маркер графика. Без нехватки — «Ближайшая
+    просадка: <дата>, доступно N ₽»; при нехватке — «Не хватает N ₽
+    до <дата>». Рисуется ТОЛЬКО при status == OK (critique-v2, №10):
+    без этой оговорки на чистой базе появилось бы «Ближайшая просадка:
+    сегодня, 0 ₽» — числовой артефакт, прямо запрещённый AC-5. При
+    status EMPTY/FAILED поля dip_* игнорируются целиком, даже если
+    непустые.
 
-    При dip_free <= 0 маркер получает класс pnl-flagline-strong:
+    При dip_is_strong маркер получает класс pnl-flagline-strong:
     усиление привязано к факту знака числа — порога-вердикта нет
     и константы-порога тоже нет (решение владельца 2026-08-25).
     """
@@ -167,17 +193,7 @@ def build_calendar_card(data: CalendarCardData) -> html.Div:
                             className="pnl-flag-ico",
                             **{"aria-hidden": "true"},
                         ),
-                        html.Span(
-                            [
-                                "Ближайшая просадка: ",
-                                html.B(format_date_human(data["dip_date"])),
-                                ", остаток ",
-                                html.B(
-                                    format_rub(data["dip_free"]),
-                                    className="pnl-money",
-                                ),
-                            ]
-                        ),
+                        html.Span(_dip_text(data)),
                     ],
                     href=data["dip_href"],
                     className=flag_css,
