@@ -8,6 +8,8 @@
 
 <!-- Записи вида: Restore context: protocol-NNNN#ctx-N -->
 
+Restore context: protocol-0034#ctx-1 (диагноз A — свежий старт, фон «без остановок, без push»)
+
 ---
 
 ## Step Log
@@ -19,3 +21,24 @@
 - Неочевидные решения и почему
 - Проблемы и как решены
 -->
+
+### Step 00 — Подготовка
+- `.venv` создан в копии (uv, Python 3.12.3), black 23.11.0, flake8 6.1.0
+- Базовая линия: 976 passed; flake8 app/ — 3 pre-existing E501:
+  goals.py:3085, dashboard_service.py:375, dashboard_service.py:424
+- В `git status` видны `.bashrc`, `.gitconfig`, `.idea`, `.mcp.json` и др. —
+  заглушки-устройства песочницы, не файлы; коммиты — явным `git add <пути>`,
+  не `git add .`
+
+### Step 01 — Признак разового расхода в модели
+- `UpcomingPayment.is_one_off` (expense, не виртуальный, не в серии —
+  исключения серии в TransactionInfo имеют is_recurring=True), `OneOffMark`
+  (экспорт в app/schema/__init__.py)
+- Чистые функции `one_off_marks` / `one_off_total_until` рядом с
+  `bottleneck_marker`; формулы слоёв не тронуты
+- Единственный тестовый литерал UpcomingPayment — `make_payment` в
+  test_dashboard_panel_ui.py — получил параметр `one_off=False` сразу
+- tests/test_one_off_expenses.py — 12 тестов; регресс — на ручном расчёте
+  «ноябрьского» сценария (импорт build_november), не на снимке
+- Мутация «не проверять is_recurring» → падает тест исключения серии
+- 988 passed (976 + 12), black чист, flake8 — те же 3 E501

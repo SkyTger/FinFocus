@@ -94,7 +94,13 @@ def make_day(day: date, free="5000", payments="2000", reserve="3000"):
     }
 
 
-def make_payment(when: date, amount="1500", description="Интернет", recurring=False):
+def make_payment(
+    when: date,
+    amount="1500",
+    description="Интернет",
+    recurring=False,
+    one_off=False,
+):
     """Один UpcomingPayment."""
     return {
         "date": when,
@@ -102,6 +108,7 @@ def make_payment(when: date, amount="1500", description="Интернет", recu
         "description": description,
         "category_name": None,
         "is_recurring": recurring,
+        "is_one_off": one_off,
     }
 
 
