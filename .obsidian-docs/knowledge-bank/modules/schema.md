@@ -314,7 +314,8 @@ class DayLayers(TypedDict):
 Инвариант: `free + payments + reserve == forecast_balance` (AC-3).
 
 ### UpcomingPayment / GoalMilestone / TodaySlice
-- `UpcomingPayment` — date/amount (всегда > 0)/description/category_name/is_recurring — для тултипа легенды «Платежи»
+- `UpcomingPayment` — date/amount (всегда > 0)/description/category_name/is_recurring/**is_one_off** — для тултипа легенды «Платежи». `is_one_off` (протокол 0034) = expense вне серии (не шаблон, не виртуальный экземпляр, не исключение серии); savings_reserve/contribution/adjustment — всегда False
+- `OneOffMark` — date/total/items (`list[UpcomingPayment]` по убыванию суммы) — засечка разовых трат дня на графике (протокол 0034)
 - `GoalMilestone` — goal_id/name/target_date/target_amount/progress_percent/beyond_window — материализован из ORM Goal ВНУТРИ сессии (иначе DetachedInstanceError на `progress_percentage`)
 - `TodaySlice` — free/balance/payments/reserve на reference_date, источник цифр шапки. **Полей вердикта (level/text/dip_threshold) НЕТ** — решение владельца, шапка не выносит оценок
 

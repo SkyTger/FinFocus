@@ -113,6 +113,18 @@
     font-weight: 600;
 }
 
+/* Кружок перед строкой «Разовые траты до …» (протокол 0034) —
+   связь с треугольниками-засечками графика того же цвета */
+.pnl-one-off-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background-color: var(--color-one-off);
+    vertical-align: middle;
+}
+
 /* Сноска деградации — нейтральная, не тревожная:
    говорит «часть данных недоступна», а не «всё плохо» */
 .pnl-degraded-note {

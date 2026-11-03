@@ -148,6 +148,11 @@ class UpcomingPayment(TypedDict):
         description: Описание операции или None.
         category_name: Название категории или None.
         is_recurring: True для регулярных операций (маркер 🔁).
+        is_one_off: True — разовый расход (протокол 0034): операция типа
+            expense, НЕ принадлежащая серии — не шаблон, не виртуальный
+            экземпляр, не исключение серии. Служебные операции
+            (savings_reserve, savings_contribution, adjustment) — всегда
+            False. От суммы и даты признак не зависит.
     """
 
     date: date
@@ -155,6 +160,21 @@ class UpcomingPayment(TypedDict):
     description: str | None
     category_name: str | None
     is_recurring: bool
+    is_one_off: bool
+
+
+class OneOffMark(TypedDict):
+    """Разовые расходы одного дня — засечка графика щитка (протокол 0034).
+
+    Attributes:
+        date: День засечки.
+        total: Сумма разовых расходов дня.
+        items: Разовые расходы дня по убыванию суммы.
+    """
+
+    date: date
+    total: Decimal
+    items: list[UpcomingPayment]
 
 
 class GoalMilestone(TypedDict):

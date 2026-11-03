@@ -11,6 +11,7 @@
 UserProfile — фикстуры собираются словарями на относительных датах.
 """
 
+import re
 from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
@@ -23,6 +24,8 @@ import dash_bootstrap_components as dbc
 
 from app.components.dashboard import (
     MAX_TOOLTIP_PAYMENTS,
+    ONE_OFF_COLOR,
+    ONE_OFF_LABELS_MAX,
     _axis_tickvals,
     _build_balance_banner,
     _build_chart_empty_state,
@@ -94,7 +97,13 @@ def make_day(day: date, free="5000", payments="2000", reserve="3000"):
     }
 
 
-def make_payment(when: date, amount="1500", description="Интернет", recurring=False):
+def make_payment(
+    when: date,
+    amount="1500",
+    description="Интернет",
+    recurring=False,
+    one_off=False,
+):
     """Один UpcomingPayment."""
     return {
         "date": when,
@@ -102,6 +111,7 @@ def make_payment(when: date, amount="1500", description="Интернет", recu
         "description": description,
         "category_name": None,
         "is_recurring": recurring,
+        "is_one_off": one_off,
     }
 
 
@@ -417,10 +427,12 @@ class TestLimitBlock:
 
         node = self.limit_node(build_free_header(data, PROFILE))
 
-        assert node.title == (
+        # Протокол 0034 дополнил подсказку фразой о разовых тратах
+        assert node.title.startswith(
             "Предполагается, что до узкого места тратишь по лимиту; "
-            "доходы — по плану"
+            "доходы — по плану."
         )
+        assert "Разовые траты" in node.title and "треугольник" in node.title
 
     def test_no_limit_block_without_periods(self):
         """Периодов нет — блока нет (шапка остаётся прежней)."""
@@ -867,3 +879,259 @@ class TestReconNaming:
     def test_no_alternative_recon_label_in_source(self, path: Path):
         """Якорь: в исходниках дашборда и календаря нет «Сверить баланс»."""
         assert "Сверить баланс" not in path.read_text(encoding="utf-8")
+
+
+# ===========================================================================
+# Разовые траты: засечки графика и строка шапки (протокол 0034)
+# ===========================================================================
+
+
+def one_off_trace(fig):
+    """Трасса «Разовые траты» или None."""
+    traces = [trace for trace in fig.data if trace.name == "Разовые траты"]
+    assert len(traces) <= 1
+    return traces[0] if traces else None
+
+
+def with_one_offs(data, *specs):
+    """Добавляет разовые расходы (offset, amount, description) к платежам."""
+    ref = data["reference_date"]
+    data["upcoming_payments"] = data["upcoming_payments"] + [
+        make_payment(
+            ref + timedelta(days=offset),
+            amount=amount,
+            description=description,
+            one_off=True,
+        )
+        for offset, amount, description in specs
+    ]
+    return data
+
+
+class TestOneOffChart:
+    """Засечки разовых трат на графике полос."""
+
+    def test_no_trace_without_one_offs(self):
+        """Ни одного разового в окне — трассы нет вовсе."""
+        fig = get_chart_figure(build_layers_chart(make_layers_data()))
+
+        assert one_off_trace(fig) is None
+
+    def test_one_point_per_day_on_top_of_column(self):
+        """Точка на день с разовыми; y — верх столбца дня."""
+        data = with_one_offs(
+            make_layers_data(),
+            (3, "9000", "Ремонт"),
+            (3, "1500", "Цветы"),
+            (20, "4000", "Подарок"),
+        )
+        data["days"][20] = make_day(data["days"][20]["date"], free="700")
+
+        trace = one_off_trace(get_chart_figure(build_layers_chart(data)))
+
+        ref = data["reference_date"]
+        assert [str(x)[:10] for x in trace.x] == [
+            (ref + timedelta(days=3)).isoformat(),
+            (ref + timedelta(days=20)).isoformat(),
+        ]
+        assert list(trace.y) == [10000.0, 5700.0]
+        assert trace.marker.symbol == "triangle-down"
+        assert trace.marker.color == ONE_OFF_COLOR
+
+    def test_column_top_never_below_zero(self):
+        """Отрицательный прогноз дня — точка на нуле, не под осью."""
+        data = with_one_offs(make_layers_data(), (5, "9000", "Ремонт"))
+        day = data["days"][5]
+        day.update(free=Decimal("0"), payments=Decimal("0"), reserve=Decimal("0"))
+        day["forecast_balance"] = Decimal("-3000")
+
+        trace = one_off_trace(get_chart_figure(build_layers_chart(data)))
+
+        assert list(trace.y) == [0.0]
+
+    def test_hover_lists_every_expense_of_the_day(self):
+        """Подсказка дня — все траты с суммами, крупнейшая первой."""
+        data = with_one_offs(
+            make_layers_data(), (3, "1500", "Цветы"), (3, "9000", "Ремонт")
+        )
+
+        trace = one_off_trace(get_chart_figure(build_layers_chart(data)))
+
+        assert trace.customdata[0] == (
+            f"Ремонт — {format_rub(Decimal('9000'))}<br>"
+            f"Цветы — {format_rub(Decimal('1500'))}"
+        )
+        assert "%{customdata}" in trace.hovertemplate
+
+    def test_only_largest_days_labelled(self):
+        """5 дней с разовыми — подписаны ровно 3 крупнейших."""
+        data = with_one_offs(
+            make_layers_data(),
+            (2, "100", "А"),
+            (4, "5000", "Б"),
+            (6, "300", "В"),
+            (8, "7000", "Г"),
+            (12, "6000", "Д"),
+        )
+
+        trace = one_off_trace(get_chart_figure(build_layers_chart(data)))
+
+        labelled = [text for text in trace.text if text]
+        assert len(labelled) == ONE_OFF_LABELS_MAX == 3
+        assert list(trace.text) == [
+            "",
+            f"Б {format_rub(Decimal('5000'))}",
+            "",
+            f"Г {format_rub(Decimal('7000'))}",
+            f"Д {format_rub(Decimal('6000'))}",
+        ]
+
+    def test_multi_expense_day_label_counts_items(self):
+        """Несколько трат в дне — «N траты · сумма»."""
+        data = with_one_offs(
+            make_layers_data(),
+            (3, "1000", "Цветы"),
+            (3, "2000", "Торт"),
+            (3, "500", "Шары"),
+        )
+
+        trace = one_off_trace(get_chart_figure(build_layers_chart(data)))
+
+        assert list(trace.text) == [f"3 траты · {format_rub(Decimal('3500'))}"]
+
+    def test_long_description_truncated(self):
+        """Длинное описание — 16 символов вместе с «…»."""
+        data = with_one_offs(
+            make_layers_data(), (3, "23500", "Ремонт машины в сервисе на Ленина")
+        )
+
+        trace = one_off_trace(get_chart_figure(build_layers_chart(data)))
+
+        assert trace.text[0] == f"Ремонт машины в… {format_rub(Decimal('23500'))}"
+        assert len("Ремонт машины в…") == 16
+
+    def test_bottleneck_day_not_labelled(self):
+        """День узкого места — подпись маркера уже есть, засечка без текста."""
+        data = make_layers_data()
+        data = with_one_offs(data, (10, "9000", "Ремонт"), (12, "100", "Такси"))
+
+        trace = one_off_trace(get_chart_figure(build_layers_chart(data)))
+
+        assert list(trace.text) == ["", f"Такси {format_rub(Decimal('100'))}"]
+
+    def test_layer_traces_unchanged_by_one_offs(self):
+        """Три полосы — те же имена, цвета и данные; «Платежи» одноцветная."""
+        plain = get_chart_figure(build_layers_chart(make_layers_data()))
+        data = with_one_offs(make_layers_data(), (3, "9000", "Ремонт"))
+        marked = get_chart_figure(build_layers_chart(data))
+
+        def bars(fig):
+            return [
+                (trace.name, trace.marker.color, tuple(trace.y))
+                for trace in fig.data
+                if trace.type == "bar"
+            ]
+
+        assert bars(marked) == bars(plain)
+        assert len(bars(marked)) == 3
+
+    def test_one_off_beyond_window_not_marked(self):
+        """Разовый за правым краем оси — засечки нет."""
+        data = make_layers_data()
+        data["upcoming_payments"].append(
+            make_payment(
+                data["window_end"] + timedelta(days=3), amount="4000", one_off=True
+            )
+        )
+
+        assert one_off_trace(get_chart_figure(build_layers_chart(data))) is None
+
+
+class TestOneOffHeaderLine:
+    """Строка «Разовые траты до <узкое место>: N ₽» в шапке."""
+
+    @staticmethod
+    def one_off_nodes(header):
+        """Узлы строки разовых трат."""
+        return [
+            node
+            for node in iter_tree(header)
+            if "pnl-one-off-line" in str(getattr(node, "className", ""))
+        ]
+
+    def test_line_sums_one_offs_until_bottleneck(self):
+        """Сумма разовых до узкого места включительно, дата — узкое место."""
+        data = with_one_offs(
+            make_layers_data(limit_periods=[period(0, 10, "815")]),
+            (3, "9000", "Ремонт"),
+            (10, "1000", "Цветы"),
+            (11, "50000", "Отпуск"),
+        )
+
+        header = build_free_header(data, PROFILE)
+        [node] = self.one_off_nodes(header)
+
+        assert flat_text(node) == (
+            f"Разовые траты до {format_date_human(data['bottleneck_date'])}: "
+            f"{format_rub(Decimal('10000'))}"
+        )
+        dots = [
+            child
+            for child in iter_tree(node)
+            if getattr(child, "className", None) == "pnl-one-off-dot"
+        ]
+        assert len(dots) == 1
+
+    def test_no_line_when_sum_is_zero(self):
+        """Разовых до узкого места нет — строки нет."""
+        data = with_one_offs(
+            make_layers_data(limit_periods=[period(0, 10, "815")]),
+            (11, "50000", "Отпуск"),
+        )
+
+        assert self.one_off_nodes(build_free_header(data, PROFILE)) == []
+
+    def test_no_line_without_bottleneck(self):
+        """Узкого места нет — строки нет."""
+        data = with_one_offs(
+            make_layers_data(limit_periods=[period(0, 10, "815")]),
+            (3, "9000", "Ремонт"),
+        )
+        data["bottleneck_date"] = None
+
+        assert self.one_off_nodes(build_free_header(data, PROFILE)) == []
+
+    def test_line_present_with_shortfall_after_it(self):
+        """При нехватке строка есть и стоит после строки «Не хватает»."""
+        shortfall_date = date.today() + timedelta(days=7)
+        data = with_one_offs(
+            make_layers_data(
+                limit_periods=[period(0, 7, "0")],
+                shortfall=Decimal("6137"),
+                shortfall_date=shortfall_date,
+                bottleneck_date=shortfall_date,
+            ),
+            (5, "9000", "Ремонт"),
+        )
+
+        text = flat_text(build_free_header(data, PROFILE))
+
+        line = (
+            f"Разовые траты до {format_date_human(shortfall_date)}: "
+            f"{format_rub(Decimal('9000'))}"
+        )
+        assert line in text
+        assert text.index("Не хватает") < text.index(line)
+
+    def test_one_off_color_matches_css_token(self):
+        """ONE_OFF_COLOR == --color-one-off в custom.css (якорь CSS ↔ Python)."""
+        css = (
+            Path(__file__).resolve().parents[1] / "app" / "assets" / "custom.css"
+        ).read_text(encoding="utf-8")
+        match = re.search(r"--color-one-off:\s*(#[0-9a-fA-F]{6})\s*;", css)
+
+        assert match is not None
+        assert match.group(1).lower() == ONE_OFF_COLOR.lower()
+        assert ONE_OFF_COLOR.lower() not in {
+            color.lower() for color in LAYER_COLORS.values()
+        }

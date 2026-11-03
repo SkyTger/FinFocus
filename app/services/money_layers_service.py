@@ -19,6 +19,7 @@ from app.schema.money_layers import (
     Horizons,
     LimitPeriod,
     MoneyLayersData,
+    OneOffMark,
     TodaySlice,
     UpcomingPayment,
 )
@@ -86,6 +87,67 @@ def bottleneck_marker(data: MoneyLayersData) -> BottleneckMarker:
         return BottleneckMarker(None, data["bottleneck_available"], False)
     return BottleneckMarker(
         data["bottleneck_date"], data["bottleneck_available"], False
+    )
+
+
+def one_off_marks(data: MoneyLayersData) -> list[OneOffMark]:
+    """ЕДИНСТВЕННОЕ правило засечек разовых расходов на графике щитка.
+
+    Берёт разовые расходы (is_one_off) из upcoming_payments с датой в
+    окне оси [reference_date, window_end], группирует по дню. Тот же
+    паттерн, что bottleneck_marker: одна функция — один источник для
+    графика, чтобы засечки не разошлись с моделью (протокол 0034).
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        list[OneOffMark]: Отметки по возрастанию даты; в каждой items —
+            по убыванию суммы. Нет разовых в окне — пустой список.
+    """
+    by_day: dict[date, list[UpcomingPayment]] = {}
+    for payment in data["upcoming_payments"]:
+        if not payment["is_one_off"]:
+            continue
+        if not data["reference_date"] <= payment["date"] <= data["window_end"]:
+            continue
+        by_day.setdefault(payment["date"], []).append(payment)
+
+    marks: list[OneOffMark] = []
+    for day in sorted(by_day):
+        items = sorted(by_day[day], key=lambda item: item["amount"], reverse=True)
+        marks.append(
+            OneOffMark(
+                date=day,
+                total=sum((item["amount"] for item in items), Decimal("0")),
+                items=items,
+            )
+        )
+    return marks
+
+
+def one_off_total_until(data: MoneyLayersData, end: date) -> Decimal:
+    """Сумма разовых расходов с датой в [reference_date, end] включительно.
+
+    Считается по upcoming_payments, то есть end может лежать за правым
+    краем оси (до горизонта H) — строка шапки «Разовые траты до
+    <узкое место>» не обрезается осью графика (протокол 0034).
+
+    Args:
+        data: Модель слоёв.
+        end: Последний день суммирования (включительно).
+
+    Returns:
+        Decimal: Сумма; нет разовых в диапазоне — Decimal("0").
+    """
+    return sum(
+        (
+            payment["amount"]
+            for payment in data["upcoming_payments"]
+            if payment["is_one_off"]
+            and data["reference_date"] <= payment["date"] <= end
+        ),
+        Decimal("0"),
     )
 
 
@@ -545,6 +607,11 @@ class MoneyLayersService:
                             description=txn["description"],
                             category_name=txn["category_name"],
                             is_recurring=txn["is_recurring"],
+                            is_one_off=(
+                                txn_type == "expense"
+                                and not txn["is_recurring"]
+                                and not txn["is_virtual"]
+                            ),
                         )
                     )
 

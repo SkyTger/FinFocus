@@ -397,6 +397,26 @@ def build_calendar_grid(
 # ==================== TOOLTIP ====================
 
 
+def _is_one_off_expense(txn: TransactionInfo) -> bool:
+    """Разовый расход (протокол 0034): expense вне серии.
+
+    Тот же признак, что UpcomingPayment.is_one_off модели слоёв: не
+    шаблон, не виртуальный экземпляр, не исключение серии (у исключений
+    is_recurring=True в TransactionInfo). Служебные типы — не expense.
+
+    Args:
+        txn: Данные транзакции.
+
+    Returns:
+        bool: True — разовый расход.
+    """
+    return (
+        txn.get("transaction_type") == "expense"
+        and not txn.get("is_recurring")
+        and not txn.get("is_virtual")
+    )
+
+
 def _build_tooltip_balance(balance: Decimal) -> html.Div:
     """Строит header tooltip с балансом.
 
@@ -472,6 +492,9 @@ def _build_tooltip_transaction_row(
     row_class = "tooltip-txn-row"
     if txn.get("is_skipped"):
         row_class += " skipped"
+    # Разовый расход — цветная полоска слева (цвет разовых, протокол 0034)
+    if _is_one_off_expense(txn):
+        row_class += " one-off"
 
     # SAVINGS_RESERVE — read-only (системная), без клика
     if txn_type in ("savings_reserve", "savings_contribution"):
@@ -625,7 +648,12 @@ def build_day_cell(
     # Transaction dots (цветные точки вместо стрелок)
     dots = []
     has_income = any(t.get("transaction_type") == "income" for t in transactions)
-    has_expense = any(t.get("transaction_type") == "expense" for t in transactions)
+    # Разовый расход — своя точка (протокол 0034); «Расход» — только серии
+    has_one_off = any(_is_one_off_expense(t) for t in transactions)
+    has_expense = any(
+        t.get("transaction_type") == "expense" and not _is_one_off_expense(t)
+        for t in transactions
+    )
     has_recurring = any(
         t.get("is_recurring") or t.get("is_virtual") for t in transactions
     )
@@ -634,6 +662,8 @@ def build_day_cell(
         dots.append(html.Div(className="txn-dot income", title="Доход"))
     if has_expense:
         dots.append(html.Div(className="txn-dot expense", title="Расход"))
+    if has_one_off:
+        dots.append(html.Div(className="txn-dot one-off", title="Разовый расход"))
     if has_recurring:
         dots.append(html.Div(className="txn-dot recurring", title="Повторяющаяся"))
 

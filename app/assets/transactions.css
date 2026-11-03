@@ -502,3 +502,8 @@
     cursor: default;
     white-space: nowrap;
 }
+
+/* Значок разовой траты в строке списка (протокол 0034) — цвет разовых */
+.tx-one-off-icon {
+    color: var(--color-one-off);
+}

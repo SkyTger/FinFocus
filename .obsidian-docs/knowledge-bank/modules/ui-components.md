@@ -15,7 +15,7 @@ Dash компоненты для UI: Dashboard-щиток, Nav Rail, Transaction
 - `app/components/calendar_wishlist.py` - wishlist-режим календаря
 - `app/components/dashboard.py` - главная страница: шапка «Свободно сегодня» + график полос (протокол 0028)
 - `app/components/nav_rail.py` — навигация (полоска-меню 60px)
-- `app/components/transactions.py` - управление операциями (CRUD),
+- `app/components/transactions.py` - управление операциями (CRUD); разовый расход (`_is_one_off_expense` по ORM: EXPENSE, не шаблон, без `recurring_parent_id`) помечен иконкой `bi-flag-fill tx-one-off-icon` (протокол 0034),
   маркировка и защита служебных операций (протокол 0032)
 
 См. секцию «Dashboard Component» ниже (актуальная версия, протокол 0028)
@@ -603,6 +603,13 @@ Chromium: (1) два `overflow: hidden` у `.calendar-grid-wrapper` и
   минимум «Свободно»), вехи целей аннотациями, HTML-легенда с тултипами
   вместо легенды Plotly (тултипы «Свободно»/«Платежи» переписаны под
   новый смысл, «до конца месяца» в щитке не осталось)
+- **Разовые траты** (протокол 0034): трасса «Разовые траты» в
+  `build_layers_chart` (`_add_one_off_trace`: треугольники-засечки из
+  `one_off_marks`; константы `ONE_OFF_COLOR="#8e44ad"` — зеркало токена
+  `--color-one-off` в `custom.css`, `ONE_OFF_LABELS_MAX=3` подписанных
+  дней, `ONE_OFF_LABEL_CHARS=16`) и строка шапки «Разовые траты до
+  <узкое место>: N ₽» (`_build_one_off_line`, кружок `pnl-one-off-dot`;
+  нет узкого места или разовых до него — строки нет)
 - **Блок «можно тратить»** в шапке под разбором (`_build_limit_block`,
   протокол 0033): «Можно тратить ~N ₽/день до <дата>», «с <дата> —
   ~M ₽/день» (надёжный второй период), «на X ₽/день ниже нормы (по
@@ -953,3 +960,17 @@ AnalyticsCardData и в RTM #87. Показателя «Доходы» в кар
 ---
 
 Детали: `architecture.md` (Presentation Layer), `code-style.md` (Dash Callbacks Pattern), `schema.md` (TypedDicts)
+
+## Разовые расходы в календаре и списке (протокол 0034)
+Один признак «expense вне серии» в трёх местах (модель слоёв —
+`UpcomingPayment.is_one_off`, см. services.md; календарь и список
+считают по своим данным, поэтому предикаты дублируются):
+- `app/components/calendar.py` — `_is_one_off_expense(txn)` по
+  `TransactionInfo` (expense, не `is_recurring`, не `is_virtual`);
+  точка дня `txn-dot one-off`, строка подсказки `tooltip-txn-row one-off`
+  (`calendar.css`)
+- `app/components/transactions.py` — `_is_one_off_expense(tx)` по ORM;
+  иконка `bi-flag-fill tx-one-off-icon` (`transactions.css`)
+- Токен `--color-one-off: #8e44ad` в `app/assets/custom.css`; на щитке
+  тот же цвет — `ONE_OFF_COLOR` в `dashboard.py`, `.pnl-one-off-dot` в
+  `panel.css`. Менять цвет — во всех местах сразу.
