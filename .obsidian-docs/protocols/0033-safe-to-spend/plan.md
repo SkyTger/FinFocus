@@ -167,8 +167,8 @@ TypedDict `LimitPeriod {start, end, per_day: Decimal, reliable: bool}`):
 этого протокола:
 - **Тесты не подгоняются под вывод кода.** Ожидаемые числа — из ручного
   расчёта по фикстуре, расчёт записывается в log.md.
-- Числа журнала владельца (815 / 1 451 / 2 198 / −6 137) в тесты НЕ
-  копировать: журнальная база 37 363 не раскладывается на слагаемые.
+- Числа из журнала бюджета владельца в тесты НЕ копировать: журнальная
+  база не раскладывается на слагаемые.
   Фикстуры синтетические, ожидания считаются от них.
 - Даты в тестах — относительные (хелперы `tests/conftest.py`), не
   захардкоженные (см. ROADMAP, открытый вопрос №6).
@@ -185,3 +185,13 @@ TypedDict `LimitPeriod {start, end, per_day: Decimal, reliable: bool}`):
 - Knowledge-bank: `.obsidian-docs/knowledge-bank/modules/services.md` (MoneyLayersService, DashboardPanelService), `modules/ui-components.md` (щиток), `modules/schema.md`
 - Код: `app/services/money_layers_service.py`, `app/services/panel_service.py:390-400`, `app/schema/money_layers.py`, `app/schema/panel.py`, `app/components/dashboard.py:187-260, 400-560`, `app/components/panel_cards.py`
 - Тесты: `tests/test_money_layers_service.py`, `tests/test_dashboard_panel_ui.py`, `tests/test_panel_service.py`, `tests/test_panel_cards_ui.py`
+
+---
+
+## Перед push — для /protocol-review-merge (не для фоновой сессии)
+
+Ветка отведена от docs-коммита `b342d4f`, который на `main` заменён
+обезличенным `7f07696` (2026-11-03: личные финансовые цифры владельца
+убраны из публичных заметок — репозиторий публичный). Перед push:
+`git rebase --onto main b342d4f 0033-safe-to-spend`, затем убедиться,
+что `git log origin/main..0033-safe-to-spend` не содержит `b342d4f`.
