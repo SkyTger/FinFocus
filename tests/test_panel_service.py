@@ -179,12 +179,12 @@ class TestConsistency:
             assert day["href"] == f"/calendar?focus_date={day['date'].isoformat()}"
 
     def test_dip_fields_from_layers(self, service, filled_user):
-        """dip_* — из min_free/min_free_date модели."""
+        """dip_* — из узкого места модели (протокол 0033, было min_free*)."""
         panel = service.get_panel_data(1)
 
         card = panel["calendar"]
-        assert card["dip_free"] == panel["layers"]["min_free"]
-        assert card["dip_date"] == panel["layers"]["min_free_date"]
+        assert card["dip_free"] == panel["layers"]["bottleneck_available"]
+        assert card["dip_date"] == panel["layers"]["bottleneck_date"]
         assert card["dip_is_strong"] == (card["dip_free"] <= 0)
         assert card["dip_href"] == (
             f"/calendar?focus_date={card['dip_date'].isoformat()}"

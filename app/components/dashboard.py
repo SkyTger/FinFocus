@@ -329,7 +329,7 @@ def _build_payments_tooltip(data: MoneyLayersData) -> list:
     payments = [
         payment
         for payment in data["upcoming_payments"]
-        if payment["date"] <= data["payments_end"]
+        if payment["date"] <= data["horizon_end"]
     ]
 
     if not payments:
@@ -529,11 +529,15 @@ def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
         font=dict(size=11, color="#7f8c8d"),
     )
 
+    # Маркер узкого места (шаг 1 протокола 0033 — минимальная замена
+    # удалённых min_free*; смысловая правка маркера — шаг 3)
+    marker_date = data["bottleneck_date"] or data["reference_date"]
+    marker_value = data["bottleneck_available"]
     # Маркер минимума «Свободно» — со сдвигом, чтобы не липнуть к тику даты
     fig.add_trace(
         go.Scatter(
-            x=[data["min_free_date"]],
-            y=[float(data["min_free"])],
+            x=[marker_date],
+            y=[float(marker_value)],
             mode="markers",
             marker=dict(
                 symbol="diamond",
@@ -546,9 +550,9 @@ def build_layers_chart(data: MoneyLayersData) -> dbc.Card:
         )
     )
     fig.add_annotation(
-        x=data["min_free_date"],
-        y=float(data["min_free"]),
-        text=f"минимум: {format_rub(data['min_free'])}",
+        x=marker_date,
+        y=float(marker_value),
+        text=f"минимум: {format_rub(marker_value)}",
         showarrow=True,
         arrowhead=0,
         arrowcolor="#7f8c8d",

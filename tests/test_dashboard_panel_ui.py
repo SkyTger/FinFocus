@@ -108,15 +108,15 @@ def make_payment(when: date, amount="1500", description="Интернет", recu
 def make_layers_data(**overrides):
     """MoneyLayersData для нормального наполненного окна.
 
-    Дни: free=5000 / payments=2000 / reserve=3000, минимум «Свободно»
+    Дни: free=5000 / payments=2000 / reserve=3000, узкое место
     на 10-м дне окна. Все даты — от сегодняшнего дня.
     """
     ref = overrides.pop("reference_date", date.today())
     days = [make_day(ref + timedelta(days=offset)) for offset in range(WINDOW_DAYS)]
-    min_free_date = ref + timedelta(days=10)
-    days[10] = make_day(min_free_date, free="1000")
+    bottleneck_date = ref + timedelta(days=10)
+    days[10] = make_day(bottleneck_date, free="1000")
     _, last_day = monthrange(ref.year, ref.month)
-    payments_end = ref.replace(day=last_day)
+    horizon_end = ref.replace(day=last_day) + timedelta(days=WINDOW_DAYS)
 
     data = {
         "days": days,
@@ -126,8 +126,12 @@ def make_layers_data(**overrides):
             "payments": Decimal("2000"),
             "reserve": Decimal("3000"),
         },
-        "min_free": Decimal("1000"),
-        "min_free_date": min_free_date,
+        "limit_periods": [],
+        "bottleneck_date": bottleneck_date,
+        "bottleneck_available": Decimal("1000"),
+        "shortfall": Decimal("0"),
+        "shortfall_date": bottleneck_date,
+        "norm_per_day": None,
         "upcoming_payments": [
             make_payment(ref + timedelta(days=2)),
             make_payment(
@@ -140,7 +144,7 @@ def make_layers_data(**overrides):
         "milestones": [],
         "reference_date": ref,
         "window_end": ref + timedelta(days=WINDOW_DAYS - 1),
-        "payments_end": payments_end,
+        "horizon_end": horizon_end,
         "cushion_threshold": Decimal("2000"),
         "goals_reserve_today": Decimal("1000"),
         "reserve_configured_today": Decimal("3000"),
@@ -396,19 +400,22 @@ class TestLayersChart:
         assert "сегодня" in annotation_texts
 
     def test_min_free_marker_and_annotation(self):
-        """Маркер минимума «Свободно» стоит на min_free_date с подписью."""
+        """Маркер стоит на bottleneck_date с подписью (шаг 1 протокола 0033 —
+        только замена полей; смысл маркера переписывает шаг 3)."""
         data = make_layers_data()
 
         fig = get_chart_figure(build_layers_chart(data))
 
         markers = [trace for trace in fig.data if trace.type == "scatter"]
         assert len(markers) == 1
-        assert str(markers[0].x[0]).startswith(data["min_free_date"].isoformat())
-        assert markers[0].y[0] == float(data["min_free"])
+        assert str(markers[0].x[0]).startswith(data["bottleneck_date"].isoformat())
+        assert markers[0].y[0] == float(data["bottleneck_available"])
         min_annotations = [
             ann.text for ann in fig.layout.annotations if "минимум" in ann.text
         ]
-        assert min_annotations == [f"минимум: {format_rub(data['min_free'])}"]
+        assert min_annotations == [
+            f"минимум: {format_rub(data['bottleneck_available'])}"
+        ]
 
     def test_milestones_inside_window_and_beyond(self):
         """Веха в окне — флажок у оси; за краем — стрелка справа."""
@@ -536,11 +543,12 @@ class TestLegendAndTooltips:
         assert f"🔁 {second['description']}" in text
 
     def test_payments_tooltip_respects_month_boundary(self):
-        """Платёж за концом месяца в тултип не попадает (AC-4: «до
-        конца месяца»)."""
+        """Платёж за горизонтом расчёта в тултип не попадает (шаг 1
+        протокола 0033: граница — horizon_end вместо конца месяца;
+        подписи «до конца месяца» переписывает шаг 4)."""
         data = make_layers_data()
         data["upcoming_payments"] = [
-            make_payment(data["payments_end"] + timedelta(days=1), description="Чужой")
+            make_payment(data["horizon_end"] + timedelta(days=1), description="Чужой")
         ]
 
         rows = _build_payments_tooltip(data)

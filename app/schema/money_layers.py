@@ -7,10 +7,13 @@ Note:
 
 Note:
     Цветового вердикта состояния (ok/dip/problem) в контракте НЕТ —
-    решение владельца 2026-08-24 (memory/spec-context/epic-11.md, п. 3а):
-    любой порог просадки произволен, проблемные дни пользователь видит
-    на самом графике. Поле min_free оставлено не для вердикта, а для
-    маркера минимума на графике (FR-3.e).
+    решение владельца 2026-08-24 (memory/spec-context/epic-11.md, п. 3а).
+    Протокол 0033 (2026-11-03) пересмотрел это частично: появился факт
+    «не хватает N ₽ до <дата>» (shortfall / shortfall_date) — это знак
+    числа, а не порог. Маркер минимума «Свободно» (FR-3.e) заменён
+    узким местом (bottleneck_date / bottleneck_available): по новой
+    формуле «Свободно» от дня к дню только растёт, его минимум всегда
+    сегодня.
 """
 
 from datetime import date
@@ -24,8 +27,18 @@ WINDOW_DAYS = 45
 """Длина окна оси графика в днях (включая сегодня).
 
 Соответствует принятому эскизу .visual/finfocus-panel-dashboard/v3.html
-(22 авг — 5 окт 2026). Горизонт слоя «Платежи» — отдельная величина,
-конец календарного месяца (C-5), см. MoneyLayersService._horizons.
+(22 авг — 5 окт 2026). Горизонт РАСЧЁТА длиннее оси — см. HORIZON_CAP_DAYS
+и MoneyLayersService._horizons (C-5 «Платежи до конца месяца» отменён
+протоколом 0033).
+"""
+
+HORIZON_CAP_DAYS = 90
+"""Предел горизонта расчёта H в днях (включая сегодня): H <= ref + 89.
+
+H = дата первого дохода строго после правого края оси, но не дальше
+этого предела. Прогноз остатка считается до H, чтобы полосы последних
+дней оси видели платежи за краем оси до ближайшего поступления —
+иначе обрыв «на границе месяца» переехал бы на правый край графика.
 """
 
 MAX_MILESTONES_IN_WINDOW = 3
@@ -67,7 +80,7 @@ LAYER_LABELS: dict[LayerKey, str] = {
 
 
 class Horizons(NamedTuple):
-    """Три границы модели — почему их три, см. докстринг _horizons.
+    """Границы модели — почему они такие, см. докстринг _horizons.
 
     Attributes:
         collect_start: Левая граница ЕДИНСТВЕННОГО сбора операций —
@@ -75,13 +88,18 @@ class Horizons(NamedTuple):
             что consumed(reference_date) требует savings-операций,
             датированных ДО сегодня в пределах текущего месяца.
         window_end: Последний день окна оси (reference_date + 44).
-        payments_end: Последний день горизонта слоя «Платежи»
-            (конец календарного месяца reference_date, C-5).
+        horizon_end: Последний день горизонта расчёта H — первый доход
+            строго после window_end, но не дальше
+            reference_date + HORIZON_CAP_DAYS − 1.
+        horizon_has_income_after: True — H стоит на доходе; False —
+            доходов в (window_end, предел] нет и H упёрся в предел
+            (край расчёта может оказаться ложным узким местом).
     """
 
     collect_start: date
     window_end: date
-    payments_end: date
+    horizon_end: date
+    horizon_has_income_after: bool
 
 
 class DayLayers(TypedDict):
@@ -91,10 +109,14 @@ class DayLayers(TypedDict):
 
     Attributes:
         date: Дата дня окна.
-        free: Слой «Свободно» — реально доступные деньги.
-        payments: Слой «Платежи» — уйдут на запланированные платежи
-            в интервале (date, конец календарного месяца reference_date].
-            За границей месяца всегда 0 — видимое ограничение C-5.
+        free: Слой «Свободно» — сколько можно потратить в этот день
+            разово и пройти все дни до горизонта H без минуса:
+            min по t ∈ [date, H] от available(t) (протокол 0033).
+        payments: Слой «Платежи» — сколько из денег этого дня нельзя
+            трогать, чтобы пройти до следующих поступлений:
+            available(date) − min по t ∈ [date, H] от available(t).
+            Доходы, приходящие раньше платежа, учтены сами; обрыва на
+            границе месяца нет (C-5 отменён протоколом 0033).
         reserve: Слой «Резерв» — ФАКТ дня после каскада _split_day.
             Может быть меньше reserve_configured, если остатка меньше:
             это и есть сигнал «вы залезаете в подушку».
@@ -165,7 +187,9 @@ class TodaySlice(TypedDict):
     переехал в MoneyLayersData — он нужен графику, не шапке.
 
     Attributes:
-        free: Слой «Свободно» на reference_date — главное число шапки.
+        free: Слой «Свободно» на reference_date — «Свободно сегодня»
+            в шапке. Клэмпнут каскадом (≥ 0 при balance ≥ 0): глубину
+            нехватки показывает MoneyLayersData.shortfall.
         balance: Прогнозный остаток на reference_date (разбор).
         payments: Слой «Платежи» на reference_date (разбор).
         reserve: Слой «Резерв» на reference_date, ФАКТ дня (разбор).
@@ -177,21 +201,52 @@ class TodaySlice(TypedDict):
     reserve: Decimal
 
 
+class LimitPeriod(TypedDict):
+    """Период лимита трат на день (протокол 0033).
+
+    Дни считаются ВКЛЮЧИТЕЛЬНО с обоих концов: start..end.
+
+    Attributes:
+        start: Первый день периода.
+        end: Последний день периода — узкое место периода.
+        per_day: Лимит трат в день (Decimal без округления; округление
+            до рубля вниз — только при слиянии и в UI).
+        reliable: False — период упирается в край расчёта без дохода
+            за ним (horizon_has_income_after == False); UI его не
+            показывает (кроме первого — предупреждение вместо числа).
+    """
+
+    start: date
+    end: date
+    per_day: Decimal
+    reliable: bool
+
+
 class MoneyLayersData(TypedDict):
     """Полный результат модели FR-1 — единый источник шапки и графика.
 
     Attributes:
         days: Декомпозиция по дням окна (reference_date .. window_end).
         today: Срез «сегодня» для шапки.
-        min_free: Минимум слоя «Свободно» по ВСЕМУ окну — для маркера
-            минимума на графике (FR-3.e). НЕ используется для оценки
-            состояния: вердикта в куске 1 нет (решение владельца п. 3а).
-        min_free_date: Дата этого минимума (первая при равенстве).
-        upcoming_payments: Платежи до payments_end для тултипа (FR-4).
+        limit_periods: Периоды лимита трат на день (до 3), по порядку.
+        bottleneck_date: Узкое место — день, на котором стоит самое
+            жёсткое ограничение (конец первого периода); None — ряд пуст.
+            Заменило маркер минимума «Свободно» (FR-3.e, протокол 0033).
+        bottleneck_available: available(t) в день узкого места.
+        shortfall: Нехватка max(0, −min available на [ref, H]) — сколько
+            не хватает, чтобы пройти все дни без минуса. Полосы её не
+            показывают (клэмп каскадом), показывает шапка.
+        shortfall_date: Первый день, где available достигает минимума
+            (None при пустом ряде).
+        norm_per_day: Норма «по плану» — (доходы − расходы) регулярных
+            операций месяца reference_date ÷ дней месяца; None — нет
+            регулярных операций.
+        upcoming_payments: Платежи от reference_date до horizon_end
+            для тултипа (FR-4).
         milestones: Вехи целей для оси времени (FR-3.c).
         reference_date: Дата отсчёта («сегодня»).
         window_end: Последний день окна оси (reference_date + 44).
-        payments_end: Последний день горизонта платежей (конец месяца, C-5).
+        horizon_end: Последний день горизонта расчёта H.
         cushion_threshold: Порог подушки в слое «Резерв» (расшифровка).
         goals_reserve_today: Часть слоя «Резерв» от бюджета целей на сегодня
             (до каскада — настроенная).
@@ -210,13 +265,17 @@ class MoneyLayersData(TypedDict):
 
     days: list[DayLayers]
     today: TodaySlice
-    min_free: Decimal
-    min_free_date: date
+    limit_periods: list[LimitPeriod]
+    bottleneck_date: date | None
+    bottleneck_available: Decimal
+    shortfall: Decimal
+    shortfall_date: date | None
+    norm_per_day: Decimal | None
     upcoming_payments: list[UpcomingPayment]
     milestones: list[GoalMilestone]
     reference_date: date
     window_end: date
-    payments_end: date
+    horizon_end: date
     cushion_threshold: Decimal
     goals_reserve_today: Decimal
     reserve_configured_today: Decimal

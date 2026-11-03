@@ -387,8 +387,10 @@ class DashboardPanelService:
             ),
         ]
 
-        dip_free = layers["min_free"]
-        dip_date = layers["min_free_date"]
+        # Шаг 1 протокола 0033: минимальная замена удалённых полей
+        # min_free*; смысловая правка карточки — шаг 3
+        dip_free = layers["bottleneck_available"]
+        dip_date = layers["bottleneck_date"] or layers["reference_date"]
         return CalendarCardData(
             status=CardStatus.OK,
             days=days,
