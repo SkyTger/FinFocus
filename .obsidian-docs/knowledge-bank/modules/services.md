@@ -1418,6 +1418,15 @@ H без минуса; «Платежи» — сколько из денег д�
 точки для маркера графика и «Ближайшей просадки» карточки «Календарь»:
 нехватка → `shortfall_date` и `−shortfall`; первый период ненадёжен →
 точки нет; иначе — `bottleneck_date` / `bottleneck_available`.
+**Разовые расходы** (протокол 0034; формулы слоёв ADR-006 НЕ менялись —
+признак только размечает уже посчитанные `upcoming_payments`):
+`UpcomingPayment.is_one_off = expense and not is_recurring and not
+is_virtual`. `one_off_marks(data)` — засечки по дням в окне оси
+[reference_date, window_end] (`OneOffMark`, по возрастанию даты);
+`one_off_total_until(data, end)` — сумма разовых в [reference_date, end],
+`end` может лежать за краем оси (до горизонта H). Обе — функции модуля
+рядом с `bottleneck_marker`, единый источник для графика и шапки.
+
 `floor_rub(amount)` — округление до рубля вниз (слияние и показ).
 
 **Инвариант AC-3**: для каждого дня D окна
