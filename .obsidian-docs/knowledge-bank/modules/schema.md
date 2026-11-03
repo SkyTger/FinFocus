@@ -278,6 +278,8 @@ class YearlyCashflowData(TypedDict):
 LayerKey = Literal["free", "payments", "reserve"]
 
 WINDOW_DAYS = 45                  # длина окна оси графика
+HORIZON_CAP_DAYS = 90             # предел горизонта расчёта H (протокол 0033)
+MAX_LIMIT_PERIODS = 3             # максимум периодов лимита в день (протокол 0033)
 MAX_MILESTONES_IN_WINDOW = 3      # макс. вех целей внутри окна (+1 beyond_window)
 MAX_X_TICKS = 11                  # ПОТОЛОК подписей оси X (не цель — k = ceil(len/MAX_X_TICKS))
 
@@ -291,7 +293,13 @@ LAYER_LABELS: dict[LayerKey, str] = {
 
 ### Horizons (NamedTuple)
 `collect_start` (1-е число месяца reference_date) / `window_end`
-(reference_date + 44) / `payments_end` (конец месяца reference_date).
+(reference_date + 44) / `horizon_end` (H — первый доход после оси, ≤ ref + 89)
+/ `horizon_has_income_after` (bool). `payments_end` удалён протоколом 0033.
+
+### LimitPeriod (протокол 0033)
+`start` / `end` (узкое место периода) / `per_day: Decimal` (без округления)
+/ `reliable: bool` (False — упирается в H без дохода за ним). Дни —
+включительно с обоих концов.
 
 ### DayLayers
 ```python
@@ -315,13 +323,17 @@ class DayLayers(TypedDict):
 class MoneyLayersData(TypedDict):
     days: list[DayLayers]
     today: TodaySlice
-    min_free: Decimal
-    min_free_date: date
-    upcoming_payments: list[UpcomingPayment]
+    limit_periods: list[LimitPeriod]   # протокол 0033
+    bottleneck_date: date | None       # конец первого периода
+    bottleneck_available: Decimal
+    shortfall: Decimal                 # max(0, −min available)
+    shortfall_date: date | None
+    norm_per_day: Decimal | None       # «по плану», по шаблонам
+    upcoming_payments: list[UpcomingPayment]   # [ref, H]
     milestones: list[GoalMilestone]
     reference_date: date
     window_end: date
-    payments_end: date
+    horizon_end: date
     cushion_threshold: Decimal
     goals_reserve_today: Decimal
     reserve_configured_today: Decimal
@@ -332,7 +344,9 @@ class MoneyLayersData(TypedDict):
 
 **Критичные детали**:
 - Вердикт-типов (`ok`/`dip`/`problem`) в контракте НЕТ — снят решением
-  владельца, `min_free` используется только маркером минимума на графике
+  владельца. `min_free`/`min_free_date`/`payments_end` удалены протоколом
+  0033 (без легаси): маркер минимума «Свободно» заменён узким местом,
+  `shortfall` — факт знака, не порог
 - `is_empty` != `window_is_flat`: первое — «нет данных вообще» (чистая
   база, пустое состояние вместо графика), второе — «данные есть, окно
   пустое» (график рисуется плоской стопкой)
