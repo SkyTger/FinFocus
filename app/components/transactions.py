@@ -67,6 +67,26 @@ def _is_system_transaction(tx) -> bool:
     return tx.transaction_type in SYSTEM_TRANSACTION_TYPES
 
 
+def _is_one_off_expense(tx) -> bool:
+    """Разовый расход (протокол 0034): EXPENSE вне серии.
+
+    Не шаблон серии (is_recurring) и не исключение серии
+    (recurring_parent_id) — тот же признак, что у модели слоёв и
+    календаря. Служебные операции и корректировки — не EXPENSE.
+
+    Args:
+        tx: Объект Transaction
+
+    Returns:
+        bool: True — разовый расход.
+    """
+    return (
+        tx.transaction_type == TransactionType.EXPENSE
+        and not tx.is_recurring
+        and tx.recurring_parent_id is None
+    )
+
+
 def _drop_system_ids(tx_ids: list[int]) -> list[int]:
     """Отсекает id служебных транзакций из bulk-выборки.
 
@@ -572,12 +592,17 @@ def _build_transactions_table(
             amount_class = "text-muted fw-bold text-end"
             amount_prefix = ""
 
-        # Иконка recurring
+        # Иконка recurring; у разовой траты на её месте — флажок (протокол 0034)
         recurring_icon = None
         if tx.is_recurring:
             recurring_icon = html.I(
                 className="bi bi-arrow-repeat text-success me-2",
                 title="Повторяющаяся операция",
+            )
+        elif _is_one_off_expense(tx):
+            recurring_icon = html.I(
+                className="bi bi-flag-fill tx-one-off-icon me-2",
+                title="Разовая трата",
             )
 
         # Категория: с иконкой или chips для некатегоризированных

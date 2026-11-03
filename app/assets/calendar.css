@@ -295,6 +295,11 @@
     background-color: var(--color-secondary);
 }
 
+/* Разовый расход (протокол 0034) — цвет разовых, как засечки щитка */
+.txn-dot.one-off {
+    background-color: var(--color-one-off);
+}
+
 /* Balance at bottom */
 .calendar-day-balance {
     font-size: 11px;
@@ -472,6 +477,13 @@
 .tooltip-txn-row.skipped {
     opacity: 0.5;
     text-decoration: line-through;
+}
+
+/* Разовый расход (протокол 0034): полоска слева цветом разовых.
+   inset box-shadow, а не border — строка не сдвигается */
+.tooltip-txn-row.one-off {
+    box-shadow: inset 3px 0 0 var(--color-one-off);
+    padding-left: 6px;
 }
 
 .tooltip-txn-icon {
