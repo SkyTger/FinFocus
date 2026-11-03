@@ -3,22 +3,28 @@
 from calendar import monthrange
 from collections.abc import Iterable
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal
+from typing import TYPE_CHECKING
 
 from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.schema.money_layers import (
     HORIZON_CAP_DAYS,
+    MAX_LIMIT_PERIODS,
     WINDOW_DAYS,
     MAX_MILESTONES_IN_WINDOW,
     DayLayers,
     GoalMilestone,
     Horizons,
+    LimitPeriod,
     MoneyLayersData,
     TodaySlice,
     UpcomingPayment,
 )
+
+if TYPE_CHECKING:
+    from app.models.database import Transaction
 
 
 # Типы операций, попадающих в слой «Платежи» на полную сумму
@@ -38,6 +44,18 @@ def _month_start(day: date) -> date:
         date: 1-е число того же месяца.
     """
     return day.replace(day=1)
+
+
+def _floor_rub(amount: Decimal) -> Decimal:
+    """Округление до рубля ВНИЗ — только для сравнения и показа.
+
+    Args:
+        amount: Сумма.
+
+    Returns:
+        Decimal: Целое число рублей не больше amount.
+    """
+    return amount.quantize(Decimal("1"), rounding=ROUND_DOWN)
 
 
 def _month_end(day: date) -> date:
@@ -237,10 +255,12 @@ class MoneyLayersService:
             )
 
         shortfall, shortfall_date = self._shortfall(available, horizon_dates, ref)
-        # Временно (шаг 1 протокола 0033): узкое место — день минимума
-        # available на [ref, H]; шаг 2 заменит на конец первого периода
-        bottleneck_date = shortfall_date
-        bottleneck_available = suffix_min.get(ref, Decimal("0"))
+        limit_periods = self._limit_periods(available, horizon_dates, horizons)
+        # Узкое место — конец первого периода лимита
+        bottleneck_date = limit_periods[0]["end"] if limit_periods else None
+        bottleneck_available = (
+            available[bottleneck_date] if bottleneck_date else Decimal("0")
+        )
 
         # Вехи целей — сбой деградирует fail-open
         try:
@@ -252,9 +272,9 @@ class MoneyLayersService:
             milestones = []
             degraded = True
 
-        starting_balance, has_recurring_templates = self._user_data_markers(user_id)
+        starting_balance, templates = self._user_data_markers(user_id)
         is_empty = self._is_empty(
-            days, savings_by_date, payments, has_recurring_templates, starting_balance
+            days, savings_by_date, payments, bool(templates), starting_balance
         )
         # «Плоское окно» — про ось, а не про удлинённый горизонт расчёта
         window_is_flat = (
@@ -268,12 +288,12 @@ class MoneyLayersService:
         return MoneyLayersData(
             days=days,
             today=self._today_slice(days),
-            limit_periods=[],
+            limit_periods=limit_periods,
             bottleneck_date=bottleneck_date,
             bottleneck_available=bottleneck_available,
             shortfall=shortfall,
             shortfall_date=shortfall_date,
-            norm_per_day=None,
+            norm_per_day=self._norm_per_day(templates, ref),
             upcoming_payments=payments,
             milestones=milestones,
             reference_date=ref,
@@ -866,19 +886,20 @@ class MoneyLayersService:
 
         return all(day["forecast_balance"] == 0 for day in days)
 
-    def _user_data_markers(self, user_id: int) -> tuple[Decimal, bool]:
-        """Начальный баланс и наличие recurring-шаблонов для _is_empty.
+    def _user_data_markers(self, user_id: int) -> tuple[Decimal, list["Transaction"]]:
+        """Начальный баланс и recurring-шаблоны — для _is_empty и нормы.
 
         Два лёгких запроса вместо count(transactions) по всей истории:
-        начальный баланс читается из пользователя, наличие шаблонов —
-        через RecurringService.get_templates_for_user.
+        начальный баланс читается из пользователя, шаблоны — через
+        RecurringService.get_templates_for_user (они же нужны норме
+        «по плану», второго запроса шаблонов нет).
 
         Args:
             user_id: ID пользователя.
 
         Returns:
-            tuple[Decimal, bool]: (starting_balance, есть ли шаблоны).
-                На отсутствующем пользователе — (Decimal("0"), False):
+            tuple[Decimal, list[Transaction]]: (starting_balance, шаблоны).
+                На отсутствующем пользователе — (Decimal("0"), []):
                 чистая база штатна, исключения не бросаем (FR-6).
         """
         from app.models.database import User
@@ -886,7 +907,172 @@ class MoneyLayersService:
 
         user = self.session.get(User, user_id)
         starting_balance = Decimal(user.starting_balance or 0) if user else Decimal("0")
-        has_templates = bool(
-            RecurringService(self.session).get_templates_for_user(user_id)
-        )
-        return starting_balance, has_templates
+        templates = RecurringService(self.session).get_templates_for_user(user_id)
+        return starting_balance, templates
+
+    def _limit_periods(
+        self,
+        available: dict[date, Decimal],
+        horizon_dates: list[date],
+        horizons: Horizons,
+    ) -> list[LimitPeriod]:
+        """Лимит трат на день по периодам — жадно от узкого места к узкому.
+
+        Алгоритм (plan.md протокола 0033, «Лимит по периодам»):
+
+            s = ref; spent = 0
+            пока s <= H и периодов < MAX_LIMIT_PERIODS:
+                L = min по t ∈ [s, H] от (available(t) − spent) / дней(s..t)
+                b = ПОСЛЕДНИЙ t, на котором достигается L
+                период (s, b, L); spent += L × дней(s..b); s = b + 1
+
+        Дни считаются ВКЛЮЧИТЕЛЬНО с обоих концов (3.11→19.11 = 17 дней).
+        Смысл: предполагается, что до узкого места тратишь ровно по
+        лимиту — следующее ограничение ищется уже от этого. Поэтому
+        лимит от периода к периоду только растёт (b — последний
+        минимизатор), а «получка» как сущность не нужна: периоды
+        выводятся из узких мест сами.
+
+        Сравнение отношений — перекрёстным умножением, без деления:
+        равенство при «последнем t» не должно зависеть от округления
+        Decimal. spent после периода равен available(b) ТОЧНО.
+
+        Правила:
+          * L < 0 (не хватает уже в первом периоде) — период один,
+            per_day = 0; глубину говорит нехватка (shortfall).
+          * Соседние периоды с равным per_day после округления до рубля
+            вниз и одинаковой надёжностью сливаются (конец — второго,
+            per_day — первого, он не больше).
+          * Период с end == H при horizon_has_income_after == False —
+            reliable = False: край расчёта без дохода за ним может быть
+            ложным узким местом.
+
+        Формула «низшая точка ÷ дни до неё» из ROADMAP п.10 — частный
+        случай и НЕ используется (контрпример — в тестах).
+
+        Args:
+            available: {день: balance − reserve того же дня} на [ref, H].
+            horizon_dates: Дни [ref, H] по возрастанию.
+            horizons: Границы модели (H и признак дохода за ним).
+
+        Returns:
+            list[LimitPeriod]: Периоды по порядку (1..MAX_LIMIT_PERIODS).
+        """
+        periods: list[LimitPeriod] = []
+        spent = Decimal("0")
+        start_index = 0
+
+        while start_index < len(horizon_dates) and len(periods) < MAX_LIMIT_PERIODS:
+            start = horizon_dates[start_index]
+            best_num: Decimal | None = None
+            best_den = 1
+            best_index = start_index
+            for index in range(start_index, len(horizon_dates)):
+                num = available[horizon_dates[index]] - spent
+                den = index - start_index + 1
+                # num/den <= best_num/best_den  ⇔  num·best_den <= best_num·den
+                if best_num is None or num * best_den <= best_num * den:
+                    best_num, best_den, best_index = num, den, index
+
+            end = horizon_dates[best_index]
+            reliable = not (
+                end == horizons.horizon_end and not horizons.horizon_has_income_after
+            )
+
+            if best_num < 0:
+                periods.append(
+                    LimitPeriod(
+                        start=start, end=end, per_day=Decimal("0"), reliable=reliable
+                    )
+                )
+                break
+
+            periods.append(
+                LimitPeriod(
+                    start=start,
+                    end=end,
+                    per_day=best_num / best_den,
+                    reliable=reliable,
+                )
+            )
+            spent = available[end]
+            start_index = best_index + 1
+
+        return self._merge_equal_periods(periods)
+
+    def _merge_equal_periods(self, periods: list[LimitPeriod]) -> list[LimitPeriod]:
+        """Сливает соседние периоды с равным лимитом (до рубля вниз).
+
+        Сливаются только периоды одинаковой надёжности: иначе надёжный
+        первый период растворился бы в ненадёжном и UI показал бы
+        предупреждение вместо известного числа.
+
+        Args:
+            periods: Периоды по порядку.
+
+        Returns:
+            list[LimitPeriod]: Периоды после слияния.
+        """
+        merged: list[LimitPeriod] = []
+        for period in periods:
+            if merged:
+                last = merged[-1]
+                same_rub = _floor_rub(last["per_day"]) == _floor_rub(period["per_day"])
+                if same_rub and last["reliable"] == period["reliable"]:
+                    merged[-1] = LimitPeriod(
+                        start=last["start"],
+                        end=period["end"],
+                        per_day=last["per_day"],
+                        reliable=last["reliable"],
+                    )
+                    continue
+            merged.append(period)
+        return merged
+
+    def _norm_per_day(
+        self, templates: list["Transaction"], reference_date: date
+    ) -> Decimal | None:
+        """Норма «по плану»: регулярные (доходы − расходы) месяца ÷ дней.
+
+        Считается по ШАБЛОНАМ повторения — виртуальным вхождениям в
+        календарный месяц reference_date, без учёта исключений: норма
+        говорит, сколько в день остаётся на жизнь ПО ПЛАНУ, и не
+        подстраивается под факт (зарплата пришла меньше — норма та же,
+        подпись в UI «по плану»; осознанный риск из решения консилиума).
+        Разовые операции не входят. Расходы — типы слоя «Платежи»
+        (expense и savings-операции: деньги на цели тоже не на жизнь).
+        Норма — не настройка.
+
+        Args:
+            templates: Recurring-шаблоны пользователя.
+            reference_date: Дата отсчёта — месяц нормы.
+
+        Returns:
+            Decimal | None: Норма в день; None — в месяце нет ни одного
+                вхождения регулярных операций.
+        """
+        from app.services.recurring_service import RecurringService
+
+        month_start = _month_start(reference_date)
+        month_end = _month_end(reference_date)
+        recurring = RecurringService(self.session)
+
+        net = Decimal("0")
+        occurrences = 0
+        for template in templates:
+            txn_type = template.transaction_type.value
+            if txn_type == "income":
+                sign = Decimal("1")
+            elif txn_type in _PAYMENT_TYPES:
+                sign = Decimal("-1")
+            else:
+                continue
+            for instance in recurring.generate_instances(
+                template, month_start, month_end
+            ):
+                net += sign * Decimal(instance["amount"])
+                occurrences += 1
+
+        if occurrences == 0:
+            return None
+        return net / Decimal(month_end.day)

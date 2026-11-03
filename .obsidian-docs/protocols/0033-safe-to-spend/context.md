@@ -1,9 +1,9 @@
 # Protocol Context: 0033-safe-to-spend
 
-- **Current Step**: 2
+- **Current Step**: 3
 - **Status**: In Progress
-- **Last Action**: Шаг 1 — модель слоёв на удлинённом горизонте (939 passed)
-- **Next Action**: Шаг 2 — лимит по периодам и норма
+- **Last Action**: Шаг 2 — лимит по периодам, узкое место, норма (950 passed)
+- **Next Action**: Шаг 3 — композитор и маркер узкого места
 - **Tech Stack**: `Python 3.12, Dash 2.17, SQLAlchemy, SQLite, pytest` (python)
 - **Git Branch**: `0033-safe-to-spend`
 - **Base Branch**: `main` (от неё отведена ветка, в неё вливается; `/protocol-review-merge` сверяет с главной веткой)
