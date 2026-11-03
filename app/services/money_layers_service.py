@@ -89,8 +89,11 @@ def bottleneck_marker(data: MoneyLayersData) -> BottleneckMarker:
     )
 
 
-def _floor_rub(amount: Decimal) -> Decimal:
+def floor_rub(amount: Decimal) -> Decimal:
     """Округление до рубля ВНИЗ — только для сравнения и показа.
+
+    Лимит нельзя показывать щедрее, чем он есть: и слияние периодов,
+    и шапка щитка округляют одним правилом.
 
     Args:
         amount: Сумма.
@@ -1060,7 +1063,7 @@ class MoneyLayersService:
         for period in periods:
             if merged:
                 last = merged[-1]
-                same_rub = _floor_rub(last["per_day"]) == _floor_rub(period["per_day"])
+                same_rub = floor_rub(last["per_day"]) == floor_rub(period["per_day"])
                 if same_rub and last["reliable"] == period["reliable"]:
                     merged[-1] = LimitPeriod(
                         start=last["start"],

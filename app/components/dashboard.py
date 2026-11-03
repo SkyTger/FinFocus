@@ -20,7 +20,7 @@ from loguru import logger
 
 from app.core.database import get_db_session
 from app.components.panel_cards import build_cards_row
-from app.services.money_layers_service import bottleneck_marker
+from app.services.money_layers_service import bottleneck_marker, floor_rub
 from app.services.panel_service import DashboardPanelService
 from app.services.onboarding_service import OnboardingService
 from app.schema.money_layers import (
@@ -190,10 +190,14 @@ def build_free_header(
     data: MoneyLayersData,
     profile: UserProfile,
 ) -> html.Div:
-    """Шапка «Свободно сегодня: N ₽» (FR-2, FR-5).
+    """Шапка «Свободно сегодня: N ₽» + «можно тратить» (FR-2, FR-5, протокол 0033).
 
     Состав слева: метка «Свободно сегодня», сумма (tabular-nums),
-    разбор «баланс {balance} − платежи {payments} − резерв {reserve}».
+    разбор «баланс {balance} − платежи {payments} − резерв {reserve}»,
+    блок лимита в день (_build_limit_block). AC-1 протокола 0028
+    переписан протоколом 0033: главная цифра остаётся today['free'],
+    но её смысл новый — сколько можно потратить сегодня разово и
+    пройти все дни прогноза без минуса; рядом встаёт лимит в день.
     Справа: аватар-эмодзи + имя, кнопка «Сверка»
     (id="open-recon-from-dashboard-header-btn"), шестерёнка
     (id="dashboard-settings-cog" → модал профиля).
@@ -206,7 +210,9 @@ def build_free_header(
     как мёртвый код вместе с элементом dashboard-greeting.
 
     Вердикта НЕТ (решение владельца п. 3а): ни чипа, ни сигнальной
-    шины, ни оценочной подписи, ни окраски суммы по уровню. Сумма
+    шины, ни оценочной подписи, ни окраски суммы по уровню. Частичный
+    пересмотр протоколом 0033: строка «Не хватает N ₽ до <дата>» — факт
+    знака числа (нехватка > 0), а не порог. Сумма
     рендерится нейтральным цветом текста; единственное исключение —
     отрицательное значение показывается в цвете риска, потому что
     это факт знака числа, а не оценка состояния.
@@ -250,6 +256,9 @@ def build_free_header(
         html.Div(format_rub(today["free"]), className=amount_class),
         html.Div(breakdown, className="pnl-breakdown"),
     ]
+    limit_block = _build_limit_block(data)
+    if limit_block is not None:
+        main_children.append(limit_block)
 
     if data["degraded"]:
         main_children.append(
@@ -266,6 +275,112 @@ def build_free_header(
         ],
         className="pnl-breaker",
     )
+
+
+LIMIT_HINT = "Предполагается, что до узкого места тратишь по лимиту; доходы — по плану"
+"""Подсказка блока лимита (title): на чём держится число."""
+
+
+def _per_day_text(amount: Decimal) -> str:
+    """«~815 ₽/день» — лимит округлён до рубля вниз, «~» перед ним.
+
+    Args:
+        amount: Лимит в день (Decimal без округления).
+
+    Returns:
+        str: Текст суммы в день.
+    """
+    return f"~{format_rub(floor_rub(amount))}/день"
+
+
+def _build_limit_block(data: MoneyLayersData) -> html.Div | None:
+    """Блок «можно тратить N ₽/день» под разбором шапки (протокол 0033).
+
+    Поправка владельца к решению консилиума: шапка содержит ОБЕ
+    величины — «Свободно сегодня» (сколько можно потратить разово и
+    пройти все дни без минуса) и лимит в день по периодам. Строки:
+
+    1. «Можно тратить ~N ₽/день до <конец первого периода>»;
+       первый период ненадёжен (край расчёта без дохода) —
+       «Можно тратить: нет доходов в прогнозе» вместо числа;
+       при нехватке — «Можно тратить 0 ₽/день».
+    2. «с <старт второго> — ~M ₽/день», если второй период есть и надёжен.
+    3. «на X ₽/день ниже нормы (по плану)» — только при надёжном
+       первом лимите ниже нормы (норма не None).
+    4. При нехватке — «Не хватает N ₽ до <дата>» в цвете риска: это
+       факт знака числа, не вердикт (п. 3а пересмотрен частично).
+
+    Подсказка title — на блоке целиком. Даты — format_date_human во
+    всех строках. Блок не дверь: ни ссылок, ни n_clicks.
+
+    Args:
+        data: Модель слоёв.
+
+    Returns:
+        html.Div | None: Блок лимита; None — периодов нет.
+    """
+    periods = data["limit_periods"]
+    if not periods:
+        return None
+
+    first = periods[0]
+    has_shortfall = data["shortfall"] > 0
+    lines: list = []
+
+    if has_shortfall:
+        lines.append(html.Div("Можно тратить 0 ₽/день", className="pnl-limit-main"))
+    elif not first["reliable"]:
+        lines.append(
+            html.Div(
+                "Можно тратить: нет доходов в прогнозе", className="pnl-limit-main"
+            )
+        )
+    else:
+        lines.append(
+            html.Div(
+                [
+                    "Можно тратить ",
+                    html.B(_per_day_text(first["per_day"]), className="pnl-money"),
+                    f" до {format_date_human(first['end'])}",
+                ],
+                className="pnl-limit-main",
+            )
+        )
+        if len(periods) > 1 and periods[1]["reliable"]:
+            second = periods[1]
+            lines.append(
+                html.Div(
+                    [
+                        f"с {format_date_human(second['start'])} — ",
+                        html.B(_per_day_text(second["per_day"]), className="pnl-money"),
+                    ],
+                    className="pnl-limit-sub",
+                )
+            )
+        norm = data["norm_per_day"]
+        if norm is not None and first["per_day"] < norm:
+            gap = floor_rub(norm - first["per_day"])
+            if gap > 0:
+                lines.append(
+                    html.Div(
+                        f"на {format_rub(gap)}/день ниже нормы (по плану)",
+                        className="pnl-limit-sub",
+                    )
+                )
+
+    if has_shortfall:
+        lines.append(
+            html.Div(
+                [
+                    "Не хватает ",
+                    html.B(format_rub(data["shortfall"]), className="pnl-money"),
+                    f" до {format_date_human(data['shortfall_date'])}",
+                ],
+                className="pnl-limit-sub pnl-negative",
+            )
+        )
+
+    return html.Div(lines, className="pnl-limit", title=LIMIT_HINT)
 
 
 def _axis_tickvals(window_dates: list[date]) -> list[date]:
@@ -335,9 +450,14 @@ def _build_payments_tooltip(data: MoneyLayersData) -> list:
     ]
 
     if not payments:
-        return [html.Div("До конца месяца платежей больше нет")]
+        return [html.Div("Платежей в прогнозе нет")]
 
-    rows: list = [html.Div("Ближайшие платежи до конца месяца:")]
+    rows: list = [
+        html.Div(
+            "Из сегодняшних денег не трогать, чтобы пройти до следующих "
+            "поступлений. Ближайшие платежи:"
+        )
+    ]
     for payment in payments[:MAX_TOOLTIP_PAYMENTS]:
         title = payment["description"] or payment["category_name"] or "Операция"
         prefix = "🔁 " if payment["is_recurring"] else ""
@@ -406,7 +526,12 @@ def _build_layer_legend(data: MoneyLayersData) -> html.Div:
         html.Div с классом pnl-legend.
     """
     tooltips = {
-        "free": [html.Div("Остаток минус платежи до конца месяца и резерв")],
+        "free": [
+            html.Div(
+                "Можно потратить сегодня и пройти все дни прогноза без минуса "
+                "(доходы — по плану)"
+            )
+        ],
         "payments": _build_payments_tooltip(data),
         "reserve": _build_reserve_tooltip(data),
     }

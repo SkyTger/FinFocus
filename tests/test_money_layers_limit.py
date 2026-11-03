@@ -379,6 +379,18 @@ class TestNormByPlan:
         assert data["norm_per_day"] == Decimal("70000") / Decimal(month_len(ref))
 
 
+def flat_texts(component) -> list[str]:
+    """Все строковые узлы дерева в порядке обхода."""
+    if isinstance(component, str):
+        return [component]
+    children = getattr(component, "children", None)
+    if children is None:
+        return []
+    if isinstance(children, (list, tuple)):
+        return [text for child in children for text in flat_texts(child)]
+    return flat_texts(children)
+
+
 def chart_figure(component):
     """Plotly figure единственного dcc.Graph в дереве компонента."""
     from dash import dcc
@@ -455,3 +467,37 @@ class TestBottleneckOnPanel:
         assert panel["layers"]["window_is_flat"] is True
         assert panel["calendar"]["dip_date"] is None
         assert [trace for trace in figure.data if trace.type == "scatter"] == []
+
+    def test_header_shows_free_and_limit_from_same_model(
+        self, db_session, service, user
+    ):
+        """Шапка «ноября»: свободно сегодня + «~823 ₽/день до 19-го» + «с 20-го».
+
+        Числа — из ручного расчёта сценария (14 000 / 17 = 823,5 → 823;
+        второй период 45 330 / (len − 15)). Нигде на щитке нет «0»
+        рядом с лимитом: свободно сегодня = min available = 10 000.
+        """
+        from app.components.dashboard import build_free_header
+        from app.services.panel_service import DashboardPanelService
+        from app.utils.formatters import format_date_human, format_rub
+
+        ref = date.today().replace(day=3)
+        build_november(db_session, user.id, ref, ref.replace(day=23))
+        panel = DashboardPanelService(db_session).get_panel_data(user.id, ref)
+
+        header = build_free_header(
+            panel["layers"], {"name": "Тест", "avatar_id": "cat"}
+        )
+        text = "".join(flat_texts(header))
+
+        second = int(Decimal("45330") / Decimal(month_len(ref) - 15))
+        assert panel["layers"]["today"]["free"] == Decimal("10000")
+        assert format_rub(Decimal("10000")) in text
+        assert (
+            f"Можно тратить ~823 ₽/день до {format_date_human(ref.replace(day=19))}"
+            in text
+        )
+        assert (
+            f"с {format_date_human(ref.replace(day=20))} — "
+            f"~{format_rub(Decimal(second))}/день"
+        ) in text

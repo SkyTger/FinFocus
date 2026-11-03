@@ -105,6 +105,21 @@ def make_payment(when: date, amount="1500", description="Интернет", recu
     }
 
 
+def period(start_offset, end_offset, per_day, reliable=True):
+    """LimitPeriod со смещениями от сегодняшнего дня."""
+    return {
+        "start": date.today() + timedelta(days=start_offset),
+        "end": date.today() + timedelta(days=end_offset),
+        "per_day": Decimal(per_day),
+        "reliable": reliable,
+    }
+
+
+def flat_text(component) -> str:
+    """Тексты дерева без разделителей — фразы из нескольких узлов целиком."""
+    return "".join(all_texts(component))
+
+
 def make_layers_data(**overrides):
     """MoneyLayersData для нормального наполненного окна.
 
@@ -175,14 +190,18 @@ class TestFreeHeader:
     """build_free_header: цифры, инварианты владельца, состояния."""
 
     def test_amount_matches_today_free_slice(self):
-        """AC-1: главная цифра шапки — значение free среза «сегодня»."""
-        data = make_layers_data()
+        """AC-1 (переписан протоколом 0033, не удалён): главная цифра шапки —
+        today['free'], по новой формуле — сколько можно потратить сегодня
+        разово и пройти все дни прогноза без минуса; рядом — лимит в день
+        (поправка владельца: в шапке ОБЕ величины)."""
+        data = make_layers_data(limit_periods=[period(0, 16, "815.6")])
 
         header = build_free_header(data, PROFILE)
 
-        text = joined_text(header)
+        text = flat_text(header)
         assert "Свободно сегодня" in text
         assert format_rub(Decimal("5000")) in text
+        assert "Можно тратить ~815 ₽/день до " in text
 
     def test_breakdown_shows_balance_payments_reserve(self):
         """Разбор шапки: баланс − платежи − резерв с цифрами модели."""
@@ -287,6 +306,136 @@ class TestFreeHeader:
         assert format_rub(Decimal("0")) not in text
         assert find_by_id(header, "open-recon-from-dashboard-empty-btn") is not None
         assert PROFILE["name"] in text
+
+
+class TestLimitBlock:
+    """Блок «можно тратить» в шапке (протокол 0033, plan.md «UI»)."""
+
+    @staticmethod
+    def limit_node(header):
+        """Единственный узел блока лимита."""
+        nodes = [
+            node
+            for node in iter_tree(header)
+            if getattr(node, "className", None) == "pnl-limit"
+        ]
+        assert len(nodes) == 1
+        return nodes[0]
+
+    def test_two_periods_two_lines(self):
+        """Строки (1)+(2): «до <конец первого>» и «с <старт второго>»."""
+        data = make_layers_data(
+            limit_periods=[period(0, 16, "815.6"), period(17, 31, "1451.9")]
+        )
+
+        text = flat_text(build_free_header(data, PROFILE))
+
+        first_end = format_date_human(date.today() + timedelta(days=16))
+        second_start = format_date_human(date.today() + timedelta(days=17))
+        assert f"Можно тратить ~815 ₽/день до {first_end}" in text
+        assert f"с {second_start} — ~1 451 ₽/день" in text
+
+    def test_merged_period_single_line(self):
+        """Слитые периоды — одна строка, без «с …»."""
+        data = make_layers_data(limit_periods=[period(0, 31, "1000.4")])
+
+        text = flat_text(build_free_header(data, PROFILE))
+
+        assert "Можно тратить ~1 000 ₽/день до " in text
+        assert " — ~" not in text
+
+    def test_unreliable_second_period_hidden(self):
+        """Ненадёжный второй период (край расчёта) не показывается."""
+        data = make_layers_data(
+            limit_periods=[period(0, 16, "815"), period(17, 89, "900", False)]
+        )
+
+        text = flat_text(build_free_header(data, PROFILE))
+
+        assert "~900" not in text
+        assert "Можно тратить ~815 ₽/день" in text
+
+    def test_norm_line_when_limit_below_norm(self):
+        """Строка (3): «на X ₽/день ниже нормы (по плану)»."""
+        data = make_layers_data(
+            limit_periods=[period(0, 16, "815.6")],
+            norm_per_day=Decimal("2541.2"),
+        )
+
+        text = flat_text(build_free_header(data, PROFILE))
+
+        assert f"на {format_rub(Decimal('1725'))}/день ниже нормы (по плану)" in text
+
+    def test_no_norm_line_when_limit_not_below_norm(self):
+        """Лимит ≥ нормы или нормы нет — строки нормы нет."""
+        for norm in (Decimal("800"), Decimal("815.6"), None):
+            data = make_layers_data(
+                limit_periods=[period(0, 16, "815.6")], norm_per_day=norm
+            )
+
+            text = flat_text(build_free_header(data, PROFILE))
+
+            assert "нормы" not in text, norm
+
+    def test_shortfall_line_in_risk_color(self):
+        """Строка (5): нехватка — «Не хватает N ₽ до <дата>», лимит 0 ₽/день."""
+        shortfall_date = date.today() + timedelta(days=7)
+        data = make_layers_data(
+            limit_periods=[period(0, 7, "0")],
+            shortfall=Decimal("6137"),
+            shortfall_date=shortfall_date,
+        )
+
+        header = build_free_header(data, PROFILE)
+        text = flat_text(header)
+
+        assert "Можно тратить 0 ₽/день" in text
+        assert (
+            f"Не хватает {format_rub(Decimal('6137'))} до "
+            f"{format_date_human(shortfall_date)}"
+        ) in text
+        risk = [
+            node
+            for node in iter_tree(header)
+            if "pnl-negative" in str(getattr(node, "className", ""))
+        ]
+        assert len(risk) == 1
+        assert "Не хватает" in flat_text(risk[0])
+
+    def test_unreliable_first_period_warning_instead_of_number(self):
+        """Строка (6): нет доходов в прогнозе — предупреждение, без числа."""
+        data = make_layers_data(limit_periods=[period(0, 89, "111.1", False)])
+
+        text = flat_text(build_free_header(data, PROFILE))
+
+        assert "нет доходов в прогнозе" in text
+        assert "~111" not in text
+
+    def test_hint_title_on_limit_block(self):
+        """Строка (7): подсказка — title блока лимита."""
+        data = make_layers_data(limit_periods=[period(0, 16, "815")])
+
+        node = self.limit_node(build_free_header(data, PROFILE))
+
+        assert node.title == (
+            "Предполагается, что до узкого места тратишь по лимиту; "
+            "доходы — по плану"
+        )
+
+    def test_no_limit_block_without_periods(self):
+        """Периодов нет — блока нет (шапка остаётся прежней)."""
+        text = flat_text(build_free_header(make_layers_data(), PROFILE))
+
+        assert "Можно тратить" not in text
+
+    def test_limit_block_is_not_a_door(self):
+        """Блок лимита не дверь: ни ссылок, ни кликов (FR-2.e)."""
+        data = make_layers_data(limit_periods=[period(0, 16, "815")])
+
+        node = self.limit_node(build_free_header(data, PROFILE))
+
+        assert find_instances(node, dcc.Link) == []
+        assert getattr(node, "n_clicks", None) in (None, 0)
 
 
 # ===========================================================================
@@ -562,7 +711,8 @@ class TestLegendAndTooltips:
         rows = _build_payments_tooltip(data)
 
         text = joined_text(html.Div(rows))
-        assert "Ближайшие платежи до конца месяца" in text
+        assert "чтобы пройти до следующих поступлений" in text
+        assert "конца месяца" not in text
         first, second = data["upcoming_payments"]
         assert first["description"] in text
         assert format_date_human(first["date"]) in text
@@ -570,9 +720,8 @@ class TestLegendAndTooltips:
         assert f"🔁 {second['description']}" in text
 
     def test_payments_tooltip_respects_month_boundary(self):
-        """Платёж за горизонтом расчёта в тултип не попадает (шаг 1
-        протокола 0033: граница — horizon_end вместо конца месяца;
-        подписи «до конца месяца» переписывает шаг 4)."""
+        """Платёж за горизонтом расчёта в тултип не попадает (протокол
+        0033: граница — horizon_end вместо конца месяца, C-5 отменён)."""
         data = make_layers_data()
         data["upcoming_payments"] = [
             make_payment(data["horizon_end"] + timedelta(days=1), description="Чужой")
@@ -582,7 +731,7 @@ class TestLegendAndTooltips:
 
         text = joined_text(html.Div(rows))
         assert "Чужой" not in text
-        assert "До конца месяца платежей больше нет" in text
+        assert "Платежей в прогнозе нет" in text
 
     def test_payments_tooltip_overflow_counter(self):
         """Больше MAX_TOOLTIP_PAYMENTS платежей → счётчик «…и ещё N»."""
